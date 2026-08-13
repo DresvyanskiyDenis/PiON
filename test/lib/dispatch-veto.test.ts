@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { denyWithEscapeHatch } from "../../extensions/lib/escape-hatch.ts";
+import * as dispatchVeto from "../../extensions/lib/dispatch-veto.ts";
 import {
   dispatchVetoes,
-  EGRESS_RANK,
-  egressAllows,
   evaluateDispatch,
   registerDispatchVeto,
   resetDispatchVetoes,
@@ -18,24 +17,28 @@ const req = (over: Partial<DispatchRequest> = {}): DispatchRequest => ({
   ...over,
 });
 
-describe("egressAllows", () => {
-  it("a confidential session may not dispatch onto a public provider", () => {
-    assert.equal(egressAllows("confidential", "public"), false);
-    assert.equal(egressAllows("confidential", "internal"), false);
-    assert.equal(egressAllows("confidential", "confidential"), true);
+/**
+ * WITHDRAWN 2026-08-13. This module used to export `EGRESS_RANK` (an ordering over the three egress
+ * classes) and `egressAllows()` (the predicate built on it), which together let a session be refused
+ * a provider classed "looser" than itself. Three tests here asserted that ordering.
+ *
+ * The rule was withdrawn because it refused far more than it protected: with most providers classed
+ * looser than the session, most agents became undispatchable and changing provider inside a session
+ * was impossible. The class survives as a reporting label only — which means there must be no
+ * ordering left for anything to compare against. These two tests are the guard that nobody
+ * reintroduces one, and they replace the three that asserted it.
+ */
+describe("egress classes are labels, not a lattice", () => {
+  it("exports no rank table and no containment predicate", () => {
+    const surface = dispatchVeto as unknown as Record<string, unknown>;
+    assert.equal(surface.EGRESS_RANK, undefined, "an ordering over the classes is the withdrawn rule");
+    assert.equal(surface.egressAllows, undefined, "the containment predicate is the withdrawn rule");
   });
 
-  it("a less restricted session may dispatch onto a more restricted provider", () => {
-    assert.equal(egressAllows("public", "confidential"), true);
-    assert.equal(egressAllows("internal", "confidential"), true);
-    assert.equal(egressAllows("internal", "public"), false);
-    assert.equal(egressAllows("public", "public"), true);
-  });
-
-  it("the ranks match config/routing.json's egress vocabulary", () => {
-    assert.deepEqual(Object.keys(EGRESS_RANK).sort(), ["confidential", "internal", "public"]);
-    assert.ok(EGRESS_RANK.confidential < EGRESS_RANK.internal);
-    assert.ok(EGRESS_RANK.internal < EGRESS_RANK.public);
+  it("still carries the class on a request, for reporting", () => {
+    const r = req({ parentEgress: "confidential", childEgress: "public" });
+    assert.equal(r.parentEgress, "confidential");
+    assert.equal(r.childEgress, "public");
   });
 });
 
@@ -133,14 +136,14 @@ describe("evaluateDispatch", () => {
       },
     });
     registerDispatchVeto({
-      id: "DV-EGRESS",
+      id: "DV-PROVIDER",
       evaluate: (r) =>
-        r.parentEgress && r.childEgress && !egressAllows(r.parentEgress, r.childEgress)
+        r.childProvider === "forbidden-provider"
           ? {
               veto: true,
               denial: {
-                gateId: "DV-EGRESS",
-                what: `a ${r.parentEgress} session may not dispatch onto a ${r.childEgress} provider`,
+                gateId: "DV-PROVIDER",
+                what: `the provider "${r.childProvider}" is not configured`,
                 overridable: false,
               },
             }
@@ -148,14 +151,15 @@ describe("evaluateDispatch", () => {
     });
 
     const blocked = await evaluateDispatch(
-      req({ parentEgress: "confidential", childEgress: "public", childProvider: "github-copilot" }),
+      req({ parentEgress: "confidential", childEgress: "public", childProvider: "forbidden-provider" }),
       () => {},
     );
     assert.equal(blocked.veto, true);
     if (blocked.veto) assert.equal(blocked.denial.overridable, false);
 
+    // The same pair of classes that the withdrawn containment rule refused: no veto looks at them.
     const fine = await evaluateDispatch(
-      req({ parentEgress: "confidential", childEgress: "confidential" }),
+      req({ parentEgress: "confidential", childEgress: "public", childProvider: "github-copilot" }),
       () => {},
     );
     assert.deepEqual(fine, { veto: false });

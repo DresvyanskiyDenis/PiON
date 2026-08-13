@@ -63,13 +63,9 @@ function loadRegistry(): AgentRegistry {
     dirs: agentDirs,
     routing: settings.routing,
     config: DEFAULT_DISPATCH_CONFIG,
-    // "public" is the LEAST restrictive session class (egressAllows requires the provider's class to be
-    // no more sensitive than the session's own — a "confidential" session may NOT dispatch onto a public
-    // provider, the opposite of what "most permissive" would suggest). Every tier these files use
-    // (strong/fast) resolves to a github-copilot model, whose routing egress is "public", so "public"
-    // is the session class that lets every file resolve to status "ok" here. This test asserts the
-    // FILES are well-formed, not egress policy.
-    sessionEgress: "public",
+    // No session egress class is passed, because the loader no longer takes one: egress containment
+    // was withdrawn on 2026-08-13, so a file's verdict no longer depends on who is asking. This test
+    // always meant to assert the FILES are well-formed, which is now the only thing it can assert.
   });
 }
 

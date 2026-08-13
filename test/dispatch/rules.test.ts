@@ -28,21 +28,24 @@ const AGENTS: readonly AgentFile[] = [
     ].join("\n"),
   },
   { name: "typo", frontmatter: "name: typo\ndescription: Names a tier that does not exist anywhere.\nmodel: tier:nope" },
+  // ALL_MODELS omits the local lane, so this one loads `restricted`: the file is fine, nothing is
+  // serving its model. That is the only remaining producer of `restricted`.
+  { name: "offline", frontmatter: "name: offline\ndescription: Runs on the local lane when llama-swap is up.\nmodel: local" },
 ];
 
-function registryOf(sessionEgress: EgressClass): AgentRegistry {
+function registryOf(): AgentRegistry {
   const dir = writeAgents(join(scratch(), "agents"), AGENTS);
   return loadAgentRegistry({
     dirs: [dir],
     routing: ROUTING,
     config: CONFIG,
-    sessionEgress,
     availableModels: ALL_MODELS,
   });
 }
 
 interface StateOpts {
   readonly depth?: number;
+  /** Reporting only since 2026-08-13 — it selects no rule and hides no model. */
   readonly sessionEgress?: EgressClass;
   readonly withRouting?: boolean;
   readonly withRegistry?: boolean;
@@ -60,7 +63,7 @@ function stateOf(opts: StateOpts = {}): State {
       problems: opts.withRouting === false ? ["routing.json not found; DISPATCH IS REFUSED"] : [],
       sources: { dispatch: "<test>/dispatch.json", routing: "<test>/routing.json" },
     },
-    ...(opts.withRegistry === false ? {} : { registry: registryOf(sessionEgress) }),
+    ...(opts.withRegistry === false ? {} : { registry: registryOf() }),
     sessionEgress,
     egressSource: "test",
     depth: opts.depth ?? 0,
@@ -93,7 +96,10 @@ describe("rule set shape", () => {
   it("refuses before it rewrites", () => {
     assert.deepEqual(
       rules(stateOf()).map((r) => r.id),
-      ["DSP-READY", "DSP-DEPTH", "DSP-EGRESS", "DSP-CONTRACT", "DSP-AGENT", "DSP-RESOLVE"],
+      // DSP-EGRESS sat between DSP-DEPTH and DSP-CONTRACT until 2026-08-13; it refused a call-time
+      // `model` override whose provider was classed looser than the session, which is exactly the
+      // switch a session has to be able to make. Withdrawn whole.
+      ["DSP-READY", "DSP-DEPTH", "DSP-CONTRACT", "DSP-AGENT", "DSP-RESOLVE"],
     );
   });
 
@@ -148,36 +154,63 @@ describe("DSP-DEPTH (VP-01)", () => {
   });
 });
 
-describe("DSP-EGRESS (call-time model override)", () => {
-  it("ACCEPTANCE: a confidential session cannot dispatch a child onto a public provider", async () => {
-    const blocked = await run(
-      rules(stateOf({ sessionEgress: "confidential" })),
-      eventOf("subagent", { agent: "scout", prompt: "x", model: "strong" }),
-    );
-    assert.equal(blocked?.ruleId, "DSP-EGRESS");
-    assert.match(blocked?.reason ?? "", /github-copilot\/claude-opus-5/);
-    assert.match(blocked?.reason ?? "", /a confidential session may not dispatch onto a public provider/);
+/**
+ * WITHDRAWN 2026-08-13. `DSP-EGRESS` refused a call-time `model` override whose provider was classed
+ * looser than the session. Three tests here asserted those refusals; the first two are inverted
+ * below into the behaviour that was actually wanted — switch provider inside one session — and the
+ * third (an override to a stricter class) survives unchanged, because it always passed.
+ */
+describe("call-time model override across egress classes (DSP-EGRESS withdrawn)", () => {
+  it("ACCEPTANCE: a confidential session CAN dispatch a child onto a public provider", async () => {
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "strong" };
+    assert.equal(await run(rules(stateOf({ sessionEgress: "confidential" })), eventOf("subagent", input)), undefined);
+    // 2026-08-13: `strong` declares thinkingLevel: "high", which now rides along on resolution.
+    // Used to assert the bare id.
+    assert.equal(input.model, "github-copilot/claude-opus-5:high", "and it is resolved to provider/id");
   });
 
-  it("blocks a literal provider/id override just as it blocks a tier name", async () => {
-    const blocked = await run(
-      rules(stateOf({ sessionEgress: "internal" })),
-      eventOf("subagent", { agent: "scout", prompt: "x", model: "openai/gpt-5.4" }),
-    );
-    assert.equal(blocked?.ruleId, "DSP-EGRESS");
+  it("accepts a literal provider/id override across classes, just as it accepts a tier name", async () => {
+    // `github-copilot` is classed `public`, looser than this `internal` session, and its id is in
+    // the fixture registry — so existence is satisfied and only the class could have refused it.
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4" };
+    assert.equal(await run(rules(stateOf({ sessionEgress: "internal" })), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "github-copilot/gpt-5.4");
   });
 
   it("lets an override to a stricter class through", async () => {
     const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "confidential" };
     assert.equal(await run(rules(stateOf({ sessionEgress: "public" })), eventOf("subagent", input)), undefined);
-    assert.equal(input.model, "databricks/databricks-claude-sonnet-4-5", "and it is resolved to provider/id");
+    // 2026-08-13: `confidential` declares thinkingLevel: "medium", which now rides along on
+    // resolution. Used to assert the bare id.
+    assert.equal(input.model, "databricks/databricks-claude-sonnet-4-5:medium", "and it is resolved to provider/id");
+  });
+
+  it("REGRESSION: one session dispatches onto every class in turn, labelled or not", async () => {
+    // The complaint that ended the rule, as one test: a session classed `internal` fans out to a
+    // public provider, an unclassed one and the confidential one without a single refusal.
+    //
+    // 2026-08-13: the first two rows go through a TIER lookup, so `strong`'s and `cheap`'s declared
+    // thinkingLevel now rides along; the last two rows are literal provider/id overrides, which
+    // never carry a tier's thinkingLevel (see `applyTierThinkingLevel` in `tiers.ts`), so they still
+    // resolve to themselves unchanged. Used to assert the bare id on the first two rows.
+    const state = stateOf({ sessionEgress: "internal" });
+    for (const [model, resolved] of [
+      ["strong", "github-copilot/claude-opus-5:high"],
+      ["cheap", "databricks/databricks-claude-haiku-4-5:low"],
+      ["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash"],
+      ["databricks/databricks-claude-sonnet-4-5", "databricks/databricks-claude-sonnet-4-5"],
+    ] as const) {
+      const input: Record<string, unknown> = { agent: "scout", prompt: "x", model };
+      assert.equal(await run(rules(state), eventOf("subagent", input)), undefined, model);
+      assert.equal(input.model, resolved, model);
+    }
   });
 });
 
 /**
- * The owner's requirement: the orchestrating model picks the sub-agent's model per dispatch, by
- * concrete `provider/id`, to spend credits deliberately. These tests fix the two halves of that —
- * it must WORK, and it must not have become a way around the gate a tier name has to pass.
+ * The requirement this whole rule set exists for: the orchestrating model picks the sub-agent's
+ * model per dispatch, by concrete `provider/id`, to spend credits deliberately. These tests fix the
+ * two halves of that — it must WORK, and it must stay equivalent to naming the tier.
  */
 describe("call-time provider/id selection", () => {
   it("accepts a concrete provider/id and passes it through untouched", async () => {
@@ -189,10 +222,18 @@ describe("call-time provider/id selection", () => {
   it("REQ-PRV-09: an explicit per-call model wins over the agent file's own", async () => {
     const byFile: Record<string, unknown> = { agent: "big", prompt: "x" };
     await run(rules(stateOf()), eventOf("subagent", byFile));
-    assert.equal(byFile.model, "github-copilot/claude-opus-5", "frontmatter `model: strong` still applies when nothing is passed");
+    // 2026-08-13: `strong` declares thinkingLevel: "high", which now rides along on resolution.
+    // Used to assert the bare id.
+    assert.equal(
+      byFile.model,
+      "github-copilot/claude-opus-5:high",
+      "frontmatter `model: strong` still applies when nothing is passed",
+    );
 
     const byCall: Record<string, unknown> = { agent: "big", prompt: "x", model: "databricks/databricks-claude-haiku-4-5" };
     assert.equal(await run(rules(stateOf()), eventOf("subagent", byCall)), undefined);
+    // Unchanged: a literal `provider/id` on the call is not a tier lookup, so it never picks up a
+    // tier's thinkingLevel — it passes through exactly as written.
     assert.equal(
       byCall.model,
       "databricks/databricks-claude-haiku-4-5",
@@ -203,32 +244,46 @@ describe("call-time provider/id selection", () => {
   it("mixes the two spellings freely: a tier on one call, an id on the next", async () => {
     const byTier: Record<string, unknown> = { agent: "scout", prompt: "x", model: "strong" };
     await run(rules(stateOf()), eventOf("subagent", byTier));
-    assert.equal(byTier.model, "github-copilot/claude-opus-5");
+    // 2026-08-13: `strong` declares thinkingLevel: "high". Used to assert the bare id.
+    assert.equal(byTier.model, "github-copilot/claude-opus-5:high");
 
     const byId: Record<string, unknown> = { agent: "scout", prompt: "x", model: "databricks/databricks-claude-sonnet-4-5" };
     await run(rules(stateOf()), eventOf("subagent", byId));
     assert.equal(byId.model, "databricks/databricks-claude-sonnet-4-5");
   });
 
-  it("ACCEPTANCE: a concrete provider/id cannot walk around the egress gate a tier has to pass", async () => {
-    // Same model, two spellings, one confidential session. Both must be refused, by the same gate,
-    // for the same reason — otherwise "name the id instead of the tier" is an egress bypass.
-    for (const model of ["strong", "github-copilot/claude-opus-5"]) {
-      const input: Record<string, unknown> = { agent: "scout", prompt: "x", model };
-      const blocked = await run(rules(stateOf({ sessionEgress: "confidential" })), eventOf("subagent", input));
-      assert.equal(blocked?.ruleId, "DSP-EGRESS", model);
-      assert.match(blocked?.reason ?? "", /may not dispatch onto a public provider/, model);
-      assert.equal(input.model, model, `${model}: a blocked call must not have been rewritten first`);
-    }
+  /**
+   * WITHDRAWN 2026-08-13. These two used to assert that the withdrawn egress gate could not be
+   * walked around: the same model named as a tier and named as an id was refused both ways, and so
+   * was every other id of the same "forbidden" provider. There is no gate to walk around now, so
+   * the assertions are inverted — the two spellings stay EQUIVALENT, which is the property that
+   * actually mattered, and every id of a provider stays reachable rather than only the tier targets.
+   *
+   * One caveat the withdrawal exposed: a tier and the bare id it points at are no longer
+   * byte-identical on the wire. `strong` declares `thinkingLevel: "high"`, so resolving BY TIER
+   * carries that effort into the model string (`applyTierThinkingLevel` in `tiers.ts`) while typing
+   * the id it resolves to does not. A tier is shorthand for "this id AND this effort"; a literal id
+   * is just the id. Both are accepted, and both name the same provider and id.
+   */
+  it("ACCEPTANCE: a tier and the concrete id it resolves to are accepted alike; effort is tier-only", async () => {
+    const byTier: Record<string, unknown> = { agent: "scout", prompt: "x", model: "strong" };
+    assert.equal(await run(rules(stateOf({ sessionEgress: "confidential" })), eventOf("subagent", byTier)), undefined);
+    assert.equal(byTier.model, "github-copilot/claude-opus-5:high", "the tier's declared effort rides along");
+
+    const byId: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/claude-opus-5" };
+    assert.equal(await run(rules(stateOf({ sessionEgress: "confidential" })), eventOf("subagent", byId)), undefined);
+    assert.equal(byId.model, "github-copilot/claude-opus-5", "the literal id carries no effort of its own");
   });
 
-  it("ACCEPTANCE: the egress refusal holds for every model of a forbidden provider, not just the tier targets", async () => {
+  it("ACCEPTANCE: every id of a provider is reachable, not just the ones a tier points at", async () => {
     for (const model of ["github-copilot/gpt-5.4-mini", "github-copilot/claude-sonnet-4.6"]) {
-      const blocked = await run(
-        rules(stateOf({ sessionEgress: "internal" })),
-        eventOf("subagent", { agent: "scout", prompt: "x", model }),
+      const input: Record<string, unknown> = { agent: "scout", prompt: "x", model };
+      assert.equal(
+        await run(rules(stateOf({ sessionEgress: "internal" })), eventOf("subagent", input)),
+        undefined,
+        model,
       );
-      assert.equal(blocked?.ruleId, "DSP-EGRESS", model);
+      assert.equal(input.model, model, model);
     }
   });
 
@@ -238,16 +293,20 @@ describe("call-time provider/id selection", () => {
     assert.equal(input.model, "databricks/databricks-claude-sonnet-4-5");
   });
 
-  it("DOCUMENTED LIMIT: a per-call model does not resurrect an agent the session may not dispatch at all", async () => {
-    // `big` is `model: strong` -> github-copilot -> public, so an internal session classes it
-    // `restricted` at load time and it is absent from the capability ceiling's allowedAgents.
-    // A per-call model that WOULD be permitted still cannot lift that: the ceiling is registered
-    // once per session and cannot be narrowed or widened per call, so letting this through here
-    // would only move the same refusal into `pi-subagents`' preflight, minutes later and with a
-    // worse message. Refusing by name at the call site is the honest behaviour, not an oversight.
+  /**
+   * Rewritten 2026-08-13. The limit is real and stays, but its *trigger* changed: `big` used to be
+   * `restricted` because an internal session could not reach github-copilot. Nothing is restricted
+   * by class now, so the trigger is the surviving one — an agent whose model is not being served.
+   */
+  it("DOCUMENTED LIMIT: a per-call model does not resurrect an agent the ceiling already excluded", async () => {
+    // `offline` is `model: local`, and ALL_MODELS omits the local lane, so it is `restricted` at
+    // load time and absent from the capability ceiling's allowedAgents. A per-call model that WOULD
+    // work cannot lift that: the ceiling is registered once per session and cannot be widened per
+    // call, so letting this through would only move the same refusal into `pi-subagents`' preflight,
+    // minutes later and with a worse message.
     const blocked = await run(
-      rules(stateOf({ sessionEgress: "internal" })),
-      eventOf("subagent", { agent: "big", prompt: "x", model: "databricks/databricks-claude-sonnet-4-5" }),
+      rules(stateOf()),
+      eventOf("subagent", { agent: "offline", prompt: "x", model: "databricks/databricks-claude-sonnet-4-5" }),
     );
     assert.equal(blocked?.ruleId, "DSP-AGENT");
     assert.match(blocked?.reason ?? "", /A per-call `model` cannot lift this/);
@@ -308,13 +367,24 @@ describe("DSP-AGENT", () => {
     assert.match(blocked?.reason ?? "", /Fix .*typo\.md, or dispatch a different agent/);
   });
 
-  it("refuses an agent outside the session's egress class with the other advice", async () => {
-    const blocked = await run(
-      rules(stateOf({ sessionEgress: "internal" })),
-      eventOf("subagent", { agent: "big", prompt: "x" }),
-    );
+  /**
+   * Rewritten 2026-08-13. This used to dispatch `big` from an `internal` session and expect a
+   * refusal reading "Dispatch an agent whose own model stays within this internal session". Both
+   * halves changed: `big` now dispatches, and the "other advice" branch belongs to the one
+   * surviving `restricted` cause.
+   */
+  it("does NOT refuse an agent whose provider is classed looser than the session", async () => {
+    const input: Record<string, unknown> = { agent: "big", prompt: "x" };
+    assert.equal(await run(rules(stateOf({ sessionEgress: "internal" })), eventOf("subagent", input)), undefined);
+    // 2026-08-13: `strong` declares thinkingLevel: "high", which now rides along on resolution.
+    // Used to assert the bare id.
+    assert.equal(input.model, "github-copilot/claude-opus-5:high");
+  });
+
+  it("refuses an agent whose model is not being served, with the other advice", async () => {
+    const blocked = await run(rules(stateOf()), eventOf("subagent", { agent: "offline", prompt: "x" }));
     assert.equal(blocked?.ruleId, "DSP-AGENT");
-    assert.match(blocked?.reason ?? "", /Dispatch an agent whose own model stays within this internal session/);
+    assert.match(blocked?.reason ?? "", /Start the backend that serves its model/);
   });
 
   it("does not block a name we do not own - the package has builtins of its own", async () => {
@@ -336,7 +406,9 @@ describe("DSP-RESOLVE", () => {
   it("rewrites the agent's tier to a provider-qualified model", async () => {
     const input: Record<string, unknown> = { agent: "scout", prompt: "x" };
     assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
-    assert.equal(input.model, "databricks/databricks-claude-haiku-4-5");
+    // 2026-08-13: `cheap` declares thinkingLevel: "low", which now rides along on resolution.
+    // Used to assert the bare id.
+    assert.equal(input.model, "databricks/databricks-claude-haiku-4-5:low");
   });
 
   it("does NOT write routing.json's thinkingLevel onto the call", async () => {
@@ -356,7 +428,13 @@ describe("DSP-RESOLVE", () => {
     const input: Record<string, unknown> = { model: "local", prompt: "x", tasks: [1, 2, 3], concurrency: 3 };
     assert.equal(await run(rules(stateOf({ sessionEgress: "confidential" })), eventOf("subagent", input)), undefined);
     assert.equal(input.concurrency, 1);
-    assert.equal(input.model, "local/unsloth/Qwen3.6-35B-A3B-MTP-GGUF", "provider is the FIRST segment; the id keeps its own slash");
+    // 2026-08-13: `local` declares thinkingLevel: "medium", appended after the id's own slash.
+    // Used to assert the bare id.
+    assert.equal(
+      input.model,
+      "local/unsloth/Qwen3.6-35B-A3B-MTP-GGUF:medium",
+      "provider is the FIRST segment; the id keeps its own slash",
+    );
   });
 
   it("never raises a fanout the caller deliberately kept small", async () => {
@@ -370,7 +448,9 @@ describe("DSP-RESOLVE", () => {
     const input: Record<string, unknown> = { agent: "surgeon", prompt: "refactor" };
     assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
     assert.equal(input.worktree, true);
-    assert.equal(input.model, "databricks/databricks-claude-haiku-4-5");
+    // 2026-08-13: `cheap` declares thinkingLevel: "low", which now rides along on resolution.
+    // Used to assert the bare id.
+    assert.equal(input.model, "databricks/databricks-claude-haiku-4-5:low");
   });
 
   it("refuses rather than running a worktree agent in the user's checkout", async () => {
@@ -404,21 +484,31 @@ describe("DSP-RESOLVE", () => {
       { name: "ghost", frontmatter: "name: ghost\ndescription: Pins a model id that does not exist anywhere.\nmodel: github-copilot/gpt-5.1" },
     ]);
     const state = stateOf();
-    state.registry = loadAgentRegistry({ dirs: [dir], routing: ROUTING, config: CONFIG, sessionEgress: "public" });
+    state.registry = loadAgentRegistry({ dirs: [dir], routing: ROUTING, config: CONFIG });
     const blocked = await run(rules(state), eventOf("subagent", { agent: "ghost", prompt: "x" }));
     assert.equal(blocked?.ruleId, "DSP-RESOLVE");
     assert.match(blocked?.reason ?? "", /came from the `model:` frontmatter of agent "ghost"/);
     assert.match(blocked?.reason ?? "", /ghost\.md/);
   });
 
-  it("refuses a provider the routing map does not classify, rather than guessing its egress", async () => {
+  /**
+   * WITHDRAWN 2026-08-13. This asserted that a provider `routing.json` does not classify was refused
+   * outright ("no defensible answer to may this session's data go there"). That is egress
+   * containment in another costume: an unclassed provider is now unlabelled, not forbidden.
+   */
+  it("dispatches onto a provider the routing map does not classify, leaving it unlabelled", async () => {
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "deepseek/deepseek-v4-flash" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "deepseek/deepseek-v4-flash");
+  });
+
+  it("still refuses an UNKNOWN model on an unclassed provider — existence is the surviving gate", async () => {
     const blocked = await run(
       rules(stateOf()),
-      eventOf("subagent", { agent: "scout", prompt: "x", model: "deepseek/deepseek-v4-flash" }),
+      eventOf("subagent", { agent: "scout", prompt: "x", model: "deepseek/deepseek-v9-imaginary" }),
     );
     assert.equal(blocked?.ruleId, "DSP-RESOLVE");
-    assert.match(blocked?.reason ?? "", /no declared egress class in routing\.json/);
-    assert.match(blocked?.reason ?? "", /classed providers: github-copilot, openai, databricks, local/);
+    assert.match(blocked?.reason ?? "", /unknown_model/);
   });
 
   it("does not assert existence when the model registry was unavailable at session start", async () => {
@@ -431,7 +521,9 @@ describe("DSP-RESOLVE", () => {
     for (const tool of CONFIG.dispatchTools) {
       const input: Record<string, unknown> = { agent: "scout", prompt: "x" };
       assert.equal(await run(rules(stateOf()), eventOf(tool, input)), undefined, tool);
-      assert.equal(input.model, "databricks/databricks-claude-haiku-4-5", tool);
+      // 2026-08-13: `cheap` declares thinkingLevel: "low", which now rides along on resolution.
+      // Used to assert the bare id.
+      assert.equal(input.model, "databricks/databricks-claude-haiku-4-5:low", tool);
     }
   });
 });

@@ -8,10 +8,9 @@ import {
   parseFrontmatter,
   renderRegistry,
 } from "../../extensions/dispatch/registry.ts";
-import type { EgressClass } from "../../extensions/lib/dispatch-veto.ts";
 import { ALL_MODELS, CONFIG, GOOD_SCOUT, ROUTING, scratch, writeAgents, type AgentFile } from "./helpers.ts";
 
-function load(files: readonly AgentFile[], sessionEgress: EgressClass = "public") {
+function load(files: readonly AgentFile[]) {
   const dir = writeAgents(join(scratch(), "agents"), files);
   return {
     dir,
@@ -19,7 +18,6 @@ function load(files: readonly AgentFile[], sessionEgress: EgressClass = "public"
       dirs: [dir],
       routing: ROUTING,
       config: CONFIG,
-      sessionEgress,
       availableModels: ALL_MODELS,
     }),
   };
@@ -48,7 +46,10 @@ describe("loadAgentRegistry", () => {
     assert.deepEqual(registry.problems, []);
     const scout = registry.byName.get("scout");
     assert.equal(scout?.status, "ok");
-    assert.equal(scout?.target?.model, "databricks/databricks-claude-haiku-4-5");
+    // 2026-08-13: `cheap` declares `thinkingLevel: "low"`, and the field now has an effect —
+    // `resolveTier` appends `:low` to the model string, the only place PI reads a child's effort
+    // from. This is the correct expectation now, not the bare id. Used to assert the bare id.
+    assert.equal(scout?.target?.model, "databricks/databricks-claude-haiku-4-5:low");
     assert.equal(scout?.contract.mode, "subagent");
     assert.deepEqual(scout?.tools, ["read", "grep"]);
     assert.deepEqual(dispatchableNames(registry), ["scout"]);
@@ -124,56 +125,42 @@ describe("loadAgentRegistry", () => {
     // ALL_MODELS deliberately omits local/qwen3.6-35b: llama-swap is not always running.
     const { registry } = load([
       { name: "offline", frontmatter: "name: offline\ndescription: Runs on the local lane when it is up.\nmodel: local" },
-    ], "confidential");
+    ]);
     const agent = registry.byName.get("offline");
     assert.equal(agent?.status, "restricted");
     assert.match(agent?.problem ?? "", /runtime condition, not a file error/);
     assert.deepEqual(dispatchableNames(registry), []);
   });
 
-  // The plan's second acceptance criterion: egress containment.
-  it("ACCEPTANCE: a confidential session cannot dispatch an agent pinned to a public provider", () => {
-    // `scout`'s own `cheap` tier is `databricks` (confidential) now, so it no longer doubles as an
-    // "internal is also out of bounds" example the way it did when `cheap` was litellm — that
-    // provider is deleted from config/routing.json and nothing replaced it in the `internal` class.
-    // `internal-agent` below is pinned, via a synthetic routing fixture built just for this test,
-    // to a provider explicitly classed `internal` so that containment path stays exercised even
-    // though no shipped provider is `internal` any more.
-    const internalRouting = {
-      ...ROUTING,
-      egress: { ...ROUTING.egress, "test-internal-provider": "internal" as const },
-    };
-    const dir = writeAgents(join(scratch(), "agents"), [
+  /**
+   * WITHDRAWN 2026-08-13. This pair used to assert that the SAME two agent files were `restricted`
+   * in a confidential session and `ok` in a public one — which agents existed depended on the
+   * session's egress class, and a provider the config had simply forgotten to classify made an
+   * agent unloadable outright. The registry no longer takes a session class at all, so there is
+   * exactly one verdict per file, and these two replace them: the class is read and reported,
+   * never used to withhold.
+   */
+  it("ACCEPTANCE: an agent pinned to any classed provider loads ok, whatever the session is", () => {
+    const { registry } = load([
       GOOD_SCOUT,
       { name: "big", frontmatter: "name: big\ndescription: Runs on the strong public tier.\nmodel: strong" },
-      {
-        name: "internal-agent",
-        frontmatter:
-          "name: internal-agent\ndescription: Pinned to a synthetic internal-class provider.\nmodel: test-internal-provider/some-model",
-      },
+      { name: "tenant", frontmatter: "name: tenant\ndescription: Runs on the confidential tenant tier.\nmodel: confidential" },
     ]);
-    const registry = loadAgentRegistry({
-      dirs: [dir],
-      routing: internalRouting,
-      config: CONFIG,
-      sessionEgress: "confidential",
-      availableModels: new Set([...ALL_MODELS, "test-internal-provider/some-model"]),
-    });
-    assert.equal(registry.byName.get("big")?.status, "restricted");
-    assert.equal(
-      registry.byName.get("internal-agent")?.status,
-      "restricted",
-      "internal is also out of bounds for a confidential session",
-    );
-    assert.match(problemText(registry), /a confidential session may not dispatch onto a public provider/);
-    // scout's own tier already resolves to the strictest class, so it is legitimately dispatchable
-    // here — unlike when `cheap` was litellm and nothing at all was dispatchable in this session.
-    assert.deepEqual(dispatchableNames(registry), ["scout"]);
+    assert.deepEqual(registry.problems, []);
+    assert.deepEqual(dispatchableNames(registry), ["big", "scout", "tenant"]);
+    assert.equal(registry.byName.get("big")?.target?.egress, "public", "the class is still reported");
+    assert.equal(registry.byName.get("scout")?.target?.egress, "confidential");
+    assert.equal(registry.byName.get("tenant")?.target?.egress, "confidential");
   });
 
-  it("the same agents are fine in a public session", () => {
-    const { registry } = load([GOOD_SCOUT, { name: "big", frontmatter: "name: big\ndescription: Runs on the strong public tier.\nmodel: strong" }], "public");
-    assert.deepEqual(dispatchableNames(registry), ["big", "scout"]);
+  it("loads an agent on an UNCLASSED provider, leaving its label empty rather than refusing", () => {
+    const { registry } = load([
+      { name: "seeker", frontmatter: "name: seeker\ndescription: Pinned to a provider routing.json says nothing about.\nmodel: deepseek/deepseek-v4-flash" },
+    ]);
+    assert.deepEqual(registry.problems, []);
+    assert.equal(registry.byName.get("seeker")?.status, "ok");
+    assert.equal(registry.byName.get("seeker")?.target?.egress, undefined);
+    assert.deepEqual(dispatchableNames(registry), ["seeker"]);
   });
 
   it("announces shadowing and lets the later directory win", () => {
@@ -186,11 +173,12 @@ describe("loadAgentRegistry", () => {
       dirs: [first, second],
       routing: ROUTING,
       config: CONFIG,
-      sessionEgress: "public",
       availableModels: ALL_MODELS,
     });
     assert.match(problemText(registry), /shadows/);
-    assert.equal(registry.byName.get("scout")?.target?.model, "github-copilot/claude-opus-5");
+    // 2026-08-13: `strong` declares `thinkingLevel: "high"`, so the resolved target carries the
+    // `:high` suffix. Used to assert the bare id.
+    assert.equal(registry.byName.get("scout")?.target?.model, "github-copilot/claude-opus-5:high");
     assert.equal(registry.agents.length, 1);
   });
 
@@ -210,7 +198,6 @@ describe("loadAgentRegistry", () => {
         dirs: [real, alias],
         routing: ROUTING,
         config: CONFIG,
-        sessionEgress: "public",
         availableModels: ALL_MODELS,
       });
       assert.deepEqual(registry.problems, [], "one real directory reached twice is not a shadow");
@@ -228,7 +215,6 @@ describe("loadAgentRegistry", () => {
         dirs: [first, second],
         routing: ROUTING,
         config: CONFIG,
-        sessionEgress: "public",
         availableModels: ALL_MODELS,
       });
       assert.match(problemText(registry), /shadows/);
@@ -250,13 +236,14 @@ describe("loadAgentRegistry", () => {
         dirs: [a, b, aAlias],
         routing: ROUTING,
         config: CONFIG,
-        sessionEgress: "public",
         availableModels: ALL_MODELS,
       });
       const scout = registry.byName.get("scout");
+      // 2026-08-13: `cheap` declares `thinkingLevel: "low"`; the resolved target carries `:low`.
+      // Used to assert the bare id.
       assert.equal(
         scout?.target?.model,
-        "databricks/databricks-claude-haiku-4-5",
+        "databricks/databricks-claude-haiku-4-5:low",
         "A's cheap-tier definition must still be the winner",
       );
       assert.equal(scout?.dir, aAlias, "and it must still be reported under the last-listed path");
@@ -272,7 +259,6 @@ describe("loadAgentRegistry", () => {
         dirs: [broken, real],
         routing: ROUTING,
         config: CONFIG,
-        sessionEgress: "public",
         availableModels: ALL_MODELS,
       });
       assert.deepEqual(registry.problems, []);
@@ -286,7 +272,6 @@ describe("loadAgentRegistry", () => {
       dirs: [join(scratch(), "definitely-not-here")],
       routing: ROUTING,
       config: CONFIG,
-      sessionEgress: "public",
       availableModels: ALL_MODELS,
     });
     assert.deepEqual(registry.problems, []);
@@ -302,7 +287,6 @@ describe("loadAgentRegistry", () => {
       dirs: [dir],
       routing: ROUTING,
       config: CONFIG,
-      sessionEgress: "public",
       availableModels: ALL_MODELS,
     });
     assert.deepEqual(registry.agents.map((a) => a.name), ["scout"]);
@@ -314,7 +298,6 @@ describe("loadAgentRegistry", () => {
       dirs: [dir],
       routing: undefined,
       config: CONFIG,
-      sessionEgress: "public",
     });
     assert.equal(registry.byName.get("scout")?.status, "invalid");
     assert.match(problemText(registry), /routing\.json could not be loaded/);
@@ -343,7 +326,7 @@ describe("renderRegistry", () => {
 
   it("says where it looked when it found nothing", () => {
     const dir = join(scratch(), "empty");
-    const registry = loadAgentRegistry({ dirs: [dir], routing: ROUTING, config: CONFIG, sessionEgress: "public" });
+    const registry = loadAgentRegistry({ dirs: [dir], routing: ROUTING, config: CONFIG });
     assert.match(renderRegistry(registry, dir), /no agents found\. Looked in:/);
   });
 });

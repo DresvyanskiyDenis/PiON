@@ -11,15 +11,21 @@
  *     tiers are flat — one model per tier. The spec's matrix would answer "this session is
  *     confidential, so `tier:deep` means databricks instead of copilot", i.e. it would **silently
  *     substitute a different provider and a different model** for the same tier. That is the exact
- *     behaviour `EXT-08` was cancelled for. Here, a tier resolves to one model; if that model's
- *     provider is out of the session's egress class, the dispatch is **refused by name**.
+ *     behaviour `EXT-08` was cancelled for. Here, a tier resolves to one model, always the same one.
  *  2. The egress vocabulary is `EXT-01`'s three classes (`public` / `internal` / `confidential`),
- *     not the spec's four. `routing.json` maps the `local` provider to `confidential`, so a fourth
+ *     not the spec's four. `routing.json` maps a `local` provider to `confidential`, so a fourth
  *     class would be a second vocabulary for the same fact.
+ *
+ * The class is a **label**. Egress containment was withdrawn on 2026-08-13 (see
+ * `lib/dispatch-veto.ts`), so nothing in this module refuses a target for its class, and a provider
+ * `routing.json` does not classify resolves normally with no class attached.
  */
-import { egressAllows, type EgressClass } from "../lib/dispatch-veto.ts";
+import type { EgressClass } from "../lib/dispatch-veto.ts";
 import { describeAlternatives, type ModelCatalogue } from "./catalogue.ts";
 import type { RoutingConfig } from "./config.ts";
+import { THINKING_LEVELS, isThinkingLevel, splitThinkingSuffix } from "./thinking.ts";
+
+export { splitThinkingSuffix, THINKING_LEVELS } from "./thinking.ts";
 
 export type DispatchErrorKind =
   | "config"
@@ -53,22 +59,23 @@ export interface ModelTarget {
   /** Always `provider/id`. This is what goes on the wire. */
   readonly model: string;
   readonly provider: string;
-  readonly egress: EgressClass;
+  /** Reporting label. `undefined` means `routing.json` gives this provider no class. */
+  readonly egress?: EgressClass;
   readonly thinkingLevel?: string;
   /** A tier flagged `optional` in `routing.json` (the `local` lane needs a local model server running). */
   readonly optional: boolean;
 }
 
-/** Throws `kind:"config"` when a provider has no declared egress class. Never guesses. */
-export function egressOf(routing: RoutingConfig, provider: string): EgressClass {
-  const cls = routing.egress[provider];
-  if (cls === undefined) {
-    throw new DispatchError(
-      "config",
-      `provider "${provider}" has no declared egress class in routing.json (known: ${Object.keys(routing.egress).join(", ") || "none"})`,
-    );
-  }
-  return cls;
+/**
+ * The provider's declared class, or `undefined` when `routing.json` declares none.
+ *
+ * It used to throw `kind:"config"` on an unclassed provider. That was egress containment wearing a
+ * different costume — "no defensible answer to may this session's data go there" is a refusal — and
+ * it went with the rest of the rule on 2026-08-13. An unclassed provider is now **unlabelled**, not
+ * forbidden: it dispatches, and the missing class is reported wherever the class is displayed.
+ */
+export function egressOf(routing: RoutingConfig, provider: string): EgressClass | undefined {
+  return routing.egress[provider];
 }
 
 /**
@@ -82,9 +89,8 @@ export function egressOf(routing: RoutingConfig, provider: string): EgressClass 
  * `catalogue` is the session's model registry, and passing it turns on the existence check. It is
  * optional for two reasons and neither is convenience: `ctx.modelRegistry` can throw at
  * `session_start` (there is then no authority to check against, and the degradation is announced
- * rather than guessed at), and several call sites — `registry.ts`'s load-time pass, `ceiling.ts`'s
- * egress veto — ask a question about *routing*, not about availability, and already report the
- * availability verdict through their own channel.
+ * rather than guessed at), and `registry.ts`'s load-time pass asks a question about *routing*, not
+ * about availability, and already reports the availability verdict through its own channel.
  *
  * Every refusal names the value AND how it was read, because the two failure modes are
  * indistinguishable from the message otherwise. A bare word is a *tier* name that does not exist,
@@ -106,25 +112,13 @@ export function resolveModelSpec(
   if (trimmed.includes("/")) {
     const provider = trimmed.slice(0, trimmed.indexOf("/"));
     if (!provider) throw new DispatchError("config", `model "${trimmed}" has an empty provider`);
-    if (routing.egress[provider] === undefined) {
-      // Deliberately not `egressOf`'s message alone: at this call site we know the string was read
-      // as an id, and that the fix is a routing.json edit rather than a different spelling.
-      throw new DispatchError(
-        "config",
-        `model "${trimmed}" was read as a provider-qualified model id (it contains "/"), but its ` +
-          `provider "${provider}" has no declared egress class in routing.json ` +
-          `(classed providers: ${Object.keys(routing.egress).join(", ") || "none"}). ` +
-          `Dispatching onto an unclassed provider is refused: there is no defensible answer to ` +
-          `"may this session's data go there". Name a classed provider, or a tier ` +
-          `(${Object.keys(routing.tiers).join(", ")}).`,
-      );
-    }
+    const egress = egressOf(routing, provider);
     return assertAvailable(
       {
         spec: trimmed,
         model: trimmed,
         provider,
-        egress: egressOf(routing, provider),
+        ...(egress !== undefined ? { egress } : {}),
         optional: false,
       },
       catalogue,
@@ -190,14 +184,18 @@ function assertAvailable(
   routing: RoutingConfig,
 ): ModelTarget {
   if (catalogue === undefined || target.optional) return target;
-  if (catalogue.set.has(target.model)) return target;
+  // The catalogue is keyed by `provider/id`, and a thinking level is not part of an id. So the
+  // existence check asks about the base model while `target.model` keeps its suffix — the suffix
+  // is the entire point, being what PI reads to set the child's reasoning effort.
+  const { baseModel } = splitThinkingSuffix(target.model);
+  if (catalogue.set.has(baseModel)) return target;
 
   if (target.tier !== undefined) {
     throw new DispatchError(
       "unknown_model",
       `tier "${target.tier}" resolves to ${target.model} (routing.json), which is not in this ` +
         `session's model registry (${catalogue.ids.length} model(s) available). ` +
-        `${describeAlternatives(target.model, catalogue)} ` +
+        `${describeAlternatives(baseModel, catalogue)} ` +
         `This is a routing.json error, not a bad call — fix the tier rather than working around it.`,
     );
   }
@@ -205,9 +203,35 @@ function assertAvailable(
     "unknown_model",
     `model "${target.spec}" was read as a provider-qualified model id (it contains "/") and is ` +
       `not in this session's model registry (${catalogue.ids.length} model(s) available). ` +
-      `${describeAlternatives(target.spec, catalogue)} ` +
+      `${describeAlternatives(baseModel, catalogue)} ` +
       `Or name a tier: ${Object.keys(routing.tiers).join(", ")}.`,
   );
+}
+
+/**
+ * Makes a tier's declared `thinkingLevel` real by moving it into the model string, which is the
+ * only place PI reads effort from (`./thinking.ts`).
+ *
+ * Until 2026-08-13 the field was parsed, carried onto `ModelTarget` and consumed by nothing, so
+ * every tier that declared one had been silently running at the provider default while
+ * `routing.json` claimed otherwise — the exact silent-substitution failure this project refuses
+ * everywhere else. It is applied here rather than deleted because `config/bin/pi-tier` reads the
+ * field, and because a declared level is more legible than a suffix buried in an id.
+ *
+ * A suffix already on the model string WINS: it is the more specific statement, and writing both
+ * is how someone pins one tier's effort without touching the field `pi-tier` reads.
+ */
+function applyTierThinkingLevel(tier: string, model: string, thinkingLevel: string | undefined): string {
+  if (thinkingLevel === undefined) return model;
+  if (!isThinkingLevel(thinkingLevel)) {
+    throw new DispatchError(
+      "config",
+      `tier "${tier}" declares thinkingLevel "${thinkingLevel}", which is not one of ` +
+        `${THINKING_LEVELS.join("|")}. It would be sent to the provider as part of the model id ` +
+        `and the dispatch would abort on an id nothing serves — fix routing.json.`,
+    );
+  }
+  return splitThinkingSuffix(model).thinkingSuffix === "" ? `${model}:${thinkingLevel}` : model;
 }
 
 function resolveTier(routing: RoutingConfig, tier: string, spec: string): ModelTarget {
@@ -222,28 +246,16 @@ function resolveTier(routing: RoutingConfig, tier: string, spec: string): ModelT
   }
   const provider = row.model.slice(0, row.model.indexOf("/"));
   if (!provider) throw new DispatchError("config", `tier "${tier}" has a model without a provider: ${row.model}`);
+  const egress = egressOf(routing, provider);
   return {
     spec,
     tier,
-    model: row.model,
+    model: applyTierThinkingLevel(tier, row.model, row.thinkingLevel),
     provider,
-    egress: egressOf(routing, provider),
+    ...(egress !== undefined ? { egress } : {}),
     ...(row.thinkingLevel !== undefined ? { thinkingLevel: row.thinkingLevel } : {}),
     optional: row.optional === true,
   };
-}
-
-/**
- * Egress containment (`REQ-PRV-11`): data may move to a *stricter* class, never a looser one.
- * A `confidential` session may dispatch onto `databricks` or `local`, never onto `github-copilot`.
- */
-export function assertEgressContainment(target: ModelTarget, sessionEgress: EgressClass, what: string): void {
-  if (egressAllows(sessionEgress, target.egress)) return;
-  throw new DispatchError(
-    "egress",
-    `${what} resolves to ${target.model} (egress ${target.egress}) but the session is ${sessionEgress}; ` +
-      `a ${sessionEgress} session may not dispatch onto a ${target.egress} provider`,
-  );
 }
 
 export interface SessionEgressInput {

@@ -15,11 +15,15 @@
  * splits along exactly that line, and both halves ship:
  *
  *   - **Static, and therefore in the ceiling**: which agents this session may dispatch at all
- *     (egress containment plus load-time validity), and whether children may dispatch at all
- *     (the depth ceiling, expressed as tools removed rather than as a counter).
+ *     (load-time validity, plus a tier whose model is not currently served), and whether children
+ *     may dispatch at all (the depth ceiling, expressed as tools removed rather than as a counter).
  *   - **Per-request, and therefore in `EXT-01`'s veto registry**: `REQ-CTX-47`'s specialist match,
- *     which is a judgement about *this prompt*, and the call-time egress check for a `model`
- *     argument the agent file never declared.
+ *     which is a judgement about *this prompt*.
+ *
+ * `DV-EGRESS` — "a confidential session may not dispatch onto a public provider" — used to be the
+ * second per-request veto and the reason the ceiling filtered agents by class. Withdrawn
+ * 2026-08-13: a constraint nobody asked for, which blocked switching provider inside a session.
+ * The class is still resolved and displayed; it refuses nothing.
  *
  * The ceiling is also inherited, which is why the depth half is computed from *our* depth: at
  * depth `d` we register a ceiling for our children, and a child at `d+1` registers its own. One
@@ -38,15 +42,12 @@ import {
   registerDispatchVeto,
   type DispatchRequest,
   type DispatchVerdict,
-  type EgressClass,
 } from "../lib/dispatch-veto.ts";
-import type { DispatchConfig, RoutingConfig } from "./config.ts";
-import { DispatchError, assertEgressContainment, resolveModelSpec } from "./tiers.ts";
+import type { DispatchConfig } from "./config.ts";
 import { dispatchableNames, type AgentRegistry } from "./registry.ts";
 
 export const CEILING_SOURCE = "pi-config/EXT-05";
 export const VETO_SPECIALIST = "DV-SPECIALIST";
-export const VETO_EGRESS = "DV-EGRESS";
 
 export interface CeilingInput {
   readonly sessionId: string;
@@ -68,14 +69,15 @@ export interface CeilingPlan {
  * Builds the ceiling. Separated from registration so it can be asserted without a live session.
  *
  * `denyExtensions` is deliberately never set: it would strip *our* extensions from children, and
- * a child without this module is a child with no depth assertion and no egress containment.
+ * a child without this module is a child with no depth assertion.
  */
 export function planCeiling(input: CeilingInput): CeilingPlan {
   const notes: string[] = [];
   const allowedAgents = dispatchableNames(input.registry);
   notes.push(
     `allowedAgents: ${allowedAgents.length} of ${input.registry.agents.length} ` +
-      `(${input.registry.agents.filter((a) => a.status === "restricted").length} restricted by egress, ` +
+      `(${input.registry.agents.filter((a) => a.status === "restricted").length} whose model is not ` +
+      `currently served, ` +
       `${input.registry.agents.filter((a) => a.status === "invalid").length} invalid)`,
   );
 
@@ -137,7 +139,7 @@ export async function installCeiling(input: CeilingInput): Promise<CeilingInstal
       failure:
         `pi-subagents/capability-ceiling could not be loaded (${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}). ` +
         `The subagent capability ceiling is NOT in force: children are not restricted to the ` +
-        `${plan.ceiling.allowedAgents?.length ?? 0} egress-permitted agents. Depth and egress are still ` +
+        `${plan.ceiling.allowedAgents?.length ?? 0} dispatchable agents. Depth is still ` +
         `enforced by this extension's own tool_call rules and by the dispatch vetoes.`,
     };
   }
@@ -150,72 +152,18 @@ export async function installCeiling(input: CeilingInput): Promise<CeilingInstal
       failure:
         `registerSubagentCapabilityCeiling rejected our ceiling ` +
         `(${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}). ` +
-        `The ceiling is NOT in force; depth and egress remain enforced by this extension's own rules.`,
+        `The ceiling is NOT in force; depth remains enforced by this extension's own rules.`,
     };
   }
 }
 
 // --------------------------------------------------------------------------------------------
-// The per-request half: two vetoes registered into EXT-01's registry, evaluated by EXT-03's gate.
+// The per-request half: one veto registered into EXT-01's registry, evaluated by EXT-03's gate.
 // --------------------------------------------------------------------------------------------
 
 export interface VetoContext {
   readonly registry: () => AgentRegistry | undefined;
-  readonly routing: () => RoutingConfig | undefined;
   readonly config: DispatchConfig;
-  readonly sessionEgress: () => EgressClass;
-}
-
-/**
- * `DV-EGRESS` — a confidential session may not dispatch a child onto a public provider.
- *
- * Not overridable. A written justification is the right hatch for "this looks dangerous but I mean
- * it"; it is the wrong hatch for "send tenant data to a public endpoint", which is a policy fact
- * about the data and not a judgement about the task.
- */
-export function egressVeto(ctx: VetoContext) {
-  return {
-    id: VETO_EGRESS,
-    evaluate(req: DispatchRequest): DispatchVerdict {
-      const registry = ctx.registry();
-      const routing = ctx.routing();
-      if (!registry || !routing) return { veto: false };
-
-      const def = registry.byName.get(req.agentType);
-      const sessionEgress = req.parentEgress ?? ctx.sessionEgress();
-
-      // An agent the registry classed `restricted` was classed that way by exactly this rule at
-      // load time; repeat the verdict here so the model sees it at the point of decision.
-      if (def?.status === "restricted") {
-        return {
-          veto: true,
-          denial: {
-            gateId: VETO_EGRESS,
-            what: `dispatching "${req.agentType}" is not permitted from a ${sessionEgress} session — ${def.problem ?? "egress containment"}`,
-            overridable: false,
-          },
-        };
-      }
-
-      const spec = req.childTier ?? def?.spec;
-      if (!spec) return { veto: false };
-      try {
-        const target = resolveModelSpec(routing, spec, ctx.config.defaultTier);
-        assertEgressContainment(target, sessionEgress, `agent "${req.agentType}"`);
-      } catch (err) {
-        if (err instanceof DispatchError && err.kind === "egress") {
-          return {
-            veto: true,
-            denial: { gateId: VETO_EGRESS, what: err.message, overridable: false },
-          };
-        }
-        // A config or unknown-tier error is not this veto's business; the registry already
-        // recorded it and the dispatch rule refuses by name. Do not double-report.
-        return { veto: false };
-      }
-      return { veto: false };
-    },
-  };
 }
 
 const STOPWORDS = new Set([
@@ -297,9 +245,8 @@ export function specialistVeto(ctx: VetoContext) {
   };
 }
 
-/** Registers both vetoes into `EXT-01`'s registry, in evaluation order: containment before taste. */
+/** Registers the surviving veto into `EXT-01`'s registry. */
 export function installVetoes(ctx: VetoContext): readonly string[] {
-  registerDispatchVeto(egressVeto(ctx));
   registerDispatchVeto(specialistVeto(ctx));
-  return [VETO_EGRESS, VETO_SPECIALIST];
+  return [VETO_SPECIALIST];
 }

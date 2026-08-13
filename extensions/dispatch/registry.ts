@@ -12,13 +12,17 @@
  * one question per file: would dispatching this agent work, right now, in this session? Three
  * outcomes:
  *
- *   - **ok** — resolvable and within the session's egress class.
+ *   - **ok** — resolvable.
  *   - **invalid** — the file is wrong (bad frontmatter, unknown tier, a model the registry does
  *     not have, an incoherent return contract, a `fallbackModels` key). Dispatch is refused by
  *     name. Fixing it is an edit to the file.
- *   - **restricted** — the file is fine but this session may not use it, because its model's
- *     provider is outside the session's egress class. Dispatch is refused by name. Nothing is
- *     wrong with the file; a different session would be allowed.
+ *   - **restricted** — the file is fine but its model is not being served right now: an `optional`
+ *     tier (the local lane) whose backend is down. Dispatch is refused by name because there is
+ *     nothing to dispatch onto; start the backend and the same file is `ok`.
+ *
+ * `restricted` used to have a second producer — egress containment, "this session's class may not
+ * reach that provider's class". That rule was withdrawn on 2026-08-13 (`lib/dispatch-veto.ts`), so
+ * the status now means the runtime condition and nothing else.
  *
  * `fallbackModels` is rejected outright: this item keeps the package's support
  * for it and refuses to use it, because a child that quietly answers from a weaker model is worse
@@ -29,9 +33,9 @@ import { basename, extname, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
-import type { EgressClass } from "../lib/dispatch-veto.ts";
 import type { DispatchConfig, RoutingConfig } from "./config.ts";
-import { DispatchError, assertEgressContainment, resolveModelSpec, type ModelTarget } from "./tiers.ts";
+import { DispatchError, resolveModelSpec, type ModelTarget } from "./tiers.ts";
+import { splitThinkingSuffix } from "./thinking.ts";
 import { describeReturnContract, parseReturnContract, type ReturnContract } from "./contract.ts";
 
 export const AgentFrontmatterSchema = Type.Object(
@@ -93,7 +97,6 @@ export interface LoadRegistryOptions {
   readonly dirs: readonly string[];
   readonly routing: RoutingConfig | undefined;
   readonly config: DispatchConfig;
-  readonly sessionEgress: EgressClass;
   /** `provider/id` strings from `ctx.modelRegistry.getAvailable()`. Skipped when undefined. */
   readonly availableModels?: ReadonlySet<string>;
 }
@@ -286,6 +289,7 @@ function loadOne(
 
   const spec = typeof fm.model === "string" && fm.model.trim() ? fm.model.trim() : `tier:${opts.config.defaultTier}`;
   let target: ModelTarget | undefined;
+  /** Set only by the `optional`-tier runtime condition; see this file's header. */
   let restricted: string | undefined;
 
   if (opts.routing === undefined) {
@@ -296,7 +300,13 @@ function loadOne(
     } catch (err) {
       local.push(err instanceof DispatchError ? `${err.kind}: ${err.message}` : String(err));
     }
-    if (target && opts.availableModels && !opts.availableModels.has(target.model)) {
+    // Against the BASE id: `ctx.modelRegistry` is keyed by bare `provider/id`, and since a tier's
+    // `thinkingLevel` moved into the model string (`tiers.ts`), `target.model` normally carries a
+    // `:level` suffix. This check is separate from `assertAvailable`'s in `tiers.ts` and was missed
+    // when that one was fixed: asking the registry about the suffixed string made every tier-bound
+    // agent look absent at session start, with a message blaming the registry.
+    const baseModel = target ? splitThinkingSuffix(target.model).baseModel : undefined;
+    if (target && baseModel && opts.availableModels && !opts.availableModels.has(baseModel)) {
       if (target.optional) {
         // An `optional: true` tier (the local lane) is allowed to be absent: a local model server is not
         // always running. It is still refused at dispatch, but as "not available now", not as a
@@ -304,13 +314,6 @@ function loadOne(
         restricted = `model ${target.model} (from "${spec}") is not in the model registry; the "${target.tier}" tier is optional, so this is a runtime condition, not a file error`;
       } else {
         local.push(`model "${target.model}" (from "${spec}") is not in the model registry`);
-      }
-    }
-    if (target && restricted === undefined) {
-      try {
-        assertEgressContainment(target, opts.sessionEgress, `agent "${fm.name}"`);
-      } catch (err) {
-        restricted = err instanceof DispatchError ? err.message : String(err);
       }
     }
   }

@@ -6,32 +6,30 @@
  * implementation by wiring it into `pi-subagents`' `registerSubagentCapabilityCeiling()` rather
  * than forking a dispatcher.
  *
- * Two rules will be built on this and both are acceptance criteria, not descriptions:
+ * One rule is built on this and it is an acceptance criterion, not a description:
  *   - REQ-CTX-47: veto a generic agent when a domain specialist matches, with REQ-CTX-06's
  *     written-justification hatch.
- *   - Egress containment: a session classed `confidential` cannot dispatch a child onto a
- *     `public` provider. `egressAllows()` is that rule and nothing else uses it yet.
  *
- * No implementation ships here on purpose. What ships is the shape the two call sites must
+ * A second rule — egress containment, "a `confidential` session may not dispatch a child onto a
+ * `public` provider" — used to live here as `EGRESS_RANK`/`egressAllows()`. It was WITHDRAWN on
+ * 2026-08-13. Nobody had asked for it; it was inferred from the presence of the class names and
+ * then treated as settled. Its real effect was not to refuse a dangerous dispatch but to make a
+ * legitimate one unrepresentable: with most providers classed looser than the session, most agents
+ * became undispatchable and changing provider mid-session was impossible. The egress class survives
+ * as a *label* (`EgressClass`, the fields below, the startup line, `/agents`, the audit entry) and
+ * refuses nothing. See ADR 0004: these classes were always a declarative control, never a boundary.
+ *
+ * No implementation ships here on purpose. What ships is the shape the call sites must
  * agree on, so that W2 does not get to re-invent it.
  */
 import type { EscapeHatchDenial } from "./escape-hatch.ts";
 import { describeError, surfaceOnce } from "./once.ts";
 
-/** The classes in `config/routing.json`'s `egress` map. */
+/**
+ * The classes in `config/routing.json`'s `egress` map. Purely descriptive since 2026-08-13:
+ * a class is reported, never compared, and no ordering between the three is defined anywhere.
+ */
 export type EgressClass = "public" | "internal" | "confidential";
-
-/** Lower is more restricted. A child may never be less restricted than its parent. */
-export const EGRESS_RANK: Readonly<Record<EgressClass, number>> = {
-  confidential: 0,
-  internal: 1,
-  public: 2,
-};
-
-/** True when a parent classed `parent` may dispatch a child onto a provider classed `child`. */
-export function egressAllows(parent: EgressClass, child: EgressClass): boolean {
-  return EGRESS_RANK[child] <= EGRESS_RANK[parent];
-}
 
 export interface DispatchRequest {
   /** Agent definition name, e.g. "general-purpose" or "researcher". */
@@ -40,11 +38,13 @@ export interface DispatchRequest {
   readonly prompt: string;
   /** Semantic tier of the dispatching session, per `config/routing.json`. */
   readonly parentTier?: string;
+  /** Descriptive label only — no veto compares it against `childEgress`. */
   readonly parentEgress?: EgressClass;
   /** Semantic tier the child would run on. */
   readonly childTier?: string;
   /** Provider key the child would resolve to, e.g. "github-copilot". */
   readonly childProvider?: string;
+  /** Descriptive label only — no veto compares it against `parentEgress`. */
   readonly childEgress?: EgressClass;
   /** Present when the veto is evaluated from a `tool_call` handler. */
   readonly toolCallId?: string;

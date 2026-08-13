@@ -19,16 +19,18 @@
  * rewrites a call. "Fail loud, no provider failover" is the project rule and this is the module
  * with the most temptation to break it.
  *
- * ## Why the menu is filtered, not annotated
+ * ## Why the menu is annotated, not filtered
  *
- * The menu lists only models this session may actually dispatch onto: present in the registry,
- * belonging to a provider `routing.json` gives an egress class, and within the session's own
- * class. A model listed but unusable is a trap — the model picks it, the dispatch aborts, and a
- * turn is burnt. The excluded ones are *counted and explained* on one line rather than hidden
- * silently, so an absent provider reads as a configuration fact rather than as a missing model.
+ * The menu lists **every** model in the session's registry, grouped by provider and annotated with
+ * that provider's `routing.json` egress class (or `unlabelled`, when it has none). It used to hide
+ * anything outside the session's own class; that filter was withdrawn on 2026-08-13 along with the
+ * containment rule it served, because hiding a model the session is perfectly entitled to use is
+ * exactly what stopped a provider switch mid-session. Existence is still the only gate: a model
+ * that is not in the registry is still refused by name.
  */
-import { egressAllows, type EgressClass } from "../lib/dispatch-veto.ts";
+import type { EgressClass } from "../lib/dispatch-veto.ts";
 import type { RoutingConfig } from "./config.ts";
+import { THINKING_LEVELS, effectiveLevel } from "./thinking.ts";
 
 /**
  * The registry as this extension consumes it: `provider/id` strings, in the registry's own order.
@@ -159,36 +161,28 @@ export interface MenuInput {
 }
 
 export interface MenuSelection {
-  /** Provider -> the ids under it this session may dispatch onto, registry order preserved. */
+  /** Provider -> every id under it in the registry, registry order preserved. */
   readonly byProvider: ReadonlyMap<string, readonly string[]>;
-  /** Available, but the provider has no egress class in routing.json. Not selectable, not a bug. */
+  /**
+   * Selectable like everything else, but the provider has no egress class in `routing.json`, so the
+   * menu can only label it `unlabelled`. Reported so a missing class reads as a configuration fact.
+   */
   readonly unclassed: readonly string[];
-  /** Available and classed, but the class is looser than this session's. */
-  readonly outOfEgress: readonly string[];
 }
 
-/** Pure, so the filtering rule is assertable without a live session or a system prompt. */
+/** Pure, so the grouping is assertable without a live session or a system prompt. */
 export function selectMenuModels(input: MenuInput): MenuSelection {
   const byProvider = new Map<string, string[]>();
   const unclassed: string[] = [];
-  const outOfEgress: string[] = [];
   for (const full of input.catalogue?.ids ?? []) {
     const { provider, id } = splitModelId(full);
     if (!provider) continue;
-    const cls = input.routing.egress[provider];
-    if (cls === undefined) {
-      unclassed.push(full);
-      continue;
-    }
-    if (!egressAllows(input.sessionEgress, cls)) {
-      outOfEgress.push(full);
-      continue;
-    }
+    if (input.routing.egress[provider] === undefined) unclassed.push(full);
     const bucket = byProvider.get(provider);
     if (bucket) bucket.push(id);
     else byProvider.set(provider, [id]);
   }
-  return { byProvider, unclassed, outOfEgress };
+  return { byProvider, unclassed };
 }
 
 /**
@@ -201,6 +195,7 @@ export function selectMenuModels(input: MenuInput): MenuSelection {
  */
 export function renderModelMenu(input: MenuInput): string {
   const tierNames = Object.keys(input.routing.tiers);
+  const selection = selectMenuModels(input);
   const lines: string[] = [];
   lines.push(`## Sub-agent model selection`);
   lines.push(
@@ -215,17 +210,23 @@ export function renderModelMenu(input: MenuInput): string {
       `deliberately trading capability for cost on this one call.`,
   );
   lines.push(
+    `Append \`:<level>\` to a concrete id to set that child's REASONING EFFORT for this dispatch — ` +
+      `${THINKING_LEVELS.map((l) => `\`${l}\``).join(", ")} — e.g. \`${firstExample(selection)}:max\`. ` +
+      `It overrides the agent file's own thinking setting. A misspelled level is not read as an ` +
+      `effort and aborts the dispatch as an unknown model; there is no default-on-typo.`,
+  );
+  lines.push(
     `An unknown tier, or an id that is not in the list below, ABORTS that dispatch. Nothing is ` +
       `substituted and no cheaper model is silently used in its place.`,
   );
 
   for (const [tier, def] of Object.entries(input.routing.tiers)) {
     const { provider } = splitModelId(def.model);
-    const cls = input.routing.egress[provider];
-    const usable = cls !== undefined && egressAllows(input.sessionEgress, cls);
+    const level = effectiveLevel(def.model) ?? def.thinkingLevel;
     lines.push(
-      `  - tier \`${tier}\` -> ${def.model}${def.purpose ? ` — ${def.purpose}` : ""}` +
-        (usable ? "" : ` [NOT available to this ${input.sessionEgress} session]`),
+      `  - tier \`${tier}\` -> ${def.model} (egress ${describeClass(input.routing.egress[provider])}, ` +
+        `effort ${level ?? "provider default"})` +
+        (def.purpose ? ` — ${def.purpose}` : ""),
     );
   }
 
@@ -237,31 +238,30 @@ export function renderModelMenu(input: MenuInput): string {
     return lines.join("\n");
   }
 
-  const selection = selectMenuModels(input);
   const total = [...selection.byProvider.values()].reduce((n, ids) => n + ids.length, 0);
   lines.push(
-    `Concrete ids selectable from this ${input.sessionEgress} session ` +
-      `(${total} of ${input.catalogue.ids.length}), grouped by provider:`,
+    `This session is classed \`${input.sessionEgress}\`; the class is a label and restricts nothing. ` +
+      `All ${total} concrete id(s) below are selectable, grouped by provider:`,
   );
   for (const [provider, ids] of selection.byProvider) {
-    lines.push(`  - ${provider} (egress ${input.routing.egress[provider]}): ${ids.join(", ")}`);
+    lines.push(`  - ${provider} (egress ${describeClass(input.routing.egress[provider])}): ${ids.join(", ")}`);
   }
   lines.push(`  Write them qualified, e.g. \`${firstExample(selection)}\`.`);
 
-  const excluded: string[] = [];
   if (selection.unclassed.length > 0) {
     const providers = [...new Set(selection.unclassed.map((m) => splitModelId(m).provider))];
-    excluded.push(
-      `${selection.unclassed.length} from provider(s) with no egress class in routing.json ` +
-        `(${providers.join(", ")})`,
+    lines.push(
+      `  ${selection.unclassed.length} of them come from provider(s) with no egress class in ` +
+        `routing.json (${providers.join(", ")}); they are selectable and reported as unlabelled.`,
     );
   }
-  if (selection.outOfEgress.length > 0) {
-    excluded.push(`${selection.outOfEgress.length} outside this session's ${input.sessionEgress} egress class`);
-  }
-  if (excluded.length > 0) lines.push(`  Not selectable: ${excluded.join("; ")}.`);
 
   return lines.join("\n");
+}
+
+/** One spelling for "routing.json says nothing about this provider", used everywhere it is shown. */
+function describeClass(cls: EgressClass | undefined): string {
+  return cls ?? "unlabelled";
 }
 
 function firstExample(selection: MenuSelection): string {

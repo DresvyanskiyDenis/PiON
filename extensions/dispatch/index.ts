@@ -16,10 +16,14 @@
  *      set is put in the system prompt so the orchestrating model can pick a cheap model on
  *      purpose instead of guessing an id (`REQ-PRV-09`, dispatch-time override wins).
  *
- * plus the two acceptance criteria this item calls non-negotiable — a typo in an agent file is a
- * `session_start` error (`registry.ts`), and a confidential session cannot dispatch onto a public
- * provider (`ceiling.ts`, `tiers.ts`) — and the routing veto, wired into
+ * plus the acceptance criterion this item calls non-negotiable — a typo in an agent file is a
+ * `session_start` error (`registry.ts`) — and the routing veto, wired into
  * `registerSubagentCapabilityCeiling()` and `EXT-01`'s veto registry rather than into a fork.
+ *
+ * This item's *second* criterion, "a confidential session cannot dispatch onto a public provider",
+ * was WITHDRAWN on 2026-08-13: a constraint nobody asked for, which prevented switching provider
+ * inside a session. The session's egress class is still resolved, printed on the startup line,
+ * shown by `/agents` and written to the audit entry — it just refuses nothing.
  *
  * ## Load order
  *
@@ -64,7 +68,7 @@ import { applyIsolation } from "./isolation.ts";
 import { loadAgentRegistry, renderRegistry, type AgentDef, type AgentRegistry } from "./registry.ts";
 import { installCeiling, installVetoes } from "./ceiling.ts";
 import { assertDispatchShape } from "./contract.ts";
-import { DispatchError, assertEgressContainment, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
+import { DispatchError, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
 import {
   injectMenuOnce,
   makeCatalogue,
@@ -121,9 +125,7 @@ export function register(pi: ExtensionAPI): void {
   // the registry exists.
   state.vetoIds = installVetoes({
     registry: () => state.registry,
-    routing: () => state.settings.routing,
     config: state.settings.dispatch,
-    sessionEgress: () => state.sessionEgress,
   });
 
   pi.on("session_start", async (_event, ctx) => {
@@ -225,8 +227,8 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
     state.catalogue = makeCatalogue(ids);
     available = new Set(ids);
   } catch (err) {
-    // Without the registry we cannot say "this model does not exist"; we can still resolve tiers
-    // and enforce egress. Announce the reduced check rather than silently skipping it.
+    // Without the registry we cannot say "this model does not exist"; we can still resolve tiers.
+    // Announce the reduced check rather than silently skipping it.
     state.catalogue = undefined;
     state.problems.push(
       `model registry unavailable (${describeError(err)}); agent models are resolved but not checked for existence`,
@@ -246,7 +248,6 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
     dirs: registryDirs(cfg, ctx.cwd),
     routing: state.settings.routing,
     config: cfg,
-    sessionEgress: state.sessionEgress,
     ...(available !== undefined ? { availableModels: available } : {}),
   });
   state.registry = registry;
@@ -267,7 +268,7 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
   } else {
     state.problems.push(
       `no session id available, so no capability ceiling was registered; children are not restricted ` +
-        `to the egress-permitted agent set (depth and egress are still enforced per call)`,
+        `to the dispatchable agent set (depth is still enforced per call)`,
     );
   }
 
@@ -302,8 +303,8 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
   if (restricted.length > 0) {
     report(
       ctx,
-      `[pi-config] dispatch: ${restricted.length} agent(s) unavailable to this ${state.sessionEgress} session — ` +
-        restricted.map((a) => a.name).join(", "),
+      `[pi-config] dispatch: ${restricted.length} agent(s) unavailable right now because their model ` +
+        `is not being served — ` + restricted.map((a) => a.name).join(", "),
       "warning",
     );
   }
@@ -367,48 +368,11 @@ export function rules(state: State): GuardRule[] {
         return { block: true, reason: verdict.reason ?? "sub-agent dispatch refused: nesting limit reached" };
       },
     },
-    {
-      // Egress for a CALL-TIME model override. EXT-03's routing veto covers the model an agent
-      // file declares; it cannot see a `model:` argument on this call, because the DispatchRequest
-      // it builds has no field for one. This rule is that gap and nothing else.
-      //
-      // It makes no distinction between the two shapes a `model` argument can take: `resolveModelSpec`
-      // maps a tier name and a literal `provider/id` onto the same `ModelTarget`, and containment is
-      // asserted against `target.egress` either way. A concrete id is therefore NOT a way around a
-      // gate a tier has to pass — `model: "github-copilot/claude-opus-5"` from a confidential
-      // session is refused exactly as `model: "strong"` is. `test/dispatch/rules.test.ts` asserts
-      // this for both shapes, because "the new path bypasses the old gate" is the failure this
-      // whole rule exists to make impossible.
-      //
-      // The catalogue is deliberately NOT passed here. This gate answers one question — may the
-      // data go there — and a model that does not exist must be reported by DSP-RESOLVE under
-      // `unknown_model`, not smuggled out of an egress gate as a non-egress error.
-      id: "DSP-EGRESS",
-      evaluate(event) {
-        if (!isDispatch(event)) return { block: false };
-        const routing = state.settings.routing;
-        if (!routing) return { block: false };
-        const input = event.input as Record<string, unknown>;
-        const override = typeof input.model === "string" ? input.model.trim() : "";
-        if (!override) return { block: false };
-        try {
-          const target = resolveModelSpec(routing, override, state.settings.dispatch.defaultTier);
-          assertEgressContainment(target, state.sessionEgress, `model override "${override}"`);
-        } catch (err) {
-          if (!(err instanceof DispatchError)) throw err;
-          // Only an egress verdict belongs to this gate. An unknown tier or a broken routing entry
-          // is a routing failure, and DSP-RESOLVE reports it under its own id — reporting it here
-          // would name an egress gate for a problem that has nothing to do with egress.
-          if (err.kind !== "egress") return { block: false };
-          return denyWithEscapeHatch({
-            gateId: "DSP-EGRESS",
-            what: err.message,
-            overridable: false,
-          });
-        }
-        return { block: false };
-      },
-    },
+    // `DSP-EGRESS` sat here, between DSP-DEPTH and DSP-CONTRACT, until 2026-08-13. It refused a
+    // call-time `model` override whose provider was classed looser than the session, and it was the
+    // only reason `assertEgressContainment` needed a rule of its own on this path. It went with the
+    // rest of egress containment (`lib/dispatch-veto.ts`). A call-time override is now resolved and
+    // checked for EXISTENCE by DSP-RESOLVE below, and for nothing else.
     {
       // The return contract, enforced at the point of dispatch (see contract.ts for why).
       id: "DSP-CONTRACT",
@@ -456,14 +420,15 @@ export function rules(state: State): GuardRule[] {
             `agent "${def.name}" cannot be dispatched: ${def.problem ?? def.status}. ` +
             (def.status === "invalid"
               ? `Fix ${def.file}, or dispatch a different agent.`
-              : // Said explicitly because the obvious next move — "then I will name a confidential
-                // model on the call" — does not work, and the model would otherwise burn a turn
-                // finding that out. The capability ceiling that carries this verdict into
-                // `pi-subagents` is registered once per session (ceiling.ts): its allowedAgents
-                // list is static, so no per-call argument can widen it.
+              : // `restricted` now means one thing only: the agent's model is not being served
+                // right now (an `optional` tier whose backend is down). Said explicitly because the
+                // obvious next move — "then I will name another model on the call" — does not work.
+                // The capability ceiling that carries this verdict into `pi-subagents` is registered
+                // once per session (ceiling.ts): its allowedAgents list is static, so no per-call
+                // argument can widen it.
                 `A per-call \`model\` cannot lift this — the agent is outside this session's ` +
-                `capability ceiling, which is fixed for the whole session. Dispatch an agent whose ` +
-                `own model stays within this ${state.sessionEgress} session.`),
+                `capability ceiling, which is fixed for the whole session. Start the backend that ` +
+                `serves its model, or dispatch an agent whose model is available.`),
         };
       },
     },
@@ -505,12 +470,21 @@ export function rules(state: State): GuardRule[] {
               input.model = target.model;
               applied.model = { from: spec, to: target.model, tier: target.tier };
             }
-            // routing.json's per-tier `thinkingLevel` is deliberately NOT written onto the call.
-            // `pi-subagents`' top-level `thinking` argument documents itself as belonging to
-            // `action='watchdog.configure'` (src/extension/schemas.ts:287), and tool inputs are
-            // not re-validated after mutation, so a wrong reading of that field would reach the
-            // package unchecked. Thinking level stays the agent file's business until the
-            // argument's meaning is confirmed.
+            // Reasoning effort is NOT written onto the call as a separate field, and that is still
+            // right: `pi-subagents`' top-level `thinking` argument documents itself as belonging to
+            // `action='watchdog.configure'` (src/extension/schemas.ts:287), and tool inputs are not
+            // re-validated after mutation, so a wrong reading of that field would reach the package
+            // unchecked.
+            //
+            // What this comment used to conclude from that — "thinking level stays the agent file's
+            // business" — was too wide, and cost a real capability for months. PI carries effort in
+            // the MODEL STRING: `provider/id:max`, levels off|minimal|low|medium|high|xhigh|max,
+            // read by `resolveEffectiveThinking` (shared/model-info.ts:36) and applied on the launch
+            // path (runs/foreground/subagent-executor.ts:2146), where it outranks both the agent
+            // file and any override. That route needs no unvalidated argument, so it is the one we
+            // use: a tier declares `thinkingLevel` in routing.json, `resolveTier` moves it into the
+            // model string, and `target.model` above carries the suffix through untouched. See
+            // `splitThinkingSuffix` in thinking.ts.
           } catch (err) {
             if (!(err instanceof DispatchError)) throw err;
             // Name where the value came from. "unknown_model: github-copilot/gpt-5.1" is acted on

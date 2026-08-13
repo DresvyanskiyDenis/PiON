@@ -89,37 +89,31 @@ describe("selectMenuModels", () => {
     defaultTier: CONFIG.defaultTier,
   });
 
-  it("groups by provider and drops providers routing.json does not classify", () => {
+  const ALL_PROVIDERS = ["github-copilot", "databricks", "deepseek"];
+
+  it("groups by provider and keeps providers routing.json does not classify", () => {
     const sel = selectMenuModels(input("public"));
-    assert.deepEqual([...sel.byProvider.keys()], ["github-copilot", "databricks"]);
-    assert.deepEqual(sel.unclassed, ["deepseek/deepseek-v4-flash"]);
-    assert.deepEqual(sel.outOfEgress, []);
+    assert.deepEqual([...sel.byProvider.keys()], ALL_PROVIDERS);
+    assert.deepEqual(sel.unclassed, ["deepseek/deepseek-v4-flash"], "reported, but not withheld");
+    assert.deepEqual(sel.byProvider.get("deepseek"), ["deepseek-v4-flash"]);
   });
 
-  it("hides what this session may not dispatch onto, and counts it", () => {
-    const sel = selectMenuModels(input("confidential"));
-    assert.deepEqual([...sel.byProvider.keys()], ["databricks"]);
-    assert.equal(sel.outOfEgress.length, 5, "5 copilot are looser than confidential");
-  });
-
-  it("an internal session keeps a synthetic internal provider and databricks but loses the public lane", () => {
-    // No shipped provider is classed `internal` any more — litellm, the one that was, is deleted
-    // from config/routing.json, and nothing replaced it there. This ROUTING/catalogue pair is a
-    // deliberate synthetic fixture built here, not the shared helpers.ts ROUTING, purely so
-    // selectMenuModels' `internal`-egress branch stays exercised even though the shipped config no
-    // longer has a real subject for it.
-    const internalRouting = {
-      ...ROUTING,
-      egress: { ...ROUTING.egress, "test-internal-provider": "internal" as const },
-    };
-    const catalogue = makeCatalogue([...CATALOGUE.ids, "test-internal-provider/some-model"]);
-    const sel = selectMenuModels({
-      routing: internalRouting,
-      catalogue,
-      sessionEgress: "internal",
-      defaultTier: CONFIG.defaultTier,
-    });
-    assert.deepEqual([...sel.byProvider.keys()], ["databricks", "test-internal-provider"]);
+  /**
+   * WITHDRAWN 2026-08-13. Three tests here used to assert that the menu was FILTERED by the
+   * session's egress class: a confidential session saw only databricks, a public one lost nothing,
+   * and a provider with no class at all was withheld entirely. Hiding models from the session is
+   * exactly what made "switch provider mid-session" impossible, and a menu that omits a model the
+   * dispatcher can legally name is a menu that teaches the wrong contract. The new rule is that the
+   * class annotates and never subtracts, so one test replaces the three: the menu is identical for
+   * every session class.
+   */
+  it("shows every model to every session class — the class does not filter", () => {
+    for (const cls of ["public", "internal", "confidential"] as const) {
+      const sel = selectMenuModels(input(cls));
+      assert.deepEqual([...sel.byProvider.keys()], ALL_PROVIDERS, cls);
+      const total = [...sel.byProvider.values()].reduce((n, ids) => n + ids.length, 0);
+      assert.equal(total, CATALOGUE.ids.length, `${cls}: every id in the registry is selectable`);
+    }
   });
 });
 
@@ -149,14 +143,21 @@ describe("renderModelMenu", () => {
     assert.match(menu(), /Nothing is substituted/);
   });
 
-  it("lists every tier with its resolved model, and flags the ones out of reach", () => {
+  /**
+   * WITHDRAWN 2026-08-13: a tier whose provider was classed looser than the session used to be
+   * printed with `[NOT available to this <class> session]` after it. No tier is out of reach any
+   * more, so the annotation has nothing to mark and the assertion is inverted — the marker must
+   * never appear.
+   *
+   * Also new here: each tier line carries `, effort <level>`. `renderModelMenu` reads `def.model`
+   * from the RAW (unresolved) tier definition, so the id itself stays bare on this line and only
+   * the separate `effort` field reports the level.
+   */
+  it("lists every tier with its resolved model and that model's egress class, flagging none", () => {
     const text = menu("confidential");
-    assert.match(text, /tier `strong` -> github-copilot\/claude-opus-5.*\[NOT available to this confidential session\]/);
-    assert.match(text, /tier `confidential` -> databricks\/databricks-claude-sonnet-4-5/);
-    assert.doesNotMatch(
-      text,
-      /tier `confidential` -> databricks\/databricks-claude-sonnet-4-5.*\[NOT available/,
-    );
+    assert.match(text, /tier `strong` -> github-copilot\/claude-opus-5 \(egress public, effort high\)/);
+    assert.match(text, /tier `confidential` -> databricks\/databricks-claude-sonnet-4-5 \(egress confidential, effort medium\)/);
+    assert.doesNotMatch(text, /NOT available/);
   });
 
   it("lists the selectable ids grouped by provider, with the provider's egress class", () => {
@@ -168,15 +169,45 @@ describe("renderModelMenu", () => {
     );
   });
 
-  it("explains what it left out instead of silently shortening the list", () => {
-    assert.match(menu(), /Not selectable: 1 from provider\(s\) with no egress class in routing\.json \(deepseek\)/);
-    assert.match(menu("confidential"), /5 outside this session's confidential egress class/);
+  it("keeps the session's own class on the page, as a label that restricts nothing", () => {
+    assert.match(menu("confidential"), /This session is classed `confidential`; the class is a label and restricts nothing/);
+    assert.match(menu("confidential"), /All 9 concrete id\(s\) below are selectable/);
+  });
+
+  it("labels an unclassed provider rather than withholding it", () => {
+    const text = menu();
+    assert.match(text, /- deepseek \(egress unlabelled\): deepseek-v4-flash/);
+    assert.match(text, /1 of them come from provider\(s\) with no egress class in routing\.json \(deepseek\)/);
+    assert.match(text, /they are selectable and reported as unlabelled/);
   });
 
   it("says so plainly when the registry could not be read, rather than printing an empty list", () => {
     const text = menu("public", false);
     assert.match(text, /model registry was unavailable/);
-    assert.doesNotMatch(text, /Concrete ids selectable/);
+    assert.doesNotMatch(text, /concrete id\(s\) below are selectable/);
+  });
+
+  /**
+   * The `:<level>` suffix syntax is documented in its own paragraph so the dispatching model can
+   * find it without reading every tier line, and each tier line shows what it actually resolves to
+   * — `effort high` for a declared level, `effort provider default` for a tier with none.
+   */
+  it("documents the :<level> suffix and shows each tier's effective effort", () => {
+    const text = menu();
+    assert.match(text, /Append `:<level>` to a concrete id to set that child's REASONING EFFORT/);
+    for (const level of ["off", "minimal", "low", "medium", "high", "xhigh", "max"]) {
+      assert.match(text, new RegExp("`" + level + "`"), `level ${level} named in the suffix paragraph`);
+    }
+    assert.match(text, /tier `strong` -> github-copilot\/claude-opus-5 \(egress public, effort high\)/);
+
+    const routing = { ...ROUTING, tiers: { ...ROUTING.tiers, strong: { model: "github-copilot/claude-opus-5" } } };
+    const noLevelText = renderModelMenu({
+      routing,
+      catalogue: CATALOGUE,
+      sessionEgress: "public",
+      defaultTier: CONFIG.defaultTier,
+    });
+    assert.match(noLevelText, /tier `strong` -> github-copilot\/claude-opus-5 \(egress public, effort provider default\)/);
   });
 
   it("stays well inside the byte budget with the real machine's model count", () => {

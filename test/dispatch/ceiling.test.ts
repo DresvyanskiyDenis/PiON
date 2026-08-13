@@ -1,13 +1,12 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
+import * as ceiling from "../../extensions/dispatch/ceiling.ts";
 import {
   CEILING_SOURCE,
-  VETO_EGRESS,
   VETO_SPECIALIST,
   bestSpecialist,
   distinctiveWords,
-  egressVeto,
   installCeiling,
   installVetoes,
   planCeiling,
@@ -19,7 +18,6 @@ import {
   dispatchVetoes,
   evaluateDispatch,
   resetDispatchVetoes,
-  type EgressClass,
 } from "../../extensions/lib/dispatch-veto.ts";
 import { ALL_MODELS, CONFIG, GOOD_SCOUT, ROUTING, scratch, writeAgents, type AgentFile } from "./helpers.ts";
 
@@ -46,38 +44,52 @@ const PUBLIC_BIG: AgentFile = {
   frontmatter: "name: big\ndescription: Heavyweight reasoning on the strong public tier.\nmodel: strong",
 };
 
-function registryOf(files: readonly AgentFile[], sessionEgress: EgressClass = "public"): AgentRegistry {
+/** `local` is deliberately absent from ALL_MODELS: an optional tier whose backend is down. */
+const OFFLINE: AgentFile = {
+  name: "offline",
+  frontmatter: "name: offline\ndescription: Runs on the local lane when llama-swap happens to be up.\nmodel: local",
+};
+
+function registryOf(files: readonly AgentFile[]): AgentRegistry {
   const dir = writeAgents(join(scratch(), "agents"), files);
   return loadAgentRegistry({
     dirs: [dir],
     routing: ROUTING,
     config: CONFIG,
-    sessionEgress,
     availableModels: ALL_MODELS,
   });
 }
 
-function ctxOf(registry: AgentRegistry, sessionEgress: EgressClass = "public"): VetoContext {
+function ctxOf(registry: AgentRegistry): VetoContext {
   return {
     registry: () => registry,
-    routing: () => ROUTING,
     config: CONFIG,
-    sessionEgress: () => sessionEgress,
   };
 }
 
 const ALL_TOOLS = ["read", "write", "bash", "subagent", "task", "agent", "dispatch_agent"];
 
 describe("planCeiling", () => {
-  it("allows only the agents that loaded clean and are inside the session's egress class", () => {
+  /**
+   * Rewritten 2026-08-13. This used to run at session class `internal` and expect `big` (a
+   * github-copilot agent) to be excluded as out of class. Class excludes nothing now, so the two
+   * surviving exclusions are asserted instead: a file that does not parse, and a file whose model
+   * is not being served.
+   */
+  it("allows the agents that loaded clean and whose model is actually served", () => {
     const registry = registryOf([
       GOOD_SCOUT,
       PUBLIC_BIG,
+      OFFLINE,
       { name: "typo", frontmatter: "name: typo\ndescription: This one names a tier that does not exist.\nmodel: tier:nope" },
-    ], "internal");
+    ]);
     const plan = planCeiling({ sessionId: "s1", registry, config: CONFIG, depth: 0, allToolNames: ALL_TOOLS });
-    assert.deepEqual(plan.ceiling.allowedAgents, ["scout"], "big is public-only, typo is invalid");
-    assert.match(plan.notes.join("\n"), /allowedAgents: 1 of 3 \(1 restricted by egress, 1 invalid\)/);
+    assert.deepEqual(
+      plan.ceiling.allowedAgents,
+      ["big", "scout"],
+      "big is on a public provider and stays dispatchable; offline has no served model, typo is invalid",
+    );
+    assert.match(plan.notes.join("\n"), /allowedAgents: 2 of 4 \(1 whose model is not currently served, 1 invalid\)/);
   });
 
   it("leaves the dispatch tools in place while children are still below the cap", () => {
@@ -107,7 +119,7 @@ describe("planCeiling", () => {
     assert.match(plan.notes.join("\n"), /no allowedTools ceiling is registered/);
   });
 
-  it("never sets denyExtensions - a child without this extension has no depth or egress check", () => {
+  it("never sets denyExtensions - a child without this extension has no depth check", () => {
     const registry = registryOf([GOOD_SCOUT]);
     const plan = planCeiling({ sessionId: "s1", registry, config: CONFIG, depth: 1, allToolNames: ALL_TOOLS });
     assert.equal((plan.ceiling as { denyExtensions?: unknown }).denyExtensions, undefined);
@@ -135,7 +147,7 @@ describe("installCeiling", () => {
       // and plain node refuses to strip types there. PI loads it through jiti, where it works.
       // The point under test is the shape of the degradation, not which branch this runner takes.
       assert.match(result.failure, /is NOT in force/);
-      assert.match(result.failure, /Depth and egress are still enforced|remain enforced/);
+      assert.match(result.failure, /Depth is still enforced|Depth remains enforced/);
     }
     assert.ok(result.notes.length > 0, "the plan is reported either way");
   });
@@ -169,12 +181,35 @@ describe("bestSpecialist", () => {
     assert.equal(bestSpecialist(registry, "generic worker with no particular domain", generic, 2), undefined);
   });
 
-  it("never proposes an agent this session may not dispatch", () => {
-    const registry = registryOf([RESEARCHER, GENERAL], "confidential");
+  /**
+   * Rewritten 2026-08-13: the agent used to be unrecommendable because a confidential session could
+   * not reach its provider. The surviving reason is the honest one — recommending an agent whose
+   * model nothing is serving would send the caller into a refusal.
+   */
+  it("never proposes an agent this session cannot actually dispatch", () => {
+    const offlineResearcher: AgentFile = {
+      name: "researcher",
+      frontmatter: [
+        "name: researcher",
+        "description: Web research specialist - searches sources, reads pages and returns cited findings.",
+        "model: local",
+      ].join("\n"),
+    };
+    const registry = registryOf([offlineResearcher, GENERAL]);
+    assert.equal(registry.byName.get("researcher")?.status, "restricted");
     assert.equal(
       bestSpecialist(registry, "web research: search sources and return cited findings", generic, 2),
       undefined,
-      "researcher is restricted in a confidential session, so it cannot be the recommendation",
+      "its model is not being served, so it cannot be the recommendation",
+    );
+  });
+
+  it("DOES propose a specialist on a provider looser than the session's own class", () => {
+    const registry = registryOf([RESEARCHER, GENERAL]);
+    assert.equal(registry.byName.get("researcher")?.status, "ok");
+    assert.equal(
+      bestSpecialist(registry, "web research: search sources and return cited findings", generic, 2)?.name,
+      "researcher",
     );
   });
 
@@ -216,52 +251,53 @@ describe("specialistVeto (REQ-CTX-47)", () => {
   });
 });
 
-describe("egressVeto (containment)", () => {
-  it("ACCEPTANCE: a confidential session cannot dispatch a child onto a public provider", async () => {
-    const registry = registryOf([PUBLIC_BIG], "confidential");
-    const verdict = await egressVeto(ctxOf(registry, "confidential")).evaluate({
+/**
+ * WITHDRAWN 2026-08-13. `DV-EGRESS` was the per-request half of egress containment: it refused a
+ * dispatch whose resolved model belonged to a provider "looser" than the session, and it repeated
+ * the registry's `restricted` verdict at the point of decision. Five tests here asserted those
+ * refusals. The whole veto is gone; these assert that each of those five dispatches now succeeds
+ * while the class is still resolvable and reported.
+ */
+describe("egress containment veto (withdrawn)", () => {
+  beforeEach(() => resetDispatchVetoes());
+
+  it("exports neither the veto nor its gate id", () => {
+    const surface = ceiling as unknown as Record<string, unknown>;
+    assert.equal(surface.egressVeto, undefined);
+    assert.equal(surface.VETO_EGRESS, undefined);
+  });
+
+  it("ACCEPTANCE: a confidential session CAN dispatch a child onto a public provider", async () => {
+    const registry = registryOf([PUBLIC_BIG]);
+    assert.equal(registry.byName.get("big")?.status, "ok");
+    assert.equal(registry.byName.get("big")?.target?.egress, "public", "the class is still reported");
+
+    installVetoes(ctxOf(registry));
+    const verdict = await evaluateDispatch({
       agentType: "big",
       prompt: "think hard about this",
-    });
-    assert.equal(verdict.veto, true);
-    assert.equal(verdict.veto && verdict.denial.gateId, VETO_EGRESS);
-    assert.equal(verdict.veto && verdict.denial.overridable, false, "egress containment is NOT a matter of taste");
-  });
-
-  it("catches a call-time model override the agent file never declared", async () => {
-    // scout is perfectly legal in an internal session — its `cheap` tier resolves to databricks,
-    // which is `confidential`, a class strictly inside `internal`. The refusal here comes only
-    // from the `model:` argument on the call, which the registry never saw.
-    const registry = registryOf([GOOD_SCOUT], "internal");
-    assert.equal(registry.byName.get("scout")?.status, "ok");
-    const verdict = await egressVeto(ctxOf(registry, "internal")).evaluate({
-      agentType: "scout",
-      prompt: "read a file",
-      childTier: "strong",
-    });
-    assert.equal(verdict.veto, true);
-    assert.match(verdict.veto ? verdict.denial.what : "", /github-copilot\/claude-opus-5/);
-  });
-
-  it("uses the request's own parentEgress when the caller supplies one", async () => {
-    const registry = registryOf([PUBLIC_BIG], "public");
-    const verdict = await egressVeto(ctxOf(registry, "public")).evaluate({
-      agentType: "big",
-      prompt: "x",
       parentEgress: "confidential",
     });
-    assert.equal(verdict.veto, true);
+    assert.deepEqual(verdict, { veto: false });
   });
 
-  it("permits a same-or-stricter dispatch", async () => {
-    const registry = registryOf([GOOD_SCOUT, PUBLIC_BIG], "public");
-    assert.deepEqual(await egressVeto(ctxOf(registry)).evaluate({ agentType: "big", prompt: "x" }), { veto: false });
-    assert.deepEqual(await egressVeto(ctxOf(registry)).evaluate({ agentType: "scout", prompt: "x" }), { veto: false });
-  });
-
-  it("does not double-report an unknown tier - the registry already refused it by name", async () => {
+  it("ACCEPTANCE: a call-time model override onto another provider is not vetoed", async () => {
     const registry = registryOf([GOOD_SCOUT]);
-    const verdict = await egressVeto(ctxOf(registry)).evaluate({
+    installVetoes(ctxOf(registry));
+    const verdict = await evaluateDispatch({
+      agentType: "scout",
+      prompt: "read a file",
+      parentEgress: "internal",
+      childTier: "strong",
+      childEgress: "public",
+    });
+    assert.deepEqual(verdict, { veto: false }, "switching provider inside a session is the point");
+  });
+
+  it("an unknown tier is still nobody's business here — the dispatch rules refuse it by name", async () => {
+    const registry = registryOf([GOOD_SCOUT]);
+    installVetoes(ctxOf(registry));
+    const verdict = await evaluateDispatch({
       agentType: "scout",
       prompt: "x",
       childTier: "tier:nonsense",
@@ -273,20 +309,21 @@ describe("egressVeto (containment)", () => {
 describe("installVetoes", () => {
   beforeEach(() => resetDispatchVetoes());
 
-  it("registers containment before taste, so the non-overridable rule wins", async () => {
-    const registry = registryOf([RESEARCHER, GENERAL], "confidential");
-    const ids = installVetoes(ctxOf(registry, "confidential"));
-    assert.deepEqual(ids, [VETO_EGRESS, VETO_SPECIALIST]);
-    assert.deepEqual(dispatchVetoes().map((v) => v.id), [VETO_EGRESS, VETO_SPECIALIST]);
+  it("registers the specialist veto and nothing else", async () => {
+    const registry = registryOf([RESEARCHER, GENERAL]);
+    const ids = installVetoes(ctxOf(registry));
+    assert.deepEqual(ids, [VETO_SPECIALIST]);
+    assert.deepEqual(dispatchVetoes().map((v) => v.id), [VETO_SPECIALIST]);
 
-    // This request trips both rules: it is a generic dispatch with a matching specialist, and its
-    // resolved model is out of the session's egress class. Containment must be the reported one.
+    // Rewritten 2026-08-13: this request used to trip containment first and report DV-EGRESS. With
+    // containment gone, taste is the only verdict left — and it stays overridable.
     const verdict = await evaluateDispatch({
       agentType: "general-purpose",
       prompt: "Web research: search sources, read pages, return cited findings",
+      parentEgress: "confidential",
     });
     assert.equal(verdict.veto, true);
-    assert.equal(verdict.veto && verdict.denial.gateId, VETO_EGRESS);
-    assert.equal(verdict.veto && verdict.denial.overridable, false);
+    assert.equal(verdict.veto && verdict.denial.gateId, VETO_SPECIALIST);
+    assert.equal(verdict.veto && verdict.denial.overridable, true);
   });
 });

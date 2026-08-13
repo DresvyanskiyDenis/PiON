@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import * as tiers from "../../extensions/dispatch/tiers.ts";
 import {
   DispatchError,
-  assertEgressContainment,
   egressOf,
   resolveModelSpec,
   resolveSessionEgress,
@@ -11,17 +11,22 @@ import { makeCatalogue } from "../../extensions/dispatch/catalogue.ts";
 import { CATALOGUE, ROUTING, grab } from "./helpers.ts";
 
 describe("resolveModelSpec", () => {
+  // 2026-08-13: ROUTING's `cheap` tier declares `thinkingLevel: "low"`, and `resolveTier`
+  // (`tiers.ts`) makes that real by appending `:low` to the model string — the only place PI reads
+  // a child's reasoning effort from. This used to assert the bare id.
   it("resolves tier:<name>", () => {
     const t = resolveModelSpec(ROUTING, "tier:cheap", "fast");
-    assert.equal(t.model, "databricks/databricks-claude-haiku-4-5");
+    assert.equal(t.model, "databricks/databricks-claude-haiku-4-5:low");
     assert.equal(t.provider, "databricks");
     assert.equal(t.tier, "cheap");
     assert.equal(t.egress, "confidential");
   });
 
+  // 2026-08-13: `strong` declares `thinkingLevel: "high"`; same suffix-append as above. Used to
+  // assert the bare id.
   it("resolves a bare tier name, because plan 4.5 writes `model: strong`", () => {
     const t = resolveModelSpec(ROUTING, "strong", "fast");
-    assert.equal(t.model, "github-copilot/claude-opus-5");
+    assert.equal(t.model, "github-copilot/claude-opus-5:high");
     assert.equal(t.tier, "strong");
     assert.equal(t.egress, "public");
   });
@@ -55,12 +60,25 @@ describe("resolveModelSpec", () => {
     assert.match(err.message, /unknown tier "deep"/);
   });
 
-  it("refuses a provider with no declared egress class", () => {
-    const err = grab(() => resolveModelSpec(ROUTING, "anthropic/claude", "fast")) as DispatchError;
+  /**
+   * WITHDRAWN 2026-08-13. This used to be `refuses a provider with no declared egress class`,
+   * asserting `kind:"config"` and a message about there being "no defensible answer" to whether the
+   * session's data may go there. That refusal was the withdrawn egress-containment rule in another
+   * costume — a provider the config forgot to label became a provider nobody could use — so it went
+   * with the rest of it. An unclassed provider is now UNLABELLED: it resolves, and carries no class.
+   */
+  it("resolves a provider with no declared egress class, leaving the label empty", () => {
+    const t = resolveModelSpec(ROUTING, "anthropic/claude", "fast");
+    assert.equal(t.model, "anthropic/claude");
+    assert.equal(t.provider, "anthropic");
+    assert.equal(t.egress, undefined, "no class is not the same as a forbidden class");
+    assert.equal(t.tier, undefined);
+  });
+
+  it("still refuses an empty provider — that is a malformed id, not an unclassed one", () => {
+    const err = grab(() => resolveModelSpec(ROUTING, "/claude", "fast")) as DispatchError;
     assert.equal(err.kind, "config");
-    assert.match(err.message, /no declared egress class/);
-    assert.match(err.message, /read as a provider-qualified model id/, "say how the value was read");
-    assert.match(err.message, /classed providers: github-copilot, openai, databricks, local/);
+    assert.match(err.message, /empty provider/);
   });
 });
 
@@ -91,17 +109,26 @@ describe("resolveModelSpec against the model registry", () => {
     assert.equal(resolveModelSpec(ROUTING, "github-copilot/gpt-5.1", "fast").model, "github-copilot/gpt-5.1");
   });
 
+  // 2026-08-13: the refusal message names `target.model`, which by now carries `strong`'s `:high`
+  // suffix — the suffix is applied before the existence check runs, so it survives into the error
+  // text. Used to assert the bare id.
   it("reports a tier whose target vanished as a routing.json error, not as a bad call", () => {
     const thin = makeCatalogue(["databricks/databricks-claude-haiku-4-5"]);
     const err = grab(() => resolveModelSpec(ROUTING, "strong", "fast", thin)) as DispatchError;
     assert.equal(err.kind, "unknown_model");
-    assert.match(err.message, /tier "strong" resolves to github-copilot\/claude-opus-5 \(routing\.json\)/);
+    assert.match(err.message, /tier "strong" resolves to github-copilot\/claude-opus-5:high \(routing\.json\)/);
     assert.match(err.message, /fix the tier rather than working around it/);
   });
 
+  // 2026-08-13: `local` declares `thinkingLevel: "medium"`. The suffix is applied regardless of
+  // the `optional` flag — `optional` only skips the existence check, not thinking-level resolution.
+  // Used to assert the bare id.
   it("exempts an `optional` tier: llama-swap being down is a runtime fact, not a config error", () => {
     // `local` is optional and its model is deliberately absent from CATALOGUE.
-    assert.equal(resolveModelSpec(ROUTING, "local", "fast", CATALOGUE).model, "local/unsloth/Qwen3.6-35B-A3B-MTP-GGUF");
+    assert.equal(
+      resolveModelSpec(ROUTING, "local", "fast", CATALOGUE).model,
+      "local/unsloth/Qwen3.6-35B-A3B-MTP-GGUF:medium",
+    );
   });
 
   it("offers ids when a bare word looks like a model rather than a tier", () => {
@@ -120,40 +147,131 @@ describe("resolveModelSpec against the model registry", () => {
   });
 });
 
-describe("egressOf", () => {
-  it("never guesses", () => {
-    assert.equal(egressOf(ROUTING, "local"), "confidential");
-    assert.throws(() => egressOf(ROUTING, "nope"), DispatchError);
+/**
+ * PI carries a child's reasoning effort in the model string — `provider/id:max` — and the launch
+ * path reads it there (`pi-subagents/src/runs/foreground/subagent-executor.ts:2146`), where it
+ * outranks both the agent file's `thinking:` and any override. The catalogue, however, is keyed by
+ * bare `provider/id`. Before `splitThinkingSuffix` existed, every suffixed spec died on the
+ * existence check with `unknown_model`, which is why this harness spent months believing PI could
+ * not set effort per dispatch at all.
+ */
+describe("resolveModelSpec with a thinking-level suffix", () => {
+  it("accepts a suffixed id and passes the suffix through to the wire", () => {
+    const t = resolveModelSpec(ROUTING, "github-copilot/gpt-5.4-mini:max", "fast", CATALOGUE);
+    assert.equal(t.model, "github-copilot/gpt-5.4-mini:max", "the suffix must survive — it IS the effort");
+    assert.equal(t.provider, "github-copilot");
+  });
+
+  it("accepts every level pi-subagents knows", () => {
+    for (const level of ["off", "minimal", "low", "medium", "high", "xhigh", "max"]) {
+      const t = resolveModelSpec(ROUTING, `github-copilot/gpt-5.4-mini:${level}`, "fast", CATALOGUE);
+      assert.equal(t.model, `github-copilot/gpt-5.4-mini:${level}`);
+    }
+  });
+
+  it("refuses an UNKNOWN level rather than reading it as part of the id", () => {
+    // The whole risk of suffix-splitting is silently swallowing a typo: `:maxx` must not quietly
+    // become effort `max`, nor be accepted as a model id nobody serves.
+    const err = grab(() =>
+      resolveModelSpec(ROUTING, "github-copilot/gpt-5.4-mini:maxx", "fast", CATALOGUE),
+    ) as DispatchError;
+    assert.equal(err.kind, "unknown_model");
+    assert.match(err.message, /gpt-5\.4-mini:maxx/);
+  });
+
+  it("still refuses a suffixed id whose base model does not exist", () => {
+    const err = grab(() => resolveModelSpec(ROUTING, "github-copilot/gpt-5.1:high", "fast", CATALOGUE)) as DispatchError;
+    assert.equal(err.kind, "unknown_model");
+    // The suggestion is computed from the BASE id: "closest to gpt-5.1:high" would rank nothing.
+    assert.match(err.message, /Closest available: github-copilot\/gpt-5\.4/);
+  });
+
+  it("resolves a tier whose routing.json model carries a suffix", () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4:max", purpose: "t" } },
+    };
+    const t = resolveModelSpec(routing, "cheap", "fast", CATALOGUE);
+    assert.equal(t.model, "github-copilot/gpt-5.4:max");
+    assert.equal(t.tier, "cheap");
   });
 });
 
-describe("assertEgressContainment", () => {
-  const target = (spec: string) => resolveModelSpec(ROUTING, spec, "fast");
-
-  it("refuses a confidential session dispatching onto a public provider", () => {
-    const err = grab(() => assertEgressContainment(target("strong"), "confidential", 'agent "x"')) as DispatchError;
-    assert.equal(err.kind, "egress");
-    assert.match(err.message, /the session is confidential/);
-    assert.match(err.message, /github-copilot\/claude-opus-5/);
+/**
+ * `applyTierThinkingLevel` (`tiers.ts`) is private — it is only reachable through `resolveTier`,
+ * which `resolveModelSpec` calls for every tier name. These exercise its four cases directly,
+ * on top of the general suffix-handling covered above.
+ */
+describe("applyTierThinkingLevel (via resolveModelSpec)", () => {
+  it("a tier with thinkingLevel resolves to model:level", () => {
+    const t = resolveModelSpec(ROUTING, "cheap", "fast");
+    assert.equal(t.model, "databricks/databricks-claude-haiku-4-5:low", "cheap declares thinkingLevel: low");
   });
 
-  it("refuses a confidential session dispatching onto an internal provider", () => {
-    // No shipped provider is `internal` any more (litellm, the one that was, is deleted) — this
-    // ModelTarget is a deliberate synthetic literal, not resolved through ROUTING, so the
-    // `internal`-class containment path stays exercised.
-    const internalTarget: ReturnType<typeof target> = { ...target("confidential"), egress: "internal" };
-    assert.throws(() => assertEgressContainment(internalTarget, "confidential", "x"), DispatchError);
+  it("a tier whose model already ends in a known suffix keeps its own — explicit wins", () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4:max", thinkingLevel: "low" } },
+    };
+    const t = resolveModelSpec(routing, "cheap", "fast");
+    assert.equal(t.model, "github-copilot/gpt-5.4:max", "the id's own :max must not be overwritten by the field's low");
   });
 
-  it("allows movement to a stricter class", () => {
-    assert.doesNotThrow(() => assertEgressContainment(target("confidential"), "public", "x"));
-    assert.doesNotThrow(() => assertEgressContainment(target("cheap"), "public", "x"));
-    assert.doesNotThrow(() => assertEgressContainment(target("confidential"), "internal", "x"));
-    assert.doesNotThrow(() => assertEgressContainment(target("local"), "confidential", "x"));
+  it("a tier with no thinkingLevel resolves to a bare model", () => {
+    const routing = { ...ROUTING, tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4" } } };
+    const t = resolveModelSpec(routing, "cheap", "fast");
+    assert.equal(t.model, "github-copilot/gpt-5.4");
+    assert.equal(t.thinkingLevel, undefined);
   });
 
-  it("refuses an internal session dispatching onto a public provider", () => {
-    assert.throws(() => assertEgressContainment(target("fast"), "internal", "x"), DispatchError);
+  it("a tier declaring an UNKNOWN level throws DispatchError(config), naming the tier and the legal levels", () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4", thinkingLevel: "supreme" } },
+    };
+    const err = grab(() => resolveModelSpec(routing, "cheap", "fast")) as DispatchError;
+    assert.equal(err.kind, "config");
+    assert.match(err.message, /tier "cheap" declares thinkingLevel "supreme"/);
+    assert.match(err.message, /off\|minimal\|low\|medium\|high\|xhigh\|max/);
+  });
+});
+
+describe("egressOf", () => {
+  it("reports a declared class", () => {
+    assert.equal(egressOf(ROUTING, "local"), "confidential");
+    assert.equal(egressOf(ROUTING, "github-copilot"), "public");
+  });
+
+  it("reports an undeclared one as undefined instead of throwing", () => {
+    assert.equal(egressOf(ROUTING, "nope"), undefined);
+  });
+});
+
+/**
+ * WITHDRAWN 2026-08-13. `assertEgressContainment()` used to enforce "work may move to a stricter
+ * egress class, never a looser one", and four tests here asserted its refusals. Nobody had asked
+ * for that rule; its real effect was that most agents became undispatchable from a session classed
+ * anything but the loosest. The classes are reporting labels now, and this block is the guard that
+ * the assertion does not come back: every configured model must stay dispatchable from every
+ * session, whatever the two labels say.
+ */
+describe("egress containment (withdrawn)", () => {
+  it("exports no containment assertion", () => {
+    const surface = tiers as unknown as Record<string, unknown>;
+    assert.equal(surface.assertEgressContainment, undefined);
+  });
+
+  it("every tier resolves whatever the session's class, and keeps its own label", () => {
+    for (const [tier, expected] of [
+      ["strong", "public"],
+      ["cheap", "confidential"],
+      ["confidential", "confidential"],
+      ["local", "confidential"],
+    ] as const) {
+      const t = resolveModelSpec(ROUTING, tier, "fast");
+      assert.equal(t.tier, tier);
+      assert.equal(t.egress, expected, `${tier} keeps its reported class`);
+    }
   });
 });
 

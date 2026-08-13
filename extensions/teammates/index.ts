@@ -37,7 +37,6 @@ import { loadDispatchSettings, registryDirs, type DispatchSettings } from "../di
 import { currentDepth, evaluateDepth } from "../dispatch/depth.ts";
 import { loadAgentRegistry, type AgentDef, type AgentRegistry } from "../dispatch/registry.ts";
 import { ProviderSemaphoreSet } from "../dispatch/semaphore.ts";
-import { resolveSessionEgress } from "../dispatch/tiers.ts";
 import { logEvent } from "../session-index/index.ts";
 import { REPLY_TOOL } from "./contract.ts";
 import { runExchange } from "./exchange.ts";
@@ -342,18 +341,12 @@ async function onSessionStart(ctx: ExtensionContext, state: State): Promise<void
   if (state.settings.routing === undefined) {
     state.problems.push(...state.settings.problems);
     state.problems.push(
-      `config/routing.json is unusable, so no agent's model or egress can be resolved; ` +
+      `config/routing.json is unusable, so no agent's model can be resolved; ` +
         `teammate(action="spawn") is refused. Nothing was guessed.`,
     );
     return;
   }
   const routing = state.settings.routing;
-
-  const egress = resolveSessionEgress(routing, {
-    ...(process.env.PI_ROUTING_EGRESS !== undefined ? { declared: process.env.PI_ROUTING_EGRESS } : {}),
-    ...(ctx.model?.provider !== undefined ? { activeProvider: ctx.model.provider } : {}),
-    defaultEgress: cfg.defaultEgress,
-  });
 
   let available: Set<string> | undefined;
   try {
@@ -369,7 +362,6 @@ async function onSessionStart(ctx: ExtensionContext, state: State): Promise<void
     dirs: registryDirs(cfg, ctx.cwd),
     routing,
     config: cfg,
-    sessionEgress: egress.egress,
     ...(available !== undefined ? { availableModels: available } : {}),
   });
   state.semaphores = new ProviderSemaphoreSet(routing.concurrency, cfg.concurrencyDefault);
@@ -394,8 +386,8 @@ function requireArg(value: string | undefined, arg: string, action: string): str
 
 /**
  * The agent must resolve *before* a session is opened. `EXT-05`'s registry already answers "would
- * dispatching this agent work right now", including egress containment, so this refuses by name with
- * that verdict rather than discovering it after a child is running.
+ * dispatching this agent work right now" — the file parses, and its model is being served — so this
+ * refuses by name with that verdict rather than discovering it after a child is running.
  */
 function resolveAgent(state: State, agentName: string): AgentDef {
   if (state.agents === undefined) {

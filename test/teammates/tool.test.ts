@@ -56,12 +56,25 @@ let cwd: string;
  * Read from the table rather than hardcoded: the registry validates an agent's resolved model
  * against what the session offers, so a fake registry that offers something else makes every spawn
  * fail for a reason that has nothing to do with the teammate runtime.
+ *
+ * Two forms, because they are two different things since 2026-08-13. The registry is keyed by bare
+ * `provider/id`, so that is what a fake `getAvailable()` has to offer. What actually goes on the
+ * wire is the RESOLVED id, which carries the tier's declared `thinkingLevel` as a `:<level>` suffix
+ * — that suffix is the only channel PI reads a child's reasoning effort from, and a teammate is a
+ * child like any other, so it must arrive there too.
  */
+const CHEAP_TIER = readShippedConfig<{ tiers: Record<string, { model: string; thinkingLevel?: string }> }>("routing")
+  .tiers["cheap"]!;
+
 const CHEAP_MODEL = (() => {
-  const routing = readShippedConfig<{ tiers: Record<string, { model: string }> }>("routing");
-  const [provider, ...rest] = routing.tiers["cheap"]!.model.split("/");
+  const [provider, ...rest] = CHEAP_TIER.model.split("/");
   return { provider: provider!, id: rest.join("/") };
 })();
+
+const CHEAP_MODEL_RESOLVED = {
+  provider: CHEAP_MODEL.provider,
+  id: CHEAP_TIER.thinkingLevel ? `${CHEAP_MODEL.id}:${CHEAP_TIER.thinkingLevel}` : CHEAP_MODEL.id,
+};
 
 before(async () => {
   const root = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), "pi-teammates-e2e-"));
@@ -121,10 +134,13 @@ function harness(scripts: Record<string, Turn[]>): Harness {
     mode: "print",
     ui: { notify: (line: string) => void notices.push(line), setStatus: () => {} },
     sessionManager: { getSessionId: () => "lead-session" },
+    // Bare `provider/id`, because that is how the model registry is keyed — a resolved id's
+    // `:<level>` suffix is stripped before existence is asked about.
     modelRegistry: { getAvailable: () => [CHEAP_MODEL] },
-    // The lead runs on the same provider as the teammate it spawns. Left undefined, the session's
-    // egress class falls back to the strictest default, and a public-provider teammate is then
-    // refused containment — a correct refusal, but not what these tests are about.
+    // The lead runs on the same provider as the teammate it spawns, which is simply the realistic
+    // arrangement. It used to matter more than that: until egress containment was withdrawn on
+    // 2026-08-13, leaving this undefined dropped the session to the strictest default class and the
+    // spawn was then refused for its provider's class rather than for anything under test here.
     model: CHEAP_MODEL,
   } as unknown as ExtensionContext;
 
@@ -167,7 +183,7 @@ describe("teammate tool", () => {
     const req = h.spawned[0]!.req;
     assert.equal(req.systemPromptAppend[req.systemPromptAppend.length - 1], DELIVERY_CONTRACT);
     assert.match(req.systemPromptAppend[0]!, /You review code/);
-    assert.deepEqual(req.model, CHEAP_MODEL);
+    assert.deepEqual(req.model, CHEAP_MODEL_RESOLVED, "the tier's declared reasoning effort rides along");
     assert.match(textOf(result), /is live/);
     assert.match(textOf(result), new RegExp(`only ${REPLY_TOOL} delivers its work`));
   });

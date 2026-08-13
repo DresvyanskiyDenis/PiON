@@ -71,8 +71,10 @@ export const ALL_MODELS = new Set([
   "databricks/databricks-claude-haiku-4-5",
   "databricks/databricks-gpt-oss-120b",
   "databricks/databricks-claude-sonnet-4-5",
-  // Available, but `deepseek` has no egress class in ROUTING — selecting it must be refused, not
-  // guessed at. The real machine has exactly this situation.
+  // Available, and `deepseek` has no egress class in ROUTING. Since 2026-08-13 that makes it
+  // UNLABELLED, not forbidden: it is selectable like any other id and merely reported as carrying
+  // no class. Any install that adds a provider to models.json without a matching row in
+  // routing.json's `egress` map is in exactly this state.
   "deepseek/deepseek-v4-flash",
 ]);
 
