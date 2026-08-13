@@ -1,0 +1,6 @@
+{
+  "segments": ["provider", "model", "thinking", "cwd", "branch", "context", "cost"],
+  "extensionStatusIcons": {
+    "quota": "📊"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "defaultTimeoutSeconds": 120,
+  "ceilingSeconds": 3600,
+  "minTimeoutSeconds": 1,
+  "maxLines": 2000,
+  "maxBytes": 51200
+}

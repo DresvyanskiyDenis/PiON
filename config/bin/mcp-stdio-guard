@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# mcp-stdio-guard — EXT-14b glue: env-minimising exec wrapper for stdio-spawned MCP
+# child servers (playwright, drawio).
+#
+# WHY THIS EXISTS: pi-mcp-adapter's resolveEnv() (pi-packages/pi-mcp-adapter/server-manager.ts:1065-1075)
+# always inherits the FULL parent process environment for every stdio server before spawning it, then
+# layers that server's own `env` block on top. That fully-populated object is passed straight into
+# @modelcontextprotocol/client's StdioClientTransport (node_modules/@modelcontextprotocol/client/dist/stdio.mjs),
+# whose OWN safe default — HOME/LOGNAME/PATH/SHELL/TERM/USER only, via getDefaultEnvironment() — is spread
+# FIRST and the adapter's full-inheritance object is spread SECOND, so the adapter's object always wins and
+# the SDK's safety default is silently defeated. Every stdio MCP server (playwright, drawio) would otherwise
+# receive every credential this repo's config/shell/pi-env.sh loads into the `pi` process —
+# COPILOT_GITHUB_TOKEN, DATABRICKS_TOKEN, CONTEXT7_API_KEY, OPENAI_API_KEY, PI_COPILOT_QUOTA_TOKEN, and
+# anything else in ~/.pi/secrets.env — none of which playwright or drawio need. Neither file above is ours to
+# patch: pi-mcp-adapter is vendored and sha256-pinned after a security review (see pi-packages/), and the
+# MCP SDK is an installed dependency of it, not vendored. This script is the config-side lever instead:
+# config/mcp.json points a stdio server's `command` at this wrapper (see its playwright/drawio entries), and
+# this wrapper drops every inherited variable except an explicit allowlist before handing off to the real
+# command.
+#
+# `exec` (not a plain call, not a backgrounded subshell) replaces THIS process's image in place, so the PID
+# the adapter spawned keeps running — now as the real server — under the same PID. The SDK's own close()
+# escalation (stdin.end() -> wait up to 2s for the "close" event -> SIGTERM -> wait up to 2s -> SIGKILL,
+# stdio.mjs's close()/_dispose()) still targets that PID directly and nothing is left orphaned; there is no
+# wrapper process left alive to leak.
+#
+# Usage:   mcp-stdio-guard <real-command> [real-args...]
+#
+# Extra per-server variable NAMES to keep, beyond the universal baseline below, are read from
+# MCP_STDIO_EXTRA_ENV (space-separated names, not values). Set it inside that specific server's own `env`
+# block in config/mcp.json — e.g. playwright's entry sets MCP_STDIO_EXTRA_ENV="PLAYWRIGHT_BROWSERS_PATH" next
+# to the PLAYWRIGHT_BROWSERS_PATH value itself — so the allowlist travels with the server definition that
+# needs it, not with this shared script.
+set -eo pipefail
+
+if [ "$#" -lt 1 ]; then
+  echo "mcp-stdio-guard: no command given" >&2
+  exit 64
+fi
+
+# Universal baseline: the SDK's own DEFAULT_INHERITED_ENV_VARS for non-Windows platforms (stdio.mjs) —
+# HOME, LOGNAME, PATH, SHELL, TERM, USER — plus LANG/LC_ALL/TMPDIR (locale and scratch-space sanity most
+# CLI tools assume) and the corporate CA bundle + proxy variables (REQ-EXT-36): a spawned child that
+# silently ignores the corporate CA fails in a way that looks like a network outage, not an auth error,
+# which is far harder to diagnose than a loud one.
+BASELINE_VARS="HOME LOGNAME PATH SHELL TERM USER LANG LC_ALL TMPDIR NODE_EXTRA_CA_CERTS HTTPS_PROXY HTTP_PROXY NO_PROXY https_proxy http_proxy no_proxy"
+
+env_args=()
+for name in $BASELINE_VARS ${MCP_STDIO_EXTRA_ENV:-}; do
+  if value=$(printenv "$name" 2>/dev/null); then
+    env_args+=("$name=$value")
+  fi
+done
+
+if [ "${#env_args[@]}" -gt 0 ]; then
+  exec env -i "${env_args[@]}" "$@"
+else
+  exec env -i "$@"
+fi

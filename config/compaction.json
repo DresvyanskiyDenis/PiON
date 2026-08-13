@@ -1,0 +1,23 @@
+{
+  "compaction": {
+    "loopGuard": {
+      "maxNonReducingPasses": 3,
+      "minReductionRatio": 0.15,
+      "minEntriesBetweenPasses": 2,
+      "headlessExitCode": 91
+    },
+    "instructions": {
+      "enabled": true
+    },
+    "pinned": {
+      "enabled": true,
+      "sources": ["AGENTS.md", "CLAUDE.md"],
+      "maxBytesPerSource": 4096,
+      "maxTotalBytes": 16384
+    },
+    "threshold": {
+      "absoluteTokens": 180000,
+      "toleranceRatio": 0.2
+    }
+  }
+}

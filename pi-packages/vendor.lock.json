@@ -1,0 +1,72 @@
+{
+  "generated": "2026-08-07",
+  "packages": [
+    {
+      "name": "pi-mcp-adapter",
+      "version": "2.20.1",
+      "resolved": "https://registry.npmjs.org/pi-mcp-adapter/-/pi-mcp-adapter-2.20.1.tgz",
+      "integrity": "sha512-bBna74NHM/YXHE2wYgA4atXD9XTPqHhTVS4f6TLYstWNgXUZyuegaTuM07oeAIYjZE3xPvBn0Wl71bSdUSTQVg==",
+      "sha256": "cc35b8d045bb12f8989b8bdfe71dd3b49756c41e0c4a0fe48919ee24c4c16a7f",
+      "gitCommit": "not verified — tarball-only vendoring (no git clone performed), matching docs/PACKAGES.md's own tarball-based review method",
+      "license": "MIT",
+      "maintainer": "Nico Bailon",
+      "thirdPartyDeps": [
+        "@modelcontextprotocol/client@2.0.0",
+        "@modelcontextprotocol/core@2.0.0",
+        "@modelcontextprotocol/ext-apps@^1.2.2",
+        "@napi-rs/keyring@^1.3.0 (optional, native binary — prebuilt Mach-O arm64, no install scripts)",
+        "ajv@^8.17.1",
+        "ajv-formats@^3.0.1",
+        "cross-spawn@^7.0.6",
+        "open@^10.2.0",
+        "recheck@^4.5.0",
+        "smol-toml@^1.6.1",
+        "strip-json-comments@^5.0.3",
+        "zod@^3.25.0 || ^4.0.0"
+      ],
+      "reviewedBy": "security-reviewer agent (see docs/PACKAGES.md 2026-08-06 review)",
+      "reviewedOn": "2026-08-06",
+      "reviewNotes": "docs/PACKAGES.md '## pi-mcp-adapter 2.20.1' section — verdict ADOPT + HARDEN",
+      "reason": "spawns child processes (stdio transport) and carries credentials (OAuth tokens, API-key headers) for the remote/HTTP servers it wires up — security-critical, so it is vendored and digest-recorded rather than resolved fresh at install time.",
+      "localPatches": [
+        {
+          "id": "project-config-trust-gate",
+          "appliedOn": "2026-08-07",
+          "file": "pi-packages/pi-mcp-adapter/config.ts",
+          "closes": "the adapter read a project’s .mcp.json / .pi/mcp.json at session_start regardless of PI’s trust decision, so merely opening a repository was enough to load MCP server definitions that repository controlled.",
+          "shape": "one added block above getConfigSources() exporting `ProjectConfigTrustGate`, `setProjectConfigTrustGate()` and `isProjectConfigTrusted()`, plus three one-line hunks inside getConfigSources(): `const projectAllowed = allowProjectConfigSources(cwd);` and `projectAllowed &&` added to the `shared-project` and `pi-project` conditionals. No upstream line was deleted or reordered.",
+          "defaultBehaviourChange": "With no gate installed the two PROJECT sources are dropped — upstream reads them unconditionally. Global sources (shared-global, agents-global, agents-nested-global, pi-global) are untouched. This is deliberate: PI resolves settings.packages BEFORE settings.extensions, so the adapter runs before extensions/trust.ts installs the real gate, and default-allow would leave that window open.",
+          "installedBy": "extensions/trust.ts register() — mcpProjectConfigAllowed(cwd); reconciled against ctx.isProjectTrusted() in trust.ts's session_start. As first written the predicate was mcpProjectConfigAllowed(cwd, roots), i.e. the same path containment the project_trust handler hands PI; security finding F1 (2026-08-07) showed that is the wrong predicate and the F1-LAYER-1 entry below replaced it. These hunks are unchanged.",
+          "whyNotUpstreamOfTheVendorBoundary": "No adapter setting, env var or PI hook reaches this read. `overridePath` swaps only the GLOBAL source. A tool_call gate is too late: servers with lifecycle 'eager' or 'keep-alive' are spawned during initialization (init.ts:259-263), before any tool call exists. getConfigSources() is the single funnel every read goes through, so the gate belongs there.",
+          "reapply": "MANDATORY on every version bump of pi-mcp-adapter. Re-apply the block and the three hunks, then run `node --test test/mcp/project-trust-gate.test.ts` — its first case ('default-DENY: with no gate installed, neither project file is read') fails immediately if the patch was lost.",
+          "upstreamable": "yes, in principle — a `settings.projectConfigTrust` knob would serve the same purpose. Not filed; the vendored copy is the shipping artefact."
+        },
+        {
+          "id": "F1-LAYER-1/approval-record-is-the-gate",
+          "appliedOn": "2026-08-07",
+          "file": "pi-packages/pi-mcp-adapter/config.ts",
+          "closes": "security review finding F1 (High) — path trust silently implied MCP-config trust. A directory under one of the roots in `config/trusted-roots.json` was treated as trusted for MCP purposes too, so `git clone <hostile> <trusted-root>/x && cd <trusted-root>/x && pi` admitted the clone’s .pi/mcp.json on arrival’ a `lifecycle: \"eager\"` stdio entry was then spawned during MCP initialization with the whole of process.env (resolveEnv), with no tool_call for extensions/guard.ts to intercept.",
+          "shape": "two additions inside the existing T4 patch region. (1) The denial reason in allowProjectConfigSources() now reads \"this project's MCP config carries no matching approval record\" instead of \"the project is not inside a trusted root\" — one string, the gate mechanics are untouched. (2) A new exported function `projectScopedServerNames(cwd, overridePath)` above getConfigSources(), which enumerates the server names every PROJECT-scoped source contributes; it is what layer 2 consults. No upstream line was deleted or reordered.",
+          "defaultBehaviourChange": "None inside the adapter — the gate contract is unchanged. What changed is the POLICY the harness installs: extensions/trust.ts now answers from extensions/lib/mcp-approvals.ts (a persisted per-project, per-sha256 approval ledger at ~/.config/pi-config/mcp-approvals.jsonl, 0600 in a 0700 parent) instead of root containment. Unknown project => deny. Config changed since approval => deny. No project MCP file at all => allow. There is no first-sight auto-approval and no prompt: eager servers spawn during initialization, so a prompt would be answered by the attacker's process starting. Refusal is loud (stderr at gate time, ui.notify + a trust.mcp_refused journal entry at session_start) and names the project, the refused digest, the per-file hashes and `config/bin/pi-mcp-approve <dir>`.",
+          "installedBy": "extensions/trust.ts register() -> setProjectConfigTrustGate((cwd) => mcpProjectConfigAllowed(cwd)); approvals are written only by config/bin/pi-mcp-approve, which prints the config and requires a typed `approve` on a TTY (or an explicit --yes).",
+          "whyNotUpstreamOfTheVendorBoundary": "Same funnel argument as the T4 entry — getConfigSources() is the only place project sources enter, and it is module-private. projectScopedServerNames() has to live here because readValidatedConfig() and the ConfigSourceSpec scope tags are module-private too; re-implementing either outside the package would be a second, drifting copy of the discovery order.",
+          "reapply": "MANDATORY on every version bump. Re-apply both additions, then run `node --test test/mcp/project-trust-gate.test.ts test/mcp/project-approvals.test.ts`. The tripwires: 'default-DENY: with no gate installed, neither project file is read' (T4) and 'F1 end-to-end: the REAL gate refuses a hostile clone sitting inside a trusted root', which drives loadMcpConfig() through the production predicate across refuse -> approve -> mutate -> refuse.",
+          "upstreamable": "the enumeration helper, yes. The approval ledger itself is harness policy and belongs in extensions/, where it is."
+        },
+        {
+          "id": "F1-LAYER-2/project-stdio-spawns-are-wrapped",
+          "appliedOn": "2026-08-07",
+          "file": "pi-packages/pi-mcp-adapter/stdio-guard.ts (new) + pi-packages/pi-mcp-adapter/server-manager.ts",
+          "closes": "the second half of security review finding F1 — config/bin/mcp-stdio-guard (env -i + a BASELINE_VARS allowlist) existed and was reviewed, but it was OPT-IN: a server entry had to point its own `command` at the wrapper. A hostile .pi/mcp.json simply does not opt in, and resolveEnv() copies the whole of process.env — every provider key and service token the operator has exported — into the child.",
+          "shape": "one NEW file, pi-packages/pi-mcp-adapter/stdio-guard.ts, holding guardProjectStdioSpawn() / mcpStdioGuardPath() / setStdioGuardLogSink(); plus three hunks in server-manager.ts — the import line, a setStdioGuardLogSink() call above normalizeRequestTimeoutMs() that forwards to the adapter's logger, and inside createConnection()'s stdio branch `const guarded = guardProjectStdioSpawn(name, command, args, childEnv, this.defaultCwd);` with `command`/`args`/`env` taken from it. No upstream line was deleted or reordered. The logic sits in its own file BECAUSE server-manager.ts uses TypeScript constructor parameter properties, which Node's strip-only loader rejects (ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX) — it cannot be imported from a test, and an untested security control is not one. That is also why stdio-guard.ts does not import ./logger.ts, which has the same problem.",
+          "defaultBehaviourChange": "A stdio server named by a PROJECT source is re-pointed at config/bin/mcp-stdio-guard with its original command as argv[1], whether or not its entry asked for it, and its MCP_STDIO_EXTRA_ENV is dropped with a warning (otherwise `\"env\": {\"MCP_STDIO_EXTRA_ENV\": \"OPENAI_API_KEY GITHUB_TOKEN\"}` would walk the credentials back through the wrapper). Global/user-level servers are untouched — they are the operator's own config, config/mcp.json already opts the ones that need it in, and forcing it on servers that legitimately need inherited environment would break them silently. If the wrapper file is missing, a project-sourced spawn THROWS: an unwrapped spawn is not an acceptable fallback. A command that already resolves to the wrapper is not wrapped twice.",
+          "installedBy": "nothing external — it is unconditional inside the adapter. PI_MCP_STDIO_GUARD relocates the wrapper (tests, moved checkout); the default path is derived from realpath(import.meta.url) + ../../config/bin/mcp-stdio-guard.",
+          "whyNotUpstreamOfTheVendorBoundary": "createConnection() builds the StdioClientTransport directly; there is no hook, no env allowlist setting and no spawn interceptor. resolveEnv()'s full-process.env copy is upstream behaviour that defeats the MCP SDK's own getDefaultEnvironment() safe default, and only the adapter knows which servers came from a project source.",
+          "reapply": "MANDATORY on every version bump. Copy stdio-guard.ts across unchanged and re-apply the three server-manager.ts hunks, then run `node --test test/mcp/project-stdio-guard.test.ts` — 'wraps a project-sourced server that never asked to be wrapped' and 'THROWS when the wrapper is missing' both fail if the patch was lost, and the file also asserts that config/bin/mcp-stdio-guard still uses `env -i` + BASELINE_VARS + exec.",
+          "upstreamable": "yes — an `env: { inherit: false | string[] }` per-server setting, or simply honouring the SDK's getDefaultEnvironment(), would remove the need. Not filed; the vendored copy is the shipping artefact."
+        }
+      ],
+      "deviationFromIdealVendorProcedure": "The ideal vendoring procedure asks the reviewer to assert `dependencies == {}` before vendoring. This package has 12 non-empty runtime dependencies (listed above). That assertion traced to an earlier zero-third-party-dependency rule which has since been revoked in favour of a package-first policy, so it no longer disqualifies anything. Vendored deliberately, per the ADOPT+HARDEN verdict recorded in docs/PACKAGES.md. Module resolution for the non-peer dependencies was verified empirically: Node’s ancestor node_modules walk from pi-packages/pi-mcp-adapter/ up to the repository root’s node_modules/ resolves all of them, so no nested node_modules and no npm install inside pi-packages/pi-mcp-adapter/ are needed."
+    }
+  ]
+}

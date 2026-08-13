@@ -1,0 +1,102 @@
+name: Bug report
+description: Something does not behave the way the documentation says it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: run `/doctor` inside `pi` and `~/pi-config/bin/pi-check --all`.
+        Between them they explain most reports — a guardrail module that failed to load, a tier
+        bound to a provider that is not installed, a generated config file that was never
+        regenerated.
+
+        **Redact anything private**: workspace hosts, tenant names, tokens, absolute paths that
+        identify you. This repository is public and so is your issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The behaviour you observed, and the behaviour you expected instead.
+      placeholder: |
+        Expected: …
+        Actual: …
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The exact commands, in order. Include the exit code — it is usually the answer.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`/doctor` output"
+      description: Run `/doctor` inside a `pi` session and paste the whole thing.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: picheck
+    attributes:
+      label: "`pi-check` output"
+      description: "`~/pi-config/bin/pi-check --all --json`"
+      render: json
+    validations:
+      required: false
+
+  - type: input
+    id: pi-version
+    attributes:
+      label: PI version
+      description: "`pi --version`. This repository is measured against 0.84.0."
+      placeholder: "0.84.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and architecture
+      placeholder: "macOS 15.x, arm64"
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: "`node --version`. Must be ≥ 22.19.0."
+      placeholder: "v22.19.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider in use
+      options:
+        - github-copilot
+        - anthropic
+        - openai
+        - databricks
+        - local
+        - one I added myself
+        - not provider-related
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Checked
+      options:
+        - label: It still reproduces after `./scripts/install.sh --repair`.
+        - label: It reproduces with an unmodified clone (no local edits to `config/` or `extensions/`).
+        - label: I checked [Known limitations](https://dresvyanskiydenis.github.io/PiON/limitations/) and it is not listed there.

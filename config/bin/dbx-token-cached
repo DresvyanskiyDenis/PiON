@@ -1,0 +1,359 @@
+#!/usr/bin/env bash
+# dbx-token-cached — TTL-caching wrapper around Databricks OAuth token acquisition.
+#
+# WHY THIS EXISTS (REQ-PRV-14 / EXT-13):
+#   pi resolves `"apiKey": "!command"` in models.json AT REQUEST TIME, on every single
+#   request, and — quoting the pi docs — "intentionally does not apply built-in TTL,
+#   stale reuse, or recovery logic for arbitrary commands". A naive
+#   `"!databricks auth token"` therefore spends one OAuth round trip per LLM call.
+#   This wrapper turns that into one local file read per call, and at most one real
+#   token fetch per token lifetime.
+#
+# HOW PI ACTUALLY RUNS THIS (verified 2026-08-07 against pi-coding-agent 0.84.0,
+# dist/core/resolve-config-value.js -> executeWithDefaultShell):
+#
+#     execSync(command, { encoding: "utf-8", timeout: 10000, stdio: ["ignore", "pipe", "ignore"] })
+#
+#   Four consequences, and every one of them constrains this file:
+#   * TEN SECONDS, HARD. Not configurable. Anything slower than that is killed and the turn
+#     fails with `Failed to resolve API key for provider "databricks"`. Every budget below is
+#     therefore sized to finish well inside 10 s; PI_DBX_FETCH_TIMEOUT above ~9 is unreachable.
+#     A first-ever interactive U2M OAuth login CANNOT happen here — run `databricks auth login`
+#     yourself, once, out of band.
+#   * stderr is "ignore". Nothing this script warns about reaches the user through pi. That is
+#     why warn() also appends to $CACHE_DIR/dbx-token.log — it is the only surviving channel.
+#   * execSync waits for the STDOUT PIPE TO CLOSE, not merely for this process to exit. Any
+#     background process that inherits stdout holds the caller for as long as it lives. See
+#     fetch_with_timeout: this cost every token refresh a hard 10 s ETIMEDOUT before it was fixed.
+#   * The call site is resolveConfigValueOrThrow -> resolveConfigValueUncached, which bypasses
+#     pi's own process-lifetime command cache. So the premise of REQ-PRV-14 holds: without this
+#     wrapper it really is one OAuth round trip per LLM request.
+#
+# CONTRACT (pi depends on all four):
+#   1. stdout is EXACTLY the bearer token, no trailing newline noise, nothing else.
+#   2. Diagnostics go to stderr and to the log file. The token is NEVER written to either.
+#   3. Exit 0 with a token, or non-zero with an empty stdout. Never print a stale
+#      or partial token.
+#   4. Safe under concurrency: N parallel pi requests cause at most one fetch.
+#
+# AUTH MODES, in resolution order:
+#   a) $DATABRICKS_TOKEN set  -> echoed as-is, zero network, zero cache. This is the
+#      PAT path a colleague can use on day one.
+#   b) `databricks auth token` (Databricks CLI, U2M OAuth / M2M service principal /
+#      ~/.databrickscfg profile) -> fetched, cached until shortly before expiry.
+#
+# ENV:
+#   DATABRICKS_TOKEN         PAT passthrough (mode a)
+#   DATABRICKS_HOST          workspace URL, e.g. https://<DATABRICKS_WORKSPACE_HOST>
+#   DATABRICKS_CONFIG_PROFILE  ~/.databrickscfg profile name (default: DEFAULT)
+#   PI_DBX_TTL_FALLBACK      seconds to trust a token whose expiry we cannot parse (default 2700)
+#   PI_DBX_SKEW              seconds of safety margin before expiry (default 300)
+#   PI_DBX_CACHE_DIR         cache location (default ${XDG_CACHE_HOME:-$HOME/.cache}/pi)
+#   PI_DBX_FETCH_TIMEOUT     seconds before a hung `databricks auth token` is killed (default 8;
+#                            pi kills the whole script at 10 s, so higher values never fire)
+#   PI_DBX_LOCK_WAIT         seconds to wait for another refresher before going unlocked (default 6)
+#   PI_DBX_LOCK_STALE        seconds after which a lock dir is treated as abandoned (default 120)
+#   PI_DBX_MAX_TTL           reject a parsed expiry further out than this (default 86400)
+#   PI_DBX_LOG               diagnostics log path; empty disables it
+#                            (default $CACHE_DIR/dbx-token.log)
+#
+# FILES (all mode 0600 in a 0700 dir):
+#   $CACHE_DIR/dbx-token-<key>.json   { "token": "...", "expires_epoch": 1754500000 }
+#   $CACHE_DIR/dbx-token-<key>.count  monotonically increasing count of REAL fetches
+#                                     (this is the acceptance-test counter for REQ-PRV-14)
+#   $CACHE_DIR/dbx-token.log          redacted diagnostics; the only channel pi does not discard
+#
+set -uo pipefail
+
+# Credential hygiene: an inherited `set -x` (bash propagates it through $SHELLOPTS) would print
+# the token to stderr on every request. Acceptance test 6 asserts nothing token-shaped reaches
+# stderr; this is the line that makes that true regardless of the caller's environment.
+set +x
+# `tr -c` and the case patterns below classify bytes; a UTF-8 locale makes both locale-dependent.
+export LC_ALL=C
+
+SKEW="${PI_DBX_SKEW:-300}"
+TTL_FALLBACK="${PI_DBX_TTL_FALLBACK:-2700}"
+MAX_TTL="${PI_DBX_MAX_TTL:-86400}"
+# 8, not 60: pi's own execSync ceiling is 10 s and is not configurable, so a longer budget here
+# only guarantees that pi kills us first — with our diagnostics discarded and no cache written.
+FETCH_TIMEOUT="${PI_DBX_FETCH_TIMEOUT:-8}"
+# Same reasoning for the lock. Waiting 30 s for another refresher inside a 10 s ceiling means
+# every waiter is killed by pi rather than served, which is the stampede the lock exists to stop.
+LOCK_WAIT="${PI_DBX_LOCK_WAIT:-6}"
+LOCK_STALE="${PI_DBX_LOCK_STALE:-120}"
+CACHE_DIR="${PI_DBX_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/pi}"
+PROFILE="${DATABRICKS_CONFIG_PROFILE:-DEFAULT}"
+LOG_FILE="${PI_DBX_LOG-$CACHE_DIR/dbx-token.log}"
+LOG_MAX_BYTES="${PI_DBX_LOG_MAX_BYTES:-65536}"
+
+# Everything this script prints to stderr goes through `redact`. The Databricks CLI does not
+# normally echo credentials in its diagnostics, but "normally" is not a guarantee we get to make
+# about someone else's binary, and this file's contract point 2 is absolute.
+redact() {
+  sed -E \
+    -e 's/dapi[A-Za-z0-9]{8,}/<redacted-pat>/g' \
+    -e 's/ey[A-Za-z0-9_-]{18,}\.[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]*)?/<redacted-jwt>/g'
+}
+
+# stderr AND the log. pi runs this script with stderr set to "ignore", so a failure that only
+# reaches stderr is a failure nobody can diagnose: the user sees pi's generic "Failed to resolve
+# API key for provider \"databricks\"" and nothing else. Same redaction on both channels; the log
+# is truncated rather than rotated, because it is a breadcrumb trail and not an audit record.
+log_line() {
+  [ -n "$LOG_FILE" ] || return 0
+  mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || return 0
+  local size
+  size="$(wc -c <"$LOG_FILE" 2>/dev/null | tr -d ' ')"
+  case "$size" in ''|*[!0-9]*) size=0 ;; esac
+  [ "$size" -le "$LOG_MAX_BYTES" ] || : >"$LOG_FILE" 2>/dev/null
+  ( umask 077; printf '%s dbx-token-cached[%s]: %s\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$1" >>"$LOG_FILE" ) 2>/dev/null || true
+  chmod 600 "$LOG_FILE" 2>/dev/null || true
+}
+warn() {
+  local msg
+  msg="$(printf '%s' "$1" | redact)"
+  printf 'dbx-token-cached: %s\n' "$msg" >&2
+  log_line "$msg"
+}
+die() { warn "$1"; exit 1; }
+
+# --- mode (a): PAT passthrough -----------------------------------------------
+if [ -n "${DATABRICKS_TOKEN:-}" ]; then
+  # First line only, with no trailing newline: a PAT pasted into a .env file routinely carries
+  # one, and pi would send it inside the Authorization header verbatim.
+  PAT="${DATABRICKS_TOKEN%%$'\n'*}"
+  PAT="${PAT%%$'\r'*}"
+  [ -n "$PAT" ] || die "DATABRICKS_TOKEN is set but empty after trimming"
+  printf '%s' "$PAT"
+  exit 0
+fi
+
+command -v databricks >/dev/null 2>&1 || die "no \$DATABRICKS_TOKEN and no 'databricks' CLI on PATH"
+command -v jq >/dev/null 2>&1 || die "jq is required (brew install jq)"
+
+# Cache key: one cache per (host, profile) pair, so switching workspaces cannot
+# hand you the previous workspace's token.
+KEY_RAW="${DATABRICKS_HOST:-nohost}|${PROFILE}"
+KEY="$(printf '%s' "$KEY_RAW" | tr -c 'A-Za-z0-9._-' '_')"
+CACHE_FILE="$CACHE_DIR/dbx-token-$KEY.json"
+COUNT_FILE="$CACHE_DIR/dbx-token-$KEY.count"
+LOCK_DIR="$CACHE_DIR/dbx-token-$KEY.lock"
+
+mkdir -p "$CACHE_DIR" || die "cannot create $CACHE_DIR"
+chmod 700 "$CACHE_DIR" 2>/dev/null || true
+
+now() { date +%s; }
+
+# Print the cached token if it is still valid; return 1 otherwise.
+#
+# ONE jq fork, not two. This runs on the hot path — pi executes this script on every single
+# request — so the difference is one process per LLM call, not one per token lifetime. Expiry is
+# emitted first so that any tab or unusual byte inside the token cannot shift the field split.
+read_cache() {
+  [ -f "$CACHE_FILE" ] || return 1
+  local out tok exp
+  out="$(jq -r '(.expires_epoch // 0), (.token // "")' <"$CACHE_FILE" 2>/dev/null)" || return 1
+  exp="${out%%$'\n'*}"
+  tok="${out#*$'\n'}"
+  [ -n "$tok" ] || return 1
+  case "$exp" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$(now)" -lt "$(( exp - SKEW ))" ] || return 1
+  printf '%s' "$tok"
+  return 0
+}
+
+# ISO-8601 -> epoch, GNU date then BSD date; empty on failure.
+#
+# The BSD branch splits a trailing numeric UTC offset off BEFORE parsing, because
+# `date -j -u -f '%Y-%m-%dT%H:%M:%S'` does not consume one: verified on macOS 26.5, it prints
+# "Warning: Ignoring 6 extraneous characters in date string (+02:00)" and returns the local wall
+# clock interpreted as UTC. For `...T12:32:12+02:00` that is 7 200 s LATE, i.e. the cache would
+# keep serving a token for two hours after it stopped working. Up to 14 h on the worst offset.
+iso_to_epoch() {
+  local iso="$1" out base offset sign hh mm secs
+  [ -n "$iso" ] || return 1
+  out="$(date -d "$iso" +%s 2>/dev/null)" && { printf '%s' "$out"; return 0; }
+  base="$iso"; offset=""
+  case "$base" in
+    *Z) base="${base%Z}" ;;
+    *+[0-9][0-9]:[0-9][0-9]|*-[0-9][0-9]:[0-9][0-9]) offset="${base: -6}"; base="${base%??????}" ;;
+    *+[0-9][0-9][0-9][0-9]|*-[0-9][0-9][0-9][0-9]) offset="${base: -5}"; base="${base%?????}" ;;
+  esac
+  base="${base%%.*}"
+  out="$(date -j -u -f '%Y-%m-%dT%H:%M:%S' "$base" +%s 2>/dev/null)" || return 1
+  if [ -n "$offset" ]; then
+    sign="${offset:0:1}"
+    hh="${offset:1:2}"
+    mm="${offset: -2}"
+    secs=$(( 10#$hh * 3600 + 10#$mm * 60 ))
+    if [ "$sign" = "+" ]; then out=$(( out - secs )); else out=$(( out + secs )); fi
+  fi
+  printf '%s' "$out"
+  return 0
+}
+
+# Epoch seconds of a path's mtime, BSD stat then GNU stat. Empty on failure.
+mtime_of() {
+  local out
+  out="$(stat -f %m "$1" 2>/dev/null)" && { printf '%s' "$out"; return 0; }
+  out="$(stat -c %Y "$1" 2>/dev/null)" && { printf '%s' "$out"; return 0; }
+  return 1
+}
+
+# A lock dir outlives its owner if that owner was SIGKILLed. Without this, one killed refresher
+# makes every later call wait out the full retry window and then fetch unlocked — the exact
+# stampede the lock exists to prevent, permanently.
+break_stale_lock() {
+  local created age
+  [ -d "$LOCK_DIR" ] || return 0
+  created="$(mtime_of "$LOCK_DIR")" || return 0
+  age=$(( $(now) - created ))
+  [ "$age" -ge "$LOCK_STALE" ] || return 0
+  rmdir "$LOCK_DIR" 2>/dev/null && warn "removed a stale lock (${age}s old) at $LOCK_DIR"
+}
+
+# `databricks auth token` can block indefinitely — a U2M OAuth flow waits on a browser, and a
+# corporate proxy can hold a TCP connect open for minutes. pi re-runs this script per request, so
+# a hang here is a hang of the whole agent. macOS ships no timeout(1), hence the watchdog.
+#
+# TWO NON-OBVIOUS REQUIREMENTS, both learned the hard way (see the header note on execSync):
+#
+#   1. The watchdog must NOT inherit stdout. pi's execSync waits for the stdout pipe to close,
+#      not for this process to exit, so a backgrounded `sleep 8` that inherited stdout keeps the
+#      pipe open after we are gone. Measured: the script finished in 0.5 s with a valid token and
+#      a published cache, and pi still threw ETIMEDOUT at its 10 s ceiling — on EVERY refresh.
+#   2. `kill` on the watchdog subshell does not reach the `sleep` it is blocked in. That child is
+#      reparented and runs out the full budget, holding whatever it inherited. Kill the child
+#      first, then the shell that spawned it.
+#
+# DONE_FILE closes the last window: after `wait` returns, $pid is reaped and its number is free to
+# be reused, so a watchdog that fires between the reap and its own death could TERM an unrelated
+# process. The marker makes that kill a no-op instead.
+fetch_with_timeout() {
+  local out="$1" err="$2" pid watchdog rc
+  : >"$DONE_FILE" 2>/dev/null && rm -f "$DONE_FILE"
+  databricks "${ARGS[@]}" >"$out" 2>"$err" &
+  pid=$!
+  { sleep "$FETCH_TIMEOUT"; [ -e "$DONE_FILE" ] || kill -TERM "$pid" 2>/dev/null; } \
+    </dev/null >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$pid"; rc=$?
+  ( umask 077; : >"$DONE_FILE" ) 2>/dev/null
+  pkill -P "$watchdog" >/dev/null 2>&1
+  kill -TERM "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  return "$rc"
+}
+
+# Fast path: valid cache, no lock, no fork beyond jq.
+if TOKEN="$(read_cache)"; then
+  printf '%s' "$TOKEN"
+  exit 0
+fi
+
+# Slow path: serialise refreshers. mkdir is atomic on every POSIX filesystem;
+# flock(1) does not exist on stock macOS.
+LOCKED=0
+break_stale_lock
+LOCK_TRIES=$(( LOCK_WAIT * 2 ))
+[ "$LOCK_TRIES" -ge 1 ] || LOCK_TRIES=1
+for _ in $(seq 1 "$LOCK_TRIES"); do
+  if mkdir "$LOCK_DIR" 2>/dev/null; then LOCKED=1; break; fi
+  # Someone else is refreshing. Re-check the cache each 0.5 s — usually the
+  # winner publishes within a second and we never fetch at all.
+  if TOKEN="$(read_cache)"; then printf '%s' "$TOKEN"; exit 0; fi
+  sleep 0.5
+  break_stale_lock
+done
+
+# Every scratch file is PID-scoped. On the unlocked fallback path two refreshers run at once, and
+# a shared scratch name means one reads the other's half-written response.
+RESP_FILE="$CACHE_DIR/dbx-token-$KEY.$$.resp"
+ERR_FILE="$CACHE_DIR/dbx-token-$KEY.$$.err"
+DONE_FILE="$CACHE_DIR/dbx-token-$KEY.$$.done"
+TMP=""
+
+# One cleanup for every exit path, signals included. Without INT/TERM/HUP a Ctrl-C during a
+# refresh orphaned the lock dir; without RESP_FILE in the list, the raw token response stayed on
+# disk after the run. Only this process's own files are removed — a wildcard here would delete a
+# concurrent refresher's staging file out from under its `mv`.
+cleanup() {
+  [ "$LOCKED" = 1 ] && rmdir "$LOCK_DIR" 2>/dev/null
+  rm -f "$RESP_FILE" "$ERR_FILE" "$DONE_FILE" ${TMP:+"$TMP"} 2>/dev/null
+  return 0
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM HUP
+
+if [ "$LOCKED" != 1 ]; then
+  # Proceeding unlocked is deliberate — a token beats no token — but it means N concurrent
+  # callers may each fetch, so it is never silent.
+  warn "could not acquire $LOCK_DIR within ${LOCK_WAIT}s; refreshing WITHOUT the lock (concurrent fetches possible)"
+fi
+
+# Re-check under the lock (another process may have just published).
+if TOKEN="$(read_cache)"; then
+  printf '%s' "$TOKEN"
+  exit 0
+fi
+
+# `--profile` is passed unconditionally, using the same `$PROFILE` the cache key is built from.
+# Deriving it only from a set `$DATABRICKS_CONFIG_PROFILE` was wrong twice over: the cache key
+# already claimed `DEFAULT` while the CLI was invoked with no profile at all, and `--host` alone
+# is not a selector — as soon as ~/.databrickscfg holds more than one profile pointing at the same
+# workspace, the CLI aborts with "... match <host> in ~/.databrickscfg. Use --profile".
+ARGS=(auth token --profile "$PROFILE")
+[ -n "${DATABRICKS_HOST:-}" ] && ARGS+=(--host "$DATABRICKS_HOST")
+
+( umask 077; : >"$RESP_FILE"; : >"$ERR_FILE" )
+# `RC=$?` must not sit inside `if ! cmd; then` — `!` rewrites the status before the body runs,
+# so it would always read 0. Capture first, branch second.
+fetch_with_timeout "$RESP_FILE" "$ERR_FILE"
+RC=$?
+if [ "$RC" != 0 ]; then
+  if [ "$RC" = 143 ]; then
+    die "databricks auth token did not finish within ${FETCH_TIMEOUT}s and was killed"
+  fi
+  die "databricks auth token failed (exit $RC): $(head -c 400 "$ERR_FILE" 2>/dev/null)"
+fi
+RESP="$(cat "$RESP_FILE")"
+
+TOKEN="$(printf '%s' "$RESP" | jq -r '.access_token // empty')"
+[ -n "$TOKEN" ] || die "databricks auth token returned no access_token"
+
+EXPIRY_ISO="$(printf '%s' "$RESP" | jq -r '.expiry // .expires_on // empty')"
+EXPIRES_EPOCH="$(iso_to_epoch "$EXPIRY_ISO")" || EXPIRES_EPOCH=""
+
+# Sanity clamp. Every expiry-parsing bug — a format we have not seen, a timezone we mishandled,
+# a CLI that starts returning milliseconds — lands here as a value that is already past or
+# implausibly far out. Falling back to a short TTL costs one extra fetch; trusting a wrong
+# expiry costs an hour of 401s that look like a broken credential.
+if [ -n "$EXPIRES_EPOCH" ]; then
+  NOW_EPOCH="$(now)"
+  if [ "$EXPIRES_EPOCH" -le "$NOW_EPOCH" ] || [ "$EXPIRES_EPOCH" -gt "$(( NOW_EPOCH + MAX_TTL ))" ]; then
+    warn "implausible expiry '$EXPIRY_ISO' (parsed as $EXPIRES_EPOCH, now $NOW_EPOCH); using ${TTL_FALLBACK}s fallback TTL"
+    EXPIRES_EPOCH=""
+  fi
+fi
+[ -n "$EXPIRES_EPOCH" ] || EXPIRES_EPOCH="$(( $(now) + TTL_FALLBACK ))"
+
+# Publish atomically: write 0600, then rename. A reader never sees a half file.
+TMP="$CACHE_FILE.$$"
+( umask 077; jq -n --arg t "$TOKEN" --argjson e "$EXPIRES_EPOCH" \
+    '{token:$t, expires_epoch:$e}' >"$TMP" ) || die "cannot write cache"
+mv -f "$TMP" "$CACHE_FILE" || die "cannot publish cache to $CACHE_FILE"
+TMP=""
+chmod 600 "$CACHE_FILE" 2>/dev/null || true
+
+# Acceptance counter for REQ-PRV-14: "20 consecutive Databricks turns invoke the
+# underlying binary at most twice". Written under the lock on the normal path; on the unlocked
+# fallback path two refreshers can lose an increment, so the counter is a floor, not a total.
+PREV=0
+[ -f "$COUNT_FILE" ] && PREV="$(cat "$COUNT_FILE" 2>/dev/null || echo 0)"
+case "$PREV" in ''|*[!0-9]*) PREV=0 ;; esac
+( umask 077; printf '%s' "$(( PREV + 1 ))" >"$COUNT_FILE" )
+
+printf '%s' "$TOKEN"

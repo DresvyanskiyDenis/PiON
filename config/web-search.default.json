@@ -1,0 +1,14 @@
+{
+  "provider": "none",
+  "searxngBaseUrl": "http://127.0.0.1:8080",
+  "webSearch": {
+    "enabled": false
+  },
+  "ssrf": {
+    "trustEnvProxy": true
+  },
+  "allowBrowserCookies": false,
+  "toolNames": {
+    "fetchContent": "web_fetch"
+  }
+}

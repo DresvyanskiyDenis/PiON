@@ -1,0 +1,39 @@
+{
+  "providers": {
+    "github-copilot": {
+      "baseUrl": "https://api.githubcopilot.com",
+      "apiKey": "$COPILOT_GITHUB_TOKEN",
+      "modelOverrides": {
+        "claude-opus-5": { "contextWindow": 200000 },
+        "claude-opus-4.8": { "contextWindow": 200000 },
+        "claude-opus-4.7": { "contextWindow": 200000 },
+        "claude-opus-4.6": { "contextWindow": 200000 },
+        "claude-opus-4.5": { "contextWindow": 168000 },
+        "claude-sonnet-5": { "contextWindow": 200000 },
+        "claude-sonnet-4.6": { "contextWindow": 200000 },
+        "claude-sonnet-4.5": { "contextWindow": 168000 },
+        "claude-sonnet-4": { "contextWindow": 200000 },
+        "claude-haiku-4.5": { "contextWindow": 136000 },
+        "claude-fable-5": { "contextWindow": 200000 },
+        "gpt-5.6-luna": { "contextWindow": 200000 },
+        "gpt-5.6-sol": { "contextWindow": 200000 },
+        "gpt-5.6-terra": { "contextWindow": 200000 },
+        "gpt-5.5": { "contextWindow": 200000 },
+        "gpt-5.4": { "contextWindow": 200000 },
+        "gpt-5.4-mini": { "contextWindow": 200000 },
+        "gpt-5.4-nano": { "contextWindow": 200000 },
+        "gpt-5.3-codex": { "contextWindow": 200000 },
+        "gpt-5.2": { "contextWindow": 200000 },
+        "gpt-5.2-codex": { "contextWindow": 200000 },
+        "gpt-5-mini": { "contextWindow": 128000 },
+        "gpt-4.1": { "contextWindow": 64000 },
+        "gemini-3.1-pro-preview": { "contextWindow": 200000 },
+        "gemini-3.6-flash": { "contextWindow": 200000 },
+        "gemini-3.5-flash": { "contextWindow": 200000 },
+        "grok-4.5": { "contextWindow": 200000 },
+        "kimi-k2.7-code": { "contextWindow": 200000 },
+        "mai-code-1-flash-picker": { "contextWindow": 128000 }
+      }
+    }
+  }
+}

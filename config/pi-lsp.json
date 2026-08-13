@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "typescript": {
+      "command": ["typescript-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx"]
+    },
+    "python": {
+      "command": ["uv", "run", "pyright-langserver", "--stdio"],
+      "extensions": [".py"]
+    }
+  }
+}

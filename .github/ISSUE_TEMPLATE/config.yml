@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting (wiki)
+    url: https://github.com/DresvyanskiyDenis/PiON/wiki/Troubleshooting
+    about: Symptom → cause → fix. Most reports are answered here in under a minute.
+  - name: Cookbook (wiki)
+    url: https://github.com/DresvyanskiyDenis/PiON/wiki/Cookbook
+    about: "How do I make it do X?" — the file, the change, and what breaks if you get it wrong.
+  - name: Documentation site
+    url: https://dresvyanskiydenis.github.io/PiON/
+    about: Every configuration key, all 26 modules, the safety model, exit codes.
+  - name: Known limitations
+    url: https://dresvyanskiydenis.github.io/PiON/limitations/
+    about: Things that are broken or missing on purpose, written down before you find them.
+  - name: A problem with PI itself
+    url: https://github.com/earendil-works/pi/issues
+    about: PI is a separate project. If it reproduces without this repository loaded, report it there.

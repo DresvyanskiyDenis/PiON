@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "roots": [
+    "~/projects",
+    "~/pi-config"
+  ],
+  "note": "extensions/trust.ts answers 'yes' automatically for a project_trust check only inside these roots. Everything else returns 'undecided' so PI's own trust prompt runs. Setting PI's defaultProjectTrust to 'always' instead was considered and rejected as too broad: it would trust every directory you ever open, not just the ones you chose here."
+}

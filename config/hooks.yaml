@@ -1,0 +1,41 @@
+# EXT-15 — declarative hook rules, loaded by extensions/hooks/index.ts.
+#
+# See docs/extending/hooks.md for the full field reference and the non-goal this schema is deliberately
+# capped short of. Five fields per rule: event, match.tool, match.pattern, action, reason — plus
+# a `run` block for the one action that shells out to a script.
+#
+# Merge order: this file (global, ~/.pi/agent/hooks.yaml once installed) loads first, then
+# <project>/.pi/hooks.yaml when the project is trusted. A rule id should be unique across both.
+#
+# A rule that cannot be evaluated, whose action throws, whose script is missing, or whose
+# script times out BLOCKS the tool call — it does not silently permit it. A YAML file that
+# fails to parse, or doesn't match this top-level shape, refuses the whole session rather than
+# loading with zero rules.
+version: 1
+rules:
+  - id: no-force-push-main
+    event: tool_call
+    match: { tool: bash, pattern: 'git\s+push\b.*(--force|-f)\b.*\b(main|master)\b' }
+    action: block
+    reason: "Force-pushing main/master is blocked. Push to a feature branch, or use --force-with-lease with a written reason."
+
+  - id: confirm-npm-install
+    event: tool_call
+    match: { tool: bash, pattern: '(^|[;&|]\s*)npm\s+(i|install)\b' }
+    action: confirm
+    reason: "This harness uses uv, never pip/npm for installs. Run npm install anyway?"
+
+  - id: remind-worktree
+    event: input
+    # No (?i): match.pattern is a plain JS RegExp, and JS has no PCRE-style inline flag
+    # syntax — `new RegExp('(?i)...')` throws "Invalid group" and the rule is dropped at
+    # load. Bracket classes on the leading letter cover the realistic capitalizations instead.
+    match: { pattern: '\b([Ii]mplement|[Rr]efactor|[Ff]ix the bug)\b' }
+    action: warn
+    reason: "Reminder: coding work happens in a git worktree, never the primary checkout."
+
+# The `run` action (shells out to a script, decision on stdout or exit code 2) is documented in
+# docs/extending/hooks.md with a worked example, but deliberately not enabled here: a `run` rule with
+# `match: { tool: bash }` and no script yet in place would BLOCK every bash call by design (a
+# missing script fails closed, see docs/extending/hooks.md "Fail-closed, on purpose") — wire one in only
+# once the target script actually exists at the path you name.

@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "id": "databricks",
+  "displayName": "Databricks Model Serving",
+  "summary": "Models served from your own Databricks workspace over its OpenAI-compatible surface. The usual choice for the `confidential` tier: the endpoint is inside a boundary you control.",
+  "builtIn": false,
+  "default": false,
+  "egress": "confidential",
+  "concurrency": 4,
+
+  "requires": [
+    {
+      "kind": "command",
+      "name": "databricks",
+      "required": false,
+      "secret": false,
+      "description": "The Databricks CLI. Required only for the OAuth credential path; a PAT in DATABRICKS_TOKEN works without it.",
+      "howTo": "https://docs.databricks.com/dev-tools/cli/ then `databricks auth login --host https://<your-workspace-host>`."
+    },
+    {
+      "kind": "command",
+      "name": "jq",
+      "required": false,
+      "secret": false,
+      "description": "Used by config/bin/dbx-token-cached to read the CLI's JSON token output.",
+      "howTo": "Any package manager. Only needed on the OAuth path."
+    },
+    {
+      "kind": "env",
+      "name": "DATABRICKS_TOKEN",
+      "required": false,
+      "secret": true,
+      "description": "A workspace personal access token. The two-minute path: set this and neither the CLI nor jq is needed.",
+      "howTo": "Workspace -> Settings -> Developer -> Access tokens. Put it in ~/.pi/secrets.env as DATABRICKS_TOKEN=... (chmod 600)."
+    },
+    {
+      "kind": "env",
+      "name": "DATABRICKS_HOST",
+      "required": true,
+      "secret": false,
+      "description": "https://<your-workspace-host>. Read by the Databricks CLI and by config/bin/dbx-token-cached; NOT read by PI (baseUrl is not variable-expanded).",
+      "howTo": "The installer writes it into config/shell/pi-env.sh from the workspaceHost answer below."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "workspaceHost",
+      "type": "string",
+      "label": "Databricks workspace host, without the scheme",
+      "help": "The hostname from your workspace URL. PI does NOT expand $VAR or !cmd inside baseUrl, so this is substituted literally at install time - it cannot be an environment variable.",
+      "example": "dbc-00000000-0000.cloud.databricks.com",
+      "required": true,
+      "validate": {
+        "pattern": "^[A-Za-z0-9.-]+$",
+        "message": "hostname only - no https://, no path, no trailing slash"
+      }
+    },
+    {
+      "id": "auth",
+      "type": "choice",
+      "label": "How should the harness get a Databricks token?",
+      "default": "cli",
+      "required": true,
+      "choices": [
+        {
+          "value": "cli",
+          "label": "OAuth via the Databricks CLI, cached by config/bin/dbx-token-cached (recommended)"
+        },
+        {
+          "value": "pat",
+          "label": "Personal access token in DATABRICKS_TOKEN"
+        }
+      ]
+    },
+    {
+      "id": "primaryEndpoint",
+      "type": "string",
+      "label": "Serving-endpoint name for your main / confidential model",
+      "help": "Model ids on Databricks are the SERVING-ENDPOINT NAMES in your own workspace. They are per-workspace and nobody can guess them. Discover them with: databricks serving-endpoints list --output json | jq -r '.[].name'",
+      "example": "databricks-claude-sonnet-4-5",
+      "required": true
+    },
+    {
+      "id": "primaryContextWindow",
+      "type": "number",
+      "label": "Context window that endpoint actually serves",
+      "help": "Not the model's advertised window - what your endpoint accepts. Under-declaring is safe; over-declaring makes compaction fire too late.",
+      "default": 200000,
+      "required": true
+    },
+    {
+      "id": "primaryMaxTokens",
+      "type": "number",
+      "label": "Maximum output tokens for that endpoint",
+      "default": 64000,
+      "required": true
+    },
+    {
+      "id": "cheapEndpoint",
+      "type": "string",
+      "label": "Serving-endpoint name for a cheaper model (optional, press Enter to skip)",
+      "help": "Used for the `cheap` tier - summaries, digests, classification. Leave blank and the cheap tier stays on whatever else you installed.",
+      "example": "databricks-claude-haiku-4-5",
+      "required": false
+    },
+    {
+      "id": "cheapContextWindow",
+      "type": "number",
+      "label": "Context window that cheap endpoint actually serves",
+      "default": 200000,
+      "required": false,
+      "when": { "cheapEndpoint": "*" }
+    },
+    {
+      "id": "cheapMaxTokens",
+      "type": "number",
+      "label": "Maximum output tokens for the cheap endpoint",
+      "default": 64000,
+      "required": false,
+      "when": { "cheapEndpoint": "*" }
+    }
+  ],
+
+  "derived": [
+    {
+      "id": "apiKeyRef",
+      "from": "auth",
+      "map": {
+        "cli": "!$HOME/bin/dbx-token-cached",
+        "pat": "$DATABRICKS_TOKEN"
+      }
+    }
+  ],
+
+  "tiers": {
+    "confidential": "databricks/{{primaryEndpoint}}",
+    "cheap": "databricks/{{cheapEndpoint}}"
+  },
+
+  "provider": {
+    "baseUrl": "https://{{workspaceHost}}/serving-endpoints",
+    "api": "openai-completions",
+    "apiKey": "{{apiKeyRef}}",
+    "compat": {
+      "supportsDeveloperRole": false,
+      "supportsReasoningEffort": false,
+      "supportsUsageInStreaming": true,
+      "supportsFinishReason": true,
+      "maxTokensField": "max_tokens"
+    },
+    "models": [
+      {
+        "id": "{{primaryEndpoint}}",
+        "name": "[dbx] {{primaryEndpoint}}",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": "{{primaryContextWindow}}",
+        "maxTokens": "{{primaryMaxTokens}}"
+      },
+      {
+        "$omitIfBlank": "cheapEndpoint",
+        "id": "{{cheapEndpoint}}",
+        "name": "[dbx] {{cheapEndpoint}}",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": "{{cheapContextWindow}}",
+        "maxTokens": "{{cheapMaxTokens}}"
+      }
+    ]
+  },
+
+  "notes": [
+    "THERE IS NO BUILT-IN `databricks` PROVIDER IN PI. This works because Model Serving exposes an OpenAI-compatible Chat Completions surface at https://<host>/serving-endpoints. There is no Responses surface, which is why `api` is `openai-completions` and not left to default.",
+    "MODEL IDS ARE SERVING-ENDPOINT NAMES, AND THEY ARE PER-WORKSPACE. `databricks serving-endpoints list --output json | jq -r '.[].name'` is the only way to learn them. Do not copy ids out of anyone else's config - including the examples above, which are illustrative names, not guaranteed to exist anywhere. `id` is the endpoint name on the wire; `name` is only the human label shown in /model.",
+    "ADDING MORE MODELS. Append another object to `providers.databricks.models` in config/models.json with the endpoint name as `id`. Databricks-specific request extras (usage_context, AI Gateway guardrail hints) go in that model's `samplingParams`, which is merged verbatim into the request body, or in `headers`.",
+    "WHY apiKey IS A CACHED WRAPPER AND NOT `!databricks auth token`. PI re-executes an `!command` credential on EVERY request, with no TTL of its own. An unwrapped CLI call is therefore one OAuth round trip per LLM call. config/bin/dbx-token-cached puts a TTL cache (0600 file in a 0700 dir) in front of it, which turns that into a file read. `$HOME` is expanded by the shell that runs the command, so the reference stays user-agnostic.",
+    "COMPAT FLAGS ARE MEASURED, NOT GUESSED. supportsDeveloperRole:false - the foundation-model API rejects the `developer` role with a 400 on every request. supportsReasoningEffort:false - it ignores or rejects reasoning_effort. maxTokensField:max_tokens - it expects the legacy field and 400s on max_completion_tokens. supportsUsageInStreaming:true and supportsFinishReason:true were both verified against a live endpoint. supportsFinishReason is the one whose absence looks like a hung agent rather than an error: if a turn never ends, flip it to false so PI infers the stop itself.",
+    "TWO FLAGS DELIBERATELY LEFT UNSET. supportsStrictMode - tool calling works but strict JSON-schema mode is rejected, so expect occasional malformed tool JSON (a model-quality problem, not a config one). cacheControlFormat - Claude-on-Databricks does not surface cache_control breakpoints, and declaring \"anthropic\" here would report prompt-cache savings that do not exist.",
+    "EGRESS CLASS IS `confidential` BECAUSE THE WORKSPACE IS YOURS. That is a DECLARATION about where the data goes, not a network control - nothing in this harness can stop a request reaching a public provider if a tier is bound to one. It is what lets the dispatcher refuse to send a confidential session to a public-class provider by name.",
+    "AN IP ACCESS LIST ON THE WORKSPACE LOOKS LIKE AN AUTH FAILURE AND IS NOT ONE. If the workspace denies your current address, every call including inference returns 403 with a body that reads like a credential problem. Check your network position before regenerating tokens."
+  ],
+
+  "verify": [
+    {
+      "label": "the CLI can mint a token",
+      "command": "databricks auth token --host \"$DATABRICKS_HOST\" >/dev/null && echo ok"
+    },
+    {
+      "label": "the endpoint names you configured exist",
+      "command": "databricks serving-endpoints list --output json | jq -r '.[].name'"
+    },
+    {
+      "label": "PI can complete one turn",
+      "command": "pi -p 'reply with OK' --model \"databricks/$(jq -r '.providers.databricks.models[0].id' config/models.json)\""
+    }
+  ]
+}

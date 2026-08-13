@@ -1,0 +1,85 @@
+{
+  "defaultProvider": "github-copilot",
+  "defaultModel": "claude-opus-5",
+  "defaultThinkingLevel": "medium",
+  "thinkingBudgets": {
+    "minimal": 2048,
+    "low": 6144,
+    "medium": 12288,
+    "high": 24576
+  },
+  "hideThinkingBlock": false,
+  "showCacheMissNotices": true,
+  "defaultProjectTrust": "ask",
+  "theme": "dark",
+  "quietStartup": false,
+  "externalEditor": "code --wait",
+  "doubleEscapeAction": "tree",
+  "treeFilterMode": "default",
+  "tuiMode": "regular",
+  "collapseChangelog": true,
+  "autocompleteMaxVisible": 8,
+  "enableInstallTelemetry": false,
+  "enableAnalytics": false,
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 20000,
+    "keepRecentTokens": 20000
+  },
+  "branchSummary": {
+    "reserveTokens": 16384,
+    "skipPrompt": false
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000,
+    "provider": {
+      "maxRetries": 0,
+      "maxRetryDelayMs": 60000
+    }
+  },
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time",
+  "transport": "auto",
+  "httpIdleTimeoutMs": 300000,
+  "websocketConnectTimeoutMs": 15000,
+  "warnings": {
+    "anthropicExtraUsage": true
+  },
+  "terminal": {
+    "showImages": true,
+    "imageWidthCells": 60
+  },
+  "images": {
+    "autoResize": true,
+    "blockImages": false
+  },
+  "markdown": {
+    "codeBlockIndent": "  ",
+    "mermaid": "streaming"
+  },
+  "skills": [
+    "~/.pi/agent/skills",
+    "~/pi-config/skills-private"
+  ],
+  "prompts": [
+    "~/.pi/agent/prompts"
+  ],
+  "extensions": [
+    "~/pi-config/extensions/index.ts"
+  ],
+  "themes": [],
+  "packages": [
+    "~/pi-config/pi-packages/pi-mcp-adapter",
+    "~/pi-config/node_modules/pi-subagents",
+    "~/pi-config/node_modules/pi-web-access",
+    "~/pi-config/node_modules/@juicesharp/rpiv-todo",
+    "~/pi-config/node_modules/@mrclrchtr/supi-bash-timeout",
+    "~/pi-config/node_modules/@narumitw/pi-statusline",
+    "~/pi-config/node_modules/@narumitw/pi-worktree",
+    "~/pi-config/node_modules/@narumitw/pi-lsp"
+  ],
+  "enableSkillCommands": true,
+  "lastChangelogVersion": "0.84.0"
+}

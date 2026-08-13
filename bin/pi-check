@@ -1,0 +1,264 @@
+#!/usr/bin/env node
+// bin/pi-check — the CI and install gate (EXT-04a core, grown into the full W3c rule set by EXT-04).
+//
+// A standalone Node script. No PI dependency, no import from this repo's `lib/`, zero
+// npm dependencies. It validates the config tree OFFLINE: it never resolves a credential,
+// never reads a secret env var's value, never spawns another process, never touches the
+// network. Every rule that needs "does a reference look right" answers from shape alone.
+//
+// The ONE exception is PC-19 (VP-10, npm-registry version agreement), gated hard behind
+// `--live`: without that flag it never runs, under any selection mode, and is reported as
+// skipped rather than silently dropped. This keeps `--all` and the default `--only packages`
+// a "< 2s offline" gate, fast enough to run on every install and in a pre-commit hook.
+//
+// Usage:
+//   bin/pi-check --all                  run every rule that does not require --live
+//   bin/pi-check --all --live           run every rule, including PC-19
+//   bin/pi-check --only packages        run rules tagged "packages" (offline subset)
+//   bin/pi-check --only packages --live add PC-19 to that subset
+//   bin/pi-check PC-01 PC-06            run named rules only
+//   bin/pi-check PC-19 --live           a rule tagged "live" MUST be named with --live
+//   bin/pi-check --all --json           machine-readable findings on stdout
+//   bin/pi-check --all --repo /path     validate a different tree (default: this repo)
+//   bin/pi-check --write-vendor-manifest   re-record pi-packages/**/*.ts hashes for PC-21
+//
+// Exit codes: 0 clean, 1 findings, 2 the checker itself could not run.
+//
+// `--write-vendor-manifest` is the ONE mode in which this tool writes anything, and it writes
+// exactly one file (pi-packages/vendor-files.lock.json) and runs no rule. It is the deliberate,
+// one-command, reviewable act that re-records a legitimate re-vendor or a new local patch, so
+// PC-21 can treat every other change to the vendored tree as unrecorded. It refuses to combine
+// with any rule selection: "check" and "re-record" must never be the same invocation, or a stale
+// manifest would be silently rewritten by the very run that was supposed to catch it.
+
+import { readdirSync, existsSync, statSync, realpathSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { createContext } from "./lib/context.mjs";
+import { MANIFEST_PATH, VENDOR_ROOT, hashVendoredTree, serializeVendorManifest } from "./lib/vendor-manifest.mjs";
+
+/** @typedef {import("./types.mjs").Finding} Finding */
+
+function usageError(message) {
+  process.stderr.write(`pi-check: ${message}\n`);
+  process.stderr.write("usage: bin/pi-check (--all | --only TAG | RULE-ID...) [--live] [--json] [--repo PATH]\n");
+  process.exitCode = 2;
+}
+
+async function loadRules() {
+  const rulesDir = dirname(fileURLToPath(import.meta.url)) + "/rules";
+  const files = readdirSync(rulesDir)
+    .filter((f) => f.endsWith(".mjs"))
+    .sort();
+  const modules = [];
+  for (const f of files) {
+    const mod = await import(`./rules/${f}`);
+    if (typeof mod.id !== "string" || typeof mod.run !== "function") {
+      throw new Error(`pi-check: bin/rules/${f} does not export both "id" and "run" — cannot load`);
+    }
+    modules.push(mod);
+  }
+  modules.sort((a, b) => a.id.localeCompare(b.id));
+  return modules;
+}
+
+/**
+ * Regenerates PC-21's manifest from the tree that is on disk right now.
+ *
+ * Fails loud in both directions: no vendored tree to record, or any file that cannot be read or
+ * hashed, exits 2 without writing a partial manifest — a half-recorded tree would make PC-21
+ * report the unrecorded half as "added" forever. Output names the outcome (created / updated /
+ * unchanged) so a regeneration that changed nothing is visibly a no-op, which is what makes it
+ * safe to run at any time.
+ *
+ * @param {string} repoRoot absolute path
+ * @returns {void}
+ */
+function writeVendorManifest(repoRoot) {
+  const ctx = createContext(repoRoot, { live: false });
+  if (!ctx.exists(VENDOR_ROOT)) {
+    process.stderr.write(`pi-check: nothing to record — "${VENDOR_ROOT}/" does not exist under ${repoRoot}\n`);
+    process.exitCode = 2;
+    return;
+  }
+  const hashed = hashVendoredTree(ctx);
+  if ("error" in hashed) {
+    process.stderr.write(`pi-check: refusing to write a partial manifest — ${hashed.error}\n`);
+    process.exitCode = 2;
+    return;
+  }
+  const text = serializeVendorManifest(hashed.files);
+  const target = join(repoRoot, MANIFEST_PATH);
+  const before = existsSync(target) ? readFileSync(target, "utf8") : null;
+  try {
+    writeFileSync(target, text);
+  } catch (err) {
+    process.stderr.write(`pi-check: cannot write ${MANIFEST_PATH} — ${String(err.message ?? err)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+  const outcome = before === null ? "created" : before === text ? "unchanged" : "updated";
+  process.stdout.write(`pi-check: ${outcome} ${MANIFEST_PATH} — ${hashed.files.size} file(s) under ${VENDOR_ROOT}/ hashed with sha256\n`);
+  if (outcome !== "unchanged") {
+    process.stdout.write(`pi-check: review it before committing — \`git diff -- ${MANIFEST_PATH}\`\n`);
+  }
+  process.exitCode = 0;
+}
+
+function formatText(findings, ranCount) {
+  const lines = [];
+  for (const f of findings) {
+    const loc = f.line ? `${f.file}:${f.line}` : f.file;
+    lines.push(`${f.rule.padEnd(7)}${loc.padEnd(32)}${f.message}`);
+  }
+  lines.push(`${findings.length} finding(s) in ${ranCount} rule${ranCount === 1 ? "" : "s"}`);
+  return lines.join("\n");
+}
+
+async function main(argv) {
+  const args = argv.slice(2);
+  let json = false;
+  let repoArg = null;
+  let all = false;
+  let live = false;
+  let onlyTag = null;
+  let writeManifest = false;
+  /** @type {string[]} */
+  const requestedIds = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--json") json = true;
+    else if (a === "--all") all = true;
+    else if (a === "--live") live = true;
+    else if (a === "--write-vendor-manifest") writeManifest = true;
+    else if (a === "--only") {
+      onlyTag = args[++i];
+      if (onlyTag === undefined) return usageError('"--only" requires a tag argument');
+    } else if (a === "--repo") {
+      repoArg = args[++i];
+      if (repoArg === undefined) return usageError('"--repo" requires a path argument');
+    } else if (a.startsWith("--")) {
+      return usageError(`unknown flag "${a}"`);
+    } else {
+      requestedIds.push(a);
+    }
+  }
+
+  if (writeManifest && (all || onlyTag || live || json || requestedIds.length > 0)) {
+    return usageError('"--write-vendor-manifest" runs no rule — use it alone (only "--repo" may accompany it)');
+  }
+  if (all && onlyTag) return usageError('cannot combine "--all" and "--only"');
+  if (onlyTag && requestedIds.length > 0) return usageError('cannot combine "--only" with named rule ids');
+  if (!all && !onlyTag && !writeManifest && requestedIds.length === 0) {
+    return usageError("nothing to run — pass --all, --only TAG, or one or more rule ids");
+  }
+
+  const scriptPath = realpathSync(fileURLToPath(import.meta.url));
+  const defaultRepoRoot = dirname(dirname(scriptPath));
+  const repoRoot = repoArg ? resolve(process.cwd(), repoArg) : defaultRepoRoot;
+
+  if (!existsSync(repoRoot) || !statSync(repoRoot).isDirectory()) {
+    process.stderr.write(`pi-check: --repo path does not exist or is not a directory: ${repoRoot}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
+  if (writeManifest) return writeVendorManifest(repoRoot);
+
+  let allRules;
+  try {
+    allRules = await loadRules();
+  } catch (err) {
+    process.stderr.write(`pi-check: failed to load rules — ${String(err.message ?? err)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
+  let toRun;
+  if (all) {
+    toRun = allRules;
+  } else if (onlyTag) {
+    toRun = allRules.filter((m) => Array.isArray(m.tags) && m.tags.includes(onlyTag));
+    if (toRun.length === 0) {
+      process.stderr.write(`pi-check: no rule is tagged "${onlyTag}"\n`);
+      process.exitCode = 2;
+      return;
+    }
+  } else {
+    const byId = new Map(allRules.map((m) => [m.id, m]));
+    toRun = [];
+    for (const rid of requestedIds) {
+      const mod = byId.get(rid);
+      if (!mod) {
+        process.stderr.write(`pi-check: unknown rule id "${rid}"\n`);
+        process.exitCode = 2;
+        return;
+      }
+      toRun.push(mod);
+    }
+  }
+
+  // A rule tagged `requiresLive` (currently only PC-19) spawns a process and touches the
+  // network — it never runs without an explicit --live. Named directly (not swept in via
+  // --all/--only), missing --live is a usage error: the caller asked for this rule
+  // specifically and did not grant the one permission it needs. Swept in as part of a
+  // broader selection, it is silently-visible: skipped, reported on stderr, and excluded
+  // from the rule count — exactly the "[tokens]"-tag precedent §3.5 sets for e2e checks
+  // that must not run by default.
+  const namedExplicitly = !all && !onlyTag;
+  const executable = [];
+  for (const mod of toRun) {
+    if (mod.requiresLive && !live) {
+      if (namedExplicitly) {
+        process.stderr.write(`pi-check: rule ${mod.id} requires --live (it spawns npm and touches the network)\n`);
+        process.exitCode = 2;
+        return;
+      }
+      process.stderr.write(`pi-check: ${mod.id} skipped — requires --live (spawns npm, touches the network)\n`);
+      continue;
+    }
+    executable.push(mod);
+  }
+  toRun = executable;
+
+  const ctx = createContext(repoRoot, { live });
+  /** @type {Finding[]} */
+  const findings = [];
+  for (const mod of toRun) {
+    let result;
+    try {
+      result = mod.run(ctx);
+    } catch (err) {
+      // A rule throwing is a bug in the checker itself, not a finding about the repo —
+      // report it distinctly and stop, per the documented exit-code contract.
+      process.stderr.write(`pi-check: rule ${mod.id} crashed — ${String(err.stack ?? err)}\n`);
+      process.exitCode = 2;
+      return;
+    }
+    for (const f of result) findings.push({ ...f, rule: f.rule ?? mod.id });
+  }
+
+  if (json) {
+    process.stdout.write(
+      JSON.stringify(
+        {
+          findings,
+          rulesRun: toRun.map((m) => m.id),
+          summary: { findingCount: findings.length, ruleCount: toRun.length },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  } else {
+    process.stdout.write(formatText(findings, toRun.length) + "\n");
+  }
+
+  process.exitCode = findings.length > 0 ? 1 : 0;
+}
+
+main(process.argv).catch((err) => {
+  process.stderr.write(`pi-check: internal error — ${String(err.stack ?? err)}\n`);
+  process.exitCode = 2;
+});

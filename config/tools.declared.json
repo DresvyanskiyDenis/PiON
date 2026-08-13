@@ -1,0 +1,42 @@
+{
+  "description": "EXT-10 D-01's declared tool roster. Names here resolve for `/doctor` even when `pi.getAllTools()` does not currently list them — a package tool whose provider is present but uncredentialed this session, or a tool named in prose before its extension has loaded. Core PI built-ins (bash, read, edit, write, glob, grep, ...) are not listed: they are always present in `pi.getAllTools()` and D-01 checks that live roster first.",
+  "updated": "2026-08-07",
+  "tools": [
+    {
+      "name": "expand_result",
+      "source": "custom",
+      "module": "extensions/big-results/index.ts",
+      "note": "EXT-?? big-results: read back an externalised oversized tool result by handle"
+    },
+    {
+      "name": "job",
+      "source": "custom",
+      "module": "extensions/jobs/index.ts",
+      "note": "EXT-24: start/poll/read/list/kill/prune a detached background job"
+    },
+    {
+      "name": "subagent",
+      "source": "package",
+      "package": "pi-subagents",
+      "note": "EXT-05/24/25: the package's own tool name, per PACKAGES.md and config/dispatch.json's dispatchTools allowlist. Ported prose calls this concept `dispatch`; the registered tool name is `subagent`."
+    },
+    {
+      "name": "web_fetch",
+      "source": "package",
+      "package": "pi-web-access",
+      "note": "EXT-07: aliased from the package's default `fetch_content` via config/web.json's toolNames.fetchContent, enforced at session_start by extensions/web/config-guard.ts"
+    },
+    {
+      "name": "web_search",
+      "source": "package",
+      "package": "pi-web-access",
+      "note": "EXT-07: the package's own default tool name, single backend pinned via config/web.json / config/web-search.json"
+    },
+    {
+      "name": "todo",
+      "source": "package",
+      "package": "@juicesharp/rpiv-todo",
+      "note": "EXT-22: the task-list overlay's tool, replayed from the session transcript (no disk persistence)"
+    }
+  ]
+}

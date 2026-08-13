@@ -1,0 +1,78 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+# Driven by `uv`, not `pip`, so CI runs the *same* command the README and
+# requirements-docs.txt hand a contributor locally:
+#
+#   uv run --with-requirements requirements-docs.txt mkdocs build --strict
+#
+# One command, one resolution of the pinned versions, and no system interpreter
+# mutated on either side. A docs build that passes on a laptop and fails here —
+# or the reverse — is the failure mode this avoids.
+
+jobs:
+  build:
+    name: Build (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements-docs.txt
+
+      # `--strict` fails on a broken internal link or an unrecognised setting.
+      # A docs PR that cannot build must not be mergeable.
+      - name: Build
+        run: uv run --with-requirements requirements-docs.txt mkdocs build --strict
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # `gh-deploy` commits onto the gh-pages branch, so it needs the real
+      # history rather than the default shallow clone.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git credentials
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements-docs.txt
+
+      # Publishes the built site to the `gh-pages` branch. In the repository
+      # settings, set Pages -> Build and deployment -> Source to "Deploy from a
+      # branch", branch `gh-pages`, folder `/ (root)`.
+      - name: Deploy
+        run: uv run --with-requirements requirements-docs.txt mkdocs gh-deploy --force

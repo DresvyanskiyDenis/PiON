@@ -1,0 +1,311 @@
+# Package ledger
+
+Every third-party package this repository reviewed, pinned or wired. It is the human-readable
+half of `config/packages.lock.json`, which carries the tarball hashes.
+
+!!! info "This file is a gate, not a summary"
+    `bin/pi-check` rules **PC-09** and **PC-18** read it. A package wired in
+    `config/settings.json` with no row here fails the build, and a version here that
+    disagrees with the lock file fails it too. Regenerate rather than hand-edit:
+
+    ```bash
+    node bin/pi-check      # PC-09, PC-17, PC-18, PC-19
+    ```
+
+For the attribution view — licences, authors and the vendored patches — see
+[Third-party components](reference/third-party.md).
+
+## Allowlist
+
+`wired` means the package is named in `config/settings.json`'s `packages` array and loads
+every session. The rest are reviewed and pinned but not loaded.
+
+| Package | Version | Licence | Status | Wired | Role |
+|---|---|---|---|---|---|
+| `pi-subagents` | 0.41.0 | MIT | adopted | yes | sub-agent runtime |
+| `pi-sandbox` | 0.6.2 | MIT | adopted-vendored | — | OS-level containment (reviewed, not wired) |
+| `pi-mcp-adapter` | 2.20.1 | MIT | adopted-vendored | yes | MCP bridge (vendored and patched) |
+| `pi-web-access` | 0.18.0 | MIT | adopted | yes | web search and fetch |
+| `pi-web-search` | 1.3.1 | MIT | adopted-conditional | — | web search, alternate backend (not wired) |
+| `@99percentpeople/pi-background-tasks` | 2.0.0 | MIT | adopted-hardened | — | background bash tasks (reviewed, not wired) |
+| `@mrclrchtr/supi-bash-timeout` | 4.6.0 | MIT | adopted | yes | default timeout for bash |
+| `pi-llama-cpp` | 0.9.1 | MIT | adopted | — | local llama.cpp provider (reviewed, not wired) |
+| `@narumitw/pi-statusline` | 0.49.5 | MIT | adopted | yes | status line |
+| `@narumitw/pi-usage` | 0.49.3 | MIT | adopted | — | quota read path (reviewed, not wired) |
+| `@juicesharp/rpiv-todo` | 2.4.0 | MIT | adopted | yes | task list |
+| `pi-hashline-edit-pro` | 1.1.0 | MIT | adopted-trial | — | hash-line edit, on trial (not wired) |
+| `@narumitw/pi-worktree` | 0.49.3 | MIT | adopted | yes | worktrees |
+| `@narumitw/pi-lsp` | 0.49.3 | MIT | adopted | yes | language-server diagnostics |
+| `@narumitw/pi-retry` | 0.31.0 | MIT | adopted | — | transient retry (reviewed, not wired) |
+| `@nklisch/pi-plugins` | 0.3.3 | MIT | adopted-hardened | — | package lifecycle (not the install path) |
+| `pi-smart-compact` | 7.22.0 | MIT | adopted-optional | — | compaction summary quality |
+| `pi-hermes-memory` | 0.9.3 | MIT | adopted-separate | — | session search (FTS5) |
+| `pi-lean-ctx` | 3.9.17 | Apache-2.0 | adopted-optional | — | tool-output shrinking |
+| `pi-opa-net` | 0.6.0 | MIT | adopted-conditional | — | OPA policy engine |
+
+Verification of the hashes themselves:
+
+```text
+npm pack --ignore-scripts, then shasum -a 256 on the resulting tarball. The npm_dist_shasum_sha1 field is npm's own SHA-1 and is recorded only as a cross-check.
+```
+
+## Transitive pins
+
+Dependencies of the above that are pinned in their own right, because a floating range
+would let them change under a package that was reviewed at one version.
+
+| Package | Version | Licence | Required by |
+|---|---|---|---|
+| `@carderne/sandbox-runtime` | 0.0.69 | Apache-2.0 | pi-sandbox@0.6.2 ("^0.0.69" resolves to exactly 0.0.69) |
+| `@napi-rs/keyring-darwin-arm64` | 1.3.0 | MIT | pi-mcp-adapter@2.20.1 -> @napi-rs/keyring@^1.3.0 (optionalDependencies) |
+
+## Per-package detail
+
+One section per pinned package. The heading carries the pinned version, and **PC-18**
+checks it against `config/packages.lock.json` on every run.
+
+## `pi-subagents` 0.41.0
+
+| | |
+|---|---|
+| **Pinned version** | 0.41.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/nicobailon/pi-subagents> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | sub-agent runtime |
+| **Tarball sha256** | `f433f7b1dcc252318e9960276e2e2696a1001ec46c7f82b29a5d100fe94252bc` |
+
+## `pi-sandbox` 0.6.2
+
+| | |
+|---|---|
+| **Pinned version** | 0.6.2 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/carderne/pi-sandbox> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-vendored` — wired, and its source is committed under `pi-packages/` |
+| **Role** | OS-level containment (reviewed, not wired) |
+| **Tarball sha256** | `f10dd13d37b9444bbaad0b0930d748ec3b24f4165182865b28b05ed4ce7d886d` |
+
+## `pi-mcp-adapter` 2.20.1
+
+| | |
+|---|---|
+| **Pinned version** | 2.20.1 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/nicobailon/pi-mcp-adapter> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-vendored` — wired, and its source is committed under `pi-packages/` |
+| **Role** | MCP bridge (vendored and patched) |
+| **Tarball sha256** | `cc35b8d045bb12f8989b8bdfe71dd3b49756c41e0c4a0fe48919ee24c4c16a7f` |
+
+## `pi-web-access` 0.18.0
+
+| | |
+|---|---|
+| **Pinned version** | 0.18.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/nicobailon/pi-web-access> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | web search and fetch |
+| **Tarball sha256** | `6658b8585b2c2bddbed2a8063d75bb2a0e522bb7f182b873c1e54dbee8b42f6d` |
+
+## `pi-web-search` 1.3.1
+
+| | |
+|---|---|
+| **Pinned version** | 1.3.1 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/ttttmr/pi-web-search> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-conditional` — reviewed and pinned; wired only in some installs |
+| **Role** | web search, alternate backend (not wired) |
+| **Tarball sha256** | `d7bf017acbe0d0294d8a4a86cf0cc4dcafe366272f346499a28fbd45ef4008ab` |
+
+## `@99percentpeople/pi-background-tasks` 2.0.0
+
+| | |
+|---|---|
+| **Pinned version** | 2.0.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/99percentpeople/pi-extensions> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-hardened` — wired, with a local restriction on top |
+| **Role** | background bash tasks (reviewed, not wired) |
+| **Tarball sha256** | `2221dbdb58b53ea812c2fbbaacdfa4dfa8ae420972f275c6ff0704d1585c7907` |
+
+## `@mrclrchtr/supi-bash-timeout` 4.6.0
+
+| | |
+|---|---|
+| **Pinned version** | 4.6.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/mrclrchtr/supi> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | default timeout for bash |
+| **Tarball sha256** | `fc9ca06db74173b6371add9be7fd6c27a054e7d160db1dac804d76690bae635f` |
+
+## `pi-llama-cpp` 0.9.1
+
+| | |
+|---|---|
+| **Pinned version** | 0.9.1 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/gsanhueza/pi-llama-cpp> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | local llama.cpp provider (reviewed, not wired) |
+| **Tarball sha256** | `b5e1b3d8088c58081159b5dd7782ce3e66161a39848121c16049d94dac9c927f` |
+
+## `@narumitw/pi-statusline` 0.49.5
+
+| | |
+|---|---|
+| **Pinned version** | 0.49.5 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/narumiruna/pi-extensions> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | status line |
+| **Tarball sha256** | `18b250c08c9adb37634d130e48416923fd4a4251c31292aedb1774fec85cdab7` |
+
+## `@narumitw/pi-usage` 0.49.3
+
+| | |
+|---|---|
+| **Pinned version** | 0.49.3 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/narumiruna/pi-extensions> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | quota read path (reviewed, not wired) |
+| **Tarball sha256** | `47205861fb00495bbbcba795f7218a0c80b13185f43a3e5a21f971537e9adef6` |
+
+## `@juicesharp/rpiv-todo` 2.4.0
+
+| | |
+|---|---|
+| **Pinned version** | 2.4.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/juicesharp/rpiv-mono> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | task list |
+| **Tarball sha256** | `c55f5f6eab93371ae99897590efe558ce556f97a79a63f43ea0a40c09f96a0dd` |
+
+## `pi-hashline-edit-pro` 1.1.0
+
+| | |
+|---|---|
+| **Pinned version** | 1.1.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/YuGiMob/pi-hashline-edit-pro> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-trial` — reviewed and pinned; kept while it proves itself |
+| **Role** | hash-line edit, on trial (not wired) |
+| **Tarball sha256** | `37a4e1abc66191300cd7e5c646a6ef5fa87be1fed224bdf00229eb3c3b8fcd68` |
+
+## `@narumitw/pi-worktree` 0.49.3
+
+| | |
+|---|---|
+| **Pinned version** | 0.49.3 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/narumiruna/pi-extensions> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | worktrees |
+| **Tarball sha256** | `ddcc0e3cd1f7881c5e8bafc70c6ff5f86be18bd786002fda87ed42d3a5bbb273` |
+
+## `@narumitw/pi-lsp` 0.49.3
+
+| | |
+|---|---|
+| **Pinned version** | 0.49.3 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/narumiruna/pi-extensions> |
+| **Reviewed** | 2026-08-07 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | language-server diagnostics |
+| **Tarball sha256** | `56f7f49c715f67ff1ea009a77cf5ccf4589f7504d1155cfcfe835c387fa8909c` |
+
+## `@narumitw/pi-retry` 0.31.0
+
+| | |
+|---|---|
+| **Pinned version** | 0.31.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/narumiruna/pi-extensions> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted` — wired and in use |
+| **Role** | transient retry (reviewed, not wired) |
+| **Tarball sha256** | `94c359a4c19fd5ad75b938e83102d8529e5a0caf265b48017cf40981eb053ec6` |
+
+## `@nklisch/pi-plugins` 0.3.3
+
+| | |
+|---|---|
+| **Pinned version** | 0.3.3 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/nklisch/pi-extensions> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-hardened` — wired, with a local restriction on top |
+| **Role** | package lifecycle (not the install path) |
+| **Tarball sha256** | `e88f68b217244352237bd81dc368851854136f66b1a0a9de55b906a5bfb781ff` |
+
+## `pi-smart-compact` 7.22.0
+
+| | |
+|---|---|
+| **Pinned version** | 7.22.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/alpertarhan/pi-smart-compact> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-optional` — reviewed and pinned; not wired by default |
+| **Role** | compaction summary quality |
+| **Tarball sha256** | `ed0b77491b7207eec0e356bb2bf8890d1278c3a7f61782d2f39d2448be3663ac` |
+
+## `pi-hermes-memory` 0.9.3
+
+| | |
+|---|---|
+| **Pinned version** | 0.9.3 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/chandra447/pi-hermes-memory> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-separate` — reviewed and pinned; used outside the main loop |
+| **Role** | session search (FTS5) |
+| **Tarball sha256** | `fc981262fc86246b8277f827abbb25c5a880133e147a146cae8e01c4abc082ff` |
+
+## `pi-lean-ctx` 3.9.17
+
+| | |
+|---|---|
+| **Pinned version** | 3.9.17 |
+| **Licence** | Apache-2.0 |
+| **Upstream** | <https://github.com/yvgude/lean-ctx> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-optional` — reviewed and pinned; not wired by default |
+| **Role** | tool-output shrinking |
+| **Tarball sha256** | `53dfd362d503679d3d07f85cb8f698057b44f064eab860c19013a8dc5470de1e` |
+
+## `pi-opa-net` 0.6.0
+
+| | |
+|---|---|
+| **Pinned version** | 0.6.0 |
+| **Licence** | MIT |
+| **Upstream** | <https://github.com/buihongduc132/pi-opa-net> |
+| **Reviewed** | 2026-08-06 |
+| **Status** | `adopted-conditional` — reviewed and pinned; wired only in some installs |
+| **Role** | OPA policy engine |
+| **Tarball sha256** | `075b000cf64c98b5a8ef43fcc649149ade6aec3f8007e4764f378da5b88b2672` |
+
+## Related
+
+- [Package denylist](DENYLIST.md) — what was reviewed and refused
+- [Third-party components](reference/third-party.md) — licences and the vendored patches
+- [Generated and locked files](configuration/not-editable.md) — why the lock is not hand-edited

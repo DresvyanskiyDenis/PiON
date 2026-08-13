@@ -1,0 +1,12 @@
+{
+  "quota": {
+    "enabled": false,
+    "ttlMs": 300000,
+    "timeoutMs": 10000,
+    "tokenFile": "~/.config/pi/copilot-quota-token.json",
+    "preflight": {
+      "enabled": true,
+      "thresholdPct": 15
+    }
+  }
+}

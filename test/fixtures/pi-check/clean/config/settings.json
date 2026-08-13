@@ -1,0 +1,7 @@
+{
+  "defaultProvider": "acme",
+  "defaultModel": "gpt-nova",
+  "defaultProjectTrust": "ask",
+  "packages": [],
+  "extensions": []
+}

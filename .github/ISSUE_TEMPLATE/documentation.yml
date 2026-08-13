@@ -1,0 +1,39 @@
+name: Documentation problem
+description: Something is wrong, missing, or leads you to do the wrong thing.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A documented default that does not match the shipped file is treated as a **bug**, not a
+        nitpick — an invented default is worse than an omission, because it gets believed. Those
+        reports are welcome and get fixed quickly.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page URL, or the file path (`docs/…`, `wiki/…`, `README.md`).
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - A documented value does not match the shipped file or the code
+        - A step does not work as written
+        - Something is missing entirely
+        - It is ambiguous or misleading
+        - A broken link
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Detail
+      description: Quote what the documentation says, and what is actually the case. A `file:line` reference makes this quick to fix.
+    validations:
+      required: true

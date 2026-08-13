@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "roots": [
+    {
+      "path": "~/projects",
+      "tier": "strong",
+      "egress": {
+        "web": "allow",
+        "mcp": "allow",
+        "publicModels": "allow"
+      }
+    },
+    {
+      "path": "*",
+      "tier": "fast",
+      "egress": {
+        "web": "allow",
+        "mcp": "allow",
+        "publicModels": "allow"
+      }
+    }
+  ]
+}

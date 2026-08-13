@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "search": {
+    "backend": "none"
+  },
+  "note": "The declared pinned backend, for humans and for tooling that reads .search.backend from this exact file. The file pi-web-access itself reads at runtime is config/web-search.json, which follows a foreign, unrelated JSON schema — see config/README.md. extensions/web.ts's session_start handler asserts the two agree; a mismatch is a fail-loud error, not a silent drift."
+}

@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "id": "github-copilot",
+  "displayName": "GitHub Copilot",
+  "summary": "Claude / GPT / Gemini / Grok through a GitHub Copilot seat. Public endpoint by default; a GitHub Enterprise Cloud data-residency tenant is supported as an alternative.",
+  "builtIn": true,
+  "default": true,
+  "egress": "public",
+  "concurrency": 4,
+
+  "requires": [
+    {
+      "kind": "env",
+      "name": "COPILOT_GITHUB_TOKEN",
+      "required": true,
+      "secret": true,
+      "description": "A Copilot OAuth access token (gho_...). PI sends it straight through as the API key; there is no token exchange on this path.",
+      "howTo": "Reuse the token an existing OAuth client already holds (VS Code / another editor integration), or run `/login github-copilot` ONCE in PI on a public seat and copy the value out of ~/.pi/agent/auth.json. Put it in ~/.pi/secrets.env as COPILOT_GITHUB_TOKEN=gho_... (chmod 600)."
+    },
+    {
+      "kind": "env",
+      "name": "PI_COPILOT_QUOTA_TOKEN",
+      "required": false,
+      "secret": true,
+      "description": "Optional classic ghp_ PAT used only by the quota meter extension. Never used for chat.",
+      "howTo": "github.com -> Settings -> Developer settings -> Personal access tokens (classic). A fine-grained github_pat_... token is rejected: the premium-usage endpoint does not accept one."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "endpoint",
+      "type": "choice",
+      "label": "Which Copilot endpoint does your seat use?",
+      "default": "public",
+      "required": true,
+      "choices": [
+        {
+          "value": "public",
+          "label": "Public github.com Copilot (api.githubcopilot.com) - the normal answer"
+        },
+        {
+          "value": "enterprise",
+          "label": "GitHub Enterprise Cloud with data residency (copilot-api.<tenant>.ghe.com)"
+        }
+      ]
+    },
+    {
+      "id": "tenant",
+      "type": "string",
+      "label": "Your GHE data-residency tenant slug",
+      "help": "Only the slug. For an enterprise reachable at https://<tenant>.ghe.com, the Copilot API host is copilot-api.<tenant>.ghe.com.",
+      "example": "acme",
+      "required": true,
+      "when": { "endpoint": "enterprise" },
+      "validate": {
+        "pattern": "^[a-z0-9][a-z0-9-]*$",
+        "message": "lowercase tenant slug only - no scheme, no dots, no trailing slash"
+      }
+    }
+  ],
+
+  "derived": [
+    {
+      "id": "baseUrl",
+      "from": "endpoint",
+      "map": {
+        "public": "https://api.githubcopilot.com",
+        "enterprise": "https://copilot-api.{{tenant}}.ghe.com"
+      }
+    }
+  ],
+
+  "tiers": {
+    "strong": "github-copilot/claude-opus-5",
+    "fast": "github-copilot/claude-sonnet-5",
+    "cheap": "github-copilot/claude-haiku-4.5"
+  },
+
+  "provider": {
+    "baseUrl": "{{baseUrl}}",
+    "apiKey": "$COPILOT_GITHUB_TOKEN",
+    "modelOverrides": {
+      "claude-opus-5": { "contextWindow": 200000 },
+      "claude-opus-4.8": { "contextWindow": 200000 },
+      "claude-opus-4.7": { "contextWindow": 200000 },
+      "claude-opus-4.6": { "contextWindow": 200000 },
+      "claude-opus-4.5": { "contextWindow": 168000 },
+      "claude-sonnet-5": { "contextWindow": 200000 },
+      "claude-sonnet-4.6": { "contextWindow": 200000 },
+      "claude-sonnet-4.5": { "contextWindow": 168000 },
+      "claude-sonnet-4": { "contextWindow": 200000 },
+      "claude-haiku-4.5": { "contextWindow": 136000 },
+      "claude-fable-5": { "contextWindow": 200000 },
+      "gpt-5.6-luna": { "contextWindow": 200000 },
+      "gpt-5.6-sol": { "contextWindow": 200000 },
+      "gpt-5.6-terra": { "contextWindow": 200000 },
+      "gpt-5.5": { "contextWindow": 200000 },
+      "gpt-5.4": { "contextWindow": 200000 },
+      "gpt-5.4-mini": { "contextWindow": 200000 },
+      "gpt-5.4-nano": { "contextWindow": 200000 },
+      "gpt-5.3-codex": { "contextWindow": 200000 },
+      "gpt-5.2": { "contextWindow": 200000 },
+      "gpt-5.2-codex": { "contextWindow": 200000 },
+      "gpt-5-mini": { "contextWindow": 128000 },
+      "gpt-4.1": { "contextWindow": 64000 },
+      "gemini-3.1-pro-preview": { "contextWindow": 200000 },
+      "gemini-3.6-flash": { "contextWindow": 200000 },
+      "gemini-3.5-flash": { "contextWindow": 200000 },
+      "grok-4.5": { "contextWindow": 200000 },
+      "kimi-k2.7-code": { "contextWindow": 200000 },
+      "mai-code-1-flash-picker": { "contextWindow": 128000 }
+    }
+  },
+
+  "notes": [
+    "WHY modelOverrides EXISTS AT ALL. PI's bundled Copilot catalogue declares a 1 000 000 (and for some ids 1 050 000) token context window for models whose Copilot endpoint serves far less. PI's compaction threshold is `contextWindow - reserveTokens`, so an over-declared window makes compaction fire far too late: the request is already larger than the endpoint accepts, and the turn dies (or is silently truncated upstream) instead of compacting. The rule this file follows is: a declared window is min(200000, what the endpoint actually serves).",
+    "THE VALUES ABOVE WERE MEASURED ON ONE TENANT. They are deliberately conservative - under-declaring only makes compaction fire earlier, which is safe; over-declaring is what breaks. Re-measure on yours and edit config/models.json (or this fragment and re-run the installer) if you need the extra room.",
+    "HOW TO RE-MEASURE. Send a request whose prompt is a known token count and grow it until the endpoint returns a context-length error; the largest size that still succeeds is the real window. `pi --list-models` shows what PI currently believes. Do not raise a number you have not observed.",
+    "NEVER RUN `/login github-copilot` WITH THIS FRAGMENT. PI's Copilot provider registers two auth methods. The apiKey method sends COPILOT_GITHUB_TOKEN straight through and leaves the `baseUrl` above intact. The OAuth method's resolver ALWAYS returns its own baseUrl (derived from the token's proxy-ep hint), and at request time `applyAuth()` does `auth.baseUrl ? {...model, baseUrl: auth.baseUrl} : model` - so an OAuth credential silently overrides the baseUrl written here. On the public endpoint that is harmless; on an enterprise data-residency tenant it sends your traffic somewhere else.",
+    "THE `apiKey` FIELD IS NOT OPTIONAL. A github-copilot block with no `apiKey` key at all is read as unconfigured and PI drops the ENTIRE built-in Copilot catalogue from /model, Ctrl+P and every tier that names a github-copilot/* id. That is a stronger failure than a present-but-empty reference (which leaves the models listed and fails at request time). Measured, not theorised.",
+    "DO NOT SET `api`. Copilot dispatches three different wire APIs per model; PI picks the right one from its own catalogue.",
+    "MODEL LIST IS UNFILTERED ON THE apiKey PATH. PI narrows the catalogue to the credential's entitlement only for OAuth credentials, so /model lists every model in the bundled catalogue regardless of what your seat actually grants. A 403/404 on a specific id is account policy surfacing through an unfiltered list, not a bug. Some seats also require enabling a model once in the editor's model picker before the API accepts it.",
+    "NEVER TOUCH THE X-Initiator HEADER. GitHub's meter keys premium-request counting on it. `bin/pi-check` rule PC-15 fails the build if any extension references it."
+  ],
+
+  "verify": [
+    {
+      "label": "the endpoint answers with your token",
+      "command": "curl -sS -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $COPILOT_GITHUB_TOKEN\" \"$PI_COPILOT_BASE_URL/models\""
+    },
+    {
+      "label": "PI can complete one turn",
+      "command": "pi -p 'reply with OK' --model github-copilot/claude-sonnet-5"
+    }
+  ]
+}

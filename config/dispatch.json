@@ -1,0 +1,12 @@
+{
+  "maxDepth": 2,
+  "defaultTier": "fast",
+  "defaultEgress": "internal",
+  "defaultTimeoutMs": 1800000,
+  "concurrencyDefault": 3,
+  "packageDefaultConcurrency": 4,
+  "registryDirs": ["<repo>/agents", "<repo>/agents-private", "<agentDir>/agents", "<cwd>/.pi/agents"],
+  "dispatchTools": ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
+  "genericAgents": ["general-purpose", "general", "generalist"],
+  "specialistMatchMinScore": 2
+}

@@ -1,0 +1,16 @@
+{
+  "generated": "2026-08-06",
+  "procedure": "docs/PACKAGES.md header (implementation_plan.md 1.8)",
+  "packages": [
+    {
+      "name": "examplepkg",
+      "version": "1.0.0",
+      "license": "MIT",
+      "repository": "https://github.com/example/examplepkg",
+      "reviewed": "2026-08-06",
+      "status": "adopted",
+      "role": "test-fixture only",
+      "vendor": true
+    }
+  ]
+}

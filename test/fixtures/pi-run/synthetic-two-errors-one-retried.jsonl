@@ -1,0 +1,15 @@
+{"type":"session","version":3,"id":"01K2Q7X4W8ZC5N3B6D9F0G2H1J","timestamp":"2026-08-08T00:45:51.100Z","cwd":"/home/user/pi-config"}
+{"type":"agent_start"}
+{"type":"turn_start","turnIndex":0,"timestamp":1786140351102}
+{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"hi"}],"timestamp":1786140351104}}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"hi"}],"timestamp":1786140351104}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"reachable","model":"unsloth/Qwen3.6-35B-A3B-MTP-GGUF","stopReason":"error","timestamp":1786140352000,"errorMessage":"THE EARLIER ERROR — willRetry speaks only for the last assistant message"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"reachable","model":"unsloth/Qwen3.6-35B-A3B-MTP-GGUF","stopReason":"error","timestamp":1786140352509,"errorMessage":"503: {\"message\":\"Service Unavailable — upstream provider overloaded\",\"type\":\"server_error\",\"param\":null,\"code\":null}"}}
+{"type":"turn_end","turnIndex":0}
+{"type":"agent_end","messages":[],"willRetry":true}
+{"type":"agent_start"}
+{"type":"turn_start","turnIndex":0,"timestamp":1786140354600}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"ok"}],"api":"openai-completions","provider":"reachable","model":"unsloth/Qwen3.6-35B-A3B-MTP-GGUF","stopReason":"stop","timestamp":1786140355880}}
+{"type":"turn_end","turnIndex":0}
+{"type":"agent_end","messages":[],"willRetry":false}
+{"type":"agent_settled"}

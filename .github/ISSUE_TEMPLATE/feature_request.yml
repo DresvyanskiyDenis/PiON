@@ -1,0 +1,64 @@
+name: Feature request
+description: Propose a capability that is not here yet.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things are settled and will not be reopened:
+
+        - **No provider failover.** Silent substitution destroys attribution, and a repository rule
+          (`PC-03`) fails the build if a `fallback` / `failover` / `egressOrder` key reappears.
+        - **Egress classes are not a network boundary.** They are declarative. A proposal that needs
+          a real boundary belongs at the network layer, not here.
+
+        Everything else is open.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that you currently cannot? Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: Where would it live — a configuration key, a new extension module, a helper command, documentation?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: A configuration change, a hook, your own extension module, a wrapper script. What was wrong with it?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Routing, providers, models
+        - Guard, hooks, permissions
+        - Sub-agents, teammates, jobs, worktrees
+        - Skills
+        - MCP
+        - Context and compaction
+        - Installer
+        - Documentation
+        - Something else
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This belongs in PiON rather than upstream in PI itself.
+        - label: I would be willing to open a pull request for it.

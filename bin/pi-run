@@ -1,0 +1,1064 @@
+#!/usr/bin/env node
+// bin/pi-run — the fail-closed headless wrapper around `pi` (V-01, FAIL branch).
+//
+// ============================================================================================
+// WHY THIS FILE EXISTS
+// ============================================================================================
+//
+// V-01 ("does `pi -p` exit non-zero on provider/auth failure?") was run for real on 2026-08-08
+// and split. Measured, not assumed:
+//
+//   pi -p              unresolvable host                     exit 1
+//   pi -p              reachable endpoint, wrong key -> 401   exit 1
+//   pi -p --mode json  the same 401                           exit 0    <- the defect
+//
+// The signal is not missing from the stream; only the exit code is. `docs/operations/verification.md`
+// (check V-01, FAIL branch) prescribes exactly one remedy — wrap it once, here — and this file is
+// that wrapper. It runs `pi` with the caller's arguments and exits non-zero when the run failed,
+// whatever `pi` itself returned.
+//
+// Three measured facts it is written against. Do not "simplify" any of them away:
+//
+//   1. THERE IS NO `error` EVENT. A failed turn emits, in order: `session`, `agent_start`,
+//      `turn_start`, `message_start`, `message_end`, `message_start`, `message_end`, `turn_end`,
+//      `agent_end`, `agent_settled` — byte-for-byte the shape of a successful turn. A parser
+//      watching for `type == "error"` never fires.
+//
+//   2. `stopReason` IS NESTED INSIDE `message`, NOT ON THE EVENT. The failing assistant
+//      `message_end` carried `message.stopReason == "error"` and `message.errorMessage` with the
+//      upstream text, alongside `message.provider` and `message.model`. A parser reading a
+//      top-level `stopReason` finds `undefined` on every event and reports success — a silent
+//      fail-open, which is the failure mode this wrapper exists to prevent. Note also that the
+//      *user* `message_end` in the same stream carries no `stopReason` at all: an absent
+//      `stopReason` is normal there and must never be read as a failure. Only the **assistant**
+//      message is required to carry one.
+//
+//   3. `pi -p` WITH STDIN OPEN AND NO TTY BLOCKS FOREVER — no output, no sockets opened, ~0 s CPU.
+//      (Print mode merges piped stdin into the prompt, so it waits for EOF that a cron job's
+//      inherited stdin never delivers.) This is arguably the most valuable thing the wrapper
+//      does: a cron caller that only guards on exit code HANGS rather than fails, and a hang is
+//      strictly worse than a failure because nothing alerts on it. `pi-run` therefore always
+//      gives the child a stdin of /dev/null (`stdio[0] = "ignore"`, which is documented to make
+//      Node open /dev/null and attach it to the child's fd 0) regardless of what its own stdin is.
+//      A caller that genuinely wants to pipe a document into `pi` must call `pi` directly and
+//      accept that it owns the hang.
+//
+// ============================================================================================
+// WHAT IT DOES
+// ============================================================================================
+//
+// - Forces `--mode json`. If no `--mode` is given, `--mode json` is appended; if `--mode` names
+//   anything else, `pi-run` refuses (exit 2) rather than running. JUSTIFICATION: the wrapper's
+//   entire value is parsing the event stream, and in any other mode it has nothing to parse. It
+//   would then degrade to "exit code only" — which is precisely the fail-open V-01 measured, but
+//   now wearing a wrapper's name and inviting callers to trust it. A mode it cannot parse must
+//   fail loudly, not quietly become a no-op. (`-p`/`--print` is NOT forced: `--mode json` is
+//   already non-interactive, and the caller may have reasons to add `-p` or not.)
+// - Parses the stream line by line, and streams the child's own stdout through UNCHANGED, so a
+//   caller that wants the JSON still gets every byte in order.
+// - Reports failures on stderr in the vocabulary of `extensions/lib/provider-error.ts`'s renderer
+//   — same `[pi-config] provider call failed:` summary line, same `label : value` block, same
+//   closing `policy` line, same "no truncation" rule for the upstream message. That renderer is
+//   deliberately NOT imported: it is TypeScript that pulls in `extensions/lib/once.ts` and the PI
+//   package's types, and `bin/` scripts are standalone by contract (see `bin/pi-check`'s header —
+//   zero npm dependencies, no import from the repo's TypeScript). Six format strings are the
+//   price of a wrapper that runs anywhere `pi` runs. If that renderer's vocabulary changes, change
+//   it here too.
+//
+// ============================================================================================
+// EXIT CODES
+// ============================================================================================
+//
+//     0  the stream completed (`agent_settled` seen), at least one assistant `message_end`
+//        arrived, and none of them ended the run in `error` or `aborted`.
+//     2  a `pi-run` usage error — the wrapper itself could not run. Matches `bin/pi-check`'s
+//        "the checker itself could not run" = 2.
+//    20  TURN FAILED: an assistant `message_end` carried `message.stopReason === "error"` and was
+//        NOT retried away (see THE RETRY DISCRIMINATOR below). This is the V-01 defect; it is the
+//        code cron and CI should alert on.
+//    21  TRUNCATED STREAM: no terminal `agent_settled` arrived, or no assistant `message_end`
+//        arrived at all. A stream that stopped early is a failure, not a success.
+//    22  PROTOCOL DRIFT: an assistant `message_end` arrived carrying no `stopReason` field.
+//        The stream parsed, but not into the shape this wrapper is written against, so its
+//        verdict cannot be trusted — see the "fail-open canary" note at `observeMessageEnd`.
+//    23  COMPACTION LOOP: EXT-11's loop guard tripped. V-08 was run for real on 2026-08-08 and
+//        FAILED — see THE COMPACTION-LOOP GUARD below — so this is the wrapper-side half of the
+//        mechanism the runbook's FAIL branch prescribes.
+//    24  TURN ABORTED: an assistant `message_end` carried `message.stopReason === "aborted"`.
+//        Its own code, not 20, because the two want different responses: 20 means the model or
+//        the provider failed and the credential/endpoint/quota is suspect; 24 means something
+//        stopped the turn — a cancelled backoff, a guard, a shutdown — and the provider may be
+//        perfectly healthy. PI's own `dist/modes/print-mode.js` exits 1 on both, so leaving 24
+//        at 0 would have left `pi -p` and `pi -p --mode json` disagreeing about what a failed
+//        run is, which is the whole class of bug V-01 exists to close.
+// 25-29  RESERVED for further stream-derived verdicts, same reason as 23.
+//   127  `pi` could not be spawned (ENOENT, EACCES). Shell convention for "command not found".
+// 128+N  `pi` was killed by signal N. Shell convention. This is also the row a signal FORWARDED by
+//        this wrapper lands on — see SIGNAL FORWARDING below.
+//     *  any other non-zero code is `pi`'s own, PASSED THROUGH unchanged.
+//
+// PRECEDENCE. `pi`'s own non-zero exit code always wins over a wrapper verdict — the runbook says
+// pass it through rather than replace it, and `pi` knows things the stream does not. The
+// diagnostics are still printed in that case; only the number changes. Among the wrapper's own
+// verdicts the order is 23 > 20 > 24 > 22 > 21: report the most actionable cause, never let a
+// stream that ALSO ended early downgrade a turn that demonstrably failed, and put the loop guard
+// first because when it trips, everything downstream of it — including a failed turn — is the
+// consequence and not the cause. Every block that applies is printed regardless of which code
+// wins.
+//
+// ============================================================================================
+// THE COMPACTION-LOOP GUARD (exit 23)
+// ============================================================================================
+//
+// V-08 asked whether an extension can abort a session from `session_before_compact` in print
+// mode. Run on 2026-08-08 against llama-swap, in `-p` and in `-p --mode json`, both answers are
+// no, and both are no-ops rather than errors:
+//
+//   ctx.shutdown()  returned undefined, process still alive. Print mode's `bindExtensions()`
+//                   passes no `shutdownHandler`, so `shutdown: () => this._extensionShutdownHandler?.()`
+//                   resolves to nothing at all.
+//   ctx.abort()     returned undefined, process still alive, `ctx.signal` still undefined and the
+//                   compaction `event.signal.aborted` still false. The run then continued into the
+//                   turn PI was about to run anyway and exited 0 — byte-identical to the control
+//                   run that never called either method.
+//
+// So the guard cannot end the process from inside the handler through the documented API, and
+// `REQ-CTX-35` ("never exit 0 on overflow in headless mode") has to be enforced from out here.
+// `extensions/compaction/index.ts` writes a sentinel on every trip, in every mode; this wrapper
+// watches for it. Measured, same day, running the shipped extension end to end:
+//
+//   headlessExitCode: 91  ->  the extension's own `process.exit(91)` DOES work; `pi` exits 91
+//                             and the stream stops mid-compaction. 91 is `pi`'s own code and is
+//                             passed through — 23 is not needed, and does not fire.
+//   headlessExitCode: 0   ->  the guard cancels the pass, the run completes, `agent_settled`
+//                             arrives, the failing assistant message carries `stopReason:
+//                             "length"` — and `pi -p --mode json` exits **0**. Nothing in the
+//                             wrapper's other rules catches this. THIS is what 23 is for.
+//
+// TWO TRIGGERS, ONE VERDICT. Both carry the same record and either alone is enough:
+//
+//   1. The sentinel file `<stateRoot>/compaction-loop/<sessionId>.json`, polled every 250 ms once
+//      the session id is known. This is the mechanism the runbook's FAIL branch names.
+//   2. The `entry_appended` event whose `entry.customType` is `pi-config.compaction-loop`, which
+//      `--mode json` was measured to carry. It arrives FIRST — `abortOnLoop` appends the typed
+//      entry before it writes the sentinel — and it is the only signal when the sentinel cannot
+//      be written at all, which is a real case rather than a hypothetical one: `writeSentinel`
+//      is best-effort by design and returns null on an unwritable state root. A sentinel-only
+//      wrapper would report success on exactly that run, which is the fail-open this file exists
+//      to prevent.
+//
+// KILLING IS DEFERRED BY 2 s, ON PURPOSE. The trip and the extension's own `process.exit(91)`
+// race each other, and a wrapper that killed on sight would return 23 or 91 for the same event
+// depending on which won — non-determinism in the one number cron alerts on. So the block is
+// printed immediately, and SIGTERM (then SIGKILL five seconds later) is only sent if `pi` is
+// still alive after the grace. A run that exits itself keeps its own code; only a run that would
+// have carried on gets killed, which is the case the runbook's FAIL branch describes.
+//
+// STALE SENTINELS. A session id is stable across `--resume`, so a sentinel from an earlier run of
+// the same session must not condemn this one. The file counts only when its mtime is at or after
+// this process's start (less one second, for filesystems with coarse mtime). The JSON inside is
+// read for the report only — a file that exists but does not parse still trips the guard, because
+// the decision is "the guard wrote a sentinel for this session", and failing open on a corrupt
+// sentinel would be the wrong way round.
+//
+// The path is recomputed here rather than imported: `stateRoot()` is
+// `${XDG_STATE_HOME:-~/.local/state}/pi-config` (`extensions/lib/paths.ts:24`) and the id is
+// sanitised with `[^A-Za-z0-9._-]` -> `_` (`extensions/compaction/index.ts:261`). `bin/` scripts
+// are standalone by contract, the same reason the provider-error renderer is restated above. If
+// either of those two lines changes, change it here too.
+//
+// ============================================================================================
+// SIGNAL FORWARDING (SIGINT, SIGTERM, SIGHUP)
+// ============================================================================================
+//
+// A wrapper that dies on SIGTERM and leaves `pi` running is worse than no wrapper: the caller
+// gets its exit status back, believes the run is over, and a headless `pi` carries on holding a
+// model, a session file and a stdout pipe nobody reads, with nothing left to reap it. launchd and
+// systemd both stop a job by signalling the process they started — this one — so that is the
+// normal shutdown path, not an edge case. So `pi-run` forwards the signal and then WAITS: the
+// child's real fate, not the wrapper's, decides the exit code, exactly as on every other run.
+//
+//   died of signal N        -> 128+N, the row that already existed. The escalated case reports
+//                              SIGKILL (137) because that is what actually killed `pi`; the
+//                              stderr line says it was escalated to, and from what.
+//   exited with its own code -> that code, passed through, same rule as everywhere else. A `pi`
+//                              that traps SIGINT and exits 130 keeps 130.
+//   exited 0                 -> the stream's verdict, unchanged — which for an interrupted run is
+//                              21 (no `agent_settled`), so an interrupted run still cannot report
+//                              success. The wrapper does NOT invent 128+N for a child that did not
+//                              die of the signal; inventing one would overwrite the very passthrough
+//                              the precedence rule above promises, and would also mislabel the race
+//                              where `pi` finished a whole good run microseconds before the signal.
+//
+// ONLY THREE SIGNALS ARE TRAPPED. SIGKILL and SIGSTOP cannot be trapped at all, so no handler
+// pretends to cover them. Nothing else is trapped either: a signal this wrapper has no useful
+// answer for must keep its default disposition rather than be swallowed by an empty handler.
+//
+// REPEATS ARE IGNORED, DELIBERATELY. The second SIGTERM does not re-forward and does not shorten
+// the grace. Re-forwarding would be a no-op at best; re-arming the escalation timer would let a
+// caller that signals in a loop postpone the SIGKILL forever, which is precisely the hang the
+// escalation exists to prevent. The grace is already running and is bounded, and the repeat is
+// reported once so the operator knows why nothing new happened.
+//
+// ONE KILLER, NOT TWO. The compaction-loop guard above also wants to end `pi`, so both go through
+// `requestChildExit` and the FIRST caller owns the child — see the comment on that function for
+// which one that is in practice and why the loser must not also fire.
+//
+// ============================================================================================
+// THE RETRY DISCRIMINATOR
+// ============================================================================================
+//
+// `config/settings.json` sets `retry.enabled: true, maxRetries: 3`, and PI emits the failed
+// attempt's `message_end` into the stream BEFORE retrying. Counting every error `message_end` as
+// a failure would make this wrapper exit 20 on runs that succeeded — and a guard that cries wolf
+// in cron gets switched off by whoever is on call, which costs more than the defect it catches.
+//
+// The stream already carries the discriminator. `agent_end` is emitted as
+// `{...event, willRetry: this._willRetryAfterAgentEnd(event)}` (`@earendil-works/pi-coding-agent`
+// 0.84.0, `dist/core/agent-session.js:366`). So:
+//
+//   an error `message_end` is NOT a failure  <=>  the NEXT `agent_end` carries `willRetry: true`
+//
+// and everything else is. Read the second half carefully, because it is where a fail-open would
+// hide: an error `message_end` followed by NO `agent_end` at all — a stream truncated immediately
+// after the error — stays a failure. Suppression requires positive evidence that PI took over;
+// silence is never evidence.
+//
+// Two refinements, both taken from the source rather than assumed:
+//
+//   - Only the LAST pending error is suppressed by a `willRetry: true`. `_willRetryAfterAgentEnd`
+//     walks `event.messages` backwards and returns on the FIRST assistant message it finds, so
+//     the flag speaks for exactly one message. Any earlier error in the same window is promoted
+//     to a failure. In practice an agent run stops at its first error so the window holds one,
+//     but "in practice" is not a reason to write a rule that fails open when it does not hold.
+//   - `aborted` is never suppressible, and this is not a judgement call:
+//     `isRetryableAssistantError` returns false unless `stopReason === "error"`
+//     (`@earendil-works/pi-ai/dist/utils/retry.js:165`), and `retryAssistantCall` short-circuits
+//     an abort before the retry branch with the comment "Abort: terminal but not successful.
+//     Never retry an aborted message." So `willRetry` can never be true *for* an aborted message.
+//
+// A suppressed error is still REPORTED on stderr, as a note rather than a failure block. The
+// transient happened; a cron log that hides it entirely is worse than one that explains it.
+//
+// ============================================================================================
+// USAGE
+// ============================================================================================
+//
+//   bin/pi-run -p "say ok" --model databricks/databricks-claude-sonnet-4-5   # --mode json is appended
+//   bin/pi-run -p "say ok" --mode json --model local/qwen    # already json: left alone
+//   bin/pi-run --help                                        # this table, then exit 0
+//
+// `PI_RUN_PI_BIN` overrides which binary is executed (default: `pi`, resolved on PATH). Two real
+// uses: a cron/launchd job whose PATH does not include `~/bin`, and the fixture-driven tests in
+// `test/bin/pi-run.test.ts`, which must never depend on a network, a model or llama-swap.
+
+import { spawn } from "node:child_process";
+import { readFileSync, statSync } from "node:fs";
+import { constants as osConstants, homedir } from "node:os";
+import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
+
+/** @typedef {"error" | "aborted"} FailingStopReason */
+/** @typedef {{ stopReason: FailingStopReason, provider: string, model: string, message: string }} AssistantFailure */
+/** @typedef {{ reason: string, events: number }} Truncation */
+/** @typedef {{ provider: string, model: string, keys: string }} Drift */
+/** @typedef {{ source: string, record: Record<string, unknown> | null }} LoopTrip */
+
+const EXIT_OK = 0;
+const EXIT_USAGE = 2;
+const EXIT_TURN_FAILED = 20;
+const EXIT_TRUNCATED_STREAM = 21;
+const EXIT_PROTOCOL_DRIFT = 22;
+const EXIT_COMPACTION_LOOP = 23;
+// 25-29 stay reserved for further stream verdicts.
+const EXIT_TURN_ABORTED = 24;
+const EXIT_SPAWN_FAILED = 127;
+
+/** The custom entry `extensions/compaction/index.ts` appends when the loop guard trips. */
+const LOOP_ENTRY_TYPE = "pi-config.compaction-loop";
+const SENTINEL_POLL_MS = 250;
+/** How long `pi` is given to exit on its own after a trip before the wrapper kills it. */
+const LOOP_KILL_GRACE_MS = 2000;
+/**
+ * How long a signalled `pi` is given before SIGKILL — the ONE escalation grace, shared by both
+ * things that end a child (the loop guard's SIGTERM and a forwarded SIGINT/SIGTERM/SIGHUP), so
+ * that a `pi` cannot be given two different deadlines depending on who asked it to stop.
+ *
+ * 5 s, chosen from the deadline the wrapper itself is under rather than from taste: launchd sends
+ * SIGKILL 20 s after its SIGTERM (`ExitTimeOut`, default 20) and systemd 90 s
+ * (`DefaultTimeoutStopSec`). 5 s leaves the wrapper 15 s of the tighter of the two to escalate,
+ * reap the child, print its blocks and exit — so the escalation always completes INSIDE the
+ * supervisor's window, and the supervisor never has to SIGKILL the wrapper out from under a child
+ * it was in the middle of killing, which is the orphan this whole path exists to prevent. It is
+ * also comfortably longer than any flush `pi` does on the way out.
+ */
+const SIGKILL_GRACE_MS = 5000;
+/**
+ * The signals a caller sends to mean "stop this run": an operator's Ctrl-C, a launchd/systemd
+ * stop, a closed terminal. SIGKILL and SIGSTOP are absent because they cannot be trapped, and a
+ * handler that listed them would be a lie. Nothing else is listed either — see SIGNAL FORWARDING.
+ * @type {NodeJS.Signals[]}
+ */
+const FORWARDED_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"];
+/** Slack for filesystems whose mtime resolution is coarser than this process's clock. */
+const SENTINEL_MTIME_SLACK_MS = 1000;
+
+/** Width of the label column. `provider-error.ts` uses 9; `stopReason` needs 11. Same shape. */
+const LABEL_WIDTH = 11;
+
+const POLICY_LINE =
+  "abort — no failover, no substitution, no retry against another provider " +
+  "(routing.json onProviderError.policy)";
+
+function usageError(message) {
+  process.stderr.write(`pi-run: ${message}\n`);
+  process.stderr.write('usage: bin/pi-run <args passed to pi> ("--mode json" is appended if absent)\n');
+  process.stderr.write("       bin/pi-run --help    for the exit-code table\n");
+  process.exitCode = EXIT_USAGE;
+}
+
+function printHelp() {
+  process.stdout.write(
+    [
+      "bin/pi-run — run `pi` headlessly and exit non-zero when the run failed.",
+      "",
+      "usage: bin/pi-run <args passed to pi verbatim>",
+      "",
+      "  `--mode json` is appended when absent; any other --mode is refused (exit 2).",
+      "  The child's stdin is always /dev/null — `pi -p` with an open stdin and no TTY hangs.",
+      "  The child's stdout is streamed through unchanged.",
+      "  An error that pi retried away (the next agent_end carries willRetry=true) is reported",
+      "  as a note, not as a failure. An error with no following agent_end stays a failure.",
+      "  EXT-11's compaction loop guard is watched for on two triggers: the sentinel file",
+      "  <stateRoot>/compaction-loop/<sessionId>.json and the pi-config.compaction-loop entry",
+      "  on the stream. On either, pi gets 2 s to exit itself and is then SIGTERMed.",
+      "  SIGINT, SIGTERM and SIGHUP are forwarded to pi; pi-run then waits for pi to exit and",
+      "  reports pi's own fate. A pi that has not exited 5 s after the forward is SIGKILLed.",
+      "  Repeat signals are ignored: the escalation is already scheduled and must not be delayed.",
+      "",
+      "exit codes:",
+      "    0  stream completed, no assistant message ended in error or aborted",
+      "    2  pi-run usage error",
+      "   20  turn failed — an assistant message_end carried stopReason \"error\", not retried away",
+      "   21  truncated stream — no agent_settled, or no assistant message_end at all",
+      "   22  protocol drift — an assistant message_end carried no stopReason",
+      "   23  compaction loop — EXT-11's loop guard tripped and pi still returned 0 (V-08)",
+      "   24  turn aborted — an assistant message_end carried stopReason \"aborted\"",
+      "  127  `pi` could not be spawned",
+      "128+N  `pi` was killed by signal N, including a signal pi-run forwarded to it",
+      "    *  any other non-zero code is `pi`'s own, passed through",
+      "",
+      "  verdict precedence: 23 > 20 > 24 > 22 > 21. Every block that applies is printed.",
+      "",
+      "env: PI_RUN_PI_BIN   binary to execute (default: `pi`)",
+      "     XDG_STATE_HOME  where the compaction sentinel is looked for (default: ~/.local/state)",
+      "",
+    ].join("\n"),
+  );
+}
+
+/**
+ * Decide the argv handed to `pi`.
+ *
+ * Scans raw argv tokens, so a *positional* argument whose literal text is `--mode` (a prompt of
+ * exactly that) would be misread. That is the accepted cost of not re-implementing PI's own
+ * option parser here; every other prompt, including one that merely mentions `--mode`, is safe
+ * because it is a single token.
+ *
+ * @param {string[]} args
+ * @returns {{ ok: true, argv: string[] } | { ok: false, given: string }}
+ */
+function planPiArgs(args) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--mode") {
+      const value = args[i + 1];
+      if (value === "json") return { ok: true, argv: [...args] };
+      return { ok: false, given: value ?? "(no value)" };
+    }
+    if (a.startsWith("--mode=")) {
+      const value = a.slice("--mode=".length);
+      if (value === "json") return { ok: true, argv: [...args] };
+      return { ok: false, given: value === "" ? "(no value)" : value };
+    }
+  }
+  return { ok: true, argv: [...args, "--mode", "json"] };
+}
+
+function field(name, value) {
+  return `  ${name.padEnd(LABEL_WIDTH)}: ${value}`;
+}
+
+/**
+ * The full block for a turn that ended in `error` or `aborted`. Same voice as
+ * `formatProviderFailure` in `extensions/lib/provider-error.ts`: summary line, the field block,
+ * the closing `policy` line. The upstream text is verbatim and untruncated — rule 2 of that
+ * file, and the only thing in the block that carries the actual diagnosis.
+ *
+ * There is deliberately no `class` line: classification lives in `provider-error.ts`, inside the
+ * session, where the diagnostics and cause chain still exist. Out here only the flattened
+ * `errorMessage` survives, and guessing a class from it would be a second, weaker vocabulary.
+ *
+ * @param {AssistantFailure} f
+ */
+function formatAssistantFailure(f) {
+  const aborted = f.stopReason === "aborted";
+  const summary = aborted
+    ? `[pi-config] pi-run: the turn was aborted: ${f.provider}/${f.model} — stopReason "aborted" ` +
+      "(seen by bin/pi-run on the --mode json event stream)"
+    : `[pi-config] provider call failed: ${f.provider}/${f.model} — stopReason "error" ` +
+      "(seen by bin/pi-run on the --mode json event stream)";
+  const policy = aborted
+    ? "abort — PI's own print mode exits 1 on an aborted turn while --mode json exits 0; " +
+      `bin/pi-run exits ${EXIT_TURN_ABORTED} so the two modes agree on what a failed run is`
+    : `${POLICY_LINE}; bin/pi-run exits ${EXIT_TURN_FAILED}`;
+  return [
+    summary,
+    field("provider", f.provider),
+    field("model", f.model),
+    field("stopReason", f.stopReason),
+    field("message", f.message),
+    field("policy", policy),
+  ].join("\n");
+}
+
+/**
+ * An error PI itself retried. Not a failure, and not silence either: the transient happened, and
+ * a cron log that hides it entirely is worse than one that explains why it was not counted.
+ *
+ * @param {AssistantFailure} f
+ */
+function formatSuppressedRetry(f) {
+  return [
+    `[pi-config] pi-run: note — a provider error was retried by pi: ${f.provider}/${f.model} ` +
+      "— NOT counted as a failure",
+    field("provider", f.provider),
+    field("model", f.model),
+    field("stopReason", "error (superseded by the retry)"),
+    field("message", f.message),
+    field(
+      "policy",
+      "the agent_end that followed carried willRetry=true, so pi restarted the turn " +
+        "(agent-session.js _willRetryAfterAgentEnd); this run's verdict comes from the retry",
+    ),
+  ].join("\n");
+}
+
+/** @param {Truncation} t */
+function formatTruncation(t) {
+  return [
+    "[pi-config] pi-run: the --mode json event stream did not complete — the run is not a success",
+    field("reason", t.reason),
+    field("events", `${t.events} JSON event(s) parsed before the stream ended`),
+    field(
+      "policy",
+      "abort — a truncated stream is a failure, not a success; " +
+        `bin/pi-run exits ${EXIT_TRUNCATED_STREAM}`,
+    ),
+  ].join("\n");
+}
+
+/**
+ * `${XDG_STATE_HOME:-~/.local/state}/pi-config` — a restatement of `stateRoot()` in
+ * `extensions/lib/paths.ts:24`, not an import. See the header on why `bin/` cannot import it.
+ */
+function stateRoot() {
+  return join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"), "pi-config");
+}
+
+/** Mirrors `sentinelPath()` in `extensions/compaction/index.ts:261`, sanitiser included. */
+function sentinelPathFor(sessionId) {
+  return join(stateRoot(), "compaction-loop", `${sessionId.replace(/[^A-Za-z0-9._-]/g, "_")}.json`);
+}
+
+/**
+ * The sentinel for this run, or null.
+ *
+ * Null covers three different things and deliberately does not distinguish them: the file is not
+ * there (the normal case, several times a second), it is not readable, or it predates this run.
+ * A file that IS there and does bear on this run always returns a trip, even when its contents do
+ * not parse — the decision is "the guard wrote a sentinel", and the JSON only decorates the
+ * report. Failing open on a corrupt sentinel would be exactly backwards.
+ *
+ * @param {string} path
+ * @param {number} notBeforeMs
+ * @returns {LoopTrip | null}
+ */
+function readSentinel(path, notBeforeMs) {
+  let mtimeMs;
+  try {
+    mtimeMs = statSync(path).mtimeMs;
+  } catch {
+    return null;
+  }
+  // A session id survives `--resume`, so a sentinel written by an earlier run of the same session
+  // must not condemn this one.
+  if (mtimeMs < notBeforeMs - SENTINEL_MTIME_SLACK_MS) return null;
+
+  let record = null;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    if (parsed !== null && typeof parsed === "object") record = parsed;
+  } catch {
+    // Unreadable or half-written. Still a trip; the block below says the contents were unusable.
+  }
+  return { source: `sentinel ${path}`, record };
+}
+
+/**
+ * The block for a tripped loop guard. Same voice as the others: summary, field block, closing
+ * `policy` line. Every field degrades to a stated absence rather than to `undefined`, because a
+ * half-written sentinel is one of the ways this block gets reached.
+ *
+ * @param {LoopTrip} trip
+ * @param {{ killed: boolean, forwarded: NodeJS.Signals | null }} outcome
+ */
+function formatCompactionLoop(trip, outcome) {
+  const r = trip.record ?? {};
+  const str = (key, fallback) => (typeof r[key] === "string" && r[key] !== "" ? r[key] : fallback);
+  const num = (key) => (typeof r[key] === "number" ? String(r[key]) : "?");
+  return [
+    "[pi-config] pi-run: the compaction loop guard tripped — the context stopped shrinking and " +
+      "the run was not allowed to continue",
+    field("session", str("sessionId", "(no sessionId in the record)")),
+    field("provider", str("provider", "(no provider in the record)")),
+    field("model", str("model", "(no model in the record)")),
+    field("trigger", str("reason", "(no reason in the record)")),
+    field(
+      "passes",
+      `${num("automaticPasses")} automatic, ${num("consecutiveNonReducing")} consecutive ` +
+        `non-reducing (limit ${num("maxNonReducingPasses")})`,
+    ),
+    field("why", str("why", str("message", "(the sentinel carried no readable record)"))),
+    field("source", trip.source),
+    field(
+      "action",
+      outcome.killed
+        ? `pi was still running ${LOOP_KILL_GRACE_MS} ms after the trip and was sent SIGTERM`
+        : // Not "pi ended on its own" when a forwarded signal was already ending it — the guard's
+          // own kill never fired, but saying nothing took the child would be false.
+          outcome.forwarded !== null
+          ? `none — the run was already being ended by the forwarded ${outcome.forwarded}, ` +
+            "which took the child first"
+          : "none — pi ended on its own within the grace period",
+    ),
+    field(
+      "policy",
+      "abort — REQ-CTX-35 forbids a headless run returning 0 on an un-shrinkable context, and " +
+        `pi -p --mode json returns 0 on one (measured, V-08); bin/pi-run exits ${EXIT_COMPACTION_LOOP}`,
+    ),
+  ].join("\n");
+}
+
+/** @param {Drift} d */
+function formatDrift(d) {
+  return [
+    "[pi-config] pi-run: an assistant message_end carried no stopReason — the event shape this " +
+      "wrapper parses has drifted",
+    field("provider", d.provider),
+    field("model", d.model),
+    field("keys", d.keys),
+    field(
+      "policy",
+      "abort — without stopReason the wrapper cannot tell a failed turn from a good one, and " +
+        "reporting success would be the exact fail-open V-01 found; " +
+        `bin/pi-run exits ${EXIT_PROTOCOL_DRIFT}`,
+    ),
+  ].join("\n");
+}
+
+/**
+ * Accumulates the verdict from a JSON event stream, one parsed event at a time.
+ *
+ * Terminal event: `agent_settled`, and it is chosen over `agent_end` on evidence.
+ * `agent_end` is emitted per agent run and carries a `willRetry` flag; with
+ * `settings.json`'s `retry.enabled: true` it can fire several times in one prompt, so "saw
+ * agent_end" does not mean "nothing more is coming". `agent_settled` is emitted from the
+ * `finally` of `_runAgentPrompt` — after `agent.prompt()` AND after the whole
+ * `while (await this._handlePostAgentRun()) await this.agent.continue()` retry loop
+ * (`@earendil-works/pi-coding-agent@0.84.0`, `dist/core/agent-session.js`) — exactly once per
+ * prompt. It is the only event that means the agent is done.
+ */
+class StreamVerdict {
+  /**
+   * @param {{ onSessionId?: (id: string) => void, onLoopEntry?: (record: Record<string, unknown>) => void }} [hooks]
+   *   Fired while the stream is still open, because both are things the wrapper has to ACT on —
+   *   start watching for a sentinel, kill a looping child — rather than only report at the end.
+   */
+  constructor(hooks = {}) {
+    this.hooks = hooks;
+    /**
+     * Error records waiting to learn whether PI is going to retry them. An entry leaves this
+     * queue exactly one of three ways: suppressed by an `agent_end` with `willRetry: true`,
+     * promoted to `confirmedErrors` by any other `agent_end`, or promoted by `settle()` because
+     * no `agent_end` ever arrived. There is no fourth way out, and in particular no way for an
+     * entry to be dropped — that is the fail-open this queue must not create.
+     * @type {AssistantFailure[]}
+     */
+    this.pendingErrors = [];
+    /** @type {AssistantFailure[]} */
+    this.confirmedErrors = [];
+    /** Errors PI retried. Reported as notes, never as failures. @type {AssistantFailure[]} */
+    this.suppressedErrors = [];
+    /** Aborts are confirmed on sight: PI never retries an aborted message. @type {AssistantFailure[]} */
+    this.aborts = [];
+    /** @type {Drift[]} */
+    this.drifts = [];
+    this.sawAgentSettled = false;
+    this.sawAssistantMessageEnd = false;
+    this.events = 0;
+    this.unparsedLines = 0;
+    /** The `session` event's `id`. Measured equal to `ctx.sessionManager.getSessionId()`, V-08. */
+    this.sessionId = undefined;
+  }
+
+  /**
+   * @param {string} line one raw stdout line
+   */
+  observeLine(line) {
+    const trimmed = line.trim();
+    if (trimmed === "") return;
+    let event;
+    try {
+      event = JSON.parse(trimmed);
+    } catch {
+      // Not JSON. An extension writing to stdout with console.log lands here, and that must not
+      // be fatal: the wrapper judges the events it understands, not the ones it does not.
+      this.unparsedLines += 1;
+      return;
+    }
+    if (event === null || typeof event !== "object") {
+      this.unparsedLines += 1;
+      return;
+    }
+    this.events += 1;
+    if (event.type === "agent_settled") this.sawAgentSettled = true;
+    if (event.type === "agent_end") this.observeAgentEnd(event);
+    if (event.type === "message_end") this.observeMessageEnd(event);
+    if (event.type === "session") this.observeSession(event);
+    if (event.type === "entry_appended") this.observeEntryAppended(event);
+  }
+
+  /**
+   * The stream's first event carries the session id the compaction sentinel is named after —
+   * measured identical to `ctx.sessionManager.getSessionId()` inside the extension (V-08). It is
+   * the only place the wrapper can learn it without reading PI's config.
+   *
+   * @param {Record<string, unknown>} event
+   */
+  observeSession(event) {
+    if (this.sessionId !== undefined) return;
+    if (typeof event.id !== "string" || event.id === "") return;
+    this.sessionId = event.id;
+    this.hooks.onSessionId?.(event.id);
+  }
+
+  /**
+   * EXT-11's typed loop record, on the stream. `abortOnLoop` appends it BEFORE it writes the
+   * sentinel, so this fires first, and it is the only trigger left when the sentinel cannot be
+   * written at all (`writeSentinel` is best-effort and returns null on failure).
+   *
+   * @param {Record<string, unknown>} event
+   */
+  observeEntryAppended(event) {
+    const entry = event.entry;
+    if (entry === null || typeof entry !== "object") return;
+    const e = /** @type {Record<string, unknown>} */ (entry);
+    if (e.customType !== LOOP_ENTRY_TYPE) return;
+    const data = e.data !== null && typeof e.data === "object" ? e.data : {};
+    this.hooks.onLoopEntry?.(/** @type {Record<string, unknown>} */ (data));
+  }
+
+  /**
+   * Resolve everything waiting in `pendingErrors`.
+   *
+   * `willRetry` is `_willRetryAfterAgentEnd(event)` (`dist/core/agent-session.js:366`), which
+   * walks `event.messages` backwards and returns on the FIRST assistant message it finds. The
+   * flag therefore speaks for exactly one message — the most recent — so exactly one pending
+   * entry may be suppressed by it. Anything older in the same window is a failure PI is not
+   * retrying, and is promoted.
+   *
+   * `willRetry` is compared with `=== true`, not truthiness: a future PI that dropped the field
+   * would leave it `undefined`, and `undefined` must promote, not suppress.
+   *
+   * @param {Record<string, unknown>} event
+   */
+  observeAgentEnd(event) {
+    if (this.pendingErrors.length === 0) return;
+    if (event.willRetry === true) {
+      const retried = this.pendingErrors.pop();
+      if (retried !== undefined) this.suppressedErrors.push(retried);
+    }
+    this.confirmedErrors.push(...this.pendingErrors);
+    this.pendingErrors = [];
+  }
+
+  /**
+   * The fail-open canary.
+   *
+   * Only the ASSISTANT message is judged. The user `message_end` legitimately carries no
+   * `stopReason` — measured, V-01 — so a role-blind check would fail every run, and a check that
+   * merely tolerated the absence everywhere would report success forever if PI ever renamed the
+   * field. Requiring it on the assistant message is what keeps a rename loud instead of silent.
+   *
+   * @param {Record<string, unknown>} event
+   */
+  observeMessageEnd(event) {
+    const message = event.message;
+    if (message === null || typeof message !== "object") return;
+    const msg = /** @type {Record<string, unknown>} */ (message);
+    if (msg.role !== "assistant") return;
+    this.sawAssistantMessageEnd = true;
+
+    const provider = typeof msg.provider === "string" ? msg.provider : "(no provider on the message)";
+    const model = typeof msg.model === "string" ? msg.model : "(no model on the message)";
+
+    if (!("stopReason" in msg)) {
+      this.drifts.push({ provider, model, keys: Object.keys(msg).sort().join(",") });
+      return;
+    }
+    if (msg.stopReason !== "error" && msg.stopReason !== "aborted") return;
+
+    const record = {
+      stopReason: /** @type {FailingStopReason} */ (msg.stopReason),
+      provider,
+      model,
+      message:
+        typeof msg.errorMessage === "string" && msg.errorMessage !== ""
+          ? msg.errorMessage
+          : "(no errorMessage on the message)",
+    };
+    // An abort is terminal by construction — `retryAssistantCall` returns it before the retry
+    // branch and `isRetryableAssistantError` rejects any non-`error` stopReason — so it never
+    // waits on an `agent_end` and can never be suppressed by one.
+    if (record.stopReason === "aborted") this.aborts.push(record);
+    else this.pendingErrors.push(record);
+  }
+
+  /**
+   * The verdict the stream alone implies, ignoring `pi`'s own exit code.
+   *
+   * Every applicable block is printed before any code is chosen, so a run that both failed and
+   * ended early explains both. The code then follows the documented precedence 20 > 24 > 22 > 21:
+   * a failed turn is the answer the caller most needs and the one V-01 exists for, and a stream
+   * that also died must never downgrade it — a failed turn whose stream then died is still,
+   * first, a failed turn.
+   *
+   * @returns {{ code: number, blocks: string[] }}
+   */
+  settle() {
+    // Nothing arrived to say PI would retry these, and silence is not evidence of a retry.
+    this.confirmedErrors.push(...this.pendingErrors);
+    this.pendingErrors = [];
+
+    /** @type {string[]} */
+    const blocks = [];
+    for (const retried of this.suppressedErrors) blocks.push(formatSuppressedRetry(retried));
+    for (const failure of this.confirmedErrors) blocks.push(formatAssistantFailure(failure));
+    for (const abort of this.aborts) blocks.push(formatAssistantFailure(abort));
+    for (const drift of this.drifts) blocks.push(formatDrift(drift));
+
+    /** @type {Truncation | null} */
+    let truncation = null;
+    if (!this.sawAgentSettled) {
+      truncation = {
+        reason:
+          "no terminal `agent_settled` event — the stream stopped before the agent was done " +
+          "(killed child, crash, closed pipe)",
+        events: this.events,
+      };
+    } else if (!this.sawAssistantMessageEnd) {
+      truncation = {
+        reason:
+          "the agent settled without ever emitting an assistant `message_end` — the run " +
+          "produced no assistant message at all",
+        events: this.events,
+      };
+    }
+    if (truncation !== null) blocks.push(formatTruncation(truncation));
+
+    if (this.confirmedErrors.length > 0) return { code: EXIT_TURN_FAILED, blocks };
+    if (this.aborts.length > 0) return { code: EXIT_TURN_ABORTED, blocks };
+    if (this.drifts.length > 0) return { code: EXIT_PROTOCOL_DRIFT, blocks };
+    if (truncation !== null) return { code: EXIT_TRUNCATED_STREAM, blocks };
+    return { code: EXIT_OK, blocks };
+  }
+}
+
+/** Shell convention for a child killed by a signal. Unknown names degrade to a plain non-zero. */
+function signalExitCode(signal) {
+  const number = osConstants.signals[signal];
+  return typeof number === "number" ? 128 + number : EXIT_SPAWN_FAILED;
+}
+
+function main(argv) {
+  const args = argv.slice(2);
+
+  if (args.length === 0) {
+    return usageError("nothing to run — pass the arguments you would give `pi`");
+  }
+  if (args[0] === "--help" || args[0] === "-h") {
+    // Handled here rather than forwarded: `pi --help` prints prose, not events, so forwarding it
+    // through a stream parser would report a truncated stream and exit 21 on a help request.
+    printHelp();
+    return;
+  }
+
+  const plan = planPiArgs(args);
+  if (!plan.ok) {
+    return usageError(
+      `refusing to run with --mode ${plan.given} — pi-run parses the JSON event stream to decide ` +
+        "the exit code, and has nothing to parse in any other mode. Call `pi` directly if you " +
+        "want that mode, and own the exit code yourself.",
+    );
+  }
+
+  const startedAtMs = Date.now();
+  const piBin = process.env.PI_RUN_PI_BIN ?? "pi";
+  const child = spawn(piBin, plan.argv, {
+    // [0] "ignore": Node opens /dev/null and attaches it to the child's fd 0. This is the hang
+    //     guard from fact 3 in this file's header, and it is unconditional on purpose.
+    // [1] "pipe": needed to parse; every byte is written straight back out, unchanged.
+    // [2] "inherit": the child's own stderr is the caller's stderr, untouched.
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+
+  /** @type {LoopTrip | null} */
+  let loopTrip = null;
+  let childAlive = true;
+  /**
+   * Which of the two paths signalled a child that was still running, or null while neither has.
+   * Set by `requestChildExit` and never cleared: it is the attribution both the loop block and the
+   * `close` handler report from, so it has to outlive the child. One latch and not one flag per
+   * path, because two flags are two answers to the single question "who killed pi".
+   * @type {"loop" | "forward" | null}
+   */
+  let endedBy = null;
+  /** The signal this wrapper received and passed on, for the report. @type {NodeJS.Signals | null} */
+  let forwardedSignal = null;
+  /** Whether the grace expired and the child had to be SIGKILLed. */
+  let escalated = false;
+  /** One repeat note per run: an operator holding Ctrl-C must not paper the log with it. */
+  let repeatNoted = false;
+  /** @type {NodeJS.Timeout | undefined} */
+  let sentinelTimer;
+  /** @type {NodeJS.Timeout | undefined} */
+  let killTimer;
+
+  const stopSupervising = () => {
+    if (sentinelTimer !== undefined) clearInterval(sentinelTimer);
+    if (killTimer !== undefined) clearTimeout(killTimer);
+    // Once there is no child left to forward to, the handlers must go: a SIGTERM arriving while
+    // the wrapper writes its report would otherwise be swallowed by a handler with nothing to do,
+    // and a caller that signals a process it can see is still alive is entitled to kill it.
+    for (const name of FORWARDED_SIGNALS) process.off(name, onSignal);
+  };
+
+  /**
+   * THE ONLY PLACE THE CHILD IS EVER SIGNALLED, and the reason there are not two competing
+   * killers. Both the compaction-loop guard and a forwarded signal want `pi` to stop; if both
+   * fired, the child could take SIGTERM from one path and the other path's SIGKILL a moment
+   * later, and no report could then say honestly what killed it.
+   *
+   * WHOEVER ASKS FIRST OWNS THE CHILD; every later request is dropped, including a request from
+   * the other path. Which one that is in practice follows from the clocks rather than from a
+   * preference: the loop guard deliberately waits `LOOP_KILL_GRACE_MS` after its trip before it
+   * asks (so a `pi` about to `process.exit(91)` keeps its own code), so a signal arriving inside
+   * that window forwards first and the guard's kill then never fires — its `action` line says so —
+   * while a signal arriving after the guard has already asked changes nothing, because the child
+   * is already being killed and re-signalling it would only muddy the attribution. The loop
+   * VERDICT is unaffected either way: 23 outranks the stream in the `close` handler exactly as
+   * before, and the loop block is printed whichever path took the child.
+   *
+   * @param {NodeJS.Signals} signal
+   * @param {"loop" | "forward"} cause
+   * @returns {boolean} true when this call is the one that ended the child
+   */
+  const requestChildExit = (signal, cause) => {
+    if (!childAlive || endedBy !== null) return false;
+    endedBy = cause;
+    child.kill(signal);
+    const hard = setTimeout(() => {
+      if (!childAlive) return;
+      // The child ignored the signal — SIGKILL cannot be ignored, so this is the bound that keeps
+      // the wrapper from waiting on it forever.
+      escalated = true;
+      process.stderr.write(
+        `[pi-config] pi-run: ${piBin} (pid ${child.pid}) did not exit ${SIGKILL_GRACE_MS} ms after ` +
+          `${signal} — escalating to SIGKILL\n`,
+      );
+      child.kill("SIGKILL");
+    }, SIGKILL_GRACE_MS);
+    hard.unref();
+    return true;
+  };
+
+  /**
+   * Forward, then WAIT — never exit here. Exiting out from under the child is the whole defect
+   * this handler fixes: the caller would get a status back while `pi` kept running unwatched and
+   * unreapable. The child's own death then produces the exit code through the `close` handler's
+   * existing rows (128+N for a death by signal, `pi`'s own code otherwise), so this function
+   * decides nothing about the verdict.
+   *
+   * @param {NodeJS.Signals} signal
+   */
+  function onSignal(signal) {
+    if (requestChildExit(signal, "forward")) {
+      forwardedSignal = signal;
+      process.stderr.write(
+        `[pi-config] pi-run: got ${signal} — forwarded it to ${piBin} (pid ${child.pid}) and is ` +
+          `waiting up to ${SIGKILL_GRACE_MS} ms for it to exit; this run's exit code will be ` +
+          `${piBin}'s own fate\n`,
+      );
+      return;
+    }
+    if (repeatNoted) return;
+    repeatNoted = true;
+    process.stderr.write(
+      childAlive
+        ? `[pi-config] pi-run: got ${signal} while ${piBin} is already being shut down — ignored. ` +
+          `The SIGKILL escalation is already scheduled and re-arming it on every signal would let ` +
+          "a caller that signals in a loop postpone it forever\n"
+        : `[pi-config] pi-run: got ${signal} after ${piBin} had already exited — ignored; ` +
+          "pi-run is finishing its report\n",
+    );
+  }
+
+  for (const name of FORWARDED_SIGNALS) process.on(name, onSignal);
+
+  /**
+   * One trip per run: the sentinel and the stream entry carry the same record, and whichever
+   * arrives first owns the report. The kill is deferred so that a `pi` whose own extension is
+   * about to `process.exit(91)` keeps its own exit code — see the header.
+   *
+   * @param {LoopTrip} trip
+   */
+  const onLoopTrip = (trip) => {
+    if (loopTrip !== null) return;
+    loopTrip = trip;
+    if (sentinelTimer !== undefined) clearInterval(sentinelTimer);
+    killTimer = setTimeout(() => {
+      requestChildExit("SIGTERM", "loop");
+    }, LOOP_KILL_GRACE_MS);
+    killTimer.unref();
+  };
+
+  const verdict = new StreamVerdict({
+    onSessionId: (id) => {
+      const path = sentinelPathFor(id);
+      sentinelTimer = setInterval(() => {
+        const trip = readSentinel(path, startedAtMs);
+        if (trip !== null) onLoopTrip(trip);
+      }, SENTINEL_POLL_MS);
+      // The child keeps the event loop alive; this timer must never keep it alive by itself.
+      sentinelTimer.unref();
+    },
+    onLoopEntry: (record) => {
+      onLoopTrip({ source: `the ${LOOP_ENTRY_TYPE} entry on the --mode json event stream`, record });
+    },
+  });
+  const decoder = new StringDecoder("utf8");
+  let pending = "";
+  let spawnFailed = false;
+
+  child.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    pending += decoder.write(chunk);
+    let newline = pending.indexOf("\n");
+    while (newline !== -1) {
+      verdict.observeLine(pending.slice(0, newline));
+      pending = pending.slice(newline + 1);
+      newline = pending.indexOf("\n");
+    }
+  });
+
+  child.on("error", (err) => {
+    spawnFailed = true;
+    childAlive = false;
+    stopSupervising();
+    process.stderr.write(
+      `[pi-config] pi-run: could not run "${piBin}" — ${err.code ?? "error"}: ${err.message}\n` +
+        "  set PI_RUN_PI_BIN to an absolute path, or put pi on PATH\n",
+    );
+    process.exitCode = EXIT_SPAWN_FAILED;
+  });
+
+  child.on("close", (code, signal) => {
+    childAlive = false;
+    stopSupervising();
+    // A spawn failure has already decided the exit code; `close` still fires after `error`, and
+    // judging an empty stream on top of it would replace 127 with a less informative 21.
+    if (spawnFailed) return;
+    pending += decoder.end();
+    verdict.observeLine(pending);
+    // Last look: a `pi` that exited the moment it tripped can beat the 250 ms poll to the finish.
+    if (loopTrip === null && verdict.sessionId !== undefined) {
+      const late = readSentinel(sentinelPathFor(verdict.sessionId), startedAtMs);
+      if (late !== null) loopTrip = late;
+    }
+
+    const settled = verdict.settle();
+    for (const block of settled.blocks) process.stderr.write(`${block}\n`);
+    if (loopTrip !== null) {
+      process.stderr.write(
+        `${formatCompactionLoop(loopTrip, {
+          killed: endedBy === "loop",
+          forwarded: forwardedSignal,
+        })}\n`,
+      );
+    }
+
+    if (signal !== null && signal !== undefined) {
+      // Our own SIGTERM is not `pi` dying: reporting 128+15 would blame the child for the
+      // wrapper's decision and hide the reason behind a signal number.
+      if (endedBy === "loop") {
+        process.exitCode = EXIT_COMPACTION_LOOP;
+        return;
+      }
+      // A forwarded signal is the opposite case: the caller asked for exactly this death, so
+      // 128+N is the answer it is owed rather than a wrapper verdict. The signal reported is the
+      // one that actually killed `pi` — SIGKILL when the escalation had to fire — because that is
+      // the child's real fate; the line below says what it was escalated from.
+      process.stderr.write(
+        forwardedSignal !== null
+          ? escalated
+            ? `[pi-config] pi-run: ${piBin} ignored the forwarded ${forwardedSignal} for ` +
+              `${SIGKILL_GRACE_MS} ms and was killed by ${signal}\n`
+            : `[pi-config] pi-run: ${piBin} exited on the forwarded ${forwardedSignal} ` +
+              `(killed by ${signal})\n`
+          : `[pi-config] pi-run: ${piBin} was killed by ${signal}\n`,
+      );
+      process.exitCode = signalExitCode(signal);
+      return;
+    }
+    if (forwardedSignal !== null) {
+      // The child handled the signal and chose its own code, so it did not die of the signal and
+      // 128+N would be a fiction. Its code — or, when that code is 0, the stream's verdict, which
+      // for an interrupted run is 21 because no `agent_settled` arrived — decides below, exactly
+      // as on an unsignalled run. Said out loud because a reader who sees 21 after a SIGTERM must
+      // be able to tell that from the wrapper having lost track of the signal.
+      process.stderr.write(
+        `[pi-config] pi-run: ${piBin} handled the forwarded ${forwardedSignal} and exited with ` +
+          `code ${code} of its own — that code, or the stream's verdict when it is 0, decides ` +
+          "this run; pi-run does not invent 128+N for a child that did not die of the signal\n",
+      );
+    }
+    // `pi`'s own non-zero code is passed through, never replaced — it may encode something the
+    // event stream does not carry. In particular EXT-11's own `headlessExitCode` (91 by default)
+    // arrives here, and it is a better answer than 23 because the extension chose it. The blocks
+    // were printed above regardless.
+    if (typeof code === "number" && code !== 0) {
+      process.exitCode = code;
+      return;
+    }
+    // A tripped guard outranks every stream verdict: whatever else the stream showed happened
+    // downstream of a context that had stopped shrinking.
+    if (loopTrip !== null) {
+      process.exitCode = EXIT_COMPACTION_LOOP;
+      return;
+    }
+    process.exitCode = settled.code;
+  });
+}
+
+main(process.argv);

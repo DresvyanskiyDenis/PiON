@@ -1,0 +1,31 @@
+{
+  "nonInteractive": "allowlist-only",
+  "allowlist": [
+    "git",
+    "npm",
+    "npx",
+    "node",
+    "uv",
+    "uvx",
+    "python",
+    "pytest",
+    "ruff",
+    "mypy",
+    "sleep",
+    "echo",
+    "cat",
+    "ls",
+    "rg",
+    "fd",
+    "jq",
+    "make",
+    "docker",
+    "gh"
+  ],
+  "escalation": "PI_GUARD_APPROVE=1",
+  "approvalUi": "select",
+  "confirmTimeoutMs": 120000,
+  "protectedBranches": ["main", "master"],
+  "remoteAllowlist": [],
+  "dispatchTools": ["task", "agent", "subagent", "dispatch_agent", "subagent_run"]
+}

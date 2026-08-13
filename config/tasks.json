@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "nudgeEveryTurns": 6,
+    "staleAfterTurns": 12
+  }
+}

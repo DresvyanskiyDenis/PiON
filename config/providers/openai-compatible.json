@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "id": "openai-compatible",
+  "displayName": "OpenAI-compatible gateway",
+  "summary": "Any endpoint that speaks /v1/chat/completions and serves its OWN model names - LiteLLM, vLLM, OpenRouter, an in-house proxy. You supply the URL, the model ids and the context windows.",
+  "builtIn": false,
+  "default": false,
+  "egress": "{{egress}}",
+  "concurrency": "{{concurrency}}",
+
+  "requires": [
+    {
+      "kind": "service",
+      "name": "an OpenAI-compatible gateway",
+      "required": true,
+      "secret": false,
+      "description": "A reachable endpoint serving GET /v1/models and POST /v1/chat/completions, in front of one or more upstream models.",
+      "howTo": "LiteLLM: `litellm --config config.yaml` (proxy mode). vLLM: `vllm serve <model> --port 8000`. OpenRouter: use its published base URL. An in-house proxy: ask whoever runs it for the base URL and the model ids it exposes."
+    },
+    {
+      "kind": "env",
+      "name": "{{apiKeyEnv}}",
+      "required": true,
+      "secret": true,
+      "description": "The gateway's API key. The variable NAME is yours to choose, because no gateway standardises it; models.json stores only the $NAME reference, never the value.",
+      "howTo": "Ask whoever operates the gateway. The installer writes it to ~/.pi/secrets.env (chmod 600, outside the tracked tree) or the macOS Keychain - never into this repository."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "baseUrl",
+      "type": "string",
+      "label": "Full base URL of the gateway, including the /v1 suffix if it wants one",
+      "help": "Whatever you would put in OPENAI_BASE_URL for this endpoint. Include the path exactly: some gateways serve /v1, some serve at the root, and PI appends /chat/completions to what you give here.",
+      "example": "https://gateway.example.com/v1",
+      "required": true,
+      "validate": {
+        "pattern": "^https?://[^\\s]+$",
+        "message": "must be an absolute http(s) URL"
+      }
+    },
+    {
+      "id": "apiKeyEnv",
+      "type": "string",
+      "label": "Name of the environment variable that will hold the gateway's API key",
+      "help": "The NAME, not the key. You are asked for the value later, and it is stored outside this repository. Gateways disagree about this variable (OPENAI_API_KEY, LITELLM_API_KEY, a house name), so pick one and keep it.",
+      "example": "GATEWAY_API_KEY",
+      "default": "GATEWAY_API_KEY",
+      "required": true,
+      "validate": {
+        "pattern": "^[A-Z][A-Z0-9_]*$",
+        "message": "an environment variable name in capitals, e.g. GATEWAY_API_KEY"
+      }
+    },
+    {
+      "id": "egress",
+      "type": "choice",
+      "label": "Where does this gateway physically send your prompts?",
+      "help": "This is the only provider where the answer cannot be inferred: the same URL shape covers a public aggregator, a proxy inside your own network, and a private deployment. It decides whether a session marked confidential may dispatch here at all - pick internal if you are unsure, which keeps confidential work off it.",
+      "default": "internal",
+      "required": true,
+      "choices": [
+        { "value": "public", "label": "a third-party service (OpenRouter, a vendor's hosted gateway)" },
+        { "value": "internal", "label": "inside your own network, but not a boundary you would call private" },
+        { "value": "confidential", "label": "a deployment you control, approved for sensitive work" }
+      ]
+    },
+    {
+      "id": "concurrency",
+      "type": "number",
+      "label": "How many requests may this harness have in flight to the gateway at once?",
+      "help": "A cap, not a target. 2 is deliberately low: a gateway usually enforces a rate limit you have not measured yet, and the failure mode of guessing high is 429s in the middle of a task. Raise it once you know the real limit.",
+      "default": 2,
+      "required": true
+    },
+    {
+      "id": "model1Id",
+      "type": "string",
+      "label": "Model id, exactly as the gateway serves it",
+      "help": "NOT an OpenAI model name unless the gateway happens to use one. Get the real list with: curl -s <baseUrl>/models. This first model is the one suggested for the strong tier.",
+      "example": "gateway-model-id",
+      "required": true
+    },
+    {
+      "id": "model1Context",
+      "type": "number",
+      "label": "Context window for that model - min(200000, what this endpoint actually serves)",
+      "help": "Not the upstream model's advertised window. A gateway often re-declares an optimistic number, and PI's compaction trusts whatever is here: set it too high and the request is truncated at the endpoint instead of compacted, which presents as the agent forgetting things mid-task. Too low only costs an earlier compaction, so start low and raise it once measured.",
+      "default": 32768,
+      "required": true
+    },
+    {
+      "id": "model2Id",
+      "type": "string",
+      "label": "A second model id, or blank if you only want one",
+      "help": "Suggested for the fast tier. You can add more at any time by editing config/models.json - see the notes.",
+      "required": false
+    },
+    {
+      "id": "model2Context",
+      "type": "number",
+      "label": "Context window for the second model - same min(200000, served) rule",
+      "default": 32768,
+      "required": true,
+      "when": { "model2Id": "*" }
+    },
+    {
+      "id": "model3Id",
+      "type": "string",
+      "label": "A third model id, or blank",
+      "help": "Suggested for the cheap tier - typically the smallest thing the gateway serves.",
+      "required": false,
+      "when": { "model2Id": "*" }
+    },
+    {
+      "id": "model3Context",
+      "type": "number",
+      "label": "Context window for the third model - same min(200000, served) rule",
+      "default": 32768,
+      "required": true,
+      "when": { "model3Id": "*" }
+    }
+  ],
+
+  "tiers": {
+    "strong": "openai-compatible/{{model1Id}}",
+    "fast": "openai-compatible/{{model2Id}}",
+    "cheap": "openai-compatible/{{model3Id}}"
+  },
+
+  "provider": {
+    "baseUrl": "{{baseUrl}}",
+    "api": "openai-completions",
+    "apiKey": "${{apiKeyEnv}}",
+    "compat": {
+      "supportsDeveloperRole": false,
+      "supportsReasoningEffort": false,
+      "supportsUsageInStreaming": false,
+      "supportsFinishReason": false,
+      "maxTokensField": "max_tokens"
+    },
+    "models": [
+      {
+        "id": "{{model1Id}}",
+        "name": "[gateway] {{model1Id}}",
+        "input": ["text"],
+        "contextWindow": "{{model1Context}}",
+        "maxTokens": 8192
+      },
+      {
+        "$omitIfBlank": "model2Id",
+        "id": "{{model2Id}}",
+        "name": "[gateway] {{model2Id}}",
+        "input": ["text"],
+        "contextWindow": "{{model2Context}}",
+        "maxTokens": 8192
+      },
+      {
+        "$omitIfBlank": "model3Id",
+        "id": "{{model3Id}}",
+        "name": "[gateway] {{model3Id}}",
+        "input": ["text"],
+        "contextWindow": "{{model3Context}}",
+        "maxTokens": 8192
+      }
+    ]
+  },
+
+  "notes": [
+    "USE THIS FRAGMENT WHEN THE ENDPOINT SERVES ITS OWN MODEL NAMES; USE `openai` + useProxy WHEN IT DOES NOT. A transparent proxy in front of api.openai.com still answers to OpenAI's catalogue, so overriding baseUrl on the built-in `openai` provider is right there and keeps every built-in model and its auth. A gateway (LiteLLM, vLLM, OpenRouter, an in-house router) publishes its OWN ids, and OpenAI's catalogue is then simply wrong: every request names a model the gateway has never heard of, and you get an unknown-model error that looks like a broken harness. That is the whole reason this fragment exists.",
+    "ADDING MORE MODELS AFTER INSTALLATION. The installer asks for at most three because a prompt list longer than that stops being an interview. Append objects to `providers.openai-compatible.models` in config/models.json - copy one of the blocks already there, change `id`, `name` and `contextWindow`. Nothing has to be re-run: models.json is read at session start, so a new shell picks it up. To route a tier at a new model, edit `tiers.<name>.model` in config/routing.json to `openai-compatible/<the new id>`, or re-run `./scripts/install.sh --section tiers`. `bin/pi-check --all` verifies both files afterwards (PC-01 wants every id provider-qualified, PC-02 wants every bound tier to resolve).",
+    "contextWindow IS min(200000, WHAT THIS ENDPOINT SERVES) - AND A GATEWAY IS THE WORST PLACE TO TRUST A MODEL CARD. Gateways commonly re-declare an upstream's advertised window while imposing their own, smaller limit, or truncating silently when a request exceeds what the backend was launched with. PI's compaction fires against the number in models.json: too high and the endpoint truncates before compaction ever triggers, which presents as the agent forgetting the start of the task. The default here is deliberately small. Confirm the real number (`/context` inside a session prints the resolved window and where it came from) and raise it on purpose.",
+    "THE EGRESS CLASS IS AN ANSWER, NOT A PROPERTY OF THE URL. Every other fragment in this directory can state its class as a fact - api.openai.com is public, loopback is confidential. A gateway URL says nothing: the same shape covers OpenRouter, a corporate LiteLLM and a private deployment. Whatever you chose is written to routing.json's `egress` map and is what the dispatcher checks before letting a confidential session use this provider. If you picked `internal` to be safe and later confirm the deployment is private, change the one word in config/routing.json rather than guessing again.",
+    "concurrency IS A GUESS UNTIL YOU MEASURE IT. The value you gave is a semaphore in the dispatcher, keyed on the resolved provider id - it queues rather than errors, so a low number costs latency and never correctness. Gateways in front of shared upstreams usually enforce a rate limit that is not published to their users; the honest way to find yours is to raise the cap one step at a time and watch for 429s, not to copy a number from somewhere.",
+    "THE compat BLOCK STARTS FULLY CONSERVATIVE ON PURPOSE, AND EACH `false` COSTS SOMETHING. Everything off plus max_tokens is the setting most likely to complete one turn against an unknown endpoint. What you are giving up until you test: supportsUsageInStreaming:false means no token counts arrive during a stream, so the quota extension cannot track spend on this provider. supportsReasoningEffort:false means PI's thinking levels are not forwarded, so a reasoning model behind the gateway runs at its own default. supportsDeveloperRole:false sends the system prompt as `system` rather than `developer`. supportsFinishReason:false makes PI infer stop/toolUse when the stream closes rather than reading finish_reason. Turn them on one at a time, keeping a turn working between changes: a flag turned off that was needed costs a feature, a flag turned on that is unsupported costs a 400 on every request.",
+    "A MODEL ID CONTAINING A SLASH IS FINE. Aggregators serve ids like `vendor/model-name`, which makes the qualified form `openai-compatible/vendor/model-name`. The provider is split off at the FIRST slash and everything after it is the model id, so this resolves correctly in routing.json, in --model, and in PC-01/PC-02. Do not rewrite the id to remove the slash - it has to match what the gateway serves, byte for byte.",
+    "apiKey MUST BE PRESENT AND MUST RESOLVE, EVEN IF YOUR GATEWAY IGNORES IT. models.json holds `$YOUR_VARIABLE_NAME`, never a key. If that variable is unset at session start, PI reads the provider as unconfigured and its models never appear in /model or --list-models - which looks like the harness being broken rather than a missing credential. A gateway that genuinely checks nothing still needs a non-empty value here; export any inert string.",
+    "THERE IS NO FAILOVER, HERE OR ANYWHERE. A gateway that is down, rate-limited or returning 5xx aborts the request naming the provider, the model, the error class and the cause chain. It does not silently move the work to another provider you also configured. That is deliberate (see the no-provider-failover ADR): a quiet substitution sends a confidential prompt somewhere you did not choose, and it hides an outage until the bill or the audit log shows it.",
+    "ONE FRAGMENT, ONE GATEWAY. The id `openai-compatible` is the key in models.json, and a second gateway would collide with it. If you need two, install this one, then copy `providers.openai-compatible` in config/models.json to a second key (any name), give it its own baseUrl, apiKey variable and models, and add matching rows to `egress` and `concurrency` in config/routing.json. Both files are yours after installation; the fragment is only how the first one gets written."
+  ],
+
+  "verify": [
+    {
+      "label": "the gateway is reachable, and these are its real model ids (add -H \"Authorization: Bearer $YOUR_KEY_VAR\" if it requires auth to list)",
+      "command": "curl -s \"$(jq -r '.providers[\"openai-compatible\"].baseUrl' config/models.json)/models\" | jq -r '.data[].id'"
+    },
+    {
+      "label": "the ids you configured are ids the gateway actually serves",
+      "command": "jq -r '.providers[\"openai-compatible\"].models[].id' config/models.json"
+    },
+    {
+      "label": "PI sees the provider as configured",
+      "command": "pi --list-models | grep '^openai-compatible/'"
+    },
+    {
+      "label": "PI can complete one turn through it",
+      "command": "pi -p 'reply with OK' --model \"openai-compatible/$(jq -r '.providers[\"openai-compatible\"].models[0].id' config/models.json)\""
+    }
+  ]
+}

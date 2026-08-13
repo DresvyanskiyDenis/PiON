@@ -1,0 +1,18 @@
+{
+  "error": "CompactionLoopError",
+  "code": "compaction_loop",
+  "message": "compaction loop guard tripped after 1 consecutive non-reducing pass(es) (limit 1): pass would drop ~14 of 1267 context tokens (1.1 % < the 150.0 % floor)",
+  "sessionId": "019fe051-681f-7907-96a6-b9b8a379a37c",
+  "provider": "local",
+  "model": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+  "reason": "overflow",
+  "automaticPasses": 1,
+  "consecutiveNonReducing": 1,
+  "maxNonReducingPasses": 1,
+  "tokensBefore": 1267,
+  "droppedTokens": 14,
+  "reductionRatio": 0.011049723756906077,
+  "entriesSinceLastCompaction": -1,
+  "why": "pass would drop ~14 of 1267 context tokens (1.1 % < the 150.0 % floor)",
+  "at": "2026-08-08T07:41:18.200Z"
+}

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# pi-log sessions | pi-log events | pi-log cost
+#
+# EXT-26's greppable face — usable with PI not running, since it only reads index.db
+# (extensions/session-index/*.ts is the writer; this script never opens it for write).
+set -euo pipefail
+
+db="${PI_INDEX_DB:-$HOME/.pi/agent/index.db}"
+
+if ! command -v sqlite3 >/dev/null 2>&1; then
+  echo "pi-log: sqlite3 CLI not found on PATH" >&2
+  exit 2
+fi
+
+if [ ! -f "$db" ]; then
+  echo "pi-log: no index at $db yet — run '/index' inside pi first" >&2
+  exit 1
+fi
+
+case "${1:-sessions}" in
+  sessions)
+    sqlite3 -header -column "$db" "
+      SELECT substr(id,1,8) id, title, model, turns,
+             tokens_input+tokens_output tok,
+             CASE cost_known WHEN 1 THEN printf('\$%.3f',cost_usd) ELSE 'n/a' END cost,
+             datetime(ended_at/1000,'unixepoch','localtime') ended
+      FROM sessions ORDER BY ended_at DESC LIMIT 50;"
+    ;;
+  events)
+    sqlite3 -header -column "$db" "
+      SELECT datetime(ts/1000,'unixepoch','localtime') t, kind, name, ok, ms, payload
+      FROM events ORDER BY ts DESC LIMIT 200;"
+    ;;
+  cost)
+    sqlite3 -header -column "$db" "
+      SELECT model, count(*) sessions,
+             CASE WHEN sum(cost_known)=count(*) THEN printf('\$%.2f',sum(cost_usd)) ELSE 'partial' END total
+      FROM sessions GROUP BY model ORDER BY 3 DESC;"
+    ;;
+  *)
+    echo "usage: pi-log [sessions|events|cost]" >&2
+    exit 2
+    ;;
+esac

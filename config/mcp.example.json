@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "TEMPLATE — never loaded. Copy the entries you want into config/mcp.json.",
+    "",
+    "config/mcp.json ships EMPTY on purpose. MCP servers are per-user: they carry your",
+    "credentials, your hosts and your tool surface, so this repo declares none of them.",
+    "The machinery around them does ship and is worth understanding before you add any:",
+    "",
+    "  * settings.hostConfigDiscovery: 'off' — PI will NOT pick up MCP servers from other",
+    "    agents' config files on this machine. Everything you get is what is written here.",
+    "  * settings.directTools: false — an MCP server's tools are reached through a single",
+    "    namespaced entry point rather than being flattened into the top-level tool list.",
+    "    Set 'directTools': true per server for the few whose tools you use constantly.",
+    "  * A server defined by a PROJECT (.pi/mcp.json inside a repo you opened) is denied by",
+    "    default and must be approved once, per project. See the trust gate in the docs.",
+    "  * 'command': 'mcp-stdio-guard' wraps a stdio server so it starts from an EMPTY",
+    "    environment plus an explicit allowlist, instead of inheriting every API key you",
+    "    have exported. Use it for anything you did not write yourself. Widen the allowlist",
+    "    with MCP_STDIO_EXTRA_ENV, as the playwright entry below does.",
+    "  * 'lifecycle': 'lazy' starts the server on first use instead of at session start.",
+    "",
+    "The two examples below are public services chosen because they are self-explanatory,",
+    "not because you need them."
+  ],
+
+  "mcpServers": {
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      },
+      "lifecycle": "lazy",
+      "directTools": true
+    },
+
+    "playwright": {
+      "command": "mcp-stdio-guard",
+      "args": ["npx", "-y", "@playwright/mcp", "--headless"],
+      "env": {
+        "MCP_STDIO_EXTRA_ENV": "PLAYWRIGHT_BROWSERS_PATH",
+        "PLAYWRIGHT_BROWSERS_PATH": "${HOME}/.cache/ms-playwright"
+      },
+      "lifecycle": "lazy"
+    }
+  },
+
+  "settings": {
+    "hostConfigDiscovery": "off",
+    "directTools": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "algorithm": "sha256",
+  "root": "pi-packages",
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    "**/*.cjs",
+    "**/*.mjs",
+    "**/*.json",
+    "**/*.md"
+  ],
+  "regenerate": "node bin/pi-check --write-vendor-manifest",
+  "fileCount": 1,
+  "files": {
+    "pi-packages/examplepkg/example.ts": "ac0424faf6fb81f5c80f886f1e1edc0c6794254cb808851d87c21a11393b07f6"
+  }
+}

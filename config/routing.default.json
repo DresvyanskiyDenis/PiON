@@ -1,0 +1,47 @@
+{
+  "version": 2,
+
+  "tiers": {
+    "strong": {
+      "model": "github-copilot/claude-opus-5",
+      "thinkingLevel": "high",
+      "purpose": "main loop, architecture, hard debugging"
+    },
+    "fast": {
+      "model": "github-copilot/claude-sonnet-5",
+      "thinkingLevel": "medium",
+      "purpose": "reviews, docs, mechanical multi-file edits"
+    },
+    "cheap": {
+      "model": "github-copilot/claude-haiku-4.5",
+      "thinkingLevel": "low",
+      "purpose": "summaries, digests, classification, grep-and-report"
+    }
+  },
+
+  "tiersUnbound": {
+    "confidential": "No provider with egress class \"confidential\" is installed. Binding this tier to a public provider would make the word meaningless, so it is left unbound: naming it fails loudly instead of quietly sending confidential material to a third party. Run scripts/install.sh and select databricks (or another endpoint inside your boundary) to bind it.",
+    "local": "No local model server is configured. Run scripts/install.sh and select the `local` provider, or add a providers.local block to config/models.json by hand and bind this tier to one of its model ids."
+  },
+
+  "egress": {
+    "github-copilot": "public"
+  },
+
+  "concurrency": {
+    "github-copilot": 4
+  },
+
+  "onProviderError": {
+    "policy": "abort",
+    "substituteProvider": false,
+    "report": ["provider", "model", "errorClass", "message", "causeChain"],
+    "errorClasses": [
+      "auth",
+      "quota",
+      "network",
+      "model-not-found",
+      "policy"
+    ]
+  }
+}

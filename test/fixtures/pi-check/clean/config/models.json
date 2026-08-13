@@ -1,0 +1,12 @@
+{
+  "providers": {
+    "acme": {
+      "baseUrl": "https://api.example.test",
+      "apiKey": "$ACME_API_KEY",
+      "models": [
+        { "id": "gpt-nova", "name": "[acme] GPT Nova", "contextWindow": 128000, "maxTokens": 8192 },
+        { "id": "gpt-nova-mini", "name": "[acme] GPT Nova Mini", "contextWindow": 64000, "maxTokens": 8192 }
+      ]
+    }
+  }
+}

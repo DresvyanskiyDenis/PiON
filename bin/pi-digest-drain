@@ -1,0 +1,315 @@
+#!/usr/bin/env node
+// bin/pi-digest-drain — EXT-06's standalone drain worker.
+//
+// A plain Node script, NOT a PI extension: no `ExtensionAPI`, no PI runtime import, and
+// (per bin/pi-check's own convention — see bin/pi-check's header) no extension. It is spawned
+// detached by `extensions/digest/index.ts` via `extensions/lib/detach.ts`'s `runDetached`, which
+// already `mkdir`'d the lock directory and re-stamps it with THIS process's pid right after
+// spawn (`index.ts`'s header comment: "Re-stamp the lock with the WORKER's pid"). So the common
+// case is a hand-off, not a fresh acquisition — `ensureHolder()` below recognises that first.
+//
+// This file also has to survive being invoked directly, with no pre-existing lock at all
+// (the concurrency test this was built against: `for i in $(seq 5); do node bin/pi-digest-drain &
+// done` must never leave more than one process actively draining). `ensureHolder()` therefore falls
+// back to taking the lock itself with the exact same `mkdir(recursive:false)` mutex primitive
+// `extensions/lib/detach.ts` uses — deliberately NOT importing that module's private `acquire()`
+// (unexported, and not this file's to touch: EXT-01 owns detach.ts and it is already complete).
+// This is a smaller, single-shot version of the same idea, and deliberately does not replicate
+// detach.ts's dedicated reclaim-mutex: under high-contention crash storms the worst case here is
+// a drain that runs later, not two drains that run at once.
+//
+// Whichever way the lock was obtained, the loop below re-scans the queue BEFORE releasing
+// (the "self-heal" behaviour `index.ts` documents): a job enqueued by a session that lost the
+// lock race is still drained by the winner, because the winner has not let go yet.
+//
+// Usage: node bin/pi-digest-drain
+// Exit codes: 0 always, except a fatal error before/outside the per-job try/catch (config
+// unreadable-but-present, an unexpected internal bug) — REQ-PRV-32, fail loud rather than exit 0
+// having silently done nothing. Prints one JSON line to stdout: {holder, processed, pid}.
+import { spawn } from "node:child_process";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { DIGEST_VERSION, RECURSION_ENV, expandHome, loadDigestConfig } from "../extensions/digest/config.ts";
+import { digestLockDir, queueDir } from "../extensions/digest/paths.ts";
+import { resolveTier } from "../extensions/digest/tier.ts";
+import { readLockMeta, releaseLock } from "../extensions/lib/detach.ts";
+import { describeError } from "../extensions/lib/once.ts";
+
+const SUMMARY_INSTRUCTION =
+  "Summarise this coding-agent session as Markdown: what was attempted, what changed on disk, " +
+  "what failed and why, and open threads. Be specific about file paths and commands.";
+
+/** Safety cap on captured child stdout/stderr — not from the spec, a defensive constant so a
+ *  runaway summariser cannot grow this process's memory unbounded. */
+const CAPTURE_CAP_BYTES = 4 << 20;
+
+async function main() {
+  const cfg = await loadDigestConfig(); // throws loud on a present-but-malformed config file
+  const lockDir = digestLockDir();
+
+  const holding = await ensureHolder(lockDir);
+  if (!holding) return { holder: false, processed: 0, pid: process.pid };
+
+  let processed = 0;
+  try {
+    processed = await drain(cfg);
+  } finally {
+    await releaseLock(lockDir);
+  }
+  return { holder: true, processed, pid: process.pid };
+}
+
+main()
+  .then((summary) => {
+    process.stdout.write(`${JSON.stringify(summary)}\n`);
+  })
+  .catch((err) => {
+    process.stderr.write(`[pi-config] pi-digest-drain: fatal: ${describeError(err)}\n`);
+    process.exitCode = 1;
+  });
+
+/**
+ * True once this process is confirmed as the lock's sole holder.
+ *
+ * Three paths, in order:
+ *   1. Ownership was already transferred to us (meta.json's pid is our own) — the normal case
+ *      when `runDetached` spawned this process.
+ *   2. The lock directory does not exist (or its holder is dead) — we take it ourselves via the
+ *      same atomic `mkdir(recursive:false)` primitive.
+ *   3. Neither — a different, live process holds it. We are not the holder; its own re-scan
+ *      loop will pick up whatever we would have processed. Return false and do nothing else.
+ */
+async function ensureHolder(lockDir) {
+  const meta = await readLockMeta(lockDir);
+  if (meta && meta.pid === process.pid) return true;
+
+  await mkdir(dirname(lockDir), { recursive: true, mode: 0o700 });
+  if (await tryAcquire(lockDir)) return true;
+
+  if (await reclaimIfDead(lockDir)) {
+    if (await tryAcquire(lockDir)) return true;
+  }
+  return false;
+}
+
+async function tryAcquire(lockDir) {
+  try {
+    // recursive:false is the whole mutex, exactly as in extensions/lib/detach.ts: with
+    // recursive:true an existing directory does not throw and the lock stops being a lock.
+    await mkdir(lockDir, { recursive: false, mode: 0o700 });
+  } catch (err) {
+    if (err.code !== "EEXIST") throw err;
+    return false;
+  }
+  await writeFile(
+    join(lockDir, "meta.json"),
+    JSON.stringify({ at: Date.now(), pid: process.pid, version: String(DIGEST_VERSION) }),
+  );
+  return true;
+}
+
+async function reclaimIfDead(lockDir) {
+  const meta = await readLockMeta(lockDir);
+  // No meta yet means some other process is between its own mkdir and writeMeta — treating that
+  // as "dead" would let us delete a lock a few milliseconds old. Leave it alone.
+  if (!meta) return false;
+  if (isAlive(meta.pid)) return false;
+  await rm(lockDir, { recursive: true, force: true }).catch(() => {});
+  return true;
+}
+
+function isAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM means the pid exists but belongs to someone else — still alive.
+    return err.code === "EPERM";
+  }
+}
+
+/** Drains the queue until it is observed empty, returning how many jobs were processed
+ *  (successfully or not — a failed job still gets a digest file, see writeFailureNote). */
+async function drain(cfg) {
+  const dir = queueDir();
+  let processed = 0;
+  for (;;) {
+    const entries = (await readdir(dir).catch(() => [])).filter((f) => f.endsWith(".json")).sort();
+    if (entries.length === 0) break;
+    const path = join(dir, entries[0]);
+
+    let job;
+    try {
+      job = JSON.parse(await readFile(path, "utf8"));
+    } catch (err) {
+      process.stderr.write(
+        `[pi-config] pi-digest-drain: dropping unreadable job ${path}: ${describeError(err)}\n`,
+      );
+      await rm(path, { force: true }).catch(() => {});
+      continue; // nothing usable to retry; do not spin forever on a corrupt file
+    }
+
+    try {
+      await digestOne(job, cfg);
+    } catch (err) {
+      await writeFailureNote(job, cfg, err);
+    }
+    await rm(path, { force: true }).catch(() => {});
+    processed += 1;
+  }
+  return processed;
+}
+
+async function digestOne(job, cfg) {
+  const transcript = (await readFile(job.sessionFile, "utf8")).slice(-cfg.maxTranscriptBytes);
+  const summary = await summarise(transcript, cfg.summarizer);
+  await writeDigest(job, cfg, summary, "ok");
+}
+
+async function writeFailureNote(job, cfg, err) {
+  process.stderr.write(
+    `[pi-config] pi-digest-drain: digest failed for session ${job.sessionId}: ${describeError(err)}\n`,
+  );
+  try {
+    await writeDigest(job, cfg, `Digest generation failed: ${describeError(err)}`, "failed");
+  } catch (writeErr) {
+    // The digest pipeline must never lose a job silently: if even the failure note cannot be
+    // written, that goes to stderr too rather than disappearing.
+    process.stderr.write(
+      `[pi-config] pi-digest-drain: could not write a failure note for session ` +
+        `${job.sessionId}: ${describeError(writeErr)}\n`,
+    );
+  }
+}
+
+async function writeDigest(job, cfg, body, status) {
+  const day = job.queuedAt.slice(0, 10);
+  const outDir = expandHome(cfg.outputDir);
+  const outPath = join(outDir, `${day}-${job.sessionId.slice(0, 8)}.md`);
+  await mkdir(outDir, { recursive: true, mode: 0o700 });
+  const frontmatter = [
+    "---",
+    `digest_version: ${DIGEST_VERSION}`,
+    `session: ${job.sessionId}`,
+    `reason: ${job.reason}`,
+    `cwd: ${job.cwd}`,
+    `generated: ${new Date().toISOString()}`,
+    `status: ${status}`,
+    `summarizer: ${summarizerLabel(cfg.summarizer)}`,
+    "---",
+    "",
+    body,
+    "",
+  ].join("\n");
+  await writeFile(outPath, frontmatter, "utf8");
+}
+
+function summarizerLabel(s) {
+  if (s.kind === "pi") return `pi:${s.model}`;
+  if (s.kind === "command") return `command:${s.argv[0]}`;
+  return "off";
+}
+
+/**
+ * D-W2-5: the summariser is config, never a binary name.
+ *   - "off": pipeline (and its guards) stay live; no subprocess runs.
+ *   - "pi": `summarizer.model` names a config/routing.json TIER (REQ-CTX-25, REQ-CTX-80), never a
+ *     bare model id and never `claude`. Resolved through `resolveTier`, which throws loud
+ *     (UnknownTierError) rather than falling back to a different tier.
+ *   - "command": an escape hatch to an arbitrary local binary; `argv` is never checked against a
+ *     specific name at runtime (that is `bin/pi-check`'s PC-07 job, statically, over the
+ *     committed tree — see config.ts's docblock).
+ *
+ * The transcript is always piped via stdin. For "pi", the short instruction goes as the `-p`
+ * positional argument and PI's print mode merges piped stdin into that same prompt (verified:
+ * PI merges piped stdin into the `-p` prompt) — so the large transcript never has to go through
+ * argv, avoiding an ARG_MAX risk. The obvious alternative — concatenating instruction+transcript
+ * into one `input` string handed to a promisified `execFile` — is doubly wrong: it rebuilds that
+ * ARG_MAX risk, and the async `execFile` does not honour an `input` option at all (verified
+ * empirically; see the docblock on `spawnCapture` below). For "command", a
+ * generic external binary has no such merge behaviour, so it receives the instruction and the
+ * transcript combined, in one stdin write.
+ */
+async function summarise(transcript, summarizer) {
+  if (summarizer.kind === "off") return "(summarizer disabled)";
+
+  if (summarizer.kind === "pi") {
+    const model = await resolveTier(summarizer.model);
+    const stdout = await spawnCapture(
+      "pi",
+      ["-p", SUMMARY_INSTRUCTION, "--model", model, "--no-session", "--no-tools"],
+      {
+        input: transcript,
+        timeoutMs: summarizer.timeoutMs,
+        env: { ...process.env, [RECURSION_ENV]: "1" },
+      },
+    );
+    return stdout.trim();
+  }
+
+  const [bin, ...args] = summarizer.argv;
+  const stdout = await spawnCapture(bin, args, {
+    input: `${SUMMARY_INSTRUCTION}\n\n${transcript}`,
+    timeoutMs: summarizer.timeoutMs,
+  });
+  return stdout.trim();
+}
+
+/**
+ * Spawns `cmd`, writes `input` to its stdin, and resolves with stdout on a zero exit.
+ *
+ * Deliberately NOT `util.promisify(child_process.execFile)` with an `input` option: that option
+ * only exists on the *Sync* variants. The promisified async `execFile` silently ignores it and
+ * never closes stdin, so a child reading from stdin (e.g. `cat`, or `pi -p` merging piped input)
+ * hangs forever — verified empirically while building this file. `child_process.spawn` plus a
+ * manual `stdin.end()` is the pattern already used elsewhere in this tree for the same reason
+ * (the dispatch extension's `runChild`, which spawns subagents the same way).
+ */
+function spawnCapture(cmd, args, { input = "", timeoutMs, env } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"], env: env ?? process.env });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const watchdog = timeoutMs
+      ? setTimeout(() => {
+          settled = true;
+          child.kill("SIGTERM");
+          reject(new Error(`${cmd} timed out after ${timeoutMs}ms`));
+        }, timeoutMs)
+      : undefined;
+
+    // A child that cannot even start (ENOENT, EACCES) emits "error" instead of "close". Without
+    // a listener Node throws it as unhandled and takes this whole process down — the same trap
+    // extensions/lib/detach.ts documents and guards against for the detached spawn.
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      if (watchdog) clearTimeout(watchdog);
+      reject(new Error(`${cmd} failed to start: ${err.message}`, { cause: err }));
+    });
+    child.stdout.on("data", (d) => {
+      if (stdout.length < CAPTURE_CAP_BYTES) stdout += d.toString("utf8");
+    });
+    child.stderr.on("data", (d) => {
+      if (stderr.length < CAPTURE_CAP_BYTES) stderr += d.toString("utf8");
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      if (watchdog) clearTimeout(watchdog);
+      if (code !== 0) {
+        reject(new Error(`${cmd} exited ${code}: ${stderr.slice(-2000) || "(no stderr)"}`));
+        return;
+      }
+      resolve(stdout);
+    });
+    // A child that exits (or was never going to read stdin, e.g. it errored on start) before we
+    // finish writing raises EPIPE on the write stream; the "error"/"close" handlers above already
+    // cover reporting, so this listener exists only to stop Node treating it as unhandled.
+    child.stdin.on("error", () => {});
+    child.stdin.end(input);
+  });
+}

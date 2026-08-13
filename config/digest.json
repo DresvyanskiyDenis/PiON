@@ -1,0 +1,13 @@
+{
+  "digest": {
+    "enabled": true,
+    "minTurns": 2,
+    "maxTranscriptBytes": 200000,
+    "outputDir": "~/.pi/agent/digests",
+    "summarizer": {
+      "kind": "pi",
+      "model": "cheap",
+      "timeoutMs": 120000
+    }
+  }
+}

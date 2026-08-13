@@ -1,0 +1,104 @@
+#!/usr/bin/env node
+// pi-mcp-approve — the only way a project's .mcp.json / .pi/mcp.json becomes readable to this
+// harness. Records an approval keyed on the project directory AND the sha256 digest of those files
+// (extensions/lib/mcp-approvals.ts). Nothing else grants MCP-config trust: being inside a directory
+// listed in config/trusted-roots.json grants trust to RUN there, never to define MCP servers.
+//
+// Usage:
+//   pi-mcp-approve <project-dir>          show the config, then confirm interactively
+//   pi-mcp-approve <project-dir> --yes    approve without the prompt (for a scripted install)
+//   pi-mcp-approve --list                 print the ledger
+//   pi-mcp-approve --status <project-dir> print the current verdict without changing anything
+//
+// To REVOKE, delete the matching line from ~/.config/pi-config/mcp-approvals.jsonl (or edit it and
+// re-approve). Approvals are append-only; the last line for a directory wins.
+//
+// Exit codes: 0 approved / clean, 1 refused or aborted, 2 the tool could not run.
+import { readFileSync, existsSync } from "node:fs";
+import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const MODULE = resolve(HERE, "..", "..", "extensions", "lib", "mcp-approvals.ts");
+
+const {
+  approvalsPath,
+  evaluateProjectMcpConfig,
+  normaliseProjectDir,
+  readApprovals,
+  recordApproval,
+  PROJECT_MCP_FILES,
+} = await import(MODULE);
+
+function die(message, code = 2) {
+  process.stderr.write(`pi-mcp-approve: ${message}\n`);
+  process.exit(code);
+}
+
+const argv = process.argv.slice(2);
+const yes = argv.includes("--yes");
+const positional = argv.filter((a) => !a.startsWith("--"));
+
+if (argv.includes("--list")) {
+  const ledger = readApprovals();
+  process.stdout.write(`ledger: ${ledger.path}\n`);
+  for (const problem of ledger.problems) process.stdout.write(`PROBLEM ${problem}\n`);
+  if (ledger.records.length === 0) process.stdout.write("(no approvals recorded)\n");
+  for (const record of ledger.records) {
+    process.stdout.write(`${record.approvedAt}  ${record.digest}  ${record.cwd}\n`);
+  }
+  process.exit(0);
+}
+
+if (positional.length !== 1) die("expected exactly one project directory (or --list)");
+const target = normaliseProjectDir(positional[0]);
+if (!existsSync(target)) die(`${target} does not exist`);
+
+const { decision, ledger } = evaluateProjectMcpConfig(target);
+for (const problem of ledger.problems) process.stderr.write(`pi-mcp-approve: PROBLEM ${problem}\n`);
+
+if (argv.includes("--status")) {
+  process.stdout.write(`${decision.allowed ? "ALLOWED" : "REFUSED"} ${decision.outcome} ${target}\n`);
+  process.stdout.write(`digest ${decision.digest.digest}\n`);
+  for (const entry of decision.digest.files) process.stdout.write(`  ${entry.file} ${entry.state}\n`);
+  process.exit(decision.allowed ? 0 : 1);
+}
+
+if (decision.outcome === "no-project-config") {
+  die(`${target} carries no ${PROJECT_MCP_FILES.join(" and no ")} — there is nothing to approve`, 1);
+}
+if (decision.outcome === "approved") {
+  process.stdout.write(`already approved: ${decision.digest.digest} (${decision.approvedAt})\n`);
+  process.exit(0);
+}
+
+// Show what is actually being approved. An approval nobody read is not an approval.
+process.stdout.write(`project: ${target}\n`);
+if (decision.outcome === "changed-config") {
+  process.stdout.write(`WARNING: previously approved as ${decision.approvedDigest} (${decision.approvedAt}).\n`);
+  process.stdout.write("The MCP config has CHANGED since then. Review the diff below before approving.\n");
+}
+for (const entry of decision.digest.files) {
+  process.stdout.write(`\n--- ${entry.file} (${entry.state}) ---\n`);
+  if (!entry.state.startsWith("sha256:")) continue;
+  process.stdout.write(readFileSync(join(target, entry.file), "utf8"));
+}
+process.stdout.write(`\ndigest: ${decision.digest.digest}\n`);
+process.stdout.write(
+  "\nEvery stdio server above is spawned with this agent's full credential environment unless it " +
+    "is routed through config/bin/mcp-stdio-guard — which project-sourced servers now always are. " +
+    "Approve only config you have read.\n",
+);
+
+if (!yes) {
+  if (!process.stdin.isTTY) die("refusing to approve non-interactively without --yes", 1);
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((r) => rl.question("\nType 'approve' to record this approval: ", r));
+  rl.close();
+  if (answer.trim() !== "approve") die("aborted — nothing was recorded", 1);
+}
+
+const record = recordApproval(target, decision.digest.digest);
+process.stdout.write(`recorded in ${approvalsPath()}: ${record.digest} ${record.cwd}\n`);
+process.stdout.write("Restart the PI session for the project's MCP servers to load.\n");

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "tiers": {
+    "strong": { "model": "acme/gpt-nova", "thinkingLevel": "high", "purpose": "test fixture" },
+    "fast": { "model": "acme/gpt-nova-mini", "thinkingLevel": "medium", "purpose": "test fixture" }
+  },
+  "egress": { "acme": "public" },
+  "concurrency": { "acme": 4 },
+  "onProviderError": {
+    "policy": "abort",
+    "substituteProvider": false,
+    "report": ["provider", "model", "errorClass", "message", "causeChain"],
+    "errorClasses": ["auth", "quota", "network", "model-not-found", "policy"]
+  }
+}

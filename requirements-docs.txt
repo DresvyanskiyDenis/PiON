@@ -1,0 +1,11 @@
+# Documentation toolchain. Pinned so a local build and the CI build agree.
+#
+#   uv run --with-requirements requirements-docs.txt mkdocs serve
+#   uv run --with-requirements requirements-docs.txt mkdocs build --strict
+#
+# Never `pip install` into a system interpreter for this; `uv run` creates the
+# throwaway environment for you.
+
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+pymdown-extensions==11.0.1

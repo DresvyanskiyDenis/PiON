@@ -1,0 +1,189 @@
+# Material for MkDocs configuration.
+# Checked against mkdocs 1.6.1 / mkdocs-material 9.7.7 / pymdown-extensions 11.0.1.
+
+site_name: PiON
+site_description: >-
+  PiON — a hardened, portable harness for the PI coding agent: multi-provider
+  routing by semantic tier, sub-agents, background jobs, worktrees, declarative
+  hooks, MCP behind a default-deny trust gate, and a fail-closed headless wrapper.
+site_url: https://dresvyanskiydenis.github.io/PiON/
+repo_url: https://github.com/DresvyanskiyDenis/PiON
+repo_name: DresvyanskiyDenis/PiON
+edit_uri: edit/main/docs/
+copyright: Documentation for PiON. PI itself is a separate project.
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Follow system theme
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/DresvyanskiyDenis/PiON
+      name: PiON on GitHub
+
+# `strict` turns broken internal links and unrecognised config into build failures.
+strict: true
+
+nav:
+  - Home:
+      - index.md
+      - limitations.md
+  - Getting started:
+      - getting-started/index.md
+      - getting-started/prerequisites.md
+      - getting-started/install.md
+      - getting-started/first-run.md
+      - getting-started/config-layout.md
+  - Configuration:
+      - configuration/index.md
+      - Configured at install:
+          - configuration/models.md
+          - configuration/openai-compatible.md
+          - configuration/routing.md
+          - configuration/settings.md
+          - configuration/guard.md
+          - configuration/mcp.md
+          - configuration/environment.md
+      - Tune later:
+          - configuration/dispatch.md
+          - configuration/sessions.md
+          - configuration/tools.md
+          - configuration/paths-and-trust.md
+      - Do not edit:
+          - configuration/not-editable.md
+  - Concepts:
+      - concepts/architecture.md
+      - concepts/providers-and-tiers.md
+      - concepts/context-windows.md
+      - concepts/safety-model.md
+  - Extensions:
+      - extensions/index.md
+      - Safety and identity:
+          - extensions/guard.md
+          - extensions/trust.md
+          - extensions/session-context.md
+          - extensions/credentials.md
+      - Capability configuration:
+          - extensions/path-defaults.md
+          - extensions/skills-env.md
+          - extensions/skill-mask.md
+          - extensions/skills-lint.md
+      - Tools and input:
+          - extensions/web.md
+          - extensions/bash.md
+          - extensions/hooks.md
+          - extensions/input-transform.md
+          - extensions/big-results.md
+      - Orchestration:
+          - extensions/dispatch.md
+          - extensions/teammates.md
+          - extensions/worktree.md
+          - extensions/jobs.md
+          - extensions/tasks.md
+      - Observability and lifecycle:
+          - extensions/quota.md
+          - extensions/digest.md
+          - extensions/compaction.md
+          - extensions/context-report.md
+          - extensions/context-imports.md
+          - extensions/session-index.md
+          - extensions/auto-title.md
+          - extensions/doctor.md
+  - Extending:
+      - extending/index.md
+      - extending/skills.md
+      - extending/hooks.md
+      - extending/mcp-servers.md
+      - extending/subagents.md
+      - extending/providers.md
+      - Skill portability: skills-portability.md
+  - Operations:
+      - operations/cli.md
+      - operations/verification.md
+      - operations/troubleshooting.md
+  - Decisions:
+      - adr/index.md
+      - adr/0001-no-provider-failover.md
+      - adr/0002-fail-open-guard-fail-closed-hooks.md
+      - adr/0003-vendor-the-mcp-adapter.md
+      - adr/0004-egress-classes-are-declarative.md
+  - Reference:
+      - reference/exit-codes.md
+      - reference/identifiers.md
+      - reference/third-party.md
+      - Package ledger: PACKAGES.md
+      - Package denylist: DENYLIST.md
