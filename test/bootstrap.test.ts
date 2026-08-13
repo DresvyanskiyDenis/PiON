@@ -50,13 +50,49 @@ function installedVersion(name: string): string | null {
   return (JSON.parse(readFileSync(manifest, "utf8")) as { version: string }).version;
 }
 
-describe("pi runtime", () => {
-  const piPath = join(homedir(), "bin", "pi");
+const PI_PATH = join(homedir(), "bin", "pi");
+
+/**
+ * This one suite checks the *machine*, not the repository: it verifies that a completed install
+ * put the pinned runtime where it belongs. On a clean checkout — a CI runner, or a contributor who
+ * has cloned but not installed — there is nothing to verify, and failing there would train everyone
+ * to ignore a red suite. So it skips with a reason instead, which `node --test` reports distinctly
+ * from a pass.
+ *
+ * Deliberately not gated on `process.env.CI`: what matters is whether PiON is installed, and a
+ * developer who has not installed it yet deserves the same clear skip a runner gets.
+ */
+const INSTALL_MARKER = join(
+  process.env.PI_HOME ?? join(homedir(), ".pi"),
+  "agent",
+  ".install-mode",
+);
+
+/**
+ * The distinction that matters, and the reason this is not simply `existsSync(PI_PATH)`:
+ *
+ *   - no `.install-mode` marker → `scripts/install.sh` never ran here. A missing `~/bin/pi` is
+ *     expected, and the whole suite skips.
+ *   - marker present but `~/bin/pi` missing → an install DID run and did not leave the runtime
+ *     where it promised. That is a real defect and still fails, loudly, below.
+ *
+ * Keying on `existsSync(PI_PATH)` alone would have collapsed those two into one silent skip, which
+ * is the failure mode this repository exists to avoid.
+ */
+const WAS_INSTALLED = existsSync(INSTALL_MARKER);
+const NO_INSTALL = WAS_INSTALLED
+  ? false
+  : `no install marker at ${INSTALL_MARKER} — this checkout was never installed, so there is no ` +
+    `machine state to verify (see docs/getting-started/install.md)`;
+
+describe("pi runtime", { skip: NO_INSTALL }, () => {
+  const piPath = PI_PATH;
 
   it("is installed at ~/bin/pi", () => {
     assert.ok(
       existsSync(piPath),
-      `pi is not installed at ${piPath}. Re-run the install (docs/getting-started/install.md).`,
+      `an install ran on this machine (${INSTALL_MARKER} exists) but pi is not at ${piPath}. ` +
+        `Re-run the install (docs/getting-started/install.md).`,
     );
   });
 
@@ -92,9 +128,29 @@ describe("adopted packages resolve to their exact pin", () => {
   });
 });
 
+/**
+ * npm's platform-specific optional dependencies (`@napi-rs/keyring-darwin-arm64` and its siblings)
+ * are installed only on the platform whose name they carry, so pinning them is still worth
+ * asserting — but only where npm would have installed them. Elsewhere their absence is npm working
+ * correctly, and asserting it anyway makes every non-macOS CI run red for no defect.
+ *
+ * The suffix is matched against Node's own `process.platform`/`process.arch` vocabulary, which is
+ * exactly the vocabulary npm builds these package names from, so no hand-maintained platform list
+ * goes stale here.
+ */
+const PLATFORM_SUFFIX = /-(aix|darwin|freebsd|linux|openbsd|sunos|win32|android)-(arm|arm64|ia32|loong64|mips64el|ppc|ppc64|riscv64|s390|s390x|x64)(-\w+)?$/;
+
+function skipReasonForPlatform(name: string): string | false {
+  const m = PLATFORM_SUFFIX.exec(name);
+  if (!m) return false;
+  const [, platform, arch] = m;
+  if (platform === process.platform && arch === process.arch) return false;
+  return `${name} is a ${platform}-${arch} optional dependency; this is ${process.platform}-${process.arch}, so npm correctly did not install it`;
+}
+
 describe("transitive pins resolve to their exact pin", () => {
   for (const row of packagesLock.transitive_pins) {
-    it(`${row.name}@${row.version}`, () => {
+    it(`${row.name}@${row.version}`, { skip: skipReasonForPlatform(row.name) }, () => {
       const got = installedVersion(row.name);
       assert.notEqual(got, null, `${row.name} is not installed in ${NODE_MODULES}`);
       assert.equal(got, row.version, `${row.name}: installed ${got}, pinned ${row.version}`);

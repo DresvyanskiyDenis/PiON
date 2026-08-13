@@ -83,8 +83,21 @@ describe("mcp-stdio-guard — env minimisation (EXT-14b)", () => {
     const env = Object.fromEntries(
       lines.filter((l) => l.startsWith("ENV:")).map((l) => l.slice(4).split(/=(.*)/s).slice(0, 2) as [string, string]),
     );
-    for (const name of ["HOME", "PATH", "SHELL", "TERM", "USER", "LOGNAME"]) {
-      assert.ok(name in env, `expected ${name} to reach the real process`);
+    // The guard forwards a baseline var only when it is actually set (`printenv` guards each one in
+    // config/bin/mcp-stdio-guard), and a bare CI container legitimately has no SHELL, TERM or
+    // LOGNAME. So the contract worth asserting is "every baseline var THIS process has reaches the
+    // child, and none it lacks is invented". Asserting all six unconditionally tested the
+    // developer's login shell rather than the wrapper, and went red on the first CI run.
+    const BASELINE = ["HOME", "PATH", "SHELL", "TERM", "USER", "LOGNAME"];
+    const present = BASELINE.filter((name) => process.env[name] !== undefined);
+    // HOME and PATH are set by every launcher that can run this suite at all; requiring two keeps
+    // the check from passing vacuously should the parent environment ever be stripped bare.
+    assert.ok(present.length >= 2, `expected a usable parent environment, got [${present.join(", ")}]`);
+    for (const name of present) {
+      assert.ok(name in env, `expected ${name} (set in this process) to reach the real process`);
+    }
+    for (const name of BASELINE.filter((n) => !present.includes(n))) {
+      assert.ok(!(name in env), `${name} is unset here, so the wrapper must not invent it`);
     }
   });
 
