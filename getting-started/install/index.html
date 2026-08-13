@@ -848,6 +848,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-pi-runtime-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The PI runtime itself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-is-never-linked" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3914,6 +3925,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-pi-runtime-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The PI runtime itself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-is-never-linked" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4243,6 +4265,23 @@ in <code>readdir</code> order — breaking the fixed load order that puts <code>
 every module that has no default export.</p>
 <p><code>config/settings.json</code> names one file, <code>extensions/index.ts</code>, explicitly instead.</p>
 </div>
+<h3 id="the-pi-runtime-itself">The PI runtime itself<a class="headerlink" href="#the-pi-runtime-itself" title="Permanent link">&para;</a></h3>
+<p><code>--mode binary</code> downloads the release archive for your platform and unpacks it whole. It is a tree,
+not a bare executable — the binary loads native modules, wasm and a bundled <code>node_modules</code> from
+beside itself — so what goes on <code>PATH</code> is a symlink into that tree:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>~/.local/share/pi-config/runtime/&lt;version&gt;/pi/pi   the unpacked release (tens of MB)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>~/bin/pi  -&gt;  that file                            what your shell finds
+</span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Why not <code>~/.local/pi/</code>, where PI installs itself</p>
+<p>That path belongs to PI's own installer — <code>pi update</code> and the upstream one-liner write
+<code>~/bin/pi -&gt; ~/.local/pi/&lt;version&gt;/pi/pi</code>. Unpacking into it would mean writing over a tree
+another installer owns, and recording it in the manifest as ours — and a manifest row is what
+lets <code>uninstall.sh</code> delete a directory recursively. A <code>pi</code> you installed yourself would go out
+with a PiON uninstall. Separate namespaces make that impossible rather than merely unlikely.</p>
+</div>
+<p><code>--mode npm</code> installs the package globally instead and points <code>~/bin/pi</code> at npm's own copy; nothing
+is unpacked under the prefix.</p>
 <h3 id="what-is-never-linked">What is never linked<a class="headerlink" href="#what-is-never-linked" title="Permanent link">&para;</a></h3>
 <p><code>auth.json</code>, <code>trust.json</code>, <code>sessions/</code> and <code>models-store.json</code> stay PI-owned. The installer
 <strong>aborts</strong> (<code>PI-INSTALL-E19</code>) if it finds any of them symlinked into the repository: credentials,
@@ -4280,11 +4319,11 @@ key-shaped strings and fails the build on one.</p>
 <hr />
 <h2 id="unattended-installs">Unattended installs<a class="headerlink" href="#unattended-installs" title="Permanent link">&para;</a></h2>
 <p>Every flag drives the identical code path — there is no separate "quiet mode" that skips steps.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./scripts/install.sh<span class="w"> </span>--yes<span class="w">                        </span><span class="c1"># accept every default, never prompt</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./scripts/install.sh<span class="w"> </span>--express<span class="w">                    </span><span class="c1"># providers + safety only, defaults for the rest</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>./scripts/install.sh<span class="w"> </span>--answers<span class="w"> </span>my.conf<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># from a saved answer file</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>./scripts/install.sh<span class="w"> </span>--providers<span class="w"> </span>a,b<span class="w">              </span><span class="c1"># preselect providers, skip the picker</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>./scripts/install.sh<span class="w"> </span>--tier<span class="w"> </span><span class="nv">fast</span><span class="o">=</span>acme/model-1<span class="w">     </span><span class="c1"># preset one tier binding (repeatable)</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./scripts/install.sh<span class="w"> </span>--yes<span class="w">                        </span><span class="c1"># accept every default, never prompt</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./scripts/install.sh<span class="w"> </span>--express<span class="w">                    </span><span class="c1"># providers + safety only, defaults for the rest</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>./scripts/install.sh<span class="w"> </span>--answers<span class="w"> </span>my.conf<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># from a saved answer file</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>./scripts/install.sh<span class="w"> </span>--providers<span class="w"> </span>a,b<span class="w">              </span><span class="c1"># preselect providers, skip the picker</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>./scripts/install.sh<span class="w"> </span>--tier<span class="w"> </span><span class="nv">fast</span><span class="o">=</span>acme/model-1<span class="w">     </span><span class="c1"># preset one tier binding (repeatable)</span>
 </span></code></pre></div>
 <p>Each run saves its answers, so <strong>a second machine can be made identical</strong> by copying that file and
 passing <code>--answers</code>. The path is printed in the final summary.</p>
@@ -4330,9 +4369,9 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 <hr />
 <h2 id="reconfiguring-later">Reconfiguring later<a class="headerlink" href="#reconfiguring-later" title="Permanent link">&para;</a></h2>
 <p><strong>Re-running the installer is the supported way to change configuration.</strong> It is not a reinstall.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./scripts/install.sh<span class="w"> </span>--reconfigure<span class="w">           </span><span class="c1"># re-run the interview over an existing install</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>providers<span class="w">     </span><span class="c1"># just one section</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>./scripts/install.sh<span class="w"> </span>--repair<span class="w">                </span><span class="c1"># re-link and re-verify, ask nothing</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./scripts/install.sh<span class="w"> </span>--reconfigure<span class="w">           </span><span class="c1"># re-run the interview over an existing install</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>providers<span class="w">     </span><span class="c1"># just one section</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./scripts/install.sh<span class="w"> </span>--repair<span class="w">                </span><span class="c1"># re-link and re-verify, ask nothing</span>
 </span></code></pre></div>
 <p>Adding a provider six months from now is a re-run, not a hand-edit. Sections:
 <code>providers</code> · <code>tiers</code> · <code>agent</code> · <code>safety</code> · <code>tools</code> · <code>shell</code>.</p>
@@ -4341,8 +4380,8 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 <p>The summary tells you what you have, what was skipped, what was backed up, and — numbered — what is
 still yours to do by hand.</p>
 <p>Then:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w"> </span>-l<span class="w">          </span><span class="c1"># so PATH and the environment file are loaded</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pi<span class="w">                      </span><span class="c1"># start the agent</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w"> </span>-l<span class="w">          </span><span class="c1"># so PATH and the environment file are loaded</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pi<span class="w">                      </span><span class="c1"># start the agent</span>
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">A missing provider credential does not stop PI from starting</p>
@@ -4356,10 +4395,10 @@ failures, the install still completed — read the table. See <a href="../../ope
 <p>Next: <a href="../first-run/">First run</a>.</p>
 <hr />
 <h2 id="uninstalling">Uninstalling<a class="headerlink" href="#uninstalling" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
 </span></code></pre></div>
 <p>It reads the install manifest back, so it removes <strong>only what the installer created</strong>. A foreign
 file or symlink sitting at one of those paths is left alone and reported, not deleted.</p>
