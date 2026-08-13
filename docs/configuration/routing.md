@@ -38,7 +38,7 @@ this harness dispatches on them.
 | Key | Meaning |
 |---|---|
 | `model` | a **provider-qualified** id: `<provider>/<model-id>`. A bare id is rejected |
-| `thinkingLevel` | `minimal` \| `low` \| `medium` \| `high`. Maps to `thinkingBudgets` in [`settings.json`](settings.md#thinkingbudgets) |
+| `thinkingLevel` | `off` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` — the reasoning effort every child dispatched on this tier runs at. Maps to `thinkingBudgets` in [`settings.json`](settings.md#thinkingbudgets). An unknown value aborts at load, naming the tier |
 | `purpose` | prose. Shown by `pi-tier --list` and injected into the sub-agent model-selection block, so a model can pick sensibly |
 | `optional` | `true` means "absence is a warning, not a failure". Used for `local` |
 
@@ -58,6 +58,27 @@ the predecessor harness hard-coded one model id into fourteen agent files.
 
 Do not invent a sixth. Everything that resolves a tier fails loud on an unknown name, and adding
 one means every consumer has to learn it.
+
+### How `thinkingLevel` reaches the child
+
+PI carries a child's reasoning effort **inside the model string**, as a `:<level>` suffix
+(`github-copilot/claude-opus-5:high`) — that is the only channel it reads effort from, and it
+outranks both the agent file's own `thinking:` and any per-call override. So resolving a tier moves
+its declared `thinkingLevel` into the resolved id: `model: strong` dispatches on
+`github-copilot/claude-opus-5:high`, not on the bare id.
+
+Two consequences worth knowing:
+
+- **A suffix already written into `model` wins.** `"model": "github-copilot/gpt-5.4:max"` together
+  with `"thinkingLevel": "low"` dispatches at `max`. The more specific statement is the one on the
+  id.
+- **A tier and the bare id it points at are not the same request.** Naming the tier carries the
+  effort; typing `github-copilot/claude-opus-5` on the call does not. A tier is shorthand for *this
+  id and this effort*.
+
+You can write the suffix yourself on any concrete `provider/id` at dispatch time. A misspelled level
+is never silently read as an effort: `:maxx` stays part of the id and the dispatch aborts as an
+unknown model, which is the loud failure rather than a quiet downgrade.
 
 **What breaks:** a `model` naming an id that is not in `config/models.json` fails at **load**, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
@@ -94,26 +115,30 @@ useful message than the check gives you.
 "egress": { "github-copilot": "public" }
 ```
 
-One class per provider, from the ordered vocabulary:
-
-```text
-egressOrder: ["public", "internal", "confidential"]      higher index = may carry more
-```
-
-An agent declaring `egress: confidential` bound to a provider classed `public` **fails at load**,
-naming both. A `confidential` session may not dispatch a child onto a `public` provider, and
-naming a concrete model id rather than a tier is not a way around the gate.
+One class per provider, from the vocabulary `public` | `internal` | `confidential`. **The class is a
+label. It is reported, never compared.**
 
 Pick the class by asking *where does the traffic physically go, and who can read it there* — not by
 how much you trust the vendor. A third-party API is `public` even when the vendor is excellent.
 
-!!! warning "This is a declarative control, not a network boundary"
-    Nothing here intercepts a socket. It refuses a *dispatch*. If you need an actual network
-    boundary, build one at the network layer. Saying so plainly is more useful than implying
-    enforcement PI cannot deliver.
+Where you see it: the startup line, `/agents`, the sub-agent model-selection block injected into the
+system prompt, and the `dispatch_registry` audit entry.
 
-**What breaks:** a provider with **no** class is refused rather than guessed at. Add a row whenever
-you add a provider.
+!!! warning "This is a label, not a network boundary — and since 2026-08-13 not a dispatch gate either"
+    Nothing here intercepts a socket, and nothing refuses a dispatch on account of it.
+
+    Until 2026-08-13 there was an ordering over the three classes (`egressOrder`) and a containment
+    rule built on it: an agent bound to a provider classed looser than its own declared `egress:`
+    failed at load, and a session could not dispatch a child onto a provider classed looser than
+    itself. That rule is **withdrawn**. It refused far more than it protected — with most providers
+    classed looser than the session, most agents became undispatchable and changing provider
+    mid-session was impossible — and it was never a boundary in the first place, only a refusal
+    inside our own dispatcher. If you need an actual network boundary, build one at the network
+    layer. See [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
+
+**What breaks:** nothing. A provider with **no** class dispatches normally and is reported as
+`unlabelled` wherever the class is shown. Add a row anyway when you add a provider — an unlabelled
+lane in the model menu is a lane nobody can reason about.
 
 ---
 

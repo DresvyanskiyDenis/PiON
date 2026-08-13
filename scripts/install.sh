@@ -639,8 +639,10 @@ if ask_section providers && { [ -z "$SELECTED" ] || [ "$RECONFIGURE" = 1 ]; } &&
     printf '     %d) %-22s %s%s\n' "$_i" "$p_id" "$p_name" \
       "$( [ "$p_default" = 1 ] && printf ' %s(recommended default)%s' "$C_OK" "$C_0" )"
     [ -z "$p_desc" ] || printf '        %s%s%s\n' "$C_D" "$p_desc" "$C_0"
-    # The egress class is not decoration: it is the declaration the dispatcher uses to refuse a
-    # confidential session to a public-class provider. Show it while the choice is being made.
+    # Show the egress class while the choice is being made, not afterwards in a config file. It is
+    # a label and refuses nothing (the containment rule that used to enforce it was withdrawn on
+    # 2026-08-13), so the only moment it can influence anything is the moment a human picks the
+    # provider -- which is exactly this prompt.
     printf '        %swhere the data goes: %s%s\n' "$C_D" "$p_egress" "$C_0"
   done < "$PROVIDER_LIST"
   _prev="$(ans_get providers)"

@@ -211,7 +211,7 @@ The gates run in policy order and only the last one is data-driven:
 | `DB-*` dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | No |
 | `GIT-*` destructive git | `GIT-FORCE`, `GIT-FORCE-PROTECTED`, `GIT-RESET`, `GIT-CLEAN`, `GIT-CHECKOUT-DOT`, `GIT-BRANCH-D`, `GIT-REMOTE` | Yes — with a written justification |
 | `PRV-*` privileged | `PRV-SUDO`, `PRV-KILLALL`, `PRV-PKILL-9`, `PRV-CHMOD-777` | No |
-| `RTE-*` agent routing | egress ceiling on dispatch | No |
+| `RTE-*` agent routing | `DV-SPECIALIST` — a generic agent dispatched where a specialist matches the prompt | Yes — with a written justification |
 | `ALW-*` allowlist | the miss | Confirm in the TUI; fail closed headless |
 
 If you want a *new* rule, do not edit a gate — write it in

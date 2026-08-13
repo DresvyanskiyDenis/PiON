@@ -44,7 +44,7 @@ In policy order — cheap and absolute first, the one that can block on a human 
 | 2 | `DB-*` catastrophic bash | mostly not |
 | 3 | `GIT-*` destructive git | with a written justification |
 | 4 | `PRV-*` privileged commands | no |
-| 5 | `RTE-*` agent routing / egress ceiling | a SHOULD-level veto |
+| 5 | `RTE-*` agent routing / specialist match | a SHOULD-level veto |
 | 6 | `ALW-*` bash allowlist | confirm in the TUI, **fail closed** headless |
 
 Gate 1 has no config key, no escalation variable and no justification path. A permission layer whose
@@ -226,7 +226,7 @@ Stated plainly, because implied enforcement is worse than none.
 
 | Not covered | Why |
 |---|---|
-| **Egress classes are not a network boundary** | Nothing intercepts a socket. `egress` refuses a *dispatch* at load or call time. If you need a real boundary, build one at the network layer |
+| **Egress classes are not a network boundary — and since 2026-08-13 they are not a refusal either** | Nothing intercepts a socket, and nothing refuses a dispatch on account of a class any more. `egress` is a word from `routing.json` printed beside every model and agent. If you need a real boundary, build one at the network layer |
 | **`path-defaults`' per-channel policy is declarative** | It computes and exports a value for other modules to honour at their own call sites. A tree with no such wiring enforces nothing from that channel |
 | **A process that already started** | The guard gates tool calls. It does not contain a running process, its children, or what it does to the filesystem |
 | **An allowlisted program that can run other programs** | Adding `sh`, `env`, `xargs` or `ssh` to the allowlist is functionally `allow-all` |

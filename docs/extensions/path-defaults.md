@@ -9,14 +9,17 @@ Registers `/path-defaults-status`.
 
 This trips everyone once, so it is worth being explicit.
 
-### 1. Session egress class — enforced
+### 1. Session egress class — a reported label
 
 One scalar per matched root (`public` / `internal` / `confidential`), derived from the root's
-**tier**'s provider via `routing.json`'s `egress` map. It is exported into the environment where
-[`dispatch`](dispatch.md) and the guard's `RTE-*` routing gate read it, and it is what makes
-"a confidential root's session may not dispatch a child onto a public provider" true.
+**tier**'s provider via `routing.json`'s `egress` map. It is exported into the environment, where
+[`dispatch`](dispatch.md) reads it to print on the startup line, in `/agents` and in the sub-agent
+model-selection block.
 
-This is a real, already-shipped enforcement path. It refuses a **dispatch**.
+Until 2026-08-13 it also *decided* something: it made "a confidential root's session may not
+dispatch a child onto a public provider" true. That containment rule is withdrawn — it made most
+agents undispatchable rather than making anything safer — so this scalar now describes the session
+and refuses nothing. See [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
 ### 2. Per-channel policy — declarative only
 

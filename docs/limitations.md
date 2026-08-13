@@ -71,10 +71,16 @@ on recorded state, not on an event. See [`doctor`](extensions/doctor.md)'s `D-06
 
 ## Design limits — deliberate non-goals
 
-### Egress classes are not a network boundary
+### Egress classes are not a network boundary, and no longer refuse anything
 
-They refuse a **dispatch**. Nothing intercepts a socket. Repeated in three places in these docs
-because the word invites the wrong assumption.
+Nothing intercepts a socket. A class is a word in `routing.json`, printed beside every provider,
+model and agent so a human or a model can see where a prompt is about to go. Repeated in three
+places in these docs because the word invites the wrong assumption.
+
+Until 2026-08-13 they at least refused a **dispatch**: a session could not send a child to a
+provider classed looser than itself. That rule was withdrawn — it refused ordinary work far more
+often than it prevented anything, and it never made the network claim true.
+[ADR 0004](adr/0004-egress-classes-are-declarative.md).
 
 ### `path-defaults`' per-channel policy is declarative only
 

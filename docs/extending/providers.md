@@ -45,8 +45,10 @@ belongs in a template**, which is the rule that governs this whole configuration
 ```
 
 Then bind a tier in `config/routing.json` and give the provider an egress class and a concurrency
-cap. All three edits are needed: a tier bound to a provider with no `egress` entry is refused at
-dispatch.
+cap. Only the tier binding is load-bearing — a provider with no `egress` entry dispatches normally
+and reads as `unlabelled` everywhere its class is printed, and one with no `concurrency` entry falls
+back to `concurrencyDefault`. Write both anyway: the two defaults are silent, and a provider whose
+class nobody declared is one nobody had to think about.
 
 Verify:
 
@@ -152,8 +154,12 @@ Taken from the fragment contract, because each of them has cost somebody a day.
 Not a vibe. **Where does the traffic physically go, and who can read it there.** A third-party API is
 `public` even if the vendor is trustworthy.
 
-`public` · `internal` · `confidential`. The ordering is declarative — it refuses a *dispatch*, it does
-not intercept a socket. See [Providers and tiers](../concepts/providers-and-tiers.md).
+`public` · `internal` · `confidential`. The class is a **label**: it is printed beside this provider
+everywhere a model or an agent is offered, and it refuses nothing — no socket is intercepted, and
+since 2026-08-13 no dispatch is refused on account of it either
+([ADR 0004](../adr/0004-egress-classes-are-declarative.md)). Answer it honestly anyway: it is the
+only signal a reader gets about where this provider sends a prompt. See
+[Providers and tiers](../concepts/providers-and-tiers.md).
 
 If the honest answer is *"it depends on whose deployment this is"* — the gateway case — a fragment
 may defer `egress`, `concurrency` and a `requires[].name` to a prompt, by setting the field to a lone

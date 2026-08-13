@@ -128,7 +128,7 @@ relaxed at all.
 | `DB-*` | mostly not |
 | `GIT-*` | with a written justification |
 | `PRV-*` | no |
-| `RTE-*` | a routing/egress veto — fix the routing, not the gate |
+| `RTE-*` | a routing veto — dispatch the specialist it names, or justify why it is wrong for this task |
 | `ALW-*` | yes — the bash allowlist in [`guard.json`](../configuration/guard.md) |
 
 Before adding a program to the allowlist, ask the two questions: **can it run another program?** and
@@ -198,8 +198,11 @@ It is inert. PI parses exactly three frontmatter fields. Use a
 
 ### An agent is listed but refuses when dispatched
 
-It is **restricted**: it resolved, but its model is outside this session's egress class, or names a
-model this install does not have. Usually a tier bound to a provider you did not configure.
+It is **restricted**: it resolved, but nothing is currently serving its model. Usually an `optional`
+tier whose backend is not running — start it — or a tier bound to a provider you did not configure.
+
+(Before 2026-08-13 this status had a second cause, "its provider is classed looser than this
+session". That rule was withdrawn; a class refuses nothing now.)
 
 ```text
 /agents

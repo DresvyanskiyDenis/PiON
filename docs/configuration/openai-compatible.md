@@ -110,10 +110,13 @@ Every other fragment states its class as a fact: `api.openai.com` is `public`, l
 `confidential`. A gateway URL says nothing — the same shape covers OpenRouter, a corporate LiteLLM
 and a private deployment.
 
-Whatever you chose is written to `routing.json`'s `egress` map, and that is what the dispatcher
-checks before letting a session marked **confidential** use this provider. Pick `internal` if you
-are unsure: it keeps confidential work off the gateway. If you later confirm the deployment is
-private, change the one word in `config/routing.json`.
+Whatever you chose is written to `routing.json`'s `egress` map, and that is the word printed beside
+this provider wherever a model is offered or an agent is listed. It is a **label**: since the
+containment rule was withdrawn on 2026-08-13, nothing refuses a dispatch on account of it
+([ADR 0004](../adr/0004-egress-classes-are-declarative.md)). So the class is a note to the humans
+and models reading the menu, not a gate that keeps confidential work off the gateway. Pick
+`internal` if you are unsure; if you later confirm the deployment is private, change the one word in
+`config/routing.json`.
 
 ### 3. `concurrency` — a guess until you measure it
 

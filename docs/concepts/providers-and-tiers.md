@@ -55,7 +55,7 @@ new model.**
     name: code-reviewer
     description: Reviews a diff and returns findings
     model: fast              # a TIER name — or provider/id for a deliberate pin
-    egress: internal         # the maximum sensitivity this agent may handle
+    egress: internal         # a reported label; nothing is refused on account of it
     tools: [read, grep, glob, bash]
     ---
     ```
@@ -92,10 +92,16 @@ resolve(value):
   otherwise                -> FAIL AT LOAD, naming the file and the agent
 
 then:  assert the provider exists in models.json
-       assert the model id exists under that provider
-       assert egressOrder.indexOf(agent.egress) <= egressOrder.indexOf(routing.egress[provider])
-       else FAIL AT LOAD, naming both the agent and the provider class
+       assert the model id exists under that provider   (the tier's `:<level>` suffix
+                                                         is stripped before asking)
+       else FAIL AT LOAD, naming the file and the id
+
+finally: move the tier's `thinkingLevel` into the id  ->  provider/id:high
 ```
+
+A third assertion — that the agent's declared `egress:` was no looser than its provider's class —
+sat between those two until 2026-08-13. It is withdrawn; see [Egress classes](#egress-classes)
+below.
 
 **Failing at load, not at dispatch, is the point.** A typo in one of a dozen agent files must be a
 startup error, not a surprise forty minutes into a long run.
@@ -108,30 +114,38 @@ each with `model "<id>" (from "fast") is not in the model registry`. That is the
 
 A model cannot choose an id it does not know exists, so [`dispatch`](../extensions/dispatch.md)
 injects a **Sub-agent model selection** block into the system prompt at `before_agent_start`: the
-tier list with each tier's resolved target, then the concrete ids *this session may actually
-dispatch onto*, grouped by provider.
+tier list with each tier's resolved target and effective reasoning effort, then every concrete id in
+the session's registry, grouped by provider.
 
-The list is **filtered, not annotated** — a model that is listed but unusable is a trap that costs a
-turn — and what was filtered out is counted and explained on one line. The block is built once at
+The list is **annotated, not filtered** — each provider's egress class is printed beside it, and a
+provider `routing.json` does not classify reads as `unlabelled`. It used to be filtered by the
+session's class, on the reasoning that a model listed but unusable is a trap; withdrawing the
+containment rule on 2026-08-13 removed the "unusable" half, and a menu that hides an id the
+dispatcher may legally name teaches the wrong contract. The block is built once at
 `session_start` and is byte-identical for the rest of the session, so it does not churn the
 prompt-cache prefix. `/agents` prints the same text verbatim; if the human and the model are reading
 different lists, the one nobody can see is the one that is wrong.
 
 ## Egress classes
 
-```text
-egressOrder: ["public", "internal", "confidential"]     higher index = may carry more
-```
+Three words — `public`, `internal`, `confidential` — one per provider in `routing.json`. They are
+**labels**: resolved, carried onto every resolved model, and displayed on the startup line, in
+`/agents`, in the sub-agent model-selection block and in the `dispatch_registry` audit entry. A
+provider with no class dispatches normally and reads as `unlabelled`.
 
-An agent declaring `egress: confidential` bound to a provider classed `public` **fails at load**,
-naming both. A `confidential` session may not dispatch a child onto a `public` provider — and
-naming a concrete id rather than a tier is not a way around that gate. A provider with no class in
-`routing.json` is refused rather than guessed at.
+!!! warning "Not a network boundary — and, since 2026-08-13, not a dispatch gate either"
+    Nothing here intercepts a socket, and nothing refuses a dispatch on account of a class.
 
-!!! warning "This is a declarative control, not a network boundary"
-    Nothing here intercepts a socket. It refuses a *dispatch* at load or call time. If you need an
-    actual network boundary, build one at the network layer — this will not give you one, and
-    saying so plainly is more useful than implying enforcement PI cannot deliver.
+    There used to be an ordering over the three (`egressOrder`) and a containment rule on top of it:
+    an agent bound to a provider classed looser than its own `egress:` failed at load, and a session
+    could not dispatch a child onto a provider classed looser than itself. **Withdrawn.** Nobody had
+    asked for it; it was inferred from the presence of the class names. Its effect was not to refuse
+    a dangerous dispatch but to make a legitimate one unrepresentable — with most providers classed
+    looser than the session, most agents became undispatchable and switching provider mid-session was
+    impossible. A control whose failure mode is "the tool refuses the normal thing" buys no safety.
+
+    If you need an actual network boundary, build one at the network layer. See
+    [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
 [`path-defaults`](../extensions/path-defaults.md) extends the same vocabulary per directory root,
 with the same honesty caveat attached to its per-channel `{web, mcp, publicModels}` policy.

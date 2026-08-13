@@ -189,8 +189,11 @@ The rules, all enforced by `scripts/lib/providers.mjs`:
   classes**, so an out-of-range class is unreachable rather than caught after generation.
 - `concurrency` may only defer to a `type: "number"` prompt.
 - **The resolved value is re-validated** at generation time with the same checks as a literal. An
-  egress that resolves outside the vocabulary is fatal: `routing.json`'s `egress` map is what the
-  dispatcher reads before letting a `confidential` session use a provider, and it is never guessed.
+  egress that resolves outside the vocabulary is fatal: `routing.json`'s `egress` map is the one
+  place the class is written down, and every surface that tells a human or a model where a prompt is
+  going reads it from there. A fourth word would print as a class nobody defined. (Until 2026-08-13
+  the map was also consulted to refuse a dispatch; that rule was withdrawn, which lowers the cost of
+  a wrong class but not the cost of an unreadable one.)
 - A `requires[]` entry with a deferred name is **not** reported by `describe` — that command runs
   before the first question, so there is no answer yet and the raw `{{token}}` would be printed on
   screen as a variable name. `resolve` re-emits it once the answers exist, and the installer collects

@@ -26,8 +26,23 @@ Registers `/agents`.
    run. When a tier once named a model id that did not exist in the provider's catalogue, eight
    agent definitions refused to dispatch at session start, each naming itself and the tier. That is
    the design working.
-2. **A confidential session cannot dispatch onto a public provider** — and naming a concrete model
-   id rather than a tier is not a way around it.
+2. **Naming a concrete `provider/id` is not a way around the existence check.** A tier is resolved
+   and verified at `session_start`; a raw id typed at the call is verified at the call, against the
+   same registry, and refused with the closest real ids. Neither path can reach a model nothing
+   serves.
+
+!!! note "There used to be a third one, and it was withdrawn on 2026-08-13"
+
+    Until then this list also read *"a confidential session cannot dispatch onto a public
+    provider"*, and the module enforced it: the resolved provider's egress class had to be no
+    looser than the session's, at load time and at call time.
+
+    It was removed because it refused far more than it protected. Most providers are classed looser
+    than a confidential session, so most agents became undispatchable and switching provider
+    mid-session was impossible — while nothing about the actual network changed either way, since
+    the class is a word in a config file and no socket is inspected. The classes stayed; the refusal
+    went. They are printed wherever a model or an agent is listed, and refuse nothing.
+    [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
 ## The catalogue is a dispatch surface, not decoration
 
@@ -39,8 +54,14 @@ A model cannot choose an id it does not know exists. So:
   model selection** block, so the orchestrating model can spend deliberately — a mechanical sweep on
   a small model, a hard decision on a large one — instead of guessing an id.
 
-The list is **filtered, not annotated**: a model that is listed but unusable is a trap that costs a
-turn. What was filtered out is counted and explained on one line.
+The list is **annotated, not filtered**: every id the registry knows is shown, each with its
+provider's egress class — or `unlabelled`, when `routing.json` gives that provider no class. Since
+nothing refuses a dispatch on account of a class, hiding models by class would only shorten the menu
+while leaving them selectable by hand. Each tier line carries the same annotation plus the reasoning
+effort it resolves to, so the cost of a choice is visible at the point of choosing.
+
+Until 2026-08-13 the list was filtered by the session's own class and what had been removed was
+counted on one line. The filter went with the containment rule it implemented.
 
 The block is built once at `session_start` and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. `/agents` prints the same text **verbatim** — if the human

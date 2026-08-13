@@ -103,7 +103,7 @@ Concretely:
 
 | Capability | Package | What this repo adds on top |
 |---|---|---|
-| Sub-agent dispatch | `pi-subagents` | tiers, depth limit, per-provider semaphore, worktree isolation, call-time model catalogue, egress ceiling |
+| Sub-agent dispatch | `pi-subagents` | tiers, depth limit, per-provider semaphore, worktree isolation, call-time model catalogue, a capability ceiling on the child, egress classes as annotation |
 | Web search / fetch | `pi-web-access` | one pinned backend enforced at every `session_start`, proxy + CA plumbing, the `web_fetch` alias |
 | MCP | `pi-mcp-adapter` (**vendored + patched**) | the project-config trust gate and the stdio spawn wrapper — see [Safety model](safety-model.md#mcp) |
 | Task lists | `@juicesharp/rpiv-todo` | binding to this repo's conventions and a stale-`in_progress` nudge |

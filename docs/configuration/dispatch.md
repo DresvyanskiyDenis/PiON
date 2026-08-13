@@ -48,13 +48,15 @@ shallow enough to notice.
 | Key | Ships | Meaning |
 |---|---|---|
 | `defaultTier` | `"fast"` | The tier an agent gets when its frontmatter declares no `model:` |
-| `defaultEgress` | `"internal"` | The egress ceiling an agent gets when it declares no `egress:` |
+| `defaultEgress` | `"internal"` | The egress class reported for a session that declares none |
 
-`defaultEgress: "internal"` is the interesting one. It is deliberately *not* `public`: an agent
-that forgot to declare its sensitivity gets the middle class, so it can reach an internal provider
-but the egress check still has something to compare against. Setting it to `confidential` would
-make every undeclared agent claim the highest sensitivity and fail against a public provider —
-loud, but for the wrong reason.
+`defaultEgress` used to be load-bearing: it was the class an undeclared agent was *checked* against,
+and setting it to `confidential` would have made every such agent fail against a public provider.
+Since the containment rule was withdrawn on 2026-08-13 it decides nothing — it only picks the word
+printed on the startup line and in the model menu when neither `PI_ROUTING_EGRESS` nor the session's
+own active provider says otherwise. `internal` stays the ship value because "we did not ask" reads
+more honestly as the middle class than as either extreme. See
+[ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
 **What breaks:** `defaultTier` naming a tier that is unbound in `routing.json` means every
 undeclared agent fails at load. Since `confidential` and `local` ship unbound, do not default to
@@ -158,7 +160,7 @@ tools:
   - find
   - bash
 model: strong          # a TIER name — or provider/id for a deliberate pin
-egress: internal       # the maximum sensitivity this agent may handle
+egress: internal       # a reported label; nothing is refused on account of it
 returns: object
 ---
 
@@ -171,7 +173,7 @@ You are a code reviewer. …
 | `description` | **the field that decides whether the agent is ever used.** It is what the orchestrating model reads and what specialist matching scores against. Write it as *when to use this*, not *what this is* |
 | `tools` | the tool allowlist for the child. Narrower is better; a read-only reviewer that cannot write cannot "helpfully" fix things |
 | `model` | a tier name, or a provider-qualified id to pin deliberately. **A bare id is rejected everywhere** — `bin/pi-check` `PC-04` and `PC-08` |
-| `egress` | the ceiling. Checked at load against the tier's provider class |
+| `egress` | a label, reported wherever the agent is shown. It was a ceiling checked at load against the tier's provider class until 2026-08-13; that check is withdrawn ([ADR 0004](../adr/0004-egress-classes-are-declarative.md)) |
 | `returns` | `object` for a structured report, matching a schema in `config/schemas/` where one exists |
 | `isolation` | `worktree` to run the agent in its own git worktree — see [worktree](../extensions/worktree.md) |
 

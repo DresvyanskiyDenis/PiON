@@ -1,7 +1,29 @@
 # ADR 0004: Egress classes are declarative, not a network boundary
 
-- **Status:** accepted
+- **Status:** accepted, amended 2026-08-13
 - **Date:** 2026-08-13 (recorded at publication; the decision is older)
+
+!!! note "Amendment, 2026-08-13 — the dispatch check is gone too"
+    This ADR argued that a *declarative* control must not be described as a network boundary. It
+    still holds, and it now holds harder: the one check it pointed at as real — the dispatch-time
+    containment rule, "a sub-agent may not be dispatched onto a provider classed looser than its
+    parent" — has been **withdrawn**, along with the ordering over the three classes it needed.
+
+    Why: the rule was inferred from the presence of the class names rather than asked for, and its
+    effect was not to refuse a dangerous dispatch but to make a legitimate one unrepresentable. With
+    most providers classed looser than the session, most agents became undispatchable and changing
+    provider mid-session was impossible. A control whose failure mode is "the tool refuses to do the
+    normal thing" buys no safety; it only trains people to widen the class until it stops firing.
+
+    What survives, unchanged: the class is still resolved, still carried on every resolved model, and
+    still **reported** — on the startup line, in `/agents`, in the sub-agent model-selection block and
+    in the `dispatch_registry` audit entry. A provider the config does not classify now reads as
+    `unlabelled` rather than being refused. Separately, the **per-root** posture in
+    `config/path-defaults.json` (`egress: {web, mcp, publicModels}`) is a different mechanism and is
+    not affected by this amendment.
+
+    Read the sections below with that substitution in mind: where they say the dispatch ceiling
+    *refuses*, it now *labels*.
 
 ## Context
 

@@ -108,8 +108,9 @@ falling back to a generic agent.
 | `fast` | docs, mechanical multi-file edits, scaffolding |
 | `cheap` | classification, summarising, grep-and-report |
 
-An unresolvable tier or a model outside the session's egress class makes the agent **restricted**:
-registered, visible, and refused **by name** when dispatched. Nothing degrades silently.
+An unresolvable tier, or a tier whose model nothing is currently serving, makes the agent
+**restricted**: registered, visible, and refused **by name** when dispatched. Nothing degrades
+silently.
 
 See [Providers and tiers](../concepts/providers-and-tiers.md).
 
@@ -197,8 +198,13 @@ pi
 ```
 
 An agent that appears as **invalid** carries its reason. An agent that appears as **restricted**
-resolved fine but is outside this session's egress class or names a model your install does not have
-— usually a tier bound to a provider you did not configure.
+resolved fine but names a model nothing is currently serving — usually an `optional` tier whose
+backend is not running, or a tier bound to a provider you did not configure. Start the backend, or
+bind the tier somewhere real.
+
+(Before 2026-08-13 this status had a second cause: the agent's provider was classed looser than the
+session. That rule was withdrawn — a class refuses nothing now, so it can no longer restrict an
+agent. See [ADR 0004](../adr/0004-egress-classes-are-declarative.md).)
 
 ## Related
 
