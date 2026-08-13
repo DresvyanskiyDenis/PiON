@@ -1321,6 +1321,18 @@ else
 fi
 manifest_add LINK "$STABLE_LINK" "$REPO_DIR"
 
+# A real *directory* at $BIN_DIR/pi is a shape no mode can write through, and it fails silently:
+# `ln -sfn TARGET $BIN_DIR/pi` does not replace a real directory, it creates the link INSIDE it
+# (as $BIN_DIR/pi/pi) and exits 0. The run then continues to the version check, executes the
+# directory, reads back nothing, and dies PI-INSTALL-E06 — "an older pi is earlier on PATH", which
+# is not what happened. Extracting a release tree straight into $BIN_DIR produces exactly this
+# state, so it is worth naming. `-L` first: a symlink pointing at a directory is fine, and `-d`
+# alone would follow it.
+if [ "$SKIP_RUNTIME" = 0 ] && [ ! -L "$BIN_DIR/pi" ] && [ -d "$BIN_DIR/pi" ]; then
+  die "PI-INSTALL-E13" "$BIN_DIR/pi is a directory, not the pi executable" \
+      "an unpacked release tree is sitting where the binary belongs; remove it and re-run: rm -rf '$BIN_DIR/pi'"
+fi
+
 if [ "$SKIP_RUNTIME" = 1 ]; then
   ok "pi runtime untouched (--skip-runtime)"
   SKIPPED="$SKIPPED
@@ -1364,10 +1376,46 @@ elif [ "$MODE" = "binary" ]; then
          "do not use this archive — re-download, and if it mismatches again escalate it as a supply-chain event"
     ok "sha256 of $asset verified against config/pi-release.lock"
   fi
-  run "tar -xzf '$src' -C '$BIN_DIR'"
-  run "chmod 0755 '$BIN_DIR/pi'"
-  changed "pi $PI_VERSION_EXPECTED -> $BIN_DIR/pi"
-  manifest_add FILE "$BIN_DIR/pi" "pi $PI_VERSION_EXPECTED (binary mode)"
+  # The release archive is a TREE, not a bare executable. It unpacks as a single `pi/` directory
+  # holding the binary next to the native modules, wasm and bundled node_modules it loads at
+  # runtime, so the binary cannot be lifted out of it — and extracting straight into $BIN_DIR
+  # produced a *directory* at $BIN_DIR/pi, whose `--version` printed nothing and failed the check
+  # below with a misleading "an older pi is earlier on PATH".
+  #
+  # So: unpack into a version-scoped tree and put a symlink on PATH. Version-scoped because two
+  # installs of different versions must not interleave their files, and because it makes the
+  # symlink's target the record of which version is live.
+  #
+  # The tree goes under a directory this installer owns outright, NOT under $PREFIX/.local/pi/ —
+  # that is PI's own self-installer's address (`~/bin/pi -> ~/.local/pi/<version>/pi/pi`, what
+  # `pi update` and the upstream curl installer write). Sharing it would mean unpacking over a
+  # tree PI installed and, worse, recording it as ours: uninstall.sh removes a TREE row whole, so
+  # `uninstall.sh` would delete a pi the user installed themselves. Our own namespace makes that
+  # impossible by construction rather than by a check that can be got wrong.
+  [ -n "$PI_VERSION_EXPECTED" ] || die "PI-INSTALL-E09" "config/pi-release.lock has no version" \
+       "restore the lock file from git"
+  runtime_root="$PREFIX/.local/share/pi-config/runtime"
+  runtime_dir="$runtime_root/$PI_VERSION_EXPECTED"
+  run "mkdir -p '$runtime_dir'"
+  # No rm -rf first: the path is version-scoped, so a re-run overwrites its own identical files and
+  # nothing else can be living here. tar overwrites in place.
+  run "tar -xzf '$src' -C '$runtime_dir'"
+  [ "$DRY_RUN" = 1 ] || [ -f "$runtime_dir/pi/pi" ] || \
+    die "PI-INSTALL-E06" "$asset did not contain pi/pi — the archive layout changed" \
+        "re-download the release, and if it is still wrong the pin in config/pi-release.lock needs review"
+  run "chmod 0755 '$runtime_dir/pi/pi'"
+  run "ln -sfn '$runtime_dir/pi/pi' '$BIN_DIR/pi'"
+  changed "pi $PI_VERSION_EXPECTED -> $BIN_DIR/pi -> $runtime_dir/pi/pi"
+  manifest_add TREE "$runtime_dir" "pi $PI_VERSION_EXPECTED runtime (binary mode)"
+  # The parents `mkdir -p` created on the way down, so removing the version tree does not leave
+  # them behind as empty orphans. DIR (rmdir-if-empty), never TREE: a second version installed
+  # alongside this one must survive this one's removal, and .local/share is shared with every
+  # other tool on the machine.
+  manifest_add DIR "$runtime_root"
+  manifest_add DIR "$(dirname "$runtime_root")"
+  manifest_add DIR "$PREFIX/.local/share"
+  manifest_add DIR "$PREFIX/.local"
+  manifest_add LINK "$BIN_DIR/pi" "$runtime_dir/pi/pi"
 else
   version_ge "$NODE_VERSION" "$NODE_MIN" || \
     die "PI-INSTALL-E04" "--mode npm needs node >= $NODE_MIN, found $NODE_VERSION" \

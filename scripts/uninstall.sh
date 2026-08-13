@@ -15,6 +15,9 @@
 # exactly one list, written by the code that does the creating.
 #
 #   DIR        a directory install.sh created        removed only if it is empty afterwards
+#   TREE       a directory install.sh unpacked       removed with everything in it — the only
+#              whole: the pi runtime, under          recursive delete driven by the manifest,
+#              .local/share/pi-config/runtime/       and refused for a path outside $PREFIX
 #   LINK       a symlink; DETAIL is its target       removed only if it still points there
 #   FILE       a real file install.sh wrote          removed
 #   GENERATED  config/*.json built from your answers removed (never a *.default.json template)
@@ -79,7 +82,7 @@ FORCE_STATE=""
 
 # The range ends on the last comment line of the header block above, not a line or two past it:
 # `sed` would happily print `set -euo pipefail` into the help text.
-usage() { sed -n '2,66p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
+usage() { sed -n '2,69p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -200,6 +203,13 @@ BACKUPS="$SCRATCH/backups";   : > "$BACKUPS"
 KEYCHAIN="$SCRATCH/keychain"; : > "$KEYCHAIN"
 SECRETS_ROWS="$SCRATCH/secrets"; : > "$SECRETS_ROWS"
 NPMGLOBAL="$SCRATCH/npmglobal"; : > "$NPMGLOBAL"  # package name<TAB>why
+# TREE is the one row type that authorises a recursive delete, so it is deliberately narrow: it
+# means "install.sh created this whole directory and everything in it", which today is only the
+# unpacked pi runtime ($PREFIX/.local/share/pi-config/runtime/<version>). DIR, by contrast, means
+# "install.sh created this directory, but its contents may be yours" and is only ever rmdir'd. Do
+# not widen TREE to a directory a user might have put files in — and never to one another
+# installer writes, which is why the runtime does not live in PI's own $PREFIX/.local/pi/.
+TREES="$SCRATCH/trees";       : > "$TREES"        # path<TAB>what it is
 
 MANIFEST_FOUND=0
 if [ -f "$MANIFEST" ]; then
@@ -215,6 +225,7 @@ if [ -f "$MANIFEST" ]; then
       PATCHED)   printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$PATCHED" ;;
       RCBLOCK)   printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$RCBLOCKS" ;;
       DIR)       printf '%s\n'     "$m_path" >> "$DIRS" ;;
+      TREE)      printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$TREES" ;;
       BACKUP)    printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$BACKUPS" ;;
       KEYCHAIN)  printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$KEYCHAIN" ;;
       SECRETS)   printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$SECRETS_ROWS" ;;
@@ -294,6 +305,16 @@ fi
 if [ -s "$FILES" ]; then
   printf '\n   %sinstaller files%s (%s)\n' "$C_B" "$C_0" "$(count_of "$FILES")"
   while IFS=$'\t' read -r f_path f_why; do printf '     %-58s %s%s%s\n' "$f_path" "$C_D" "$f_why" "$C_0"; done < "$FILES"
+fi
+
+# The one group that is removed recursively, and the largest thing here by far — an unpacked pi
+# release is tens of megabytes. A preview that claims to be "the whole list" has to say so before
+# the confirmation, not only in the removal log afterwards.
+if [ -s "$TREES" ]; then
+  printf '\n   %sunpacked runtime%s (%s) — removed whole, with everything inside it\n' \
+    "$C_B" "$C_0" "$(count_of "$TREES")"
+  while IFS=$'\t' read -r t_path t_what; do printf '     %-58s %s%s%s\n' "$t_path" "$C_D" "$t_what" "$C_0"; done < "$TREES"
+  info "the pi binary itself lives in here; nothing you wrote does"
 fi
 
 if [ -s "$RCBLOCKS" ]; then
@@ -551,6 +572,26 @@ if [ -s "$NPMGLOBAL" ]; then
     if run "npm uninstall -g -- '$n_pkg' >/dev/null 2>&1"; then gone "$n_pkg (global npm package)"
     else warn "npm uninstall -g '$n_pkg' failed — remove it by hand: npm uninstall -g -- '$n_pkg'"; fi
   done < "$NPMGLOBAL"
+fi
+
+# --- trees install.sh unpacked whole (today: the pi runtime under
+# $PREFIX/.local/share/pi-config/runtime/<version>).
+# This is the only recursive delete driven by the manifest, so it is fenced twice: the row type has
+# to be TREE, and the path has to still look like what install.sh writes — an absolute path, below
+# the prefix, and not the prefix itself. A manifest that has been hand-edited into naming $HOME
+# therefore removes nothing instead of removing everything.
+if [ -s "$TREES" ]; then
+  while IFS=$'\t' read -r t_path t_what; do
+    [ -n "$t_path" ] || continue
+    [ -d "$t_path" ] || continue
+    case "$t_path" in
+      "$PREFIX"|"$PREFIX"/) warn "$t_path — that is the install prefix itself, not a tree we unpacked"; continue ;;
+      "$PREFIX"/*) : ;;
+      *) warn "$t_path — outside the install prefix ($PREFIX); remove it by hand if it is ours"; continue ;;
+    esac
+    if run "rm -rf -- '$t_path'"; then gone "$t_path${t_what:+ — $t_what}"
+    else warn "could not remove $t_path — remove it by hand: rm -rf -- '$t_path'"; fi
+  done < "$TREES"
 fi
 
 if [ -s "$BACKUPS" ]; then

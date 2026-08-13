@@ -167,6 +167,27 @@ Editing a file in the repository changes the live agent immediately, and `git pu
 
     `config/settings.json` names one file, `extensions/index.ts`, explicitly instead.
 
+### The PI runtime itself
+
+`--mode binary` downloads the release archive for your platform and unpacks it whole. It is a tree,
+not a bare executable — the binary loads native modules, wasm and a bundled `node_modules` from
+beside itself — so what goes on `PATH` is a symlink into that tree:
+
+```text
+~/.local/share/pi-config/runtime/<version>/pi/pi   the unpacked release (tens of MB)
+~/bin/pi  ->  that file                            what your shell finds
+```
+
+!!! note "Why not `~/.local/pi/`, where PI installs itself"
+    That path belongs to PI's own installer — `pi update` and the upstream one-liner write
+    `~/bin/pi -> ~/.local/pi/<version>/pi/pi`. Unpacking into it would mean writing over a tree
+    another installer owns, and recording it in the manifest as ours — and a manifest row is what
+    lets `uninstall.sh` delete a directory recursively. A `pi` you installed yourself would go out
+    with a PiON uninstall. Separate namespaces make that impossible rather than merely unlikely.
+
+`--mode npm` installs the package globally instead and points `~/bin/pi` at npm's own copy; nothing
+is unpacked under the prefix.
+
 ### What is never linked
 
 `auth.json`, `trust.json`, `sessions/` and `models-store.json` stay PI-owned. The installer

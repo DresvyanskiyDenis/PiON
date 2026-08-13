@@ -131,6 +131,11 @@ function makeRepoSkeleton() {
   return repo;
 }
 
+/** The npm package name in config/pi-release.lock. `npm.package` and `npm.spec` are separate fields
+ * in the real lock and install.sh reads both — the spec (with version) to install, the bare package
+ * to record as an NPMGLOBAL manifest row — so the fixture lock carries both too. */
+const NPM_PACKAGE = "@earendil-works/pi-coding-agent";
+
 /** `platform` and `sha256` default to the "no digest yet" placeholder install.sh already special-cases
  * (`REPLACE_AFTER_V22`) so callers that don't care about the sha-verification path (most of this
  * suite) can stay on the `--dry-run` / no-network path without also computing a real archive. */
@@ -139,23 +144,54 @@ function writeLock(repo, { version = "0.84.0", platform, sha256 = "REPLACE_AFTER
     version,
     releaseBase: "https://example.invalid/should-never-be-fetched-by-this-suite",
     binaries: { [platform]: { sha256 } },
-    npm: { spec: `@earendil-works/pi-coding-agent@${version}` },
+    npm: { package: NPM_PACKAGE, spec: `${NPM_PACKAGE}@${version}` },
   };
   writeFileSync(join(repo, "config", "pi-release.lock"), JSON.stringify(lock, null, 2) + "\n");
 }
 
 /** Builds a fake `pi` binary tarball (reports `--version` as `version`, otherwise errors) staged for
- * `install.sh --offline --offline-dir`, and returns its sha256 for the lock file. */
+ * `install.sh --offline --offline-dir`, and returns its sha256 for the lock file.
+ *
+ * The layout here is load-bearing. An upstream release archive is a TREE: it unpacks as a single
+ * `pi/` directory holding the executable next to the native modules, wasm and bundled node_modules
+ * it loads at runtime. A fixture that packs a bare `pi` file at the archive root instead certifies
+ * a layout that does not exist — an installer that extracts straight into `bin/` passes against it
+ * while producing a *directory* at `bin/pi` against the real archive.
+ *
+ * Note that `makeSelfInstallPi` below has modelled the true `<prefix>/.local/pi/<version>/pi/pi`
+ * shape all along, for PI's own installer. The two are the same archive unpacked by two different
+ * installers, which is why they must not share a directory — see that helper's own note.
+ *
+ * The companion file is not decoration: it is what makes "the executable cannot be lifted out of its
+ * tree" true in the fixture as well as in reality, so a future change that copies the binary
+ * somewhere on its own fails here instead of on someone's machine.
+ */
 function stageFakePiTarball(stageDir, platform, version = "0.84.0") {
   mkdirSync(stageDir, { recursive: true });
   const workDir = freshDir("ext28-fake-pi-");
-  const piPath = join(workDir, "pi");
+  const treeDir = join(workDir, "pi");
+  mkdirSync(treeDir, { recursive: true });
+  const piPath = join(treeDir, "pi");
+  // Reads a sibling of its own *resolved* location before answering, exactly as the real binary
+  // loads its runtime assets. Both halves of that matter: a `pi` lifted out of this tree reports
+  // nothing, while a `pi` invoked through a symlink onto PATH works, because a compiled executable
+  // resolves its own path instead of trusting $0. install.sh depends on precisely that combination
+  // — it unpacks the tree and links to the binary inside it, never moving it.
   writeFileSync(
     piPath,
-    `#!/usr/bin/env bash\nif [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\n` +
+    `#!/usr/bin/env bash\n` +
+      `self="$0"\n` +
+      `while [ -L "$self" ]; do\n` +
+      `  link="$(readlink -- "$self")"\n` +
+      `  case "$link" in /*) self="$link" ;; *) self="$(dirname -- "$self")/$link" ;; esac\n` +
+      `done\n` +
+      `here="$(cd -- "$(dirname -- "$self")" && pwd -P)"\n` +
+      `[ -f "$here/runtime-asset.txt" ] || { echo "fake-pi: runtime tree missing" >&2; exit 1; }\n` +
+      `if [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\n` +
       `echo "fake-pi: unsupported args: $*" >&2\nexit 1\n`,
   );
   chmodSync(piPath, 0o755);
+  writeFileSync(join(treeDir, "runtime-asset.txt"), `pi ${version} runtime asset\n`);
   const tarballPath = join(stageDir, `pi-${platform}.tar.gz`);
   execFileSync("tar", ["-czf", tarballPath, "-C", workDir, "pi"], {
     env: { PATH: "/usr/bin:/bin", COPYFILE_DISABLE: "1" },
@@ -164,10 +200,23 @@ function stageFakePiTarball(stageDir, platform, version = "0.84.0") {
   return { tarballPath, sha256 };
 }
 
+/** Where install.sh unpacks the release archive: `$PREFIX/.local/share/pi-config/runtime/<version>`,
+ * with the executable at `<that>/pi/pi`. Deliberately NOT `makeSelfInstallPi`'s `.local/pi/` — see
+ * that helper. */
+function piRuntimeDir(prefix, version) {
+  return join(prefix, ".local", "share", "pi-config", "runtime", version);
+}
+
 /** Builds the shape PI's *own* binary installer produces — `$fixtureHome/.local/pi/<version>/pi/pi`,
  * an unpacked release tree with a real, executable `pi` at the bottom — and returns its path so a
  * caller can `symlinkSync` it onto `$fixtureHome/bin/pi`, matching what was observed on the real
- * machine 2026-08-11 (`~/bin/pi -> ~/.local/pi/0.84.0/pi/pi`). */
+ * machine 2026-08-11 (`~/bin/pi -> ~/.local/pi/0.84.0/pi/pi`).
+ *
+ * This path is PI's, not ours, and the tests below rely on that: install.sh unpacks its own runtime
+ * into `piRuntimeDir()` above instead, so neither installer writes into the other's tree and
+ * uninstall.sh's recursive TREE delete can never reach a pi the user installed themselves. Same
+ * version on both sides is the interesting case, so use it. */
+
 function makeSelfInstallPi(fixtureHome, version) {
   const dir = join(fixtureHome, ".local", "pi", version, "pi");
   mkdirSync(dir, { recursive: true });
@@ -375,11 +424,44 @@ describe("install.sh", () => {
     // pointed at is untouched, byte for byte, even though $BIN_DIR/pi itself now points elsewhere.
     assert.ok(lstatSync(staleSelfInstallPi).isFile(), "the self-installed copy must still exist");
     assert.deepEqual(readFileSync(staleSelfInstallPi), staleContentsBefore, "the self-installed copy must be byte-identical");
-    assert.equal(lstatSync(join(binDir, "pi")).isSymbolicLink(), false, "bin/pi is now the repo-managed real file");
+    // bin/pi is a symlink, and it is one for a reason: the release archive is a tree whose binary
+    // loads its siblings at runtime, so install.sh unpacks the tree and links to the executable
+    // inside it rather than lifting the executable out.
+    const link = readlinkSync(join(binDir, "pi"));
+    assert.equal(link, join(piRuntimeDir(fixtureHome, "0.84.0"), "pi", "pi"), "bin/pi points into our own runtime tree");
     assert.equal(
       execFileSync(join(binDir, "pi"), ["--version"], { encoding: "utf8" }).trim(),
       "0.84.0",
+      "the linked binary runs, i.e. it can still see the runtime tree around it",
     );
+  });
+
+  test("PI-INSTALL-E13: a directory sitting at $BIN_DIR/pi is named, not crashed on", () => {
+    // The state left behind on any machine that ran an installer which extracted the release tree
+    // into $BIN_DIR: a *directory* at ~/bin/pi. Without the guard the run does not stop there —
+    // `ln -sfn` quietly puts its link inside the directory and exits 0, and the failure surfaces
+    // several steps later as PI-INSTALL-E06 "an older pi is earlier on PATH", which sends you
+    // hunting through $PATH for a problem that is sitting at the target path itself.
+    const repo = makeRepoSkeleton();
+    const platform = platformAsset();
+    const stageDir = freshDir("ext28-offline-dirpi-");
+    const { sha256 } = stageFakePiTarball(stageDir, platform);
+    writeLock(repo, { platform, sha256 });
+
+    const fixtureHome = freshDir("ext28-home-");
+    const strandedTree = join(fixtureHome, "bin", "pi", "pi");
+    mkdirSync(strandedTree, { recursive: true });
+
+    const res = runScript(
+      join(repo, "scripts", "install.sh"),
+      ["--mode", "binary", "--offline", "--offline-dir", stageDir],
+      baseEnv(fixtureHome),
+    );
+    assert.equal(res.status, 1);
+    assert.match(res.stderr, /PI-INSTALL-E13/);
+    assert.doesNotMatch(res.stderr, /PI-INSTALL-E06/, "the misleading late failure is what this replaces");
+    assert.match(res.stderr, /rm -rf/);
+    assert.ok(lstatSync(strandedTree).isDirectory(), "it says how to remove it; it does not remove it");
   });
 });
 
@@ -562,6 +644,14 @@ function wouldRemove(path) {
   return new RegExp(`^ *would remove ${reEscape(path)}\\s*$`, "m");
 }
 
+/** The same line for a TREE row, which carries the manifest's DETAIL column after an em dash
+ * (`would remove <path> — pi 0.84.0 runtime (binary mode)`): a recursive delete says what it is
+ * about to take with it. Still anchored on both sides of the path, so a sibling path cannot
+ * satisfy it. */
+function wouldRemoveTree(path) {
+  return new RegExp(`^ *would remove ${reEscape(path)}( — .*)?$`, "m");
+}
+
 /** A shallow snapshot of every path this suite cares about, for before/after equality checks that
  * prove `--dry-run` really changed nothing. */
 function snapshot(fixtureHome) {
@@ -624,11 +714,21 @@ describe("uninstall.sh", () => {
     assert.match(res.stdout, wouldRemove(join(agentDir, "settings.json")));
     assert.match(res.stdout, wouldRemove(join(agentDir, "models.json")));
     assert.match(res.stdout, wouldRemove(join(agentDir, "AGENTS.md")));
-    // bin/pi (binary mode -> real file, not a symlink), bin/pi-run, and the dynamic config/bin
-    // helper this fixture added.
+    // bin/pi (binary mode -> a symlink into the unpacked runtime tree, because the release archive
+    // is a tree whose executable loads its siblings), bin/pi-run, and the dynamic config/bin helper
+    // this fixture added.
     assert.match(res.stdout, wouldRemove(join(binDir, "pi")));
     assert.match(res.stdout, wouldRemove(join(binDir, "pi-run")));
     assert.match(res.stdout, wouldRemove(join(binDir, "fake-helper")));
+    // …and the tree that symlink points into, which is the one recursive delete the manifest can
+    // authorise. Asserted twice on purpose: once in the up-front preview — it is by far the largest
+    // thing an uninstall removes (~83 MB of real release) and the preview is what the confirmation
+    // prompt refers to, so omitting it there would be lying by omission — and once on the removal
+    // line itself.
+    const runtimeTree = piRuntimeDir(fixtureHome, "0.84.0");
+    assert.match(res.stdout, /unpacked runtime \(1\) — removed whole, with everything inside it/);
+    assert.match(res.stdout, new RegExp(`^ *${reEscape(runtimeTree)} +pi 0\\.84\\.0 runtime`, "m"));
+    assert.match(res.stdout, wouldRemoveTree(runtimeTree));
     // The stable link itself, and the rc-file block.
     assert.match(res.stdout, wouldRemove(join(fixtureHome, "pi-config")));
     assert.match(res.stdout, /would remove .*\.zshrc: removed the 'pi-config' block/);
@@ -717,10 +817,14 @@ describe("uninstall.sh", () => {
 
   /** The npm-mode state install.sh leaves behind, hand-built: its own npm mode needs the network,
    * which this sandbox does not have. Writes the manifest rows install.sh writes on that path —
-   * `LINK $BIN_DIR/pi <npm prefix>/bin/pi` (scripts/install.sh, npm branch) and the `.install-mode`
+   * `LINK $BIN_DIR/pi <npm prefix>/bin/pi`, `NPMGLOBAL <npm.package>` and the `.install-mode`
    * marker — because the rewritten uninstall.sh is manifest-driven: with no manifest it falls back
    * to a scan that only claims symlinks pointing into the checkout, and this one points into
-   * ~/.npm-global. */
+   * ~/.npm-global.
+   *
+   * The NPMGLOBAL row is the one to keep in step with scripts/install.sh by hand. A fixture that
+   * omits it does not prove the uninstaller ignores the global package — it proves nothing was ever
+   * declared to it, which is a different statement and an easy one to misread as a regression. */
   function npmModeFixture() {
     const repo = makeRepoSkeletonWithUninstall();
     writeLock(repo, { platform: platformAsset() }); // npm.spec -> @earendil-works/pi-coding-agent@0.84.0
@@ -737,7 +841,11 @@ describe("uninstall.sh", () => {
     symlinkSync(npmGlobalPi, join(binDir, "pi"));
     writeFileSync(
       join(agentDir, "install-manifest.tsv"),
-      [`LINK\t${join(binDir, "pi")}\t${npmGlobalPi}`, `FILE\t${join(agentDir, ".install-mode")}\tinstall mode marker`].join("\n") + "\n",
+      [
+        `LINK\t${join(binDir, "pi")}\t${npmGlobalPi}`,
+        `NPMGLOBAL\t${NPM_PACKAGE}\tthe pi 0.84.0 runtime itself (npm mode: npm install -g '${NPM_PACKAGE}@0.84.0')`,
+        `FILE\t${join(agentDir, ".install-mode")}\tinstall mode marker`,
+      ].join("\n") + "\n",
     );
     return { repo, fixtureHome, binDir, npmGlobalPi };
   }
@@ -752,92 +860,103 @@ describe("uninstall.sh", () => {
     assert.ok(lstatSync(npmGlobalPi).isFile(), "the npm-installed copy is not this script's to delete");
   });
 
-  test(
-    "npm mode: the globally installed npm package is offered for removal, or at least named as residue",
-    {
-      skip:
-        "REGRESSION, not a stale test: the manifest-driven rewrite of scripts/uninstall.sh dropped " +
-        "the `npm uninstall -g '<spec from config/pi-release.lock>'` step, and the manifest has no " +
-        "row type for a global npm package. After an npm-mode uninstall the package stays installed " +
-        "and the final 'Still on this machine' block never mentions it. Kept, skipped and reported " +
-        "rather than deleted: nothing in the rewrite says this was meant to go away.",
-    },
-    () => {
-      const { repo, fixtureHome } = npmModeFixture();
-      const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run"], baseEnv(fixtureHome));
-      // Bare package name, no version — derived from the lock's `.npm.spec` by stripping "@0.84.0".
-      assert.match(res.stdout, /npm uninstall -g '?@earendil-works\/pi-coding-agent'?/);
-    },
-  );
+  // Was skipped as a regression on the grounds that the manifest-driven rewrite had dropped the
+  // `npm uninstall -g` step and had no row type for a global package. Neither was true: NPMGLOBAL
+  // is a row type, install.sh writes one on the npm path, and uninstall.sh both asks about it and
+  // runs the removal. What was actually wrong was this file's own fixture, which hand-wrote a
+  // manifest holding only LINK and FILE rows — so the uninstaller was silent about a package it
+  // had never been told about, and the silence read like a missing feature.
+  test("npm mode: the globally installed npm package is offered for removal, or at least named as residue", () => {
+    const { repo, fixtureHome } = npmModeFixture();
+    const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run"], baseEnv(fixtureHome));
 
-  test("binary mode: --dry-run reports a bin/pi that is now a symlink into PI's own self-install, and touches neither end", () => {
-    // The shape this covers: install.sh put a real binary at ~/bin/pi, and PI's own self-installer
-    // later replaced it with a symlink into ~/.local/pi/<version>/pi/pi. uninstall.sh no longer
-    // narrates that layout — the manifest says FILE and it removes the path — but the two properties
-    // worth asserting are unchanged: bin/pi is listed, and the copy it points at is never followed.
+    // Deliberately NOT `assert.match(stdout, /npm uninstall -g …/)`. That pins one branch of a
+    // decision the script makes from the MACHINE it runs on: it probes npm's global tree, and only
+    // prints the removal command when the package is actually there. On a machine without it — CI,
+    // and this sandbox — the honest output is "already gone (not in npm's global tree)", and the
+    // old assertion failed on correct behaviour.
+    //
+    // What is environment-independent, and what this test is actually for: a package installed
+    // OUTSIDE the fixture home is never swept out with the symlinks. It gets its own group, its own
+    // question, and its own line in the removal phase, always naming the package.
+    assert.match(res.stdout, /global npm packages \(1\)/, "must be grouped apart from the symlinks");
+    assert.match(res.stdout, new RegExp(`remove these global npm package\\(s\\)\\?`), "must be its own question");
+    const removalPhase = res.stdout.slice(res.stdout.indexOf("4 of 4"));
+    assert.match(removalPhase, new RegExp(reEscape(NPM_PACKAGE)), "the removal phase must name the package");
+  });
+
+  // The two tests below are the ones that hold PI's own self-install apart from ours. They are
+  // worth their weight because the two layouts are one directory name apart: PI's own installer
+  // writes ~/.local/pi/<version>/pi/pi, install.sh writes
+  // ~/.local/share/pi-config/runtime/<version>/pi/pi, and the second is a TREE row — the single
+  // path by which this uninstaller can delete a directory recursively. Point that row at PI's
+  // address and `uninstall.sh` silently removes a pi the user installed themselves. Both tests
+  // therefore plant a self-install at the SAME version as ours, the case where a wrong path
+  // collides rather than merely neighbours.
+  test("binary mode: --dry-run lists our own runtime tree, and never a pi that PI installed itself", () => {
     const { repo, fixtureHome, env } = installedFixture();
     const binDir = join(fixtureHome, "bin");
-    rmSync(join(binDir, "pi")); // was the real file install.sh's own tar -xzf produced
     const selfInstallPi = makeSelfInstallPi(fixtureHome, "0.84.0");
-    symlinkSync(selfInstallPi, join(binDir, "pi"));
+    const ourRuntime = piRuntimeDir(fixtureHome, "0.84.0");
 
     const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run"], env);
     assert.equal(res.status, 0, `dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
-    assert.doesNotMatch(res.stderr, /not ours to interpret/);
     assert.match(res.stdout, wouldRemove(join(binDir, "pi")));
-    assert.doesNotMatch(res.stdout, wouldRemove(selfInstallPi));
-    assert.equal(readlinkSync(join(binDir, "pi")), selfInstallPi, "dry-run must not touch the symlink");
+    assert.match(res.stdout, wouldRemoveTree(ourRuntime));
+    // Nothing under PI's own prefix may appear on a removal line — not the binary, not the tree
+    // around it, not the ~/.local/pi directory that holds every version PI has installed. The
+    // trailing boundary keeps this from being satisfied (or defeated) by our own .local/share.
+    assert.doesNotMatch(res.stdout, new RegExp(`^ *would remove ${reEscape(join(fixtureHome, ".local", "pi"))}(/|\\s|$)`, "m"));
+    assert.equal(readlinkSync(join(binDir, "pi")), join(ourRuntime, "pi", "pi"), "dry-run must not touch the symlink");
     assert.ok(lstatSync(selfInstallPi).isFile(), "the self-installed copy must still exist after dry-run");
   });
 
-  test("binary mode: a real (non-dry-run) run removes the self-install symlink but never deletes the copy it pointed at", () => {
+  test("binary mode: a real run removes our runtime tree whole, and leaves PI's own installed copy byte-identical", () => {
     const { repo, fixtureHome, env } = installedFixture();
     const binDir = join(fixtureHome, "bin");
-    rmSync(join(binDir, "pi"));
     const selfInstallPi = makeSelfInstallPi(fixtureHome, "0.84.0");
-    symlinkSync(selfInstallPi, join(binDir, "pi"));
     const contentsBefore = readFileSync(selfInstallPi);
+    const ourRuntime = piRuntimeDir(fixtureHome, "0.84.0");
 
     const res = runScript(join(repo, "scripts", "uninstall.sh"), [], env);
     assert.equal(res.status, 0, `run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
     assert.throws(() => lstatSync(join(binDir, "pi")), "bin/pi must actually be gone after a real run");
-    // $HOME/bin is now reclaimed when the sweep finds it empty — a DIR row in the manifest, removed
-    // with `rmdir`, which by definition cannot take anything with it. (The previous script never
-    // touched it at all.) What is asserted here is the guard, not the removal: had the directory
-    // held anything of the user's, `rmdir` would have refused and it would still be there.
+    assert.throws(() => lstatSync(ourRuntime), "the runtime tree the symlink pointed into goes with it");
+    // $HOME/bin is reclaimed when the sweep finds it empty — a DIR row in the manifest, removed
+    // with `rmdir`, which by definition cannot take anything with it. What is asserted here is the
+    // guard, not the removal: had the directory held anything of the user's, `rmdir` would have
+    // refused and it would still be there.
     assert.throws(() => lstatSync(binDir), "an emptied $HOME/bin is reclaimed by the empty-dir sweep");
     assert.ok(lstatSync(selfInstallPi).isFile(), "PI's own self-installed copy must survive uninstall");
     assert.deepEqual(readFileSync(selfInstallPi), contentsBefore, "the self-installed copy must be byte-identical");
+    // And the shared parent survives with it: `$HOME/.local` is a DIR row, so it is only rmdir'd
+    // when empty, and PI's own tree inside it is exactly the kind of content that must stop that.
+    assert.ok(lstatSync(join(fixtureHome, ".local")).isDirectory(), "a $HOME/.local holding other tools' data stays");
   });
 
-  test(
-    "guard: a bin/pi replaced by a symlink to something foreign is reported, not removed",
-    {
-      skip:
-        "REGRESSION, not a stale test, verified by hand against this fixture: uninstall.sh's LINK " +
-        "loop still refuses a re-pointed symlink ('points at X, not at Y — someone re-pointed it'), " +
-        "but its FILE loop has no equivalent check, and bin/pi is a FILE row in binary mode. A " +
-        "bin/pi the user later replaced with a symlink to their own build is printed as 'would " +
-        "remove' and deleted on a real run, with no warning — while the closing residue line still " +
-        "claims it is 'removed only if the installer put it there'. Kept and skipped rather than " +
-        "deleted: the guard was not withdrawn on purpose, it was lost in the rewrite.",
-    },
-    () => {
-      const { repo, fixtureHome, env } = installedFixture();
-      const binDir = join(fixtureHome, "bin");
-      const decoy = join(fixtureHome, "decoy-pi");
-      writeFileSync(decoy, "#!/usr/bin/env bash\necho 0.84.0\n");
-      chmodSync(decoy, 0o755);
-      rmSync(join(binDir, "pi"));
-      symlinkSync(decoy, join(binDir, "pi"));
+  // Was skipped as a known regression: bin/pi was a FILE row in binary mode, and the FILE loop has
+  // no re-point guard, so a bin/pi the user had swapped for a symlink to their own build was
+  // deleted without a word. Binary mode records bin/pi as a LINK row now — the archive is a tree,
+  // so what goes on PATH is a symlink into it — which puts it under the LINK loop's target check
+  // and closes the gap. Un-skipped and kept as the regression test for that.
+  test("guard: a bin/pi replaced by a symlink to something foreign is reported, not removed", () => {
+    const { repo, fixtureHome, env } = installedFixture();
+    const binDir = join(fixtureHome, "bin");
+    const decoy = join(fixtureHome, "decoy-pi");
+    writeFileSync(decoy, "#!/usr/bin/env bash\necho 0.84.0\n");
+    chmodSync(decoy, 0o755);
+    rmSync(join(binDir, "pi"));
+    symlinkSync(decoy, join(binDir, "pi"));
 
-      const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run"], env);
-      assert.equal(res.status, 0);
-      assert.match(res.stderr, /bin\/pi.*points at '.*decoy-pi'.*left alone/);
-      assert.doesNotMatch(res.stdout, wouldRemove(join(binDir, "pi")));
-      assert.equal(readlinkSync(join(binDir, "pi")), decoy, "the foreign symlink must survive dry-run untouched");
-    },
-  );
+    const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run"], env);
+    // 3, not 0: refusing a re-pointed symlink is a skip, and the exit-code contract in
+    // uninstall.sh's header makes any skip a 3 — the same answer the two config-symlink guards
+    // above give.
+    assert.equal(res.status, 3);
+    assert.match(res.stderr, /bin\/pi.*points at '.*decoy-pi'.*left alone/);
+    assert.doesNotMatch(res.stdout, wouldRemove(join(binDir, "pi")));
+    assert.equal(readlinkSync(join(binDir, "pi")), decoy, "the foreign symlink must survive dry-run untouched");
+  });
 });
 
 // =========================================================================================
