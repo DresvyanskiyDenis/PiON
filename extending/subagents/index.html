@@ -4098,8 +4098,9 @@ falling back to a generic agent.</p>
 </tr>
 </tbody>
 </table>
-<p>An unresolvable tier or a model outside the session's egress class makes the agent <strong>restricted</strong>:
-registered, visible, and refused <strong>by name</strong> when dispatched. Nothing degrades silently.</p>
+<p>An unresolvable tier, or a tier whose model nothing is currently serving, makes the agent
+<strong>restricted</strong>: registered, visible, and refused <strong>by name</strong> when dispatched. Nothing degrades
+silently.</p>
 <p>See <a href="../../concepts/providers-and-tiers/">Providers and tiers</a>.</p>
 <hr />
 <h2 id="choosing-tools">Choosing tools<a class="headerlink" href="#choosing-tools" title="Permanent link">&para;</a></h2>
@@ -4176,8 +4177,12 @@ server on <code>concurrency: 1</code> cannot.</p>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
 </span></code></pre></div>
 <p>An agent that appears as <strong>invalid</strong> carries its reason. An agent that appears as <strong>restricted</strong>
-resolved fine but is outside this session's egress class or names a model your install does not have
-— usually a tier bound to a provider you did not configure.</p>
+resolved fine but names a model nothing is currently serving — usually an <code>optional</code> tier whose
+backend is not running, or a tier bound to a provider you did not configure. Start the backend, or
+bind the tier somewhere real.</p>
+<p>(Before 2026-08-13 this status had a second cause: the agent's provider was classed looser than the
+session. That rule was withdrawn — a class refuses nothing now, so it can no longer restrict an
+agent. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.)</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../extensions/dispatch/"><code>dispatch</code></a> · <a href="../../extensions/teammates/"><code>teammates</code></a> ·

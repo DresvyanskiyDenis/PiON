@@ -4059,7 +4059,7 @@ to block must reach the guard before anything rewrites its arguments. That singl
 </tr>
 <tr>
 <td>5</td>
-<td><code>RTE-*</code> agent routing / egress ceiling</td>
+<td><code>RTE-*</code> agent routing / specialist match</td>
 <td>a SHOULD-level veto</td>
 </tr>
 <tr>
@@ -4250,8 +4250,8 @@ stream, and exits non-zero when the run actually failed:</p>
 </thead>
 <tbody>
 <tr>
-<td><strong>Egress classes are not a network boundary</strong></td>
-<td>Nothing intercepts a socket. <code>egress</code> refuses a <em>dispatch</em> at load or call time. If you need a real boundary, build one at the network layer</td>
+<td><strong>Egress classes are not a network boundary — and since 2026-08-13 they are not a refusal either</strong></td>
+<td>Nothing intercepts a socket, and nothing refuses a dispatch on account of a class any more. <code>egress</code> is a word from <code>routing.json</code> printed beside every model and agent. If you need a real boundary, build one at the network layer</td>
 </tr>
 <tr>
 <td><strong><code>path-defaults</code>' per-channel policy is declarative</strong></td>

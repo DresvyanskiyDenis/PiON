@@ -1079,6 +1079,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#how-thinkinglevel-reaches-the-child" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How thinkingLevel reaches the child
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3791,6 +3802,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#how-thinkinglevel-reaches-the-child" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How thinkingLevel reaches the child
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3926,7 +3948,7 @@ this harness dispatches on them.</p>
 </tr>
 <tr>
 <td><code>thinkingLevel</code></td>
-<td><code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code>. Maps to <code>thinkingBudgets</code> in <a href="../settings/#thinkingbudgets"><code>settings.json</code></a></td>
+<td><code>off</code> | <code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code> | <code>max</code> — the reasoning effort every child dispatched on this tier runs at. Maps to <code>thinkingBudgets</code> in <a href="../settings/#thinkingbudgets"><code>settings.json</code></a>. An unknown value aborts at load, naming the tier</td>
 </tr>
 <tr>
 <td><code>purpose</code></td>
@@ -3980,6 +4002,24 @@ the predecessor harness hard-coded one model id into fourteen agent files.</p>
 </table>
 <p>Do not invent a sixth. Everything that resolves a tier fails loud on an unknown name, and adding
 one means every consumer has to learn it.</p>
+<h3 id="how-thinkinglevel-reaches-the-child">How <code>thinkingLevel</code> reaches the child<a class="headerlink" href="#how-thinkinglevel-reaches-the-child" title="Permanent link">&para;</a></h3>
+<p>PI carries a child's reasoning effort <strong>inside the model string</strong>, as a <code>:&lt;level&gt;</code> suffix
+(<code>github-copilot/claude-opus-5:high</code>) — that is the only channel it reads effort from, and it
+outranks both the agent file's own <code>thinking:</code> and any per-call override. So resolving a tier moves
+its declared <code>thinkingLevel</code> into the resolved id: <code>model: strong</code> dispatches on
+<code>github-copilot/claude-opus-5:high</code>, not on the bare id.</p>
+<p>Two consequences worth knowing:</p>
+<ul>
+<li><strong>A suffix already written into <code>model</code> wins.</strong> <code>"model": "github-copilot/gpt-5.4:max"</code> together
+  with <code>"thinkingLevel": "low"</code> dispatches at <code>max</code>. The more specific statement is the one on the
+  id.</li>
+<li><strong>A tier and the bare id it points at are not the same request.</strong> Naming the tier carries the
+  effort; typing <code>github-copilot/claude-opus-5</code> on the call does not. A tier is shorthand for <em>this
+  id and this effort</em>.</li>
+</ul>
+<p>You can write the suffix yourself on any concrete <code>provider/id</code> at dispatch time. A misspelled level
+is never silently read as an effort: <code>:maxx</code> stays part of the id and the dispatch aborts as an
+unknown model, which is the loud failure rather than a quiet downgrade.</p>
 <p><strong>What breaks:</strong> a <code>model</code> naming an id that is not in <code>config/models.json</code> fails at <strong>load</strong>, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
 <code>model "&lt;id&gt;" (from "fast") is not in the model registry</code>. That is the design working. A typo in
@@ -4003,25 +4043,30 @@ useful message than the check gives you.</p>
 <h2 id="egress"><code>egress</code><a class="headerlink" href="#egress" title="Permanent link">&para;</a></h2>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">&quot;egress&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;github-copilot&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;public&quot;</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>One class per provider, from the ordered vocabulary:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>egressOrder: [&quot;public&quot;, &quot;internal&quot;, &quot;confidential&quot;]      higher index = may carry more
-</span></code></pre></div>
-<p>An agent declaring <code>egress: confidential</code> bound to a provider classed <code>public</code> <strong>fails at load</strong>,
-naming both. A <code>confidential</code> session may not dispatch a child onto a <code>public</code> provider, and
-naming a concrete model id rather than a tier is not a way around the gate.</p>
+<p>One class per provider, from the vocabulary <code>public</code> | <code>internal</code> | <code>confidential</code>. <strong>The class is a
+label. It is reported, never compared.</strong></p>
 <p>Pick the class by asking <em>where does the traffic physically go, and who can read it there</em> — not by
 how much you trust the vendor. A third-party API is <code>public</code> even when the vendor is excellent.</p>
+<p>Where you see it: the startup line, <code>/agents</code>, the sub-agent model-selection block injected into the
+system prompt, and the <code>dispatch_registry</code> audit entry.</p>
 <div class="admonition warning">
-<p class="admonition-title">This is a declarative control, not a network boundary</p>
-<p>Nothing here intercepts a socket. It refuses a <em>dispatch</em>. If you need an actual network
-boundary, build one at the network layer. Saying so plainly is more useful than implying
-enforcement PI cannot deliver.</p>
+<p class="admonition-title">This is a label, not a network boundary — and since 2026-08-13 not a dispatch gate either</p>
+<p>Nothing here intercepts a socket, and nothing refuses a dispatch on account of it.</p>
+<p>Until 2026-08-13 there was an ordering over the three classes (<code>egressOrder</code>) and a containment
+rule built on it: an agent bound to a provider classed looser than its own declared <code>egress:</code>
+failed at load, and a session could not dispatch a child onto a provider classed looser than
+itself. That rule is <strong>withdrawn</strong>. It refused far more than it protected — with most providers
+classed looser than the session, most agents became undispatchable and changing provider
+mid-session was impossible — and it was never a boundary in the first place, only a refusal
+inside our own dispatcher. If you need an actual network boundary, build one at the network
+layer. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 </div>
-<p><strong>What breaks:</strong> a provider with <strong>no</strong> class is refused rather than guessed at. Add a row whenever
-you add a provider.</p>
+<p><strong>What breaks:</strong> nothing. A provider with <strong>no</strong> class dispatches normally and is reported as
+<code>unlabelled</code> wherever the class is shown. Add a row anyway when you add a provider — an unlabelled
+lane in the model menu is a lane nobody can reason about.</p>
 <hr />
 <h2 id="concurrency"><code>concurrency</code><a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;github-copilot&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;github-copilot&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>A semaphore keyed on the <strong>resolved</strong> provider id. It <strong>queues</strong> rather than erroring.</p>
 <p><code>local: 1</code> encodes a physical fact, not a preference: a machine holds one large model at a time and
@@ -4035,12 +4080,12 @@ provider has no row here.</p>
 <code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>
 <hr />
 <h2 id="onprovidererror"><code>onProviderError</code><a class="headerlink" href="#onprovidererror" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">&quot;onProviderError&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abort&quot;</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;substituteProvider&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;report&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;errorClass&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;causeChain&quot;</span><span class="p">],</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;errorClasses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;auth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;quota&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model-not-found&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;onProviderError&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abort&quot;</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;substituteProvider&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;report&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;errorClass&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;causeChain&quot;</span><span class="p">],</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;errorClasses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;auth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;quota&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model-not-found&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <div class="admonition danger">
 <p class="admonition-title">This is a standing rule, not a default to be flipped</p>
@@ -4055,20 +4100,20 @@ a full cause chain costs one turn. A silent substitution costs the trust in ever
 it.</p>
 </div>
 <p>What you get instead is a good error, rendered by <code>extensions/lib/provider-error.ts</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[pi-config] provider call failed:
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  provider    : &lt;name&gt;
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  model       : &lt;id&gt;
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  error class : auth | quota | network | model-not-found | policy
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  message     : &lt;upstream text&gt;
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  caused by   : &lt;cause chain&gt;
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[pi-config] provider call failed:
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  provider    : &lt;name&gt;
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  model       : &lt;id&gt;
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  error class : auth | quota | network | model-not-found | policy
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  message     : &lt;upstream text&gt;
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  caused by   : &lt;cause chain&gt;
 </span></code></pre></div>
 <p><code>report</code> selects the fields in that block. <code>errorClasses</code> is the classification vocabulary.
 <code>policy</code> and <code>substituteProvider</code> are the two you should not change.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pi-tier<span class="w"> </span>fast<span class="w">              </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pi-tier<span class="w"> </span>fast<span class="w">              </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
 </span></code></pre></div>
 <p><code>pi-tier</code> exiting <strong>2</strong> on an unknown tier is deliberate: a typo in a cron job must fail, never
 fall back to a default model you did not choose.</p>

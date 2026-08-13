@@ -3969,15 +3969,17 @@ shallow enough to notice.</p>
 <tr>
 <td><code>defaultEgress</code></td>
 <td><code>"internal"</code></td>
-<td>The egress ceiling an agent gets when it declares no <code>egress:</code></td>
+<td>The egress class reported for a session that declares none</td>
 </tr>
 </tbody>
 </table>
-<p><code>defaultEgress: "internal"</code> is the interesting one. It is deliberately <em>not</em> <code>public</code>: an agent
-that forgot to declare its sensitivity gets the middle class, so it can reach an internal provider
-but the egress check still has something to compare against. Setting it to <code>confidential</code> would
-make every undeclared agent claim the highest sensitivity and fail against a public provider —
-loud, but for the wrong reason.</p>
+<p><code>defaultEgress</code> used to be load-bearing: it was the class an undeclared agent was <em>checked</em> against,
+and setting it to <code>confidential</code> would have made every such agent fail against a public provider.
+Since the containment rule was withdrawn on 2026-08-13 it decides nothing — it only picks the word
+printed on the startup line and in the model menu when neither <code>PI_ROUTING_EGRESS</code> nor the session's
+own active provider says otherwise. <code>internal</code> stays the ship value because "we did not ask" reads
+more honestly as the middle class than as either extreme. See
+<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 <p><strong>What breaks:</strong> <code>defaultTier</code> naming a tier that is unbound in <code>routing.json</code> means every
 undeclared agent fails at load. Since <code>confidential</code> and <code>local</code> ship unbound, do not default to
 either.</p>
@@ -4080,7 +4082,7 @@ noise the model learns to ignore, which is the real cost.</p>
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>egress: internal       # the maximum sensitivity this agent may handle
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>egress: internal       # a reported label; nothing is refused on account of it
 </span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="gu">returns: object</span>
 </span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="gu">---</span>
 </span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
@@ -4112,7 +4114,7 @@ noise the model learns to ignore, which is the real cost.</p>
 </tr>
 <tr>
 <td><code>egress</code></td>
-<td>the ceiling. Checked at load against the tier's provider class</td>
+<td>a label, reported wherever the agent is shown. It was a ceiling checked at load against the tier's provider class until 2026-08-13; that check is withdrawn (<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>)</td>
 </tr>
 <tr>
 <td><code>returns</code></td>

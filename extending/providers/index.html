@@ -4006,8 +4006,10 @@ belongs in a template</strong>, which is the rule that governs this whole config
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>}
 </span></code></pre></div>
 <p>Then bind a tier in <code>config/routing.json</code> and give the provider an egress class and a concurrency
-cap. All three edits are needed: a tier bound to a provider with no <code>egress</code> entry is refused at
-dispatch.</p>
+cap. Only the tier binding is load-bearing — a provider with no <code>egress</code> entry dispatches normally
+and reads as <code>unlabelled</code> everywhere its class is printed, and one with no <code>concurrency</code> entry falls
+back to <code>concurrencyDefault</code>. Write both anyway: the two defaults are silent, and a provider whose
+class nobody declared is one nobody had to think about.</p>
 <p>Verify:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>config/bin/pi-tier<span class="w"> </span>--list<span class="w">          </span><span class="c1"># tiers and what they resolve to</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pi<span class="w">                                 </span><span class="c1"># /model should list your models</span>
@@ -4096,8 +4098,12 @@ disagree, the file is right.</p>
 <h3 id="1-which-egress-class">1. Which egress class?<a class="headerlink" href="#1-which-egress-class" title="Permanent link">&para;</a></h3>
 <p>Not a vibe. <strong>Where does the traffic physically go, and who can read it there.</strong> A third-party API is
 <code>public</code> even if the vendor is trustworthy.</p>
-<p><code>public</code> · <code>internal</code> · <code>confidential</code>. The ordering is declarative — it refuses a <em>dispatch</em>, it does
-not intercept a socket. See <a href="../../concepts/providers-and-tiers/">Providers and tiers</a>.</p>
+<p><code>public</code> · <code>internal</code> · <code>confidential</code>. The class is a <strong>label</strong>: it is printed beside this provider
+everywhere a model or an agent is offered, and it refuses nothing — no socket is intercepted, and
+since 2026-08-13 no dispatch is refused on account of it either
+(<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>). Answer it honestly anyway: it is the
+only signal a reader gets about where this provider sends a prompt. See
+<a href="../../concepts/providers-and-tiers/">Providers and tiers</a>.</p>
 <p>If the honest answer is <em>"it depends on whose deployment this is"</em> — the gateway case — a fragment
 may defer <code>egress</code>, <code>concurrency</code> and a <code>requires[].name</code> to a prompt, by setting the field to a lone
 <code>"{{promptId}}"</code>. Those three fields and no others; see <code>config/providers/README.md</code> §2.8 for the

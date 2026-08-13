@@ -3882,9 +3882,23 @@ per-agent permissions, worktrees, the async fleet.</p>
    run. When a tier once named a model id that did not exist in the provider's catalogue, eight
    agent definitions refused to dispatch at session start, each naming itself and the tier. That is
    the design working.</li>
-<li><strong>A confidential session cannot dispatch onto a public provider</strong> — and naming a concrete model
-   id rather than a tier is not a way around it.</li>
+<li><strong>Naming a concrete <code>provider/id</code> is not a way around the existence check.</strong> A tier is resolved
+   and verified at <code>session_start</code>; a raw id typed at the call is verified at the call, against the
+   same registry, and refused with the closest real ids. Neither path can reach a model nothing
+   serves.</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">There used to be a third one, and it was withdrawn on 2026-08-13</p>
+<p>Until then this list also read <em>"a confidential session cannot dispatch onto a public
+provider"</em>, and the module enforced it: the resolved provider's egress class had to be no
+looser than the session's, at load time and at call time.</p>
+<p>It was removed because it refused far more than it protected. Most providers are classed looser
+than a confidential session, so most agents became undispatchable and switching provider
+mid-session was impossible — while nothing about the actual network changed either way, since
+the class is a word in a config file and no socket is inspected. The classes stayed; the refusal
+went. They are printed wherever a model or an agent is listed, and refuse nothing.
+<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
+</div>
 <h2 id="the-catalogue-is-a-dispatch-surface-not-decoration">The catalogue is a dispatch surface, not decoration<a class="headerlink" href="#the-catalogue-is-a-dispatch-surface-not-decoration" title="Permanent link">&para;</a></h2>
 <p>A model cannot choose an id it does not know exists. So:</p>
 <ul>
@@ -3894,8 +3908,13 @@ per-agent permissions, worktrees, the async fleet.</p>
   model selection</strong> block, so the orchestrating model can spend deliberately — a mechanical sweep on
   a small model, a hard decision on a large one — instead of guessing an id.</li>
 </ul>
-<p>The list is <strong>filtered, not annotated</strong>: a model that is listed but unusable is a trap that costs a
-turn. What was filtered out is counted and explained on one line.</p>
+<p>The list is <strong>annotated, not filtered</strong>: every id the registry knows is shown, each with its
+provider's egress class — or <code>unlabelled</code>, when <code>routing.json</code> gives that provider no class. Since
+nothing refuses a dispatch on account of a class, hiding models by class would only shorten the menu
+while leaving them selectable by hand. Each tier line carries the same annotation plus the reasoning
+effort it resolves to, so the cost of a choice is visible at the point of choosing.</p>
+<p>Until 2026-08-13 the list was filtered by the session's own class and what had been removed was
+counted on one line. The filter went with the containment rule it implemented.</p>
 <p>The block is built once at <code>session_start</code> and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. <code>/agents</code> prints the same text <strong>verbatim</strong> — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.</p>

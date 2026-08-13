@@ -1992,10 +1992,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-session-egress-class-enforced" class="md-nav__link">
+  <a href="#1-session-egress-class-a-reported-label" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Session egress class — enforced
+        1. Session egress class — a reported label
       
     </span>
   </a>
@@ -3732,10 +3732,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-session-egress-class-enforced" class="md-nav__link">
+  <a href="#1-session-egress-class-a-reported-label" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Session egress class — enforced
+        1. Session egress class — a reported label
       
     </span>
   </a>
@@ -3811,12 +3811,15 @@
 <p>Registers <code>/path-defaults-status</code>.</p>
 <h2 id="two-different-things-both-called-egress">Two different things both called "egress"<a class="headerlink" href="#two-different-things-both-called-egress" title="Permanent link">&para;</a></h2>
 <p>This trips everyone once, so it is worth being explicit.</p>
-<h3 id="1-session-egress-class-enforced">1. Session egress class — enforced<a class="headerlink" href="#1-session-egress-class-enforced" title="Permanent link">&para;</a></h3>
+<h3 id="1-session-egress-class-a-reported-label">1. Session egress class — a reported label<a class="headerlink" href="#1-session-egress-class-a-reported-label" title="Permanent link">&para;</a></h3>
 <p>One scalar per matched root (<code>public</code> / <code>internal</code> / <code>confidential</code>), derived from the root's
-<strong>tier</strong>'s provider via <code>routing.json</code>'s <code>egress</code> map. It is exported into the environment where
-<a href="../dispatch/"><code>dispatch</code></a> and the guard's <code>RTE-*</code> routing gate read it, and it is what makes
-"a confidential root's session may not dispatch a child onto a public provider" true.</p>
-<p>This is a real, already-shipped enforcement path. It refuses a <strong>dispatch</strong>.</p>
+<strong>tier</strong>'s provider via <code>routing.json</code>'s <code>egress</code> map. It is exported into the environment, where
+<a href="../dispatch/"><code>dispatch</code></a> reads it to print on the startup line, in <code>/agents</code> and in the sub-agent
+model-selection block.</p>
+<p>Until 2026-08-13 it also <em>decided</em> something: it made "a confidential root's session may not
+dispatch a child onto a public provider" true. That containment rule is withdrawn — it made most
+agents undispatchable rather than making anything safer — so this scalar now describes the session
+and refuses nothing. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 <h3 id="2-per-channel-policy-declarative-only">2. Per-channel policy — declarative only<a class="headerlink" href="#2-per-channel-policy-declarative-only" title="Permanent link">&para;</a></h3>
 <p><code>{web, mcp, publicModels}</code>, each <code>"allow"</code> or <code>"deny"</code>, per root. A different fact: whether this
 directory's session <em>should</em> reach the open web, use MCP tools, or fall back to a public model.</p>

@@ -4103,10 +4103,13 @@ where the number came from</strong>), then raise it on purpose.</p>
 <p>Every other fragment states its class as a fact: <code>api.openai.com</code> is <code>public</code>, loopback is
 <code>confidential</code>. A gateway URL says nothing — the same shape covers OpenRouter, a corporate LiteLLM
 and a private deployment.</p>
-<p>Whatever you chose is written to <code>routing.json</code>'s <code>egress</code> map, and that is what the dispatcher
-checks before letting a session marked <strong>confidential</strong> use this provider. Pick <code>internal</code> if you
-are unsure: it keeps confidential work off the gateway. If you later confirm the deployment is
-private, change the one word in <code>config/routing.json</code>.</p>
+<p>Whatever you chose is written to <code>routing.json</code>'s <code>egress</code> map, and that is the word printed beside
+this provider wherever a model is offered or an agent is listed. It is a <strong>label</strong>: since the
+containment rule was withdrawn on 2026-08-13, nothing refuses a dispatch on account of it
+(<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>). So the class is a note to the humans
+and models reading the menu, not a gate that keeps confidential work off the gateway. Pick
+<code>internal</code> if you are unsure; if you later confirm the deployment is private, change the one word in
+<code>config/routing.json</code>.</p>
 <h3 id="3-concurrency-a-guess-until-you-measure-it">3. <code>concurrency</code> — a guess until you measure it<a class="headerlink" href="#3-concurrency-a-guess-until-you-measure-it" title="Permanent link">&para;</a></h3>
 <p>The value is a semaphore in the dispatcher, keyed on the resolved provider id. It <strong>queues</strong> rather
 than errors, so a low number costs latency and never correctness. Gateways in front of shared

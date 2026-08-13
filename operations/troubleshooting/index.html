@@ -4643,7 +4643,7 @@ relaxed at all.</p>
 </tr>
 <tr>
 <td><code>RTE-*</code></td>
-<td>a routing/egress veto — fix the routing, not the gate</td>
+<td>a routing veto — dispatch the specialist it names, or justify why it is wrong for this task</td>
 </tr>
 <tr>
 <td><code>ALW-*</code></td>
@@ -4691,8 +4691,10 @@ name, and everything settings-driven resolves before anything contributed by an 
 <hr />
 <h2 id="sub-agents">Sub-agents<a class="headerlink" href="#sub-agents" title="Permanent link">&para;</a></h2>
 <h3 id="an-agent-is-listed-but-refuses-when-dispatched">An agent is listed but refuses when dispatched<a class="headerlink" href="#an-agent-is-listed-but-refuses-when-dispatched" title="Permanent link">&para;</a></h3>
-<p>It is <strong>restricted</strong>: it resolved, but its model is outside this session's egress class, or names a
-model this install does not have. Usually a tier bound to a provider you did not configure.</p>
+<p>It is <strong>restricted</strong>: it resolved, but nothing is currently serving its model. Usually an <code>optional</code>
+tier whose backend is not running — start it — or a tier bound to a provider you did not configure.</p>
+<p>(Before 2026-08-13 this status had a second cause, "its provider is classed looser than this
+session". That rule was withdrawn; a class refuses nothing now.)</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>/agents
 </span></code></pre></div>
 <h3 id="an-agent-file-is-not-picked-up-at-all">An agent file is not picked up at all<a class="headerlink" href="#an-agent-file-is-not-picked-up-at-all" title="Permanent link">&para;</a></h3>

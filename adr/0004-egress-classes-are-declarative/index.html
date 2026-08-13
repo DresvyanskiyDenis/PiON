@@ -3778,9 +3778,29 @@
 
 <h1 id="adr-0004-egress-classes-are-declarative-not-a-network-boundary">ADR 0004: Egress classes are declarative, not a network boundary<a class="headerlink" href="#adr-0004-egress-classes-are-declarative-not-a-network-boundary" title="Permanent link">&para;</a></h1>
 <ul>
-<li><strong>Status:</strong> accepted</li>
+<li><strong>Status:</strong> accepted, amended 2026-08-13</li>
 <li><strong>Date:</strong> 2026-08-13 (recorded at publication; the decision is older)</li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Amendment, 2026-08-13 — the dispatch check is gone too</p>
+<p>This ADR argued that a <em>declarative</em> control must not be described as a network boundary. It
+still holds, and it now holds harder: the one check it pointed at as real — the dispatch-time
+containment rule, "a sub-agent may not be dispatched onto a provider classed looser than its
+parent" — has been <strong>withdrawn</strong>, along with the ordering over the three classes it needed.</p>
+<p>Why: the rule was inferred from the presence of the class names rather than asked for, and its
+effect was not to refuse a dangerous dispatch but to make a legitimate one unrepresentable. With
+most providers classed looser than the session, most agents became undispatchable and changing
+provider mid-session was impossible. A control whose failure mode is "the tool refuses to do the
+normal thing" buys no safety; it only trains people to widen the class until it stops firing.</p>
+<p>What survives, unchanged: the class is still resolved, still carried on every resolved model, and
+still <strong>reported</strong> — on the startup line, in <code>/agents</code>, in the sub-agent model-selection block and
+in the <code>dispatch_registry</code> audit entry. A provider the config does not classify now reads as
+<code>unlabelled</code> rather than being refused. Separately, the <strong>per-root</strong> posture in
+<code>config/path-defaults.json</code> (<code>egress: {web, mcp, publicModels}</code>) is a different mechanism and is
+not affected by this amendment.</p>
+<p>Read the sections below with that substitution in mind: where they say the dispatch ceiling
+<em>refuses</em>, it now <em>labels</em>.</p>
+</div>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
 <p>Every provider in this harness carries an <strong>egress class</strong>: <code>public</code>, <code>internal</code> or <code>confidential</code>.
 The dispatch ceiling uses it to refuse a sub-agent dispatch whose class exceeds its parent's, and

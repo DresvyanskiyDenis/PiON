@@ -754,10 +754,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#egress-classes-are-not-a-network-boundary" class="md-nav__link">
+  <a href="#egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Egress classes are not a network boundary
+        Egress classes are not a network boundary, and no longer refuse anything
       
     </span>
   </a>
@@ -4096,10 +4096,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#egress-classes-are-not-a-network-boundary" class="md-nav__link">
+  <a href="#egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Egress classes are not a network boundary
+        Egress classes are not a network boundary, and no longer refuse anything
       
     </span>
   </a>
@@ -4341,9 +4341,14 @@ implemented directly in <a href="../extensions/web/"><code>web</code></a> instea
 on recorded state, not on an event. See <a href="../extensions/doctor/"><code>doctor</code></a>'s <code>D-06</code>.</p>
 <hr />
 <h2 id="design-limits-deliberate-non-goals">Design limits — deliberate non-goals<a class="headerlink" href="#design-limits-deliberate-non-goals" title="Permanent link">&para;</a></h2>
-<h3 id="egress-classes-are-not-a-network-boundary">Egress classes are not a network boundary<a class="headerlink" href="#egress-classes-are-not-a-network-boundary" title="Permanent link">&para;</a></h3>
-<p>They refuse a <strong>dispatch</strong>. Nothing intercepts a socket. Repeated in three places in these docs
-because the word invites the wrong assumption.</p>
+<h3 id="egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything">Egress classes are not a network boundary, and no longer refuse anything<a class="headerlink" href="#egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything" title="Permanent link">&para;</a></h3>
+<p>Nothing intercepts a socket. A class is a word in <code>routing.json</code>, printed beside every provider,
+model and agent so a human or a model can see where a prompt is about to go. Repeated in three
+places in these docs because the word invites the wrong assumption.</p>
+<p>Until 2026-08-13 they at least refused a <strong>dispatch</strong>: a session could not send a child to a
+provider classed looser than itself. That rule was withdrawn — it refused ordinary work far more
+often than it prevented anything, and it never made the network claim true.
+<a href="../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 <h3 id="path-defaults-per-channel-policy-is-declarative-only"><code>path-defaults</code>' per-channel policy is declarative only<a class="headerlink" href="#path-defaults-per-channel-policy-is-declarative-only" title="Permanent link">&para;</a></h3>
 <p>It computes and exports <code>{web, mcp, publicModels}</code> for other modules to honour at their own call
 sites. A tree with no such wiring enforces nothing from that channel.</p>

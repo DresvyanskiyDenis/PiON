@@ -4049,7 +4049,7 @@ new model.</strong></p>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>name: code-reviewer
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>description: Reviews a diff and returns findings
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>model: fast              # a TIER name — or provider/id for a deliberate pin
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>egress: internal         # the maximum sensitivity this agent may handle
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>egress: internal         # a reported label; nothing is refused on account of it
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="gu">tools: [read, grep, glob, bash]</span>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="gu">---</span>
 </span></code></pre></div>
@@ -4084,10 +4084,15 @@ and an unqualified one resolves by accident.</p>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  otherwise                -&gt; FAIL AT LOAD, naming the file and the agent
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>then:  assert the provider exists in models.json
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>       assert the model id exists under that provider
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>       assert egressOrder.indexOf(agent.egress) &lt;= egressOrder.indexOf(routing.egress[provider])
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>       else FAIL AT LOAD, naming both the agent and the provider class
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>       assert the model id exists under that provider   (the tier&#39;s `:&lt;level&gt;` suffix
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>                                                         is stripped before asking)
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>       else FAIL AT LOAD, naming the file and the id
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>finally: move the tier&#39;s `thinkingLevel` into the id  -&gt;  provider/id:high
 </span></code></pre></div>
+<p>A third assertion — that the agent's declared <code>egress:</code> was no looser than its provider's class —
+sat between those two until 2026-08-13. It is withdrawn; see <a href="#egress-classes">Egress classes</a>
+below.</p>
 <p><strong>Failing at load, not at dispatch, is the point.</strong> A typo in one of a dozen agent files must be a
 startup error, not a surprise forty minutes into a long run.</p>
 <p>This was measured, not theorised. When <code>routing.json</code>'s <code>fast</code> tier once named a model id that did
@@ -4096,30 +4101,38 @@ each with <code>model "&lt;id&gt;" (from "fast") is not in the model registry</c
 <h3 id="discoverability">Discoverability<a class="headerlink" href="#discoverability" title="Permanent link">&para;</a></h3>
 <p>A model cannot choose an id it does not know exists, so <a href="../../extensions/dispatch/"><code>dispatch</code></a>
 injects a <strong>Sub-agent model selection</strong> block into the system prompt at <code>before_agent_start</code>: the
-tier list with each tier's resolved target, then the concrete ids <em>this session may actually
-dispatch onto</em>, grouped by provider.</p>
-<p>The list is <strong>filtered, not annotated</strong> — a model that is listed but unusable is a trap that costs a
-turn — and what was filtered out is counted and explained on one line. The block is built once at
+tier list with each tier's resolved target and effective reasoning effort, then every concrete id in
+the session's registry, grouped by provider.</p>
+<p>The list is <strong>annotated, not filtered</strong> — each provider's egress class is printed beside it, and a
+provider <code>routing.json</code> does not classify reads as <code>unlabelled</code>. It used to be filtered by the
+session's class, on the reasoning that a model listed but unusable is a trap; withdrawing the
+containment rule on 2026-08-13 removed the "unusable" half, and a menu that hides an id the
+dispatcher may legally name teaches the wrong contract. The block is built once at
 <code>session_start</code> and is byte-identical for the rest of the session, so it does not churn the
 prompt-cache prefix. <code>/agents</code> prints the same text verbatim; if the human and the model are reading
 different lists, the one nobody can see is the one that is wrong.</p>
 <h2 id="egress-classes">Egress classes<a class="headerlink" href="#egress-classes" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>egressOrder: [&quot;public&quot;, &quot;internal&quot;, &quot;confidential&quot;]     higher index = may carry more
-</span></code></pre></div>
-<p>An agent declaring <code>egress: confidential</code> bound to a provider classed <code>public</code> <strong>fails at load</strong>,
-naming both. A <code>confidential</code> session may not dispatch a child onto a <code>public</code> provider — and
-naming a concrete id rather than a tier is not a way around that gate. A provider with no class in
-<code>routing.json</code> is refused rather than guessed at.</p>
+<p>Three words — <code>public</code>, <code>internal</code>, <code>confidential</code> — one per provider in <code>routing.json</code>. They are
+<strong>labels</strong>: resolved, carried onto every resolved model, and displayed on the startup line, in
+<code>/agents</code>, in the sub-agent model-selection block and in the <code>dispatch_registry</code> audit entry. A
+provider with no class dispatches normally and reads as <code>unlabelled</code>.</p>
 <div class="admonition warning">
-<p class="admonition-title">This is a declarative control, not a network boundary</p>
-<p>Nothing here intercepts a socket. It refuses a <em>dispatch</em> at load or call time. If you need an
-actual network boundary, build one at the network layer — this will not give you one, and
-saying so plainly is more useful than implying enforcement PI cannot deliver.</p>
+<p class="admonition-title">Not a network boundary — and, since 2026-08-13, not a dispatch gate either</p>
+<p>Nothing here intercepts a socket, and nothing refuses a dispatch on account of a class.</p>
+<p>There used to be an ordering over the three (<code>egressOrder</code>) and a containment rule on top of it:
+an agent bound to a provider classed looser than its own <code>egress:</code> failed at load, and a session
+could not dispatch a child onto a provider classed looser than itself. <strong>Withdrawn.</strong> Nobody had
+asked for it; it was inferred from the presence of the class names. Its effect was not to refuse
+a dangerous dispatch but to make a legitimate one unrepresentable — with most providers classed
+looser than the session, most agents became undispatchable and switching provider mid-session was
+impossible. A control whose failure mode is "the tool refuses the normal thing" buys no safety.</p>
+<p>If you need an actual network boundary, build one at the network layer. See
+<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 </div>
 <p><a href="../../extensions/path-defaults/"><code>path-defaults</code></a> extends the same vocabulary per directory root,
 with the same honesty caveat attached to its per-channel <code>{web, mcp, publicModels}</code> policy.</p>
 <h2 id="concurrency">Concurrency<a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;cloud-provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;cloud-provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>A semaphore keyed on the <strong>resolved</strong> provider id, which <strong>queues rather than errors</strong>. The
 <code>local: 1</code> entry encodes a physical fact rather than a preference: a machine holds one large local
@@ -4129,12 +4142,12 @@ thrash instead of parallelising.</p>
 <code>extensions/dispatch/concurrency.ts</code> — there is no extension-visible hook inside PI's own
 <code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>
 <h2 id="fail-loud-no-failover">Fail loud, no failover<a class="headerlink" href="#fail-loud-no-failover" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">&quot;onProviderError&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abort&quot;</span><span class="p">,</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;substituteProvider&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;report&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;errorClass&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;causeChain&quot;</span><span class="p">],</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;errorClasses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;auth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;quota&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model-not-found&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">&quot;onProviderError&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abort&quot;</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;substituteProvider&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;report&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;errorClass&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;causeChain&quot;</span><span class="p">],</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;errorClasses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;auth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;quota&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model-not-found&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>This is a standing rule, not a default that can be flipped. A provider failover extension was
 specified, scheduled, and then <strong>cancelled</strong> — <code>extensions/failover.ts</code> does not exist and nothing
@@ -4145,12 +4158,12 @@ that caused it until something expensive depends on the wrong output. An abort w
 chain costs one turn. A silent substitution costs the trust in every turn after it.</p>
 <p>What you get instead is a good error. <code>extensions/lib/provider-error.ts</code> classifies the failure and
 renders:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[pi-config] provider call failed:
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  provider    : &lt;name&gt;
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  model       : &lt;id&gt;
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  error class : auth | quota | network | model-not-found | policy
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>  message     : &lt;upstream text&gt;
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>  caused by   : &lt;cause chain&gt;
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[pi-config] provider call failed:
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  provider    : &lt;name&gt;
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>  model       : &lt;id&gt;
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  error class : auth | quota | network | model-not-found | policy
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  message     : &lt;upstream text&gt;
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  caused by   : &lt;cause chain&gt;
 </span></code></pre></div>
 <p>The <a href="../../extensions/quota/">quota meter</a> follows the same rule: it <em>warns</em> before a turn when the
 budget is low and does nothing else. When the budget is actually gone, the provider's own error
@@ -4200,7 +4213,7 @@ sourced by <code>config/shell/pi-env.sh</code>.</p>
 <p><code>pi-env.sh</code> is wired into <code>~/.zshrc</code>, and zsh loads <code>~/.zshrc</code> for <strong>interactive</strong> shells only.
 A <code>cron</code> or <code>launchd</code> job loads <code>~/.zshenv</code> and nothing else. If you run this harness
 unattended, add the secrets source to <code>~/.zshenv</code> too:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.pi/secrets.env&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>-a<span class="p">;</span><span class="w"> </span>.<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.pi/secrets.env&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>+a<span class="p">;</span><span class="w"> </span><span class="k">fi</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.pi/secrets.env&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>-a<span class="p">;</span><span class="w"> </span>.<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.pi/secrets.env&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>+a<span class="p">;</span><span class="w"> </span><span class="k">fi</span>
 </span></code></pre></div>
 <p>Credentials that happen to already be exported for other tools will mask this problem until the
 one that is not costs you a debugging session.</p>
