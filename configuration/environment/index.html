@@ -4164,6 +4164,10 @@ into a black hole. That failure looks like the local server being down.</p>
 <p>Two shortcuts, and a demonstration of the intended pattern: a shell command names a <strong>tier</strong>, and
 <code>pi-tier</code> resolves it. Nothing in your shell history hard-codes a model id, so rebinding a tier in
 <a href="../routing/"><code>routing.json</code></a> changes what these do.</p>
+<p>The resolved string carries the tier's <code>thinkingLevel</code> as a <code>:&lt;level&gt;</code> suffix
+(<code>pi --model github-copilot/claude-opus-5:high</code>), so these aliases run at the effort the tier
+declares rather than at the provider's default. If you compare <code>pi-tier</code>'s output against a bare id
+somewhere, strip the suffix on your side — <code>--thinking &lt;tier&gt;</code> gives you the level separately.</p>
 <hr />
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>

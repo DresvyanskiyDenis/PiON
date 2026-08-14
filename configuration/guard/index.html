@@ -4141,8 +4141,8 @@ both should name any new dispatch tool you add.</p>
 </tr>
 <tr>
 <td><code>RTE-*</code> agent routing</td>
-<td><code>DV-SPECIALIST</code> — a generic agent dispatched where a specialist matches the prompt</td>
-<td>Yes — with a written justification</td>
+<td><code>DV-SPECIALIST</code> — a generic agent dispatched where a specialist matches the prompt. Fires only on a real match; an unmatched generic dispatch is not challenged at all</td>
+<td>Yes — <code># PI-JUSTIFY(DV-SPECIALIST): &lt;reason&gt;</code> prepended to the prompt</td>
 </tr>
 <tr>
 <td><code>ALW-*</code> allowlist</td>

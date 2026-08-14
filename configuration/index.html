@@ -3742,7 +3742,7 @@ paths appear throughout the docs; they are the same bytes. The full tree is in
 <p>Changes take effect on the <strong>next <code>pi</code> start</strong>. Nothing is watched or hot-reloaded.</p>
 <hr />
 <h2 id="fact-2-generated-vs-tracked">Fact 2 — generated vs tracked<a class="headerlink" href="#fact-2-generated-vs-tracked" title="Permanent link">&para;</a></h2>
-<p>Ten files come in pairs. <code>config/&lt;name&gt;.default.json</code> is <strong>tracked</strong> — the shipped template, read by
+<p>Eleven files come in pairs. <code>config/&lt;name&gt;.default.json</code> is <strong>tracked</strong> — the shipped template, read by
 the installer and never written by it. <code>config/&lt;name&gt;.json</code> is <strong>generated</strong> — yours, produced from
 that template plus your answers, and git-ignored.</p>
 <table>
@@ -3788,6 +3788,10 @@ that template plus your answers, and git-ignored.</p>
 <tr>
 <td><code>config/quota.json</code></td>
 <td><code>quota.default.json</code> + whether you want the meter</td>
+</tr>
+<tr>
+<td><code>config/subagent.json</code></td>
+<td><code>subagent.default.json</code> — no interview question; raise it by hand if your provider allows more</td>
 </tr>
 </tbody>
 </table>
@@ -3903,6 +3907,11 @@ Fact 2.</p>
 <td><a href="dispatch/#maxdepth">dispatch.json</a></td>
 </tr>
 <tr>
+<td>raise (or lower) how many sub-agent tasks may run at once</td>
+<td><code>globalConcurrencyLimit</code> in <code>config/subagent.json</code></td>
+<td><a href="../extending/subagents/#fan-out-ceiling-the-packages-own-cap">Sub-agents</a></td>
+</tr>
+<tr>
 <td>turn off session digests</td>
 <td><code>config/digest.json</code></td>
 <td><a href="sessions/#digestjson">Session lifecycle</a></td>
@@ -3992,6 +4001,11 @@ Fact 2.</p>
 <td><a href="sessions/#quotajson"><code>quota.json</code></a></td>
 <td><strong>yes</strong></td>
 <td>quota metering for metered providers</td>
+</tr>
+<tr>
+<td><a href="../extending/subagents/#fan-out-ceiling-the-packages-own-cap"><code>subagent.json</code></a></td>
+<td><strong>yes</strong></td>
+<td><code>pi-subagents</code>' own global fan-out ceiling and legacy top-level <code>parallel</code> caps</td>
 </tr>
 <tr>
 <td><a href="tools/#pi-lspjson"><code>pi-lsp.json</code></a></td>

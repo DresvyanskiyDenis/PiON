@@ -3104,6 +3104,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fan-out-ceiling-the-packages-own-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fan-out ceiling — the package's own cap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verifying" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3896,6 +3907,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fan-out-ceiling-the-packages-own-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fan-out ceiling — the package's own cap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verifying" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3946,8 +3968,8 @@
 <p>A sub-agent is <strong>one Markdown file with YAML frontmatter</strong>. It runs in its own context window, on a
 model you choose by tier, with a tool set you choose, and returns a report to the session that
 dispatched it.</p>
-<p>Twelve ship in <code>agents/</code>. Yours go in <code>agents-private/</code> (git-ignored) or in a project's
-<code>.pi/agents/</code>.</p>
+<p>Thirteen ship in <code>agents/</code> — twelve specialists plus the <code>general-purpose</code> catch-all. Yours go in
+<code>agents-private/</code> (git-ignored) or in a project's <code>.pi/agents/</code>.</p>
 <hr />
 <h2 id="the-60-second-version">The 60-second version<a class="headerlink" href="#the-60-second-version" title="Permanent link">&para;</a></h2>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>---
@@ -4145,7 +4167,7 @@ Use the default <code>text</code> when a human reads it.</p>
 <tbody>
 <tr>
 <td><code>&lt;repo&gt;/agents</code></td>
-<td>the twelve that ship</td>
+<td>the thirteen that ship</td>
 </tr>
 <tr>
 <td><code>&lt;repo&gt;/agents-private</code></td>
@@ -4161,7 +4183,9 @@ Use the default <code>text</code> when a human reads it.</p>
 </tr>
 </tbody>
 </table>
-<p>A missing directory is a no-op. Full key reference:
+<p>A missing directory is a no-op — but only a <em>missing</em> one. A directory that exists and cannot be
+read, or a file sitting where a directory belongs, is named at session start rather than quietly
+contributing nothing. Full key reference:
 <a href="../../configuration/dispatch/"><code>config/dispatch.json</code></a>.</p>
 <hr />
 <h2 id="depth-and-concurrency">Depth and concurrency<a class="headerlink" href="#depth-and-concurrency" title="Permanent link">&para;</a></h2>
@@ -4171,10 +4195,42 @@ recursive agent burns a quota in minutes and the transcript stops being readable
 <a href="../../configuration/routing/#concurrency">per-provider concurrency</a> can absorb it; a local model
 server on <code>concurrency: 1</code> cannot.</p>
 <hr />
+<h2 id="fan-out-ceiling-the-packages-own-cap">Fan-out ceiling — the package's own cap<a class="headerlink" href="#fan-out-ceiling-the-packages-own-cap" title="Permanent link">&para;</a></h2>
+<p><code>config/dispatch.json</code>'s <code>concurrencyDefault</code> is this repository's own dial. <code>pi-subagents</code> (the
+runtime underneath it) carries a second, independent one: <code>globalConcurrencyLimit</code>, a cap on how
+many sub-agent tasks may run <strong>simultaneously within a single run</strong>, on the <code>workflowScript</code> +
+<code>runs.all</code> fan-out path. Left unset it defaults to the package's own built-in ceiling of 20 — wide
+enough that a broad fan-out can open 20 concurrent provider calls at once, regardless of anything
+<code>routing.json</code> or <code>dispatch.json</code> say.</p>
+<p>This repository ships that cap explicitly, in <code>config/subagent.json</code> (generated at install time
+from <code>config/subagent.default.json</code>, git-ignored like the rest of the personal config — see
+<a href="../../configuration/#fact-2-generated-vs-tracked">Generated vs tracked</a>):</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;globalConcurrencyLimit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;parallel&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">&quot;maxTasks&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>4</code> mirrors the <code>concurrency</code> this repository's own <code>routing.default.json</code> ships for its one
+bundled provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
+measurement of any particular provider's real budget. <strong>Raise it if your provider allows more</strong>,
+and keep it no higher than the tightest <code>concurrency</code> entry in
+<a href="../../configuration/routing/#concurrency"><code>routing.json</code></a> that your fan-out could actually hit —
+otherwise the sub-agent runtime opens more concurrent calls than the provider was told to expect,
+which is how a fan-out turns into 429s.</p>
+<p><code>parallel.concurrency</code> is the same cap for the package's legacy top-level <code>tasks: [...]</code> dispatch
+path; <code>parallel.maxTasks</code> bounds how many tasks a single call may <em>carry</em>, not how many run at
+once, and is left at the package's own default. Installed at
+<code>~/.pi/agent/extensions/subagent/config.json</code> — the one path <code>pi-subagents</code> reads its own config
+from, and the one nested symlink the installer makes; see
+<a href="../../getting-started/config-layout/">Configuration layout</a>.</p>
+<hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pi
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pi
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
 </span></code></pre></div>
 <p>An agent that appears as <strong>invalid</strong> carries its reason. An agent that appears as <strong>restricted</strong>
 resolved fine but names a model nothing is currently serving — usually an <code>optional</code> tier whose

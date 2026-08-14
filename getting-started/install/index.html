@@ -4234,10 +4234,11 @@ generated <code>config/mcp.json</code>.</p>
 <hr />
 <h2 id="what-it-actually-writes">What it actually writes<a class="headerlink" href="#what-it-actually-writes" title="Permanent link">&para;</a></h2>
 <h3 id="generated-config">Generated config<a class="headerlink" href="#generated-config" title="Permanent link">&para;</a></h3>
-<p>Ten config files are <strong>generated</strong>: produced from a tracked <code>*.default.json</code> template plus, where
+<p>Eleven config files are <strong>generated</strong>: produced from a tracked <code>*.default.json</code> template plus, where
 relevant, <code>config/providers/*.json</code> and your answers.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>models.json  routing.json  mcp.json  settings.json  guard.json
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>trusted-roots.json  path-defaults.json  web.json  web-search.json  quota.json
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>subagent.json
 </span></code></pre></div>
 <p>The template is read, never written. The generated file is yours — including any hand edit, because
 a re-run <strong>patches</strong> an existing generated file rather than resetting it to the template. That is

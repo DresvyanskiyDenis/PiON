@@ -4020,6 +4020,14 @@ its declared <code>thinkingLevel</code> into the resolved id: <code>model: stron
 <p>You can write the suffix yourself on any concrete <code>provider/id</code> at dispatch time. A misspelled level
 is never silently read as an effort: <code>:maxx</code> stays part of the id and the dispatch aborts as an
 unknown model, which is the loud failure rather than a quiet downgrade.</p>
+<p><strong><code>model</code> is a bare <code>provider/id</code>; the level goes in <code>thinkingLevel</code> and nowhere else.</strong> Writing
+<code>"model": "github-copilot/claude-opus-5:high"</code> and leaving <code>thinkingLevel</code> off looks equivalent and
+is not: PI keys its model registry on the bare id, so every consumer that does not strip the suffix
+reads <code>:high</code> as part of the id. <code>/doctor</code>'s <code>D-04</code> then reports a perfectly healthy tier as
+<code>unresolved</code>, and anything that checks a tier's model against the registry refuses it. The
+suffix-attaching is the job of whatever emits a model string — dispatch, the digest and
+<a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a> each do it, and each refuses a <code>thinkingLevel</code> that is not
+one of the seven levels rather than passing it on.</p>
 <p><strong>What breaks:</strong> a <code>model</code> naming an id that is not in <code>config/models.json</code> fails at <strong>load</strong>, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
 <code>model "&lt;id&gt;" (from "fast") is not in the model registry</code>. That is the design working. A typo in

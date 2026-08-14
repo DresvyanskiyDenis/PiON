@@ -4122,11 +4122,22 @@ CI: treating them the same hides broken tooling behind a red build.</p>
 <h2 id="pi-tier"><code>config/bin/pi-tier</code><a class="headerlink" href="#pi-tier" title="Permanent link">&para;</a></h2>
 <p>Resolves a semantic tier to a concrete model, from the shell. Useful in scripts and as a predicate.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>config/bin/pi-tier<span class="w"> </span>--list<span class="w">              </span><span class="c1"># every tier and what it resolves to</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>config/bin/pi-tier<span class="w"> </span>strong<span class="w">              </span><span class="c1"># -&gt; github-copilot/claude-opus-5</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>config/bin/pi-tier<span class="w"> </span>--egress<span class="w"> </span>databricks<span class="w"> </span><span class="c1"># -&gt; confidential</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>config/bin/pi-tier<span class="w"> </span>strong<span class="w">              </span><span class="c1"># -&gt; github-copilot/claude-opus-5:high</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>config/bin/pi-tier<span class="w"> </span>--thinking<span class="w"> </span>strong<span class="w">   </span><span class="c1"># -&gt; high</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>config/bin/pi-tier<span class="w"> </span>--egress<span class="w"> </span>databricks<span class="w"> </span><span class="c1"># -&gt; confidential</span>
 </span></code></pre></div>
-<p>Exit <code>2</code> means the lookup failed — an unknown tier, or a provider with no egress class. That is the
-cheapest possible answer to <em>"is this tier actually bound on this machine?"</em>.</p>
+<p><strong>The tier's <code>thinkingLevel</code> is part of the answer</strong>, appended as a <code>:&lt;level&gt;</code> suffix, because the
+model string is the only channel PI reads reasoning effort from — see
+<a href="../../configuration/routing/#how-thinkinglevel-reaches-the-child">How <code>thinkingLevel</code> reaches the child</a>.
+Printing the bare id would run every <code>pi-tier</code>-driven call at the provider's default effort while
+<code>routing.json</code> declared otherwise, which is the silent substitution this harness refuses to make.
+A level already written into the tier's <code>model</code> wins and is not doubled; a level the harness does
+not recognise exits <code>2</code> rather than travelling to the provider. <code>--thinking</code> still reports the
+field on its own, for scripts that want the two halves separately.</p>
+<p>Exit <code>2</code> means the lookup failed — an unknown tier, a tier this install left
+<a href="../../configuration/routing/#tiersunbound">unbound</a>, an unusable <code>thinkingLevel</code>, or a provider with
+no egress class. That is the cheapest possible answer to <em>"is this tier actually bound on this
+machine?"</em>.</p>
 <p>Requires <code>jq</code>.</p>
 <hr />
 <h2 id="configbinpi-mcp-approve"><code>config/bin/pi-mcp-approve</code><a class="headerlink" href="#configbinpi-mcp-approve" title="Permanent link">&para;</a></h2>

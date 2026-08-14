@@ -2437,6 +2437,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-workflow-floor-and-the-package-internal-it-rests-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The workflow floor, and the package internal it rests on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-semaphore-cannot-reach" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3791,6 +3802,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-workflow-floor-and-the-package-internal-it-rests-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The workflow floor, and the package internal it rests on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-semaphore-cannot-reach" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3929,6 +3951,25 @@ first.</p>
 tier, lower a fan-out width, point a child at a worktree, refuse a call — is a mutation of or a veto
 on a call the package's tool receives. Registering a competing tool would give the model two ways to
 do the same thing, one of them unguarded.</p>
+<h2 id="the-workflow-floor-and-the-package-internal-it-rests-on">The workflow floor, and the package internal it rests on<a class="headerlink" href="#the-workflow-floor-and-the-package-internal-it-rests-on" title="Permanent link">&para;</a></h2>
+<p>A <code>workflowScript</code> call launches children <em>inside</em> the package, past the point where this module
+turns a tier word into a <code>provider/model</code>. A child that names no model therefore arrives at PI's own
+substring matcher carrying its agent file's tier word, and that matcher will resolve a word like
+<code>fast</code> onto whatever provider id happens to contain it — routing by accident, onto a provider
+<code>models.json</code> never declared, surfacing as a credentials error rather than as the substitution it
+is.</p>
+<p>So when a <code>workflowScript</code> names no <code>model</code>, the resolved
+<a href="../../configuration/dispatch/#defaulttier-and-defaultegress"><code>defaultTier</code></a> is written onto the call
+as a <strong>floor</strong>: <code>pi-subagents</code> keeps a top-level <code>model</code> in its workflow child defaults and spreads
+it <em>underneath</em> each child's own parameters, so children that name no model inherit it and children
+that name one are untouched. The pin is announced when it happens, in wording that says it is a
+floor and what overrides it.</p>
+<p>This is the one rule in the module that depends on a package <strong>internal</strong> rather than on a
+documented argument (<code>pi-subagents</code> 0.41.0, <code>src/runs/foreground/subagent-executor.ts</code>, the
+<code>workflowChildDefaults</code> destructure and the child-params spread). <code>test/dispatch/rules.test.ts</code>
+asserts that source's shape directly, so an upgrade that drops <code>model</code> from the defaults, or flips
+the spread order, fails the suite instead of quietly changing what a fan-out runs on. Re-check it
+whenever the package is upgraded.</p>
 <h2 id="where-the-semaphore-cannot-reach">Where the semaphore cannot reach<a class="headerlink" href="#where-the-semaphore-cannot-reach" title="Permanent link">&para;</a></h2>
 <p>Documented honestly in <code>extensions/dispatch/concurrency.ts</code>: there is no extension-visible hook
 inside PI's own <code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>

@@ -3794,24 +3794,25 @@ second copy to keep in sync.</p>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>├── guard.json  mcp.json  digest.json  quota.json              …and the rest of config/, one link each
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>├── path-defaults.json  trusted-roots.json  pi-lsp.json
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>├── keybindings.json  pi-statusline.json
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>├── agents             -&gt; ~/pi-config/agents/                  sub-agent definitions
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>├── agents-private     -&gt; ~/pi-config/agents-private/          yours, git-ignored (if it exists)
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>├── auth.json                                                  0600, written by /login — never committed
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>├── trust.json                                                 PI&#39;s own project-trust decisions
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── install-manifest.tsv                                       what the installer created; uninstall reads it
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>└── sessions/  models-store.json                               PI-owned, never linked
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>~/bin/
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>├── pi-run          -&gt; ~/pi-config/bin/pi-run                the fail-closed headless wrapper
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>├── pi-check        -&gt; ~/pi-config/bin/pi-check              offline config rules
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── pi-tier         -&gt; ~/pi-config/config/bin/pi-tier        tier -&gt; provider/model-id
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>└── mcp-stdio-guard -&gt; ~/pi-config/config/bin/mcp-stdio-guard
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>~/.pi/secrets.env                    0600, git-ignored, NOT in the repo
-</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>~/.local/state/pi-config/            (or $XDG_STATE_HOME/pi-config) runtime state — see below
-</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
-</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>&lt;project&gt;/.pi/settings.json          deep-merged OVER global, only after the project is trusted
-</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>&lt;project&gt;/.pi/hooks.yaml             merged after the global hooks, only when trusted
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>├── extensions/subagent/config.json -&gt; ~/pi-config/config/subagent.json   the ONE nested link — see below
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>├── agents             -&gt; ~/pi-config/agents/                  sub-agent definitions
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>├── agents-private     -&gt; ~/pi-config/agents-private/          yours, git-ignored (if it exists)
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>├── auth.json                                                  0600, written by /login — never committed
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── trust.json                                                 PI&#39;s own project-trust decisions
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>├── install-manifest.tsv                                       what the installer created; uninstall reads it
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>└── sessions/  models-store.json                               PI-owned, never linked
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>~/bin/
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>├── pi-run          -&gt; ~/pi-config/bin/pi-run                the fail-closed headless wrapper
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── pi-check        -&gt; ~/pi-config/bin/pi-check              offline config rules
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>├── pi-tier         -&gt; ~/pi-config/config/bin/pi-tier        tier -&gt; provider/model-id
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>└── mcp-stdio-guard -&gt; ~/pi-config/config/bin/mcp-stdio-guard
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>~/.pi/secrets.env                    0600, git-ignored, NOT in the repo
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>~/.local/state/pi-config/            (or $XDG_STATE_HOME/pi-config) runtime state — see below
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>&lt;project&gt;/.pi/settings.json          deep-merged OVER global, only after the project is trusted
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>&lt;project&gt;/.pi/hooks.yaml             merged after the global hooks, only when trusted
 </span></code></pre></div>
 <p><code>~/pi-config</code> is a <em>stable symlink</em> to wherever you actually cloned, created by the installer. Every
 link above goes through it, and so do <code>config/settings.json</code>'s own <code>extensions</code> and <code>packages</code>
@@ -3822,6 +3823,11 @@ entries, so you can move or rename the checkout without editing anything.</p>
 separate extensions in <code>readdir</code> order — breaking the fixed load order and failing every module
 that has no default export. <code>config/settings.json</code> names the single file
 <code>~/pi-config/extensions/index.ts</code> instead.</p>
+<p>One file <em>inside</em> that same directory is still linked, deliberately: the <code>pi-subagents</code>
+package reads its own config from exactly one path,
+<code>~/.pi/agent/extensions/subagent/config.json</code>, and nothing else. The installer <code>mkdir -p</code>s that
+one subdirectory and links only the single file into it — never <code>~/.pi/agent/extensions</code>
+itself, which is what would hand PI the extension source tree above.</p>
 <p><strong><code>skills/</code>.</strong> There is no <code>skills/</code> directory in this repository and there never will be; the
 link is made only by a fork that adds one. Your own skills live in the git-ignored
 <code>skills-private/</code>, which <code>settings.json</code> lists as a search path directly. See
@@ -3896,6 +3902,11 @@ knows it exists.</p>
 <td><code>config/dispatch.json</code></td>
 <td><a href="../../extensions/dispatch/"><code>dispatch</code></a></td>
 <td>Depth limit, default tier and egress, agent registry directories, concurrency defaults</td>
+</tr>
+<tr>
+<td><code>config/subagent.json</code></td>
+<td><code>pi-subagents</code> (linked to <code>extensions/subagent/config.json</code>, the package's own config path — not <code>dispatch.json</code>)</td>
+<td>The package's global fan-out ceiling and legacy top-level <code>parallel</code> caps</td>
 </tr>
 <tr>
 <td><code>config/compaction.json</code></td>
@@ -3977,11 +3988,11 @@ knows it exists.</p>
 <p>Full key-by-key reference: <strong><a href="../../configuration/">Configuration</a></strong> — what every key does,
 what it ships as, and what breaks if you get it wrong.</p>
 <div class="admonition warning">
-<p class="admonition-title">Ten of these are generated by the installer and git-ignored</p>
+<p class="admonition-title">Eleven of these are generated by the installer and git-ignored</p>
 <p><code>models.json</code>, <code>routing.json</code>, <code>mcp.json</code>, <code>settings.json</code>, <code>guard.json</code>, <code>trusted-roots.json</code>,
-<code>path-defaults.json</code>, <code>web.json</code>, <code>web-search.json</code> and <code>quota.json</code> are each produced from a
-tracked <code>config/&lt;name&gt;.default.json</code> template plus your install answers, and none of them is in
-git. On a fresh clone you will see only the <code>.default.json</code> half.</p>
+<code>path-defaults.json</code>, <code>web.json</code>, <code>web-search.json</code>, <code>quota.json</code> and <code>subagent.json</code> are each
+produced from a tracked <code>config/&lt;name&gt;.default.json</code> template plus your install answers, and
+none of them is in git. On a fresh clone you will see only the <code>.default.json</code> half.</p>
 <p>Editing a generated file by hand is supported and survives a re-run — the installer patches
 rather than resets. It does not survive a fresh clone, so an edit that must be permanent belongs
 in the template too. See
