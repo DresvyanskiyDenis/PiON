@@ -14,6 +14,10 @@ const ROUTING = {
     strong: { model: "github-copilot/claude-opus-5" },
     fast: { model: "github-copilot/gpt-5.1" },
     confidential: { model: "databricks/databricks-claude-sonnet-4-5" },
+    reasoning: { model: "databricks/databricks-claude-sonnet-4-5", thinkingLevel: "high" },
+    suffixed: { model: "github-copilot/claude-opus-5:max" },
+    "suffix-wins": { model: "github-copilot/claude-opus-5:low", thinkingLevel: "high" },
+    "bogus-suffix": { model: "github-copilot/claude-opus-5:extreme" },
   },
   egress: {
     "github-copilot": "public",
@@ -212,6 +216,7 @@ function makeHarness(opts: {
   const handlers: Record<string, ((event: unknown, ctx: unknown) => unknown)[]> = {};
   const commands: Record<string, { description: string; handler: (args: string, ctx: unknown) => unknown }> = {};
   const setModelCalls: unknown[] = [];
+  const setThinkingLevelCalls: unknown[] = [];
   const statusCalls: { key: string; text: string | undefined }[] = [];
   const notices: Notice[] = [];
 
@@ -225,6 +230,9 @@ function makeHarness(opts: {
     setModel: async (model: unknown) => {
       setModelCalls.push(model);
       return opts.setModelResult ?? true;
+    },
+    setThinkingLevel: (level: unknown) => {
+      setThinkingLevelCalls.push(level);
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
@@ -261,9 +269,22 @@ function makeHarness(opts: {
     },
     runCommand: async (name: string, args = "") => commands[name]?.handler(args, ctx),
     setModelCalls,
+    setThinkingLevelCalls,
     statusCalls,
     notices,
   };
+}
+
+/** A wildcard-only `path-defaults.json` naming `tier`, so a test can aim any cwd at any tier
+ *  without restating the whole roots array. */
+async function writeWildcardRoot(tier: string): Promise<void> {
+  await writeFile(
+    pathDefaultsFile,
+    JSON.stringify({
+      version: 1,
+      roots: [{ path: "*", tier, egress: { web: "allow", mcp: "allow", publicModels: "allow" } }],
+    }),
+  );
 }
 
 describe("default export — session_start behaviour", () => {
@@ -340,6 +361,84 @@ describe("default export — session_start behaviour", () => {
     assert.ok(err);
     assert.match(err!.message, /no credential is available/);
     assert.match(err!.message, /staying on github-copilot\/claude-opus-5/);
+  });
+
+  it("applies the tier's declared thinkingLevel through setThinkingLevel once setModel succeeded", async () => {
+    await writeWildcardRoot("reasoning");
+    const h = makeHarness({
+      cwd: "/home/user/anywhere",
+      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
+    });
+    await h.fireSessionStart();
+    assert.equal(h.setModelCalls.length, 1);
+    assert.deepEqual(h.setThinkingLevelCalls, ["high"]);
+  });
+
+  it("resolves a tier whose model carries a thinking suffix, and applies that suffix's level", async () => {
+    await writeWildcardRoot("suffixed");
+    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set(["github-copilot/claude-opus-5"]) });
+    await h.fireSessionStart();
+    assert.deepEqual(h.setModelCalls[0], { provider: "github-copilot", id: "claude-opus-5" });
+    assert.deepEqual(h.setThinkingLevelCalls, ["max"]);
+  });
+
+  it("lets the model string's suffix outrank the tier's declared thinkingLevel", async () => {
+    await writeWildcardRoot("suffix-wins");
+    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set(["github-copilot/claude-opus-5"]) });
+    await h.fireSessionStart();
+    assert.deepEqual(h.setThinkingLevelCalls, ["low"]);
+  });
+
+  it("refuses a bogus thinking suffix rather than reading it as a level", async () => {
+    await writeWildcardRoot("bogus-suffix");
+    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set(["github-copilot/claude-opus-5"]) });
+    await h.fireSessionStart();
+    assert.equal(h.setModelCalls.length, 0);
+    assert.equal(h.setThinkingLevelCalls.length, 0);
+    assert.ok(h.notices.some((n) => n.level === "error" && n.message.includes("no such model is")));
+  });
+
+  it("does not call setThinkingLevel when the tier declares no level and the model carries none", async () => {
+    const h = makeHarness({
+      cwd: "/home/user/work/acme/some-repo",
+      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
+    });
+    await h.fireSessionStart();
+    assert.equal(h.setModelCalls.length, 1);
+    assert.equal(h.setThinkingLevelCalls.length, 0);
+  });
+
+  it("does not call setThinkingLevel when an explicit model selection is already in effect", async () => {
+    await writeWildcardRoot("reasoning");
+    const h = makeHarness({
+      cwd: "/home/user/anywhere",
+      scopedModels: [{ provider: "databricks", id: "databricks-claude-sonnet-4-5" }],
+      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
+    });
+    await h.fireSessionStart();
+    assert.equal(h.setModelCalls.length, 0);
+    assert.equal(h.setThinkingLevelCalls.length, 0);
+  });
+
+  it("does not call setThinkingLevel when the target model is not in the registry", async () => {
+    await writeWildcardRoot("reasoning");
+    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set() });
+    await h.fireSessionStart();
+    assert.equal(h.setModelCalls.length, 0);
+    assert.equal(h.setThinkingLevelCalls.length, 0);
+  });
+
+  it("does not call setThinkingLevel when setModel fails for want of a credential", async () => {
+    await writeWildcardRoot("reasoning");
+    const h = makeHarness({
+      cwd: "/home/user/anywhere",
+      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
+      currentModel: { provider: "github-copilot", id: "claude-opus-5" },
+      setModelResult: false,
+    });
+    await h.fireSessionStart();
+    assert.equal(h.setModelCalls.length, 1);
+    assert.equal(h.setThinkingLevelCalls.length, 0);
   });
 
   it("clears the status flag for a public (wildcard) root", async () => {

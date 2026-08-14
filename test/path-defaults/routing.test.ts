@@ -29,6 +29,11 @@ const ROUTING_JSON = JSON.stringify({
     confidential: { model: "databricks/databricks-claude-sonnet-4-5" },
     broken: { model: "not-a-provider-slash-id-that-has-no-slash" },
     "trailing-slash": { model: "some-internal-provider/" },
+    "declared-thinking": { model: "some-internal-provider/gpt-5.4", thinkingLevel: "high" },
+    "suffixed-model": { model: "some-internal-provider/gpt-5.4:max" },
+    "suffix-wins": { model: "some-internal-provider/gpt-5.4:low", thinkingLevel: "high" },
+    "bogus-suffix": { model: "some-internal-provider/gpt-5.4:extreme" },
+    "invalid-thinking": { model: "some-internal-provider/gpt-5.4", thinkingLevel: "extreme" },
   },
   egress: {
     "github-copilot": "public",
@@ -77,6 +82,44 @@ describe("resolveRoutingTier — pure resolution", () => {
     const err = grab(() => resolveRoutingTier(routing, "local", "routing.json"));
     assert.ok(err instanceof UnknownProviderEgressError);
     assert.equal((err as UnknownProviderEgressError).provider, "local");
+  });
+
+  it("carries a tier's declared thinkingLevel", () => {
+    const t = resolveRoutingTier(ROUTING_JSON, "declared-thinking", "routing.json");
+    assert.equal(t.modelId, "gpt-5.4");
+    assert.equal(t.thinkingLevel, "high");
+  });
+
+  it("splits a thinking suffix off the model string so modelId still matches the registry key", () => {
+    const t = resolveRoutingTier(ROUTING_JSON, "suffixed-model", "routing.json");
+    assert.equal(t.model, "some-internal-provider/gpt-5.4:max");
+    assert.equal(t.modelId, "gpt-5.4");
+    assert.equal(t.thinkingLevel, "max");
+  });
+
+  it("lets a suffix on the model string outrank the row's declared thinkingLevel", () => {
+    const t = resolveRoutingTier(ROUTING_JSON, "suffix-wins", "routing.json");
+    assert.equal(t.modelId, "gpt-5.4");
+    assert.equal(t.thinkingLevel, "low");
+  });
+
+  it("leaves a bogus suffix attached to modelId, so the registry lookup still misses", () => {
+    const t = resolveRoutingTier(ROUTING_JSON, "bogus-suffix", "routing.json");
+    assert.equal(t.modelId, "gpt-5.4:extreme");
+    assert.equal(t.thinkingLevel, undefined);
+  });
+
+  it("throws, naming the tier, when a declared thinkingLevel is not a known level", () => {
+    const err = grab(() => resolveRoutingTier(ROUTING_JSON, "invalid-thinking", "routing.json"));
+    assert.match(err.message, /tier "invalid-thinking"/);
+    assert.match(err.message, /thinkingLevel "extreme"/);
+    assert.match(err.message, /routing\.json/);
+    assert.match(err.message, /off\|minimal\|low\|medium\|high\|xhigh\|max/);
+  });
+
+  it("has no thinkingLevel when the tier declares none and the model carries no suffix", () => {
+    const t = resolveRoutingTier(ROUTING_JSON, "cheap", "routing.json");
+    assert.equal(t.thinkingLevel, undefined);
   });
 });
 

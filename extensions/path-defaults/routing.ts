@@ -20,6 +20,7 @@
  * JSON example, which embeds literal models directly.
  */
 import { readFileSync } from "node:fs";
+import { THINKING_LEVELS, isThinkingLevel, splitThinkingSuffix, type ThinkingLevel } from "../dispatch/thinking.ts";
 import { routingConfigPath } from "./paths.ts";
 
 /** The three classes `config/routing.json`'s `egress` map uses (`extensions/lib/dispatch-veto.ts`). */
@@ -57,15 +58,22 @@ export class UnknownProviderEgressError extends Error {
 
 export interface RoutingTierTarget {
   readonly tier: string;
-  /** Always `provider/id`. */
+  /** Always `provider/id`, exactly as `routing.json` declares it — so it may carry a `:level`
+   *  thinking suffix. */
   readonly model: string;
   readonly provider: string;
+  /** `id` with any thinking suffix split off — a level is not part of an id, and this is the key
+   *  the model registry is asked about. */
   readonly modelId: string;
   readonly egress: SessionEgressClass;
+  /** The tier's reasoning effort, when it declares one. A suffix already on `model` (say
+   *  `provider/id:high`) is the more specific statement and outranks the row's `thinkingLevel`
+   *  field — the same precedence `extensions/dispatch/tiers.ts` applies. */
+  readonly thinkingLevel?: ThinkingLevel;
 }
 
 interface RoutingFileShape {
-  tiers?: Record<string, { model?: unknown }>;
+  tiers?: Record<string, { model?: unknown; thinkingLevel?: unknown }>;
   egress?: Record<string, unknown>;
 }
 
@@ -74,7 +82,8 @@ interface RoutingFileShape {
  *
  * Pure and synchronous so it is unit-testable without touching disk — `loadRoutingTierTarget()`
  * below is the thin fs wrapper. Throws (never guesses) on a missing tier, a tier without a
- * `provider/id`-shaped model, or a provider absent from the `egress` map — `REQ-PRV-32`.
+ * `provider/id`-shaped model, a tier declaring a `thinkingLevel` that is not a known level, or a
+ * provider absent from the `egress` map — `REQ-PRV-32`.
  */
 export function resolveRoutingTier(raw: string, tier: string, routingPath: string): RoutingTierTarget {
   let parsed: RoutingFileShape;
@@ -84,7 +93,8 @@ export function resolveRoutingTier(raw: string, tier: string, routingPath: strin
     throw new Error(`${routingPath} is not valid JSON: ${(err as Error).message}`, { cause: err });
   }
 
-  const model = parsed.tiers?.[tier]?.model;
+  const row = parsed.tiers?.[tier];
+  const model = row?.model;
   if (typeof model !== "string" || model.length === 0) {
     throw new UnknownTierError(tier, routingPath);
   }
@@ -95,14 +105,39 @@ export function resolveRoutingTier(raw: string, tier: string, routingPath: strin
     );
   }
   const provider = model.slice(0, slash);
-  const modelId = model.slice(slash + 1);
+  // The model registry is keyed by a bare `provider/id` and a reasoning effort is not part of an
+  // id, so the suffix comes off before the lookup. `../dispatch/thinking.ts` is imported rather
+  // than copied: it owns this vocabulary for the whole tree (and only splits a KNOWN level, so
+  // `provider/id:typo` keeps its colon and still fails the existence check, as it should). That is
+  // the shared *suffix* grammar, not `dispatch/tiers.ts`'s tier resolution, which this module still
+  // deliberately keeps its own copy of — see the header.
+  const { baseModel: modelId, thinkingSuffix } = splitThinkingSuffix(model.slice(slash + 1));
+
+  const declaredLevel = row?.thinkingLevel;
+  if (declaredLevel !== undefined && (typeof declaredLevel !== "string" || !isThinkingLevel(declaredLevel))) {
+    throw new Error(
+      `tier "${tier}" in ${routingPath} declares thinkingLevel "${String(declaredLevel)}", which is ` +
+        `not one of ${THINKING_LEVELS.join("|")}`,
+    );
+  }
+  // A suffix written on the model string is the more specific statement and wins, matching
+  // `extensions/dispatch/tiers.ts`'s `applyTierThinkingLevel`.
+  const thinkingLevel: ThinkingLevel | undefined =
+    thinkingSuffix === "" ? declaredLevel : (thinkingSuffix.slice(1) as ThinkingLevel);
 
   const egressRaw = parsed.egress?.[provider];
   if (egressRaw !== "public" && egressRaw !== "internal" && egressRaw !== "confidential") {
     throw new UnknownProviderEgressError(provider, routingPath);
   }
 
-  return { tier, model, provider, modelId, egress: egressRaw };
+  return {
+    tier,
+    model,
+    provider,
+    modelId,
+    egress: egressRaw,
+    ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+  };
 }
 
 /** @throws on a missing/unreadable/malformed `config/routing.json`, or an unresolved `tier`. */

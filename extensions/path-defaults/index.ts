@@ -225,6 +225,14 @@ async function applyResolution(
     );
     return;
   }
+  // `pi.setThinkingLevel` is the seam that makes a tier's declared effort real. `dispatch/tiers.ts`
+  // has no such API for a child it is about to spawn and must smuggle the level inside the model
+  // id; this module runs inside `session_start` holding the `ExtensionAPI`, so it can just ask.
+  // Deliberately here and nowhere else: an explicit-model override, an unresolved model and a
+  // missing credential all return above, and none of them should move this session's effort.
+  if (target.thinkingLevel !== undefined) {
+    pi.setThinkingLevel(target.thinkingLevel);
+  }
   announce(`root ${root.path} -> ${target.model} (tier "${root.tier}"). ${egressLine}${reasonSuffix}`, "info");
 }
 

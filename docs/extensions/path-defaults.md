@@ -40,6 +40,29 @@ There is no tool call to gate — "which model does this session start on" is de
 exists. So the tier default is applied once, at session start, rather than by a `tool_call`
 handler.
 
+## Reasoning effort
+
+A root names a tier, and a tier may declare how hard to think — `"thinkingLevel": "high"` on the
+row, one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. That level is now **applied,
+not merely parsed**: this module runs inside `session_start` holding the extension API, so it calls
+`setThinkingLevel()` (which PI clamps to what the model actually supports) immediately after a
+successful `setModel()`, and on no other path. If an explicit model selection is already in effect,
+if the model is not in the registry, or if the provider has no usable credential, this module
+returns before that call and the session's effort is left exactly as it was.
+
+A `thinkingLevel` that is not one of the seven levels is a **hard error**, naming the tier, the
+value and `routing.json`. Nothing is guessed, and nothing quietly falls back to the provider
+default.
+
+A tier's `model` is meant to be a bare `provider/id` with the level in `thinkingLevel` and
+[nowhere else](../configuration/routing.md#how-thinkinglevel-reaches-the-child) — but if one does
+carry a `:level` suffix, it is split off before the model registry is asked whether the model
+exists, so `provider/some-id:high` now resolves exactly like `provider/some-id` instead of being
+reported as unconfigured. Where a row states both, **the suffix wins**: it is the more specific
+statement, the same precedence [`dispatch`](dispatch.md) applies to the same row. Only a *known*
+level splits — a typo such as `provider/some-id:hgih` stays part of the id, misses the registry and
+is refused by name, which is the loud failure rather than a quiet downgrade.
+
 ## Related
 [`path-defaults.json`](../configuration/paths-and-trust.md) · [dispatch](dispatch.md) ·
 [Providers and tiers](../concepts/providers-and-tiers.md#egress-classes)
