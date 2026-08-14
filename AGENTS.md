@@ -98,8 +98,15 @@ decision was already wrong: stop and delegate the rest.
 compaction and loses the thread. One agent with a summary beats three with transcripts: delegate
 *widely*, not *redundantly*.
 
-Pick the role by domain from `agents/` — `/agents` lists what is installed. Independent pieces →
-several `subagent` calls in one message, in parallel.
+Pick the role by domain from `agents/` — `/agents` lists what is installed.
+
+**Independent pieces → ONE `subagent` call that fans out on its own**, not several calls in one
+message. A second call in the same turn is rejected verbatim with `Rejected: a subagent call is
+already in progress. Issue exactly ONE subagent call per turn.` Fanning out means a `workflowScript`
+using `runs.all([...])` — the supported path — or a chain step with `parallel: [...]`. Keep the width
+inside the fan-out ceiling this installation ships: `config/subagent.json` sets
+`globalConcurrencyLimit` for the `runs.all` path and `parallel` for the legacy `tasks` path, both at
+4 unless someone raised them alongside the provider's `concurrency` in `config/routing.json`.
 
 `general-purpose` (aliases `general`, `generalist`) is the role of last resort. It is an ordinary
 definition in `agents/` like every other, not a magic word — reach for it only when no specialist
@@ -132,6 +139,13 @@ one-liner asked for in place.
 
 ## Work
 
+- Blocked by the guard headless? Read the refusal — it names the way out. `PI_GUARD_APPROVE=1`
+  pre-grants **only** the approval a human would have given at the prompt, for **one** invocation,
+  and it belongs to whoever is running the session, never to you: do not export it, do not write it
+  into a config file, do not put it in a script you ask to be run. It does not touch `SEC-*`
+  (credential paths — no override, ever), it does not touch `DB-*`, it does not un-refuse `cd`, and
+  `GIT-*` / `PRV-*` / `RTE-*` still want their written `# PI-JUSTIFY(GATE-ID): reason` line. If a
+  task genuinely needs it, say so and let the operator decide.
 - "Fix the bug" → "write the test that reproduces it, then make it pass".
 - Multi-step work → a three-line plan, and one verification per step.
 - Two readings of the prompt → ask, don't pick silently.
