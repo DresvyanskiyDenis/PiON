@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { AGENT_KEYS, rules, type State } from "../../extensions/dispatch/index.ts";
+import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { ProviderSemaphoreSet } from "../../extensions/dispatch/semaphore.ts";
 import { loadAgentRegistry, type AgentRegistry } from "../../extensions/dispatch/registry.ts";
 import { resetWorktreeProvider } from "../../extensions/dispatch/isolation.ts";
@@ -76,6 +78,8 @@ function stateOf(opts: StateOpts = {}): State {
 
 const CTX = { cwd: "/repo" } as unknown as ExtensionContext;
 
+const REPO_ROOT = join(import.meta.dirname, "..", "..");
+
 function eventOf(toolName: string, input: Record<string, unknown>): ToolCallEvent {
   return { toolName, toolCallId: "call-1", input } as unknown as ToolCallEvent;
 }
@@ -84,12 +88,28 @@ function eventOf(toolName: string, input: Record<string, unknown>): ToolCallEven
 async function run(
   set: readonly GuardRule[],
   event: ToolCallEvent,
+  ctx: ExtensionContext = CTX,
 ): Promise<{ ruleId: string; reason: string } | undefined> {
   for (const rule of set) {
-    const verdict = await rule.evaluate(event, CTX);
+    const verdict = await rule.evaluate(event, ctx);
     if (verdict?.block) return { ruleId: rule.id, reason: verdict.reason };
   }
   return undefined;
+}
+
+/**
+ * A ctx whose `ui.notify` is captured. `emitNotice` routes to the UI only when `hasUI === true`
+ * (`extensions/lib/announce.ts`), which is why this sets it — the default `CTX` has no UI and its
+ * announcements go to stderr instead.
+ */
+function capturingCtx(): { ctx: ExtensionContext; notices: string[] } {
+  const notices: string[] = [];
+  const ctx = {
+    cwd: "/repo",
+    hasUI: true,
+    ui: { notify: (message: string) => notices.push(message) },
+  } as unknown as ExtensionContext;
+  return { ctx, notices };
 }
 
 describe("rule set shape", () => {
@@ -524,6 +544,131 @@ describe("DSP-RESOLVE", () => {
       // 2026-08-13: `cheap` declares thinkingLevel: "low", which now rides along on resolution.
       // Used to assert the bare id.
       assert.equal(input.model, "databricks/databricks-claude-haiku-4-5:low", tool);
+    }
+  });
+});
+
+/**
+ * The workflow floor.
+ *
+ * A `workflowScript` launches children the rule set never sees: they are built inside the package,
+ * past the tool-call boundary where a tier word is resolved to a `provider/model`. A child that
+ * names no model therefore falls back to its agent file's `model:` frontmatter — a tier word only
+ * this repository understands — and `pi-subagents` hands an unmatched string on unchanged for PI to
+ * substring-match. That is the door onto a provider `config/models.json` never declared, and it
+ * opens as a credentials error rather than as the silent provider substitution it actually is.
+ *
+ * Pinning our own resolved default tier at the workflow level closes it for the children that name
+ * nothing, and leaves the ones that name something alone.
+ *
+ * THIS BLOCK DEPENDS ON A PACKAGE INTERNAL — `pi-subagents` 0.41.0,
+ * `src/runs/foreground/subagent-executor.ts`:
+ *
+ *   :4106  the async branch destructures the workflow request into `workflowChildDefaults`,
+ *          omitting `action, agent, task, tasks, chain, concurrency, foregroundOnly, clarify,
+ *          timeoutMs, maxRuntimeMs, usageBudget`. `model` is NOT omitted, so it survives into the
+ *          defaults. `:4178` is the foreground twin and also keeps it.
+ *   :4142  each child is built as `prepareWorkflowChildParams({ ...workflowChildDefaults,
+ *          ...childParams, … })` — defaults first, child second, so the child wins. `:4202` is the
+ *          foreground twin.
+ *
+ * RE-CHECK BOTH WHEN `pi-subagents` IS UPGRADED. If `model` joins the omit list at :4106 the floor
+ * silently stops reaching the children and pinning it becomes a claim the package no longer
+ * honours; if the spread order at :4142 flips, the floor starts overriding children that chose
+ * their own model. `guards the pi-subagents internals this floor rests on` below fails on either.
+ */
+describe("DSP-RESOLVE: a workflowScript with no model", () => {
+  const WORKFLOW = "await runs.all([{key: 'a', agent: 'scout', task: 'x'}])";
+  /** `CONFIG.defaultTier` is `fast`, and `fast` declares `thinkingLevel: "medium"`. */
+  const DEFAULT_TIER_MODEL = "github-copilot/claude-sonnet-5:medium";
+
+  it("pins the default tier as the fan-out's floor", async () => {
+    const input: Record<string, unknown> = { workflowScript: WORKFLOW };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, DEFAULT_TIER_MODEL, "children that name no model inherit our catalogue");
+  });
+
+  it("announces the pin as a floor, and says what still overrides it", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    const input: Record<string, unknown> = { workflowScript: WORKFLOW };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input), ctx), undefined);
+    const line = notices.find((n) => n.includes("defaultTier")) ?? "";
+    assert.match(line, /workflowScript/, "which shape was pinned");
+    assert.match(line, /FLOOR for its children/, "that it is a floor, not a decision");
+    assert.match(line, /a child that names one still wins/, "that it is overridable per child");
+    assert.match(line, /subagent-executor\.ts:4106 and :4142/, "where the behaviour is anchored");
+  });
+
+  it("records the pin on the rewrite bookkeeping", async () => {
+    resetSurfaced();
+    // `applied` is internal to DSP-RESOLVE; its one externally visible effect is that a rewritten
+    // call opens the resolved provider's lane (index.ts, `state.semaphores.for(...)`). No lane
+    // means nothing was recorded as applied.
+    const state = stateOf();
+    const input: Record<string, unknown> = { workflowScript: WORKFLOW };
+    assert.equal(await run(rules(state), eventOf("subagent", input)), undefined);
+    assert.deepEqual(
+      state.semaphores.snapshot().map((lane) => lane.provider),
+      ["github-copilot"],
+      "the model rewrite was recorded against the provider it resolved to",
+    );
+  });
+
+  it("leaves a workflowScript that names its own model, and does not announce a floor", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    const input: Record<string, unknown> = { workflowScript: WORKFLOW, model: "tier:strong" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input), ctx), undefined);
+    assert.equal(input.model, "github-copilot/claude-opus-5:high", "an explicit workflow model is the floor");
+    assert.deepEqual(notices, [], "nothing was defaulted, so there is nothing to announce");
+  });
+
+  it("leaves a management action alone — it launches no child for a model to reach", async () => {
+    const input: Record<string, unknown> = { action: "status", id: "abc123" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, undefined);
+  });
+
+  it("names the workflow floor as the origin when the default tier does not resolve", async () => {
+    const state = stateOf();
+    state.settings = {
+      ...state.settings,
+      routing: { ...ROUTING, tiers: { ...ROUTING.tiers, fast: { model: "github-copilot/gpt-5.1", thinkingLevel: "medium" } } },
+    };
+    const input: Record<string, unknown> = { workflowScript: WORKFLOW };
+    const blocked = await run(rules(state), eventOf("subagent", input));
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    assert.match(blocked?.reason ?? "", /floor for this workflowScript's children/);
+    assert.equal(input.model, undefined, "a refused call is never rewritten");
+  });
+
+  it("guards the pi-subagents internals this floor rests on", () => {
+    const source = readFileSync(
+      join(REPO_ROOT, "node_modules", "pi-subagents", "src", "runs", "foreground", "subagent-executor.ts"),
+      "utf8",
+    );
+    const lines = source.split("\n");
+
+    const destructures = lines.filter((line) => line.includes("...workflowChildDefaults } ="));
+    assert.equal(destructures.length, 2, "the async and foreground branches, :4106 and :4178");
+    for (const line of destructures) {
+      const omitted = line.slice(0, line.indexOf("...workflowChildDefaults"));
+      assert.doesNotMatch(
+        omitted,
+        /\bmodel\s*:/,
+        "pi-subagents began stripping `model` from workflowChildDefaults — the floor no longer " +
+          "reaches the children; re-read subagent-executor.ts:4106 before trusting DSP-RESOLVE",
+      );
+    }
+
+    const builds = lines.filter((line) => line.includes("prepareWorkflowChildParams({ ...workflowChildDefaults"));
+    assert.equal(builds.length, 2, "the async and foreground child builds, :4142 and :4202");
+    for (const line of builds) {
+      assert.ok(
+        line.indexOf("...workflowChildDefaults") < line.indexOf("...childParams"),
+        "the spread order flipped: the workflow default would now OVERRIDE a child's own model",
+      );
     }
   });
 });

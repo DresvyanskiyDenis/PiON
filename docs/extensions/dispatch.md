@@ -83,6 +83,29 @@ tier, lower a fan-out width, point a child at a worktree, refuse a call — is a
 on a call the package's tool receives. Registering a competing tool would give the model two ways to
 do the same thing, one of them unguarded.
 
+## The workflow floor, and the package internal it rests on
+
+A `workflowScript` call launches children *inside* the package, past the point where this module
+turns a tier word into a `provider/model`. A child that names no model therefore arrives at PI's own
+substring matcher carrying its agent file's tier word, and that matcher will resolve a word like
+`fast` onto whatever provider id happens to contain it — routing by accident, onto a provider
+`models.json` never declared, surfacing as a credentials error rather than as the substitution it
+is.
+
+So when a `workflowScript` names no `model`, the resolved
+[`defaultTier`](../configuration/dispatch.md#defaulttier-and-defaultegress) is written onto the call
+as a **floor**: `pi-subagents` keeps a top-level `model` in its workflow child defaults and spreads
+it *underneath* each child's own parameters, so children that name no model inherit it and children
+that name one are untouched. The pin is announced when it happens, in wording that says it is a
+floor and what overrides it.
+
+This is the one rule in the module that depends on a package **internal** rather than on a
+documented argument (`pi-subagents` 0.41.0, `src/runs/foreground/subagent-executor.ts`, the
+`workflowChildDefaults` destructure and the child-params spread). `test/dispatch/rules.test.ts`
+asserts that source's shape directly, so an upgrade that drops `model` from the defaults, or flips
+the spread order, fails the suite instead of quietly changing what a fan-out runs on. Re-check it
+whenever the package is upgraded.
+
 ## Where the semaphore cannot reach
 
 Documented honestly in `extensions/dispatch/concurrency.ts`: there is no extension-visible hook

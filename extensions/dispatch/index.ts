@@ -459,8 +459,19 @@ export function rules(state: State): GuardRule[] {
         //    the model exists: `pi-subagents`' resolveModelCandidate() returns an unmatched string
         //    UNCHANGED, so without this check a typo is spawned as `--model <garbage>` and fails
         //    inside a child process minutes later.
-        const spec = typeof input.model === "string" && input.model.trim() ? input.model.trim() : def?.spec;
-        const fromCall = typeof input.model === "string" && input.model.trim().length > 0;
+        //
+        //    A call that names neither a model nor an agent we own resolves nothing at all — and
+        //    that is a hole on exactly one shape. A `workflowScript` launches children of its own,
+        //    and a child that names no model falls through to PI's substring matcher, which is
+        //    routing by accident onto a provider `config/models.json` never declared. Since
+        //    2026-08-14 `defaultTierScope` pins `dispatch.json`'s `defaultTier` onto that shape as
+        //    a FLOOR — read its docstring for the package evidence and the upgrade risk.
+        const callModel = typeof input.model === "string" && input.model.trim() ? input.model.trim() : undefined;
+        const fromCall = callModel !== undefined;
+        const agentSpec = def?.spec;
+        const tierScope = callModel === undefined && agentSpec === undefined ? defaultTierScope(input) : undefined;
+        const spec =
+          callModel ?? agentSpec ?? (tierScope !== undefined ? `tier:${state.settings.dispatch.defaultTier}` : undefined);
         let provider: string | undefined;
         if (spec) {
           try {
@@ -468,7 +479,27 @@ export function rules(state: State): GuardRule[] {
             provider = target.provider;
             if (input.model !== target.model) {
               input.model = target.model;
-              applied.model = { from: spec, to: target.model, tier: target.tier };
+              applied.model = {
+                from: spec,
+                to: target.model,
+                tier: target.tier,
+                // Which kind of write this was. A reader of the bookkeeping cannot tell "we
+                // resolved what the call asked for" from "we set a floor the children may still
+                // override" without it, and only one of the two is overridable downstream.
+                ...(tierScope !== undefined ? { defaultedScope: tierScope } : {}),
+              };
+            }
+            if (tierScope === "workflow-floor") {
+              report(
+                ctx,
+                `[pi-config] dispatch: this workflowScript named no model, so config/dispatch.json's ` +
+                  `defaultTier "${state.settings.dispatch.defaultTier}" was pinned as the FLOOR for its ` +
+                  `children: ${target.model}. pi-subagents spreads a workflow-level model underneath each ` +
+                  `child's own params (subagent-executor.ts:4106 and :4142), so this routes only the ` +
+                  `children that name no model — a child that names one still wins. Nothing was inferred ` +
+                  `— set \`model\` on the call, or per child, to choose another.`,
+                "info",
+              );
             }
             // Reasoning effort is NOT written onto the call as a separate field, and that is still
             // right: `pi-subagents`' top-level `thinking` argument documents itself as belonging to
@@ -492,7 +523,10 @@ export function rules(state: State): GuardRule[] {
             // carried it for weeks, and only this frame knows which.
             const origin = fromCall
               ? `the \`model\` argument of this call`
-              : `the \`model:\` frontmatter of agent "${def?.name ?? "?"}" (${def?.file ?? "unknown file"})`;
+              : tierScope === "workflow-floor"
+                ? `config/dispatch.json's defaultTier, used as the floor for this workflowScript's ` +
+                  `children because the call named no model`
+                : `the \`model:\` frontmatter of agent "${def?.name ?? "?"}" (${def?.file ?? "unknown file"})`;
             return {
               block: true,
               reason:
@@ -539,6 +573,57 @@ function agentOf(state: State, event: ToolCallEvent): AgentDef | undefined {
   if (!registry) return undefined;
   const requested = firstString(event.input as Record<string, unknown>, AGENT_KEYS);
   return requested === undefined ? undefined : registry.byName.get(requested);
+}
+
+/**
+ * Which shape of dispatch call the default tier may be written onto, and what the write means
+ * there. `undefined` = this call launches nothing we can route, so leave `model` alone.
+ *
+ * Only one shape qualifies today, and it is not the obvious one:
+ *
+ * `action:` makes the call a management/control operation (`status`, `stop`, `schedule.create`, …).
+ * It starts no child at all, so a `model` on it would be honoured by nothing.
+ *
+ * A call that names an agent needs nothing here: `registry.ts` already gives every definition whose
+ * frontmatter omits `model:` the spec `tier:<defaultTier>`, so it arrives with a spec and is
+ * resolved by the ordinary path above.
+ *
+ * `workflowScript` IS pinned, as a FLOOR. Its children are launched by the package, past the point
+ * where this rule sees them; a child that names no model gets its agent file's tier word, and
+ * `pi-subagents` hands an unmatched string on unchanged for PI to substring-match — which resolves
+ * a word like `fast` onto whatever provider happens to contain it, typically one
+ * `config/models.json` never declared, and the run then dies with a credentials error that is
+ * really a silent provider substitution. Pinning our own resolved model as the workflow-level
+ * default closes that: children that name no model inherit it, children that name one are
+ * untouched.
+ *
+ * THIS RESTS ON A PACKAGE INTERNAL — `pi-subagents` 0.41.0,
+ * `src/runs/foreground/subagent-executor.ts`:
+ *
+ *   - `:4106` (async branch) destructures the workflow request into `workflowChildDefaults`,
+ *     dropping `action, agent, task, tasks, chain, concurrency, foregroundOnly, clarify, timeoutMs,
+ *     maxRuntimeMs, usageBudget`. `model` is NOT among them, so it survives into the defaults.
+ *     `:4178` is the foreground twin and drops the same set plus `workflowScript, async,
+ *     chatProgress` — also keeping `model`.
+ *   - `:4142` / `:4202` build every child as
+ *     `prepareWorkflowChildParams({ ...workflowChildDefaults, ...childParams, … })`, so a top-level
+ *     `model` is the children's DEFAULT and a per-child `model` overrides it by spread order. The
+ *     package documents that precedence itself ("child fields override workflow defaults").
+ *   - `:4040` rejects only `action`/`agent`/`step`/`tasks`/`chain` beside `workflowScript`, so
+ *     sending `model` with it is legal.
+ *
+ * Re-check `:4106` and `:4142` whenever `pi-subagents` is upgraded. If `model` joins the omit list
+ * the floor stops reaching the children; if the spread order flips it starts overriding children
+ * that chose their own model. `test/dispatch/rules.test.ts` fails loudly on either.
+ */
+type DefaultTierScope = "workflow-floor";
+
+function defaultTierScope(input: Record<string, unknown>): DefaultTierScope | undefined {
+  if (typeof input.action === "string" && input.action.trim().length > 0) return undefined;
+  if (typeof input.workflowScript === "string" && input.workflowScript.trim().length > 0) {
+    return "workflow-floor";
+  }
+  return undefined;
 }
 
 function firstString(input: Record<string, unknown>, keys: readonly string[]): string | undefined {

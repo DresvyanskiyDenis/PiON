@@ -130,13 +130,22 @@ export function parseFrontmatter(raw: string): Frontmatter {
   return { data: parsed as Record<string, unknown>, body };
 }
 
-function listMarkdown(dir: string): string[] {
+function listMarkdown(dir: string, onProblem: (message: string) => void): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
     let entries: string[];
     try {
       entries = readdirSync(current);
-    } catch {
+    } catch (err) {
+      // `inspectDir` has already established that `dir` is a directory, so a failure here is a
+      // permission problem or a subdirectory that vanished mid-walk — never the "optional overlay
+      // is absent" case. Swallowing it produced a silently shorter roster: agents that exist on
+      // disk never appear, and dispatch refuses them one by one with `no agent <name>`.
+      if (errorCode(err) !== "ENOENT") {
+        onProblem(
+          `${current}: agent directory could not be read (${errorCode(err) ?? "unknown error"}): ${(err as Error).message}`,
+        );
+      }
       return;
     }
     for (const entry of entries.sort()) {
@@ -164,6 +173,49 @@ function listMarkdown(dir: string): string[] {
 
 function firstProblem(file: string, message: string): string {
   return `${file}: ${message}`;
+}
+
+function errorCode(err: unknown): string | undefined {
+  const code = (err as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+interface DirPresence {
+  readonly exists: boolean;
+  readonly problem?: string;
+}
+
+/**
+ * Absent versus unreadable — the distinction the optional-overlay contract rests on.
+ *
+ * **Absent is silent, and only absent.** `agents-private/` is a git-ignored local overlay that
+ * `scripts/install.sh` links with its `optional` branch — warn and skip, never create — so it is
+ * legitimately missing on a fresh clone and on any machine that keeps no private agents;
+ * `<cwd>/.pi/agents` is missing in most repositories. In both cases "no such directory" means "no
+ * agents from here" and nothing more.
+ *
+ * Everything else is a fault and is named: a directory that exists but cannot be read (`EACCES`),
+ * and a path that is a file rather than a directory (`ENOTDIR`, or a regular file configured where
+ * a directory belongs). Those used to be swallowed by the same `catch` that absorbs "absent", so an
+ * overlay you thought was installed produced zero agents and zero problems — indistinguishable from
+ * having none — and the next signal was a refused dispatch minutes later.
+ *
+ * `ENOENT` stays silent even for a dangling symlink: an unresolvable entry is already covered by
+ * `dedupeByRealPath`'s best-effort contract and by `loadAgentRegistry`'s "one unresolvable entry
+ * must not stop discovery" test.
+ */
+function inspectDir(dir: string): DirPresence {
+  try {
+    if (statSync(dir).isDirectory()) return { exists: true };
+    return { exists: false, problem: `${dir}: configured as an agent directory but is not one` };
+  } catch (err) {
+    const code = errorCode(err);
+    if (code === "ENOENT") return { exists: false };
+    return {
+      exists: false,
+      problem: `${dir}: agent directory could not be read (${code ?? "unknown error"}): ${(err as Error).message}`,
+    };
+  }
 }
 
 /**
@@ -206,18 +258,14 @@ export function loadAgentRegistry(opts: LoadRegistryOptions): AgentRegistry {
   const byName = new Map<string, AgentDef>();
 
   for (const dir of dedupeByRealPath(opts.dirs)) {
-    let exists = false;
-    try {
-      exists = statSync(dir).isDirectory();
-    } catch {
-      exists = false;
-    }
-    if (!exists) {
-      // An absent registry directory is not an error — `.pi/agents` exists in some repos only.
+    const presence = inspectDir(dir);
+    if (presence.problem !== undefined) problems.push(presence.problem);
+    if (!presence.exists) {
+      // An absent registry directory is not an error — see `inspectDir` for what is.
       dirs.push({ dir, exists: false, files: 0 });
       continue;
     }
-    const files = listMarkdown(dir);
+    const files = listMarkdown(dir, (message) => problems.push(message));
     dirs.push({ dir, exists: true, files: files.length });
     for (const file of files) {
       const def = loadOne(file, dir, opts, problems);

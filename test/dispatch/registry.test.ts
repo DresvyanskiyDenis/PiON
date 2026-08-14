@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { symlinkSync } from "node:fs";
+import { chmodSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   dispatchableNames,
@@ -24,6 +24,16 @@ function load(files: readonly AgentFile[]) {
 }
 
 const problemText = (r: { problems: readonly string[] }) => r.problems.join("\n");
+
+/** `chmod 000` does not stop `root`, and CI containers often run as root. */
+function readdirSucceeds(dir: string): boolean {
+  try {
+    readdirSync(dir);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe("parseFrontmatter", () => {
   it("splits a well-formed file", () => {
@@ -264,6 +274,67 @@ describe("loadAgentRegistry", () => {
       assert.deepEqual(registry.problems, []);
       assert.equal(registry.byName.get("scout")?.status, "ok", "one unresolvable entry must not stop discovery");
       assert.equal(registry.dirs.find((d) => d.dir === broken)?.exists, false);
+    });
+  });
+
+  /**
+   * The optional-overlay contract: `agents-private/` and `<cwd>/.pi/agents` are directories the
+   * installer links optionally and most machines simply do not have, so being absent is legitimate
+   * — but ONLY absent is. An overlay that is there and cannot be read used to come back as zero
+   * agents and zero problems, indistinguishable from "you have no private agents", and the next
+   * signal the operator got was a refused dispatch by name.
+   */
+  describe("an optional overlay directory: absent is silent, unreadable is not", () => {
+    it("absent -> an empty overlay, no problem, and the other directories still load", () => {
+      const root = scratch();
+      const real = writeAgents(join(root, "agents"), [GOOD_SCOUT]);
+      const registry = loadAgentRegistry({
+        dirs: [real, join(root, "agents-private")],
+        routing: ROUTING,
+        config: CONFIG,
+        availableModels: ALL_MODELS,
+      });
+      assert.deepEqual(registry.problems, []);
+      assert.equal(registry.byName.get("scout")?.status, "ok");
+      assert.equal(registry.dirs.find((d) => d.dir === join(root, "agents-private"))?.exists, false);
+    });
+
+    it("present but unreadable -> named as a problem, and discovery carries on", () => {
+      const root = scratch();
+      const real = writeAgents(join(root, "agents"), [GOOD_SCOUT]);
+      const locked = writeAgents(join(root, "agents-private"), [
+        { name: "librarian", frontmatter: "name: librarian\ndescription: A private agent nobody can read." },
+      ]);
+      chmodSync(locked, 0o000);
+      try {
+        const registry = loadAgentRegistry({
+          dirs: [real, locked],
+          routing: ROUTING,
+          config: CONFIG,
+          availableModels: ALL_MODELS,
+        });
+        if (readdirSucceeds(locked)) return; // running as root: the mode bits do not bite.
+        assert.match(problemText(registry), /agent directory could not be read \(EACCES\)/);
+        assert.ok(problemText(registry).includes(locked), "the problem must name the directory");
+        assert.equal(registry.byName.get("scout")?.status, "ok", "the readable directory still loads");
+      } finally {
+        chmodSync(locked, 0o700);
+      }
+    });
+
+    it("a file where a directory is configured -> named as a problem", () => {
+      const root = scratch();
+      const real = writeAgents(join(root, "agents"), [GOOD_SCOUT]);
+      const notADir = join(root, "agents-private");
+      writeFileSync(notADir, "this is a file, not an overlay\n");
+      const registry = loadAgentRegistry({
+        dirs: [real, notADir],
+        routing: ROUTING,
+        config: CONFIG,
+        availableModels: ALL_MODELS,
+      });
+      assert.match(problemText(registry), /configured as an agent directory but is not one/);
+      assert.equal(registry.byName.get("scout")?.status, "ok");
     });
   });
 

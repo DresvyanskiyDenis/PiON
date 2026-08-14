@@ -58,9 +58,20 @@ own active provider says otherwise. `internal` stays the ship value because "we 
 more honestly as the middle class than as either extreme. See
 [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
+`defaultTier` has a second job: it is the **floor for a `workflowScript` fan-out**. A workflow's
+children are built inside the package, past the point where a tier word is turned into a
+`provider/model`, so a child that names no model would otherwise fall through to PI's own substring
+matcher — which happily resolves a word like `fast` onto some provider your `models.json` never
+declared, and then fails with a credentials error that is really a silent substitution. When a
+`workflowScript` call names no `model`, the resolved `defaultTier` is pinned onto the call, the
+package spreads it *underneath* each child's own parameters, and the outcome is: children that name
+no model inherit it, children that name one are untouched. The pin is announced as a floor when it
+happens, so it is never a routing decision made behind your back — set `model` on the call, or per
+child, to choose something else.
+
 **What breaks:** `defaultTier` naming a tier that is unbound in `routing.json` means every
-undeclared agent fails at load. Since `confidential` and `local` ship unbound, do not default to
-either.
+undeclared agent fails at load, and every `workflowScript` that names no model is refused rather
+than floored. Since `confidential` and `local` ship unbound, do not default to either.
 
 ---
 
@@ -104,6 +115,13 @@ Where agent definitions are discovered, in order:
 `<repo>/agents-private` is gitignored and will not exist on a fresh clone; a missing directory is
 skipped, not an error. It is the intended home for agents you do not want to publish.
 
+**Missing is silent; broken is not.** Only "no such directory" counts as a supported absence. A
+directory that exists but cannot be read (`EACCES`), or a *file* configured where a directory
+belongs, is named as a problem at session start and discovery continues with the other directories.
+That distinction is the point: an overlay you believed was installed used to yield zero agents and
+zero warnings — indistinguishable from having none — and the first sign of trouble was a dispatch
+refused by name much later.
+
 `<cwd>/.pi/agents` makes an agent definition part of a project. It is loaded on the same terms as
 everything else in `<cwd>/.pi/` — **only after the project is trusted**.
 
@@ -136,12 +154,27 @@ A request is scored against each specialist's `description`; if the best special
 `specialistMatchMinScore` and the model asked for a generic agent by one of the `genericAgents`
 names, the specialist is suggested instead.
 
+`genericAgents` is a list of **names**, not a list of definitions — it says which names the veto
+watches, and nothing more. `agents/general-purpose.md` is the shipped definition behind the first of
+them; the other two are aliases with no file, so dispatching `general` or `generalist` resolves to
+nothing unless you add one. If you rename the catch-all, rename it in both places.
+
+Read the scope of this honestly, because the wording invites the wrong reading: the veto fires
+**only** on a real match. When no specialist scores `specialistMatchMinScore`, a generic dispatch
+goes through unchallenged and with no justification at all. Preferring a specialist is therefore a
+discipline the operating rules ask for, not something the harness can enforce — by construction,
+when nothing matches there is nothing to match against. When the veto *does* fire it is
+[overridable](guard.md) the same way every other overridable gate is: re-issue the identical call
+with a `# PI-JUSTIFY(DV-SPECIALIST): <reason>` line prepended to the prompt. There is no
+justification parameter.
+
 Raise `specialistMatchMinScore` if you get false matches — the specialist is being suggested for
 work it does not do. Lower it to `1` if you have few, sharply-scoped agents and want the nudge to
 fire more readily.
 
 **What breaks:** nothing hard. This is a suggestion layer. Setting the score very low turns it into
-noise the model learns to ignore, which is the real cost.
+noise the model learns to ignore, which is the real cost. Setting it very high, or emptying
+`genericAgents`, switches the nudge off entirely.
 
 ---
 
@@ -177,10 +210,11 @@ You are a code reviewer. …
 | `returns` | `object` for a structured report, matching a schema in `config/schemas/` where one exists |
 | `isolation` | `worktree` to run the agent in its own git worktree — see [worktree](../extensions/worktree.md) |
 
-Twelve agents ship: `ai-engineer`, `app-builder`, `architect-reviewer`, `code-reviewer`,
-`data-engineer`, `debugger`, `docs-architect`, `frontend-developer`, `local-llm-engineer`,
-`prompt-engineer`, `researcher`, `security-reviewer`. They are ordinary Markdown — read one before
-writing your own.
+Thirteen agents ship: `ai-engineer`, `app-builder`, `architect-reviewer`, `code-reviewer`,
+`data-engineer`, `debugger`, `docs-architect`, `frontend-developer`, `general-purpose`,
+`local-llm-engineer`, `prompt-engineer`, `researcher`, `security-reviewer`. Twelve are specialists;
+`general-purpose` is the catch-all named in [`genericAgents`](#genericagents-and-specialistmatchminscore).
+They are ordinary Markdown — read one before writing your own.
 
 !!! tip "The disambiguation rule for `model`"
     **A value containing `/` is a provider-qualified id. Anything else is a tier name.** A bare id
