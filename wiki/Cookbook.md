@@ -38,12 +38,15 @@ The model id is **provider-qualified**: `<provider>/<model>`. Change the value, 
 **Check:**
 
 ```bash
-pi-tier fast          # prints the resolved model id
+pi-tier fast              # the resolved id, with the tier's thinkingLevel as a :<level> suffix
+pi-tier --thinking fast   # just the level
 ```
 
 **What breaks:** an unqualified id (`claude-sonnet-5`) fails `bin/pi-check`'s `PC-01`. A provider
 that is not present in `models.json` fails `PC-02`, and every agent bound to that tier stops
-resolving.
+resolving. Putting the effort level in the `model` value (`<provider>/<model>:high`) instead of in
+`thinkingLevel` breaks it differently and more quietly: the registry is keyed on the bare id, so
+`/doctor`'s `D-04` reports the tier as unresolved even though it works.
 
 ### 2. Bind the `confidential` or `local` tier
 
@@ -240,8 +243,8 @@ tools: [read, grep]
 ---
 ```
 
-Twelve agents ship. Full front-matter reference:
-[Adding a sub-agent](https://dresvyanskiydenis.github.io/PiON/extending/subagents/).
+Thirteen agents ship — twelve specialists plus the `general-purpose` catch-all. Full front-matter
+reference: [Adding a sub-agent](https://dresvyanskiydenis.github.io/PiON/extending/subagents/).
 
 **Check:** `/agents` inside `pi`.
 

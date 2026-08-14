@@ -101,9 +101,16 @@ compaction and loses the thread. One agent with a summary beats three with trans
 Pick the role by domain from `agents/` — `/agents` lists what is installed. Independent pieces →
 several `subagent` calls in one message, in parallel.
 
-There is no universal role. Asking for `general-purpose` when a specialist in the registry matches
-the task is **vetoed**, with the matching specialist named in the refusal. The veto is overridable:
-re-dispatch with the specialist, or say why the specialist is wrong for this task.
+`general-purpose` (aliases `general`, `generalist`) is the role of last resort. It is an ordinary
+definition in `agents/` like every other, not a magic word — reach for it only when no specialist
+fits. Know precisely what does and does not stop you: asking for it when a specialist in the
+registry matches the task is **vetoed**, with the matching specialist named in the refusal, but that
+veto fires only on a real match — when some named role's description shares two or more distinctive
+words with your prompt. When nothing matches, a catch-all dispatch goes through unchallenged and
+unjustified, so preferring the specialist is yours to keep, not the harness's to enforce. When the
+veto does fire, the override is to re-issue the identical call with a
+`# PI-JUSTIFY(DV-SPECIALIST): <one sentence, naming the concrete target>` line prepended to the
+prompt text. There is no justification *parameter*.
 
 ## TRIGGER: coding work happens in a worktree, never the primary checkout
 

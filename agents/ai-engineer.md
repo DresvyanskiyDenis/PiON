@@ -86,4 +86,8 @@ Return:
 - Do not silently switch models for "better quality" — make it explicit, log cost delta.
 - Do not return raw retrieved content into context without trust labeling.
 - Never write a bare model id (e.g. a literal `opus`/`sonnet`-class string) into code or config — resolve
-  through `config/routing.json`'s tiers, same rule this agent's own `model:` frontmatter follows.
+  through `config/routing.json`'s tiers, same rule this agent's own `model:` frontmatter follows. One
+  exception, and only one: a child launched from inside a `workflowScript` should name the resolved
+  `provider/model` itself, because a tier word is not routed on that path. The workflow-level floor
+  catches a child that names nothing at all, but a floor is one tier for the whole fan-out, not a
+  routing decision per child.

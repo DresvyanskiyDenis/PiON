@@ -26,7 +26,7 @@ const sharedDir = join(REPO, "agents");
 const privateDir = join(REPO, "agents-private");
 const schemasDir = join(REPO, "config", "schemas");
 
-/** The twelve definitions this repository ships. */
+/** The thirteen definitions this repository ships. */
 const SHIPPED = [
   "ai-engineer",
   "app-builder",
@@ -36,6 +36,11 @@ const SHIPPED = [
   "debugger",
   "docs-architect",
   "frontend-developer",
+  // The catch-all `config/dispatch.json`'s `genericAgents` has always named, given a real file.
+  // Until it existed, `agent: "general-purpose"` resolved to nothing at all and failed at dispatch
+  // like a typo, while `AGENTS.md` and the specialist veto both spoke about it as if it were there.
+  // It is a genuine thirteenth shipped agent, not a fixture, so it belongs in this roster.
+  "general-purpose",
   "local-llm-engineer",
   "prompt-engineer",
   "researcher",
@@ -70,7 +75,7 @@ function loadRegistry(): AgentRegistry {
 }
 
 describe("agent registry — the shipped definitions", () => {
-  it("ships exactly twelve agents in agents/, and agents-private/ is optional", () => {
+  it("ships exactly thirteen agents in agents/, and agents-private/ is optional", () => {
     assert.deepEqual(
       mdFiles(sharedDir),
       SHIPPED.map((name) => `${name}.md`),
@@ -107,7 +112,15 @@ describe("agent registry — the shipped definitions", () => {
     const registry = loadRegistry();
     const byName = registry.byName;
     const strongTier = ["ai-engineer", "architect-reviewer", "debugger", "security-reviewer", "code-reviewer", "data-engineer"];
-    const fastTier = ["app-builder", "docs-architect", "frontend-developer", "local-llm-engineer", "prompt-engineer", "researcher"];
+    const fastTier = [
+      "app-builder",
+      "docs-architect",
+      "frontend-developer",
+      "general-purpose",
+      "local-llm-engineer",
+      "prompt-engineer",
+      "researcher",
+    ];
     for (const name of strongTier) {
       assert.equal(byName.get(name)?.spec, "strong", `${name} must declare model: strong`);
     }
