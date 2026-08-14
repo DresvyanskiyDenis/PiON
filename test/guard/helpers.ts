@@ -76,12 +76,15 @@ export function testPolicy(overrides: Partial<Policy> = {}): Policy {
 }
 
 /**
- * The safety half of the rule set: everything except the interactive allowlist gate.
- * This is what the ported harness asserts against — `test-block-dangerous-bash.sh` never had an
- * approval prompt, and `rm`/`grep`/`dd` are not on the shipped allowlist.
+ * The composed rule set.
+ *
+ * This used to filter out `ALW`, the interactive allow-list gate, so the ported harness could run
+ * the way `test-block-dangerous-bash.sh` did — with no approval prompt in the way. That gate was
+ * removed in the 2026-08-14 deny-list inversion, so there is no longer anything to filter: the
+ * full set is the safety set, and nothing in it can block on a human.
  */
 export function safetyRules(policy: Policy, services: GuardServices): GuardRule[] {
-  return buildRules(policy, services).filter((r) => r.id !== "ALW");
+  return buildRules(policy, services);
 }
 
 export interface Verdict {

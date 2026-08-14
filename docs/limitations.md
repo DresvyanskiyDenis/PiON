@@ -101,9 +101,38 @@ attempting it breaks providers. The per-model lever is `modelOverrides.<id>.cont
 
 ### The guard is not a sandbox
 
-It gates tool calls. It does not contain a process that already started, and an allowlisted program
-that can run other programs (`sh`, `env`, `xargs`, `ssh`) collapses the allowlist. See
+**There is no OS-level sandbox around bash.** Nothing here confines a command's writes to the working
+directory at the operating-system layer, and nothing is auto-approved for being sandboxed, because
+nothing is sandboxed. `pi-sandbox` is the mechanism that would do it and it is **not wired**; the
+reasons it was not adopted are in
+[Safety model](concepts/safety-model.md#why-it-does-not-delegate-to-a-sandbox). Read the four points
+below before you decide what to run this against.
+
+- **The write boundary exists at the guard layer only, and since 2026-08-14 it cannot even refuse.**
+  The `FS-*` gate *records* a bash command whose write targets resolve outside the working directory
+  and the session temp dir — it no longer blocks one. It reads the command as text. It is a static
+  check, not an OS boundary, and it is audit-only.
+- **Interpreter-internal writes are invisible to it.** `python3 -c`, `node -e`,
+  `awk '{print > "…"}'`, a `make` target, a `$( )` subshell — the destination is expressed inside a
+  program's own argument text and no static analysis can follow it. These are not edge cases; they
+  are ordinary commands an agent issues all day.
+- **Every program runs with neither a prompt nor an OS sandbox.** There is no allowlist any more —
+  by owner decision, 2026-08-14, the allow-list model was removed outright. `sed`, `tar`, `unzip`,
+  `awk`, `python3`, `node`, `make`, `docker`, `sh`, `xargs`, `ssh`, `sudo`, `curl` — every one of them
+  executes unattended, headless included, with no prompt and no per-program decision anywhere in the
+  guard. The only bound on what any of them can do is the small set of catastrophic command shapes
+  described below, plus (for writes specifically) the now-audit-only `FS-*` record.
+
+The guard also does not contain a process that already started. See
 [Safety model](concepts/safety-model.md#what-this-does-not-protect-you-from).
+
+What still stops a headless run, with no config and no override: `SEC-*` (credential paths),
+`DB-*` (eight catastrophic shapes — `rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect onto a
+raw disk, `chmod -R 777 /`, `curl … | sh`, shutdown), and two `GIT-*` rules
+(`GIT-REWRITE`, `GIT-FORCE-PROTECTED`). Nothing else in the guard can refuse a bash command, and
+nothing prompts — a UI present or absent makes no difference. `PI_GUARD_APPROVE` and
+`PI_GUARD_SESSION_ALLOWLIST` are removed rather than left inert; if you see either name anywhere in
+an older note, it is stale.
 
 ### Task lists do not survive a session
 

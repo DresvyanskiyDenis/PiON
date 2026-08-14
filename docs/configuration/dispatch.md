@@ -22,7 +22,8 @@ Markdown files with YAML frontmatter, one per agent, in `agents/`.
                    "<agentDir>/agents", "<cwd>/.pi/agents"],
   "dispatchTools": ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
   "genericAgents": ["general-purpose", "general", "generalist"],
-  "specialistMatchMinScore": 2
+  "specialistMatchMinScore": 2,
+  "onThinkingClamp": "warn"
 }
 ```
 
@@ -175,6 +176,46 @@ fire more readily.
 **What breaks:** nothing hard. This is a suggestion layer. Setting the score very low turns it into
 noise the model learns to ignore, which is the real cost. Setting it very high, or emptying
 `genericAgents`, switches the nudge off entirely.
+
+---
+
+## `onThinkingClamp` — when the effort you asked for is not served { #onthinkingclamp }
+
+```json
+"onThinkingClamp": "warn"
+```
+
+A reasoning effort travels **inside the model string**: `provider/id:high`, `provider/id:max`. That
+suffix is a *request*. Before the wire, PI clamps it against what the model's own registry entry says
+it serves (`thinkingLevelMap` in [`models.json`](models.md)), and a model that declares no map at all
+is read as serving `off`/`minimal`/`low`/`medium`/`high` and **not** `xhigh` or `max`.
+
+The clamp is not ours and cannot be turned off. What this key controls is whether you are told.
+
+| Value | Behaviour |
+|---|---|
+| **`"warn"`** (ships) | The dispatch runs at the effective level and says so, naming the requested level, the effective one, everything the model does serve, and which *other* configured providers serve what you asked for — with each candidate's egress class, since moving between classes is your decision and not a routing optimisation |
+| `"abort"` | The dispatch is refused by name instead, with the same information |
+
+Neither value ever reroutes. A clamp is never resolved by silently sending the work somewhere else.
+
+`warn` ships because the clamp happens inside PI either way — refusing would not buy you a
+harder-thinking run, only no run — and because the failure this key came out of was never the clamp
+itself, it was that nobody was **told**. Set `abort` for a session where a quietly downgraded effort
+is worse than a missing answer: a benchmark, or a job commissioned at a specific effort.
+
+The model string is also **rewritten to the effective level** before the dispatcher sees it. That is
+disclosure, not substitution: the bytes on the wire are identical either way, and the rewrite is what
+makes the run's own metadata agree with what was actually sent. The requested level is not lost —
+the audit record carries both.
+
+`/agents` lists every tier whose declared effort its resolved model will not serve, as
+`reasoning effort CLAMPED: …`, so a whole routing table can be checked without dispatching anything.
+
+!!! warning "A model whose vocabulary is unknown produces no disclosure at all"
+    If the registry does not know the model, nothing is reported and nothing is rewritten. "Cannot
+    say" must not render as "no clamp will happen" — check `thinkingLevelMap` for a model you added
+    by hand.
 
 ---
 

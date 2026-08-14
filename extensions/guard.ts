@@ -7,33 +7,52 @@
  * interaction with corporate TLS inspection is unresolved. **This gate sits above the sandbox and
  * never delegates to it.**
  *
- * Six gates, in the order that is itself the policy: cheap and absolute first, the one that can
- * block on a human last.
+ * ## 2026-08-14 — allow-list out, deny-list in
+ *
+ * This used to be seven gates ending in a program allow-list that refused anything not on it, and
+ * refused it *outright* in a headless run because there was no one to ask. Measured on one live
+ * project, 24 of 33 sub-agent runs were blocked rather than failed. Removed outright by owner
+ * decision, 2026-08-14: only catastrophic commands are blocked now.
+ *
+ * So: **six gates, three of which block and three of which only observe.**
+ *
+ *   - `SEC` — credential paths. Blocks. No override, ever. This one is not about destruction: this
+ *     repo is genuinely public, and the standing rule is that no credential or tenant secret
+ *     reaches it.
+ *   - `DB` — the eight catastrophic shapes. Blocks. Mostly no override.
+ *   - `GIT` — history destruction only: `filter-repo`/`filter-branch`, and a force-push onto a
+ *     protected branch. Blocks, overridable with a written justification. Ordinary git is not
+ *     gated.
+ *   - `PRV`, `FS`, `RTE` — **audit only**. They evaluate, write one `guard.observed` entry when
+ *     they match, and permit the call. Nothing here prompts: fewer approvals is the point, and a
+ *     gate that asks instead of blocking has not been relaxed.
+ *
+ * Order still matters, for the three that block: cheapest and most absolute first, so a
+ * catastrophic shape is reported as what it is rather than as whatever a later gate noticed.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { guardedHandler, type GuardRule } from "./lib/guarded-handler.ts";
 import { loadPolicy, type Policy } from "./guard/policy.ts";
-import { undeclaredGates, undeclaredLine } from "./guard/escalation.ts";
 import { defaultServices, type GuardServices } from "./guard/services.ts";
 import { secretPathsGate } from "./guard/gates/secret-paths.ts";
 import { dangerousBashGate } from "./guard/gates/dangerous-bash.ts";
 import { destructiveGitGate } from "./guard/gates/destructive-git.ts";
 import { privilegedCommandsGate } from "./guard/gates/privileged-commands.ts";
+import { writeSurfaceGate } from "./guard/gates/write-surface.ts";
 import { agentRoutingGate } from "./guard/gates/agent-routing.ts";
-import { bashAllowlistGate } from "./guard/gates/bash-allowlist.ts";
 
 export const id = "guard";
-export const GUARD_VERSION = "1.0.0";
+export const GUARD_VERSION = "2.0.0";
 
 /** Exported so `test/` and `/doctor` can build the same rule set without a live `pi`. */
 export function buildRules(policy: Policy, services: GuardServices): GuardRule[] {
   const rules: GuardRule[] = [
-    secretPathsGate(policy), // SEC-*  — no override, ever
-    dangerousBashGate(policy, services), // DB-*   — catastrophic patterns, mostly no override
-    destructiveGitGate(policy, services), // GIT-*  — overridable with a written justification
-    privilegedCommandsGate(policy, services), // PRV-*  — sudo / chmod 777 / pkill -9 / killall
-    agentRoutingGate(policy, services), // RTE-*  — SHOULD-level veto, overridable
-    bashAllowlistGate(policy, services), // ALW-*  — confirm in TUI, fail closed headless
+    secretPathsGate(policy), // SEC-*  — credential paths, no override, ever
+    dangerousBashGate(policy, services), // DB-*   — catastrophic shapes, mostly no override
+    destructiveGitGate(policy, services), // GIT-*  — history destruction, written justification
+    privilegedCommandsGate(policy, services), // PRV-*  — AUDIT ONLY
+    writeSurfaceGate(policy, services), // FS-*   — AUDIT ONLY
+    agentRoutingGate(policy, services), // RTE-*  — AUDIT ONLY
   ];
   if (process.env.PI_GUARD_TEST_THROW === "1") {
     // The one thing people skip and then regret:
@@ -54,20 +73,11 @@ export function register(pi: ExtensionAPI): void {
   const services = defaultServices({ audit: (type, data) => pi.appendEntry(type, data) });
 
   if (policy.problem !== undefined) {
-    // Fail loud. A guard running on defaults it did not choose is a fact the operator has to
-    // see; `bash-allowlist.ts` reads `policy.degraded` and gets stricter, never looser.
+    // Fail loud. A guard running on defaults it did not choose is a fact the operator has to see.
     services.log(`[pi-config] guard: ${policy.problem}`);
   }
 
   const rules = buildRules(policy, services);
-
-  // "No gate silently ignoring the escalation" has to be checked, not promised. A gate absent from
-  // `GATE_ESCALATION` is treated as non-escalatable — the safe direction — but silently defaulting
-  // is exactly how a half-wired escalation stays invisible, so it is reported at registration,
-  // before any tool call can depend on it.
-  for (const gateId of undeclaredGates(rules.map((r) => r.id))) {
-    services.log(undeclaredLine(gateId));
-  }
 
   pi.on(
     "tool_call",

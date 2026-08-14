@@ -1,39 +1,35 @@
 /**
  * The guard's policy, loaded as **data** from `config/guard.json`.
  *
- * The policy is explicit that the allowlist ships as data and not as code, so
- * extending it is a config commit rather than an edit to a gate.
- *
  * Failure semantics, and they are deliberate: a *missing or malformed* policy file must never
- * disable the guard. It falls back to `DEFAULT_POLICY` — which is the same content the shipped
- * JSON carries — sets `degraded: true`, and reports the problem loudly through `guard.ts`. Gates
- * read `degraded` and get STRICTER, never looser (see `bash-allowlist.ts`).
+ * disable the guard. It falls back to `DEFAULT_POLICY` — which is the same content
+ * `config/guard.default.json` carries — sets `degraded: true`, and reports the problem loudly
+ * through `guard.ts`.
+ *
+ * ## 2026-08-14 — allow-list out, deny-list in
+ *
+ * This shape used to carry an 83-name `allowlist`, a `nonInteractive` mode, an `escalation`
+ * variable, a `confirmTimeoutMs`, an `approvalUi` and a `remoteAllowlist` — the whole machinery
+ * behind a gate (`ALW`) that refused any program not on the list, and refused it *outright*
+ * headless because there was no one to ask. Removed outright by owner decision, 2026-08-14: only
+ * catastrophic commands are blocked now, and none of those fields describes a catastrophic
+ * command. What is left is the two things a deny-list still needs from config: which branches are
+ * protected from a history-destroying force-push, and which tool names dispatch a sub-agent for
+ * the (now audit-only) routing veto.
+ *
+ * If you are reading this because you want the allowlist back: it was never the boundary. Read
+ * `docs/concepts/safety-model.md` for what the boundary actually is (`SEC-*`/`DB-*`/`GIT-*`, by
+ * form rather than by program name) before reintroducing a key here.
  */
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { repoRoot } from "../lib/paths.ts";
 
-export type NonInteractiveMode = "deny-all" | "allowlist-only" | "allow-all";
-export type ApprovalUi = "select" | "confirm";
-
 export interface Policy {
-  /** Program basenames that run without an approval prompt. */
-  readonly allowlist: ReadonlySet<string>;
-  /** What an allowlist miss means when there is no UI to prompt with. */
-  readonly nonInteractive: NonInteractiveMode;
-  /** Env var that promotes a headless run to "approved", per invocation. Never a default. */
-  readonly escalationEnv: string;
-  readonly escalationValue: string;
-  /** Dialog timeout. A timed-out dialog is a DENY. */
-  readonly confirmTimeoutMs: number;
-  /** `select` gives allow-once / allow-session / deny (REQ-PRV-38); `confirm` is the two-way. */
-  readonly approvalUi: ApprovalUi;
   /** Branches on which even `--force-with-lease` is refused. */
   readonly protectedBranches: readonly string[];
-  /** Remotes `git push` may target. Empty means "any". */
-  readonly remoteAllowlist: readonly string[];
-  /** Tool names that dispatch a sub-agent, for the routing veto. */
+  /** Tool names that dispatch a sub-agent, for the (audit-only) routing observer. */
   readonly dispatchTools: readonly string[];
   /** True when the file was missing or unusable and the built-in defaults are in force. */
   readonly degraded: boolean;
@@ -43,36 +39,15 @@ export interface Policy {
   readonly problem?: string;
 }
 
-/** Mirrors `config/guard.json`. Kept in sync by `test/guard/policy.test.ts`. */
+/** Mirrors `config/guard.default.json`. Kept in sync by `test/guard/policy.test.ts`. */
 export const DEFAULT_POLICY: Policy = {
-  allowlist: new Set([
-    "git", "npm", "npx", "node", "uv", "uvx", "python", "pytest", "ruff", "mypy",
-    "sleep", "echo", "cat", "ls", "rg", "fd", "jq", "make", "docker", "gh",
-  ]),
-  nonInteractive: "allowlist-only",
-  escalationEnv: "PI_GUARD_APPROVE",
-  escalationValue: "1",
-  confirmTimeoutMs: 120_000,
-  approvalUi: "select",
   protectedBranches: ["main", "master"],
-  remoteAllowlist: [],
   dispatchTools: ["task", "agent", "subagent", "dispatch_agent", "subagent_run"],
   degraded: true,
   source: "<built-in defaults>",
 };
 
-const KNOWN_KEYS = new Set([
-  "allowlist",
-  "nonInteractive",
-  "escalation",
-  "escalationEnv",
-  "escalationValue",
-  "confirmTimeoutMs",
-  "approvalUi",
-  "protectedBranches",
-  "remoteAllowlist",
-  "dispatchTools",
-]);
+const KNOWN_KEYS = new Set(["protectedBranches", "dispatchTools"]);
 
 /** Candidate locations, first existing wins. */
 export function policyPaths(): string[] {
@@ -100,7 +75,9 @@ export function loadPolicy(explicitPath?: string): Policy {
       ...DEFAULT_POLICY,
       problem:
         `guard policy not found (looked in: ${candidates.join(", ")}). ` +
-        `Built-in defaults are in force and the bash allowlist is treated as EMPTY.`,
+        `Built-in defaults are in force: protected branches ` +
+        `${DEFAULT_POLICY.protectedBranches.join("/")}. The SEC/DB/GIT deny-list is in code and ` +
+        `is unaffected.`,
     };
   }
 
@@ -113,7 +90,7 @@ export function loadPolicy(explicitPath?: string): Policy {
       source: found,
       problem:
         `guard policy ${found} is not valid JSON (${(err as Error).message}). ` +
-        `Built-in defaults are in force and the bash allowlist is treated as EMPTY.`,
+        `Built-in defaults are in force. The SEC/DB/GIT deny-list is in code and is unaffected.`,
     };
   }
 
@@ -132,51 +109,10 @@ export function loadPolicy(explicitPath?: string): Policy {
     if (!KNOWN_KEYS.has(key)) problems.push(`unknown key "${key}"`);
   }
 
-  const allowlist = stringArray(raw.allowlist, "allowlist", problems);
-  const nonInteractive = enumValue<NonInteractiveMode>(
-    raw.nonInteractive,
-    ["deny-all", "allowlist-only", "allow-all"],
-    "nonInteractive",
-    DEFAULT_POLICY.nonInteractive,
-    problems,
-  );
-  const approvalUi = enumValue<ApprovalUi>(
-    raw.approvalUi,
-    ["select", "confirm"],
-    "approvalUi",
-    DEFAULT_POLICY.approvalUi,
-    problems,
-  );
-
-  // The policy writes the escalation as one string, "PI_GUARD_APPROVE=1".
-  let escalationEnv = DEFAULT_POLICY.escalationEnv;
-  let escalationValue = DEFAULT_POLICY.escalationValue;
-  if (typeof raw.escalation === "string" && raw.escalation.includes("=")) {
-    const idx = raw.escalation.indexOf("=");
-    escalationEnv = raw.escalation.slice(0, idx);
-    escalationValue = raw.escalation.slice(idx + 1);
-  } else if (raw.escalation !== undefined) {
-    problems.push(`"escalation" must look like "NAME=value"`);
-  }
-  if (typeof raw.escalationEnv === "string") escalationEnv = raw.escalationEnv;
-  if (typeof raw.escalationValue === "string") escalationValue = raw.escalationValue;
-
   const policy: Policy = {
-    allowlist: new Set(allowlist ?? [...DEFAULT_POLICY.allowlist]),
-    nonInteractive,
-    escalationEnv,
-    escalationValue,
-    confirmTimeoutMs:
-      typeof raw.confirmTimeoutMs === "number" && Number.isFinite(raw.confirmTimeoutMs)
-        ? raw.confirmTimeoutMs
-        : DEFAULT_POLICY.confirmTimeoutMs,
-    approvalUi,
     protectedBranches:
       stringArray(raw.protectedBranches, "protectedBranches", problems) ??
       DEFAULT_POLICY.protectedBranches,
-    remoteAllowlist:
-      stringArray(raw.remoteAllowlist, "remoteAllowlist", problems) ??
-      DEFAULT_POLICY.remoteAllowlist,
     dispatchTools:
       stringArray(raw.dispatchTools, "dispatchTools", problems) ?? DEFAULT_POLICY.dispatchTools,
     degraded: false,
@@ -194,17 +130,4 @@ function stringArray(value: unknown, key: string, problems: string[]): string[] 
     return undefined;
   }
   return value as string[];
-}
-
-function enumValue<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  key: string,
-  fallback: T,
-  problems: string[],
-): T {
-  if (value === undefined) return fallback;
-  if (typeof value === "string" && (allowed as readonly string[]).includes(value)) return value as T;
-  problems.push(`"${key}" must be one of ${allowed.join(" | ")}`);
-  return fallback;
 }

@@ -154,6 +154,7 @@
         "id": "{{primaryEndpoint}}",
         "name": "[dbx] {{primaryEndpoint}}",
         "reasoning": true,
+        "thinkingLevelMap": { "off": null, "minimal": null, "low": null, "medium": null, "high": null, "xhigh": null, "max": null },
         "input": ["text", "image"],
         "contextWindow": "{{primaryContextWindow}}",
         "maxTokens": "{{primaryMaxTokens}}"
@@ -163,6 +164,7 @@
         "id": "{{cheapEndpoint}}",
         "name": "[dbx] {{cheapEndpoint}}",
         "reasoning": true,
+        "thinkingLevelMap": { "off": null, "minimal": null, "low": null, "medium": null, "high": null, "xhigh": null, "max": null },
         "input": ["text", "image"],
         "contextWindow": "{{cheapContextWindow}}",
         "maxTokens": "{{cheapMaxTokens}}"
@@ -171,6 +173,7 @@
   },
 
   "notes": [
+    "THE ALL-NULL thinkingLevelMap IS DELIBERATE, AND IT IS NOT A CLAIM THAT YOUR ENDPOINT CANNOT THINK. It says only that no reasoning level is STEERABLE through this provider: `compat.supportsReasoningEffort` is false, so PI never emits `reasoning_effort` on this surface at all, and a model that declares no map at all is read by pi-ai as supporting off/minimal/low/medium/high - five levels that would be offered in the model menu and reach the wire as nothing. All-null is the honest statement of the same wire, and it makes any requested level clamp to `off`, which the emitter turns into no parameter. If your endpoint does accept `reasoning_effort` (an OSS/harmony-style endpoint typically does, and enumerates its own vocabulary in the 400 it returns for a junk value), give that model its own `compat: {\"supportsReasoningEffort\": true}` plus a map naming the levels it listed, and leave `off` absent so nothing is sent when thinking is off.",
     "THERE IS NO BUILT-IN `databricks` PROVIDER IN PI. This works because Model Serving exposes an OpenAI-compatible Chat Completions surface at https://<host>/serving-endpoints. There is no Responses surface, which is why `api` is `openai-completions` and not left to default.",
     "MODEL IDS ARE SERVING-ENDPOINT NAMES, AND THEY ARE PER-WORKSPACE. `databricks serving-endpoints list --output json | jq -r '.[].name'` is the only way to learn them. Do not copy ids out of anyone else's config - including the examples above, which are illustrative names, not guaranteed to exist anywhere. `id` is the endpoint name on the wire; `name` is only the human label shown in /model.",
     "ADDING MORE MODELS. Append another object to `providers.databricks.models` in config/models.json with the endpoint name as `id`. Databricks-specific request extras (usage_context, AI Gateway guardrail hints) go in that model's `samplingParams`, which is merged verbatim into the request body, or in `headers`.",

@@ -51,13 +51,86 @@ model, the error class and the message, keeps the cause chain, and **the turn ab
 [pi-config] provider call failed:
   provider    : <name>
   model       : <id>
-  error class : auth | quota | network | model-not-found | policy
+  error class : auth | quota | network | model-not-found | policy | empty-response
   message     : <upstream text>
   caused by   : <cause chain>
 ```
 
 No substitution, no retry into a different provider, no silent degradation. Classification and
 rendering live in `extensions/lib/provider-error.ts`.
+
+Five of the six classes are read off the provider's error text. The sixth, `empty-response`, is
+recognised by the **shape** of a successful-looking turn: HTTP 200, zero content parts, a
+`stop`-family finish reason and zero usage. Left unreported it is not an error anywhere in the
+stack — the turn looks ordinary, the retry predicate skips it, and a headless run exits 0 with no
+output — so it is reported here and the headless exit code is forced non-zero, which is how a
+dispatcher hears about it at all. See
+[`onProviderError`](../configuration/routing.md#onprovidererror).
+
+## (d) Field notes: an empty-200 investigation (2026-08-14)
+
+An investigation against a production OpenAI-compatible gateway (LiteLLM), run because
+`empty-response` was firing at a rate worth explaining rather than shrugging at. It is recorded
+here, with the tenant-specific pieces stripped, because the shape of the failure and the way two
+plausible-sounding stories about it turned out to be wrong are useful independently of who was
+running the gateway.
+
+**Reproduced 549 times** against the live gateway (798 probe requests total; window ~11 minutes).
+**Streaming: 211 ok / 549 empty / 0 errors. Non-streaming: 36 ok / 0 empty / 2 × HTTP 429.** The
+asymmetry is the strongest single fact in the investigation: the streaming path fails *silently* at
+a high rate, and the non-streaming path on the same deployment never fails silently at all — it
+either succeeds or reports a real error. Not model-specific either: empty responses were seen
+across more than one model group in the same session history.
+
+**Four stories were tested and refuted:**
+
+- **Idle gap / cache expiry.** If this were a stale-connection or cache-expiry effect, the gap since
+  the last healthy turn should predict it. It did not: the gap was 0–4 s in every production
+  failure, and several failed on a model's very first turn in the session, with no predecessor to
+  have gone idle after.
+- **Prompt size threshold.** If this were a size effect, larger prompts should fail more. The
+  opposite pattern was observed — small control requests went empty while a much larger request in
+  the same session succeeded seconds apart.
+- **Concurrency.** Every production failure had exactly one request in flight at the time it
+  failed. A separate, larger sweep recording zero failures was cited at one point as evidence about
+  concurrency; it wasn't — that sweep simply ran outside a degraded window, which says nothing about
+  whether concurrency matters.
+- **The response id's form is not a failure marker.** The two id shapes a request can come back
+  with (a gateway-issued id vs. an upstream-shaped one) turned out to be decided by something
+  unrelated to health: whether the request body carried `tools`. Every agent turn carries `tools`,
+  so the harness is permanently on the same side of that split regardless of whether the call
+  succeeded — the id form has zero discriminating power over failure. (Zero prompt/completion
+  tokens in the usage report is the companion refuted claim, and it is recorded in
+  [`onProviderError`](../configuration/routing.md#onprovidererror) rather than repeated here.)
+
+**Current leading hypothesis — labelled as a hypothesis, not a finding.** The gateway's streaming
+code path appears to render an upstream rate limit as an empty `200` rather than surfacing it as an
+error, while the non-streaming path on the same deployment surfaces the identical condition
+honestly as a rate-limit error. Supporting evidence: an identical non-streaming request returned a
+real rate-limit error with its streamed twins, seconds either side of it, returning empty `200`s
+instead of an error; zero empty responses were observed across the non-streaming sample in the same
+window; and an independent single-threaded control run recorded several empties inside the same
+one-minute band as a production failure. The degraded window could not be toggled on and off at
+will to isolate cause from coincidence, and the upstream deployment is shared with other
+traffic this investigation does not control for — so treat this as the best current explanation,
+not a closed root cause.
+
+**What a proxy admin would need to answer, that a client cannot:** why the streaming path swallows
+an upstream error the non-streaming path raises honestly; why no usage chunk is emitted on the
+empty responses even when the request explicitly asks for one; what the upstream rate quota is on
+the affected deployment and whether a fallback exists for it; and, separately, a chunk-identity
+defect independent of this investigation — one streamed response was observed emitting three
+different response ids across four chunks, which violates the single-id-per-response contract the
+client code assumes.
+
+**What the harness captures, so the next occurrence is actionable.** The failing call's gateway
+correlation headers (`x-litellm-call-id`, `x-litellm-model-id`, `x-litellm-response-duration-ms`,
+`x-litellm-version`) are captured off the response and printed in the abort — deliberately never the
+key/spend headers — so a single failing call id can go straight to whoever administers the gateway,
+without reconstructing it from timestamps. This was observed against a gateway pinned to
+**LiteLLM 1.89.7**; version drift is worth checking early in any proxy investigation; a later,
+unrelated gap in the same registry (a reasoning-effort capability flag) was found to have shipped
+only in **1.93.0**, two months of releases ahead of what was running.
 
 ## Related
 [`models.json`](../configuration/models.md) · [`routing.json`](../configuration/routing.md#onprovidererror) ·

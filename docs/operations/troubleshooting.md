@@ -119,34 +119,37 @@ a tool result is growing without bound.
 
 ### A command was refused and I want it allowed
 
-Read the refusal — it names the rule id, and the id tells you which gate and whether it can be
-relaxed at all.
+Since the 2026-08-14 deny-list inversion there are only four gates left that can refuse a bash
+command at all — read the refusal, it names the rule id:
 
 | Prefix | Relaxable |
 |---|---|
-| `SEC-*` | **never.** No config key, no escalation variable, no justification path |
-| `DB-*` | mostly not |
-| `GIT-*` | with a written justification |
-| `PRV-*` | no |
-| `RTE-*` | a routing veto — dispatch the specialist it names, or justify why it is wrong for this task |
-| `ALW-*` | yes — the bash allowlist in [`guard.json`](../configuration/guard.md) |
+| `SEC-*` | **never.** No config key, no override, no justification path |
+| `DB-*` | mostly not — two of the eight (`DB-CURL-SH`, `DB-SHUTDOWN`) take a written justification |
+| `GIT-REWRITE` | with a written justification |
+| `GIT-FORCE-PROTECTED` | with a written justification |
 
-Before adding a program to the allowlist, ask the two questions: **can it run another program?** and
-**can it write outside the project?** A yes to the first (`sh`, `env`, `xargs`, `ssh`) makes the
-allowlist decorative.
+If the id is not one of those four, it did not come from the guard's bash gates — check
+[`hooks.yaml`](../configuration/tools.md#hooksyaml) for a declarative rule you or your team added.
 
 ### It asks me before every shell command and I want it to stop
 
-That is `guard.json`'s `nonInteractive` plus the allowlist. Relaxing it is a real decision with a
-real consequence, and the page says so rather than listing field names:
-[`guard.json`](../configuration/guard.md).
+Nothing in the guard prompts any more. If a shell command is stopping to ask, the guard is not the
+cause — check `config/hooks.yaml` for a `select`/`confirm` action, or a project-level extension.
 
-The safe change is usually to **add the specific programs you actually use** to `allowlist`, not to
-widen `nonInteractive`.
+### A command runs that I expected to be refused
+
+There is no allowlist to check any more. `PRV-*` (privileged commands: `sudo`, `chmod 777`,
+`pkill -9`, `killall`), `FS-*` (writes outside the project) and `RTE-*` (generic-agent dispatch where
+a specialist matches) are all **audit-only** since 2026-08-14 — permitted, and recorded in the
+session's audit log as a `guard.observed` entry, but never refused. If you need one of those
+enforced again for your own workflow, write a `run`/`select`/`confirm` rule in
+[`hooks.yaml`](../configuration/tools.md#hooksyaml); the guard itself will not do it.
 
 ### A confirmation dialog timed out and the command did not run
 
-A timed-out dialog is a **DENY**, not a default-yes. `confirmTimeoutMs` controls the window.
+The guard itself no longer raises any confirmation dialog. If you are seeing one, it came from a
+hook you or your team configured in `config/hooks.yaml` — check that rule's own timeout.
 
 ### A hook stopped applying, or blocks everything
 
@@ -218,6 +221,34 @@ session". That rule was withdrawn; a class refuses nothing now.)
 
 Neither the worktree module nor the package's own worktree support was available. It does **not**
 fall back to running in your checkout — an agent that asked for isolation asked for a reason.
+
+### A sub-agent was blocked running a program I use all the time
+
+That should not happen any more. There is no program allowlist, and nothing to approve for a
+session or inherit into a child — every program runs headless with no prompt, unless the specific
+*command shape* it is being used for is one of `SEC-*`/`DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED`.
+If a sub-agent is refused, read the rule id: it is one of those four, and the fix is the same one
+described in [A command was refused and I want it allowed](#a-command-was-refused-and-i-want-it-allowed),
+not a session-allowlist variable. `PI_GUARD_APPROVE` and `PI_GUARD_SESSION_ALLOWLIST` are removed —
+setting either does nothing.
+
+### A sub-agent "produced no output"
+
+That is a description of a symptom, and on its own it says nothing about where the failure was. Look
+for a `[pi-config] provider call failed` block with error class **`empty-response`** just before it:
+that is a provider answering HTTP 200 with a well-formed body carrying no completion, and it names
+the provider, model, finish reason, effective reasoning effort, zero usage and `responseId`. Nothing
+else in the stack treats it as a failure, which is why it is detected explicitly. See
+[`onProviderError`](../configuration/routing.md#onprovidererror) and, for a worked investigation of
+one gateway's empty-200 behaviour, [the field notes](../extensions/credentials.md#d-field-notes-an-empty-200-investigation-2026-08-14).
+
+### An async run is still reported as "running" long after it should have finished
+
+It probably is not. The dispatcher's own completion notification can fail to deliver, and the
+acknowledgement is then the only thing in context. The harness re-reads each async run's status file
+at the end of every turn and announces terminal states itself, so a finished run surfaces even when
+the notification did not — occasionally twice, which is deliberate. `/agents` prints the current
+fleet on demand.
 
 ---
 

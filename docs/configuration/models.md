@@ -174,6 +174,7 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 | `contextWindow` | what the endpoint *actually* serves. For a local server, the `-c` / `--ctx-size` it was **launched** with, not the model's native window |
 | `maxTokens` | output cap |
 | `reasoning` | `true` for a thinking model |
+| `thinkingLevelMap` | which reasoning efforts this model actually serves. See the warning below — the default when you omit it is not "all of them" |
 | `input` | `["text"]` or `["text", "image"]` |
 | `compat` | per-model overrides of the provider block, e.g. `thinkingFormat` |
 | `samplingParams` | merged verbatim into the request body — `temperature`, `top_p`, `top_k`, `min_p`, `repeat_penalty`, and anything else with no first-class PI field |
@@ -199,6 +200,23 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 !!! tip "A thinking model at the wrong temperature looks like a harness bug"
     Use the values the model card publishes in `samplingParams`. Degradation from bad sampling
     presents as the agent being stupid, and you will look for it in the wrong place.
+
+!!! warning "An absent `thinkingLevelMap` is a claim, not a blank"
+    A `reasoning: true` model with no map is read as serving `off`, `minimal`, `low`, `medium` and
+    `high`, and **not** `xhigh` or `max`. So omitting it advertises five levels in the model menu
+    whether or not one of them ever reaches the wire — and if the provider's
+    `compat.supportsReasoningEffort` is `false`, none of them does.
+
+    Write the map when you know: `null` for a level the model does not serve, the wire value for one
+    it does. All-null is the honest entry for a model whose thinking cannot be *steered* — it is not
+    a claim that the model does not reason, and it makes any requested level clamp to `off`, which
+    sends no parameter at all. That is the same wire as an absent map, correctly described.
+
+    Do not widen a map because a `curl` returned 200. An OpenAI-compatible server will accept every
+    `reasoning_effort` value it recognises while the provider transmits none of them. What the
+    endpoint *accepts* is not what your provider *sends*. When a level is requested that the map
+    does not serve, the dispatch says so — see
+    [`onThinkingClamp`](dispatch.md#onthinkingclamp).
 
 ---
 

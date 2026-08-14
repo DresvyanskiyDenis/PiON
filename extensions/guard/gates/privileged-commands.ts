@@ -1,28 +1,30 @@
 /**
- * The non-git half of `REQ-PRV-42`: "plus `sudo *`, `chmod 777 *`, `pkill -9 *`, `killall *`".
+ * `PRV-*` — **audit only since 2026-08-14.** It observes; it never blocks and never prompts.
  *
- * ADDED GATE — not in an earlier draft, which assigns those four to `destructive-git.ts` by
- * omission and then describes that file as git-only. They are a MUST with their own acceptance
- * criterion ("each listed command is refused with a reason naming the rule"), so they get the one
- * file `REQ-CTX-05` asks for rather than being smuggled into a gate named after something else.
+ * This gate carried the non-git half of the privileged-command list: `sudo *`, `chmod 777 *`,
+ * `pkill -9 *`, `killall *`. Removed outright by owner decision, 2026-08-14: only catastrophic
+ * commands are blocked now, and none of these four is catastrophic on its own — `sudo` on this
+ * machine prompts for a password the agent does not have, `chmod 777` is a permissions mistake and
+ * not a data loss, `pkill -9`/`killall` cost at worst an unsaved editor buffer. The shapes that ARE
+ * catastrophic keep their own walls one gate earlier: `sudo rm -rf /` is `DB-RM-ROOT` and
+ * `chmod -R 777 /` is `DB-CHMOD-777`, neither overridable, and gate order is what guarantees they
+ * are reached first.
  *
- * All four are overridable. They are policy, not catastrophe: `sudo` is denied because two prior
- * harnesses denied it, and the whole point of `REQ-CTX-06` is that a stated reason gets through.
- * The genuinely catastrophic forms (`sudo rm -rf /`, `chmod -R 777 /`) are matched earlier by
- * `dangerous-bash.ts`, which has no override, and gate order is what guarantees that.
+ * Kept as an audit record rather than deleted, because the four detectors answer a question
+ * nothing else in the tree can after the fact: *did this session run something as root, or kill
+ * processes it did not start?* That is worth a line in the transcript even when it is allowed —
+ * and it costs one regex pass on a command already tokenised for `DB`.
  */
 import type { GuardRule } from "../../lib/guarded-handler.ts";
-import { denyWithEscapeHatch } from "../../lib/escape-hatch.ts";
 import { program, tokenize, type Segment } from "../shell.ts";
 import { commandStrings } from "../targets.ts";
-import { tryOverride } from "../override.ts";
+import { observe } from "../observe.ts";
 import type { GuardServices } from "../services.ts";
 import type { Policy } from "../policy.ts";
 
 interface PrivHit {
   readonly id: string;
   readonly what: string;
-  readonly legitimateUse: string;
 }
 
 export function privilegedCommandsGate(_policy: Policy, services: GuardServices): GuardRule {
@@ -33,24 +35,7 @@ export function privilegedCommandsGate(_policy: Policy, services: GuardServices)
         for (const segment of tokenize(command)) {
           const hit = inspect(segment);
           if (!hit) continue;
-
-          if (
-            tryOverride({
-              event,
-              gateId: hit.id,
-              keys: ["command", "cmd", "script"],
-              services,
-              detail: { what: hit.what },
-            })
-          ) {
-            return { block: false };
-          }
-          return denyWithEscapeHatch({
-            gateId: hit.id,
-            what: hit.what,
-            legitimateUse: hit.legitimateUse,
-            overridable: true,
-          });
+          return observe({ event, gateId: hit.id, what: hit.what, services });
         }
       }
       return { block: false };
@@ -60,13 +45,9 @@ export function privilegedCommandsGate(_policy: Policy, services: GuardServices)
 
 function inspect(segment: Segment): PrivHit | null {
   // `sudo` is a peeled wrapper, so it is read off `wrappers`, not off argv[0]. That is exactly
-  // the tokeniser's value: `env X=1 sudo foo` is the same rule as `sudo foo` (REQ-PRV-39).
+  // the tokeniser's value: `env X=1 sudo foo` is the same rule as `sudo foo`.
   if (segment.wrappers.includes("sudo") || segment.wrappers.includes("doas")) {
-    return {
-      id: "PRV-SUDO",
-      what: "running a command as root",
-      legitimateUse: "Almost nothing in this harness needs root.",
-    };
+    return { id: "PRV-SUDO", what: "running a command as root" };
   }
 
   const name = program(segment);
@@ -74,27 +55,15 @@ function inspect(segment: Segment): PrivHit | null {
   const args = segment.argv.slice(1);
 
   if (name === "chmod" && args.some((a) => /^[0-7]*777$/.test(a))) {
-    return {
-      id: "PRV-CHMOD-777",
-      what: "chmod 777 (world-writable, and it is almost never what was meant)",
-      legitimateUse: "755 for directories and executables, 644 for files.",
-    };
+    return { id: "PRV-CHMOD-777", what: "chmod 777 (world-writable)" };
   }
 
   if (name === "pkill" && args.some((a) => a === "-9" || a === "-KILL" || a === "-SIGKILL")) {
-    return {
-      id: "PRV-PKILL-9",
-      what: "pkill -9 (SIGKILL by pattern — no cleanup, and the pattern can over-match)",
-      legitimateUse: "Send the default TERM first, and name the pid when one is known.",
-    };
+    return { id: "PRV-PKILL-9", what: "pkill -9 (SIGKILL by pattern — the pattern can over-match)" };
   }
 
   if (name === "killall") {
-    return {
-      id: "PRV-KILLALL",
-      what: "killall (kills every process with that name, including ones you did not start)",
-      legitimateUse: "kill <pid> targets exactly one process.",
-    };
+    return { id: "PRV-KILLALL", what: "killall (every process with that name, not only ours)" };
   }
 
   return null;

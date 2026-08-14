@@ -7,8 +7,8 @@ import {
   resolveModelSpec,
   resolveSessionEgress,
 } from "../../extensions/dispatch/tiers.ts";
-import { makeCatalogue } from "../../extensions/dispatch/catalogue.ts";
-import { CATALOGUE, ROUTING, grab } from "./helpers.ts";
+import { admissibleProviders, makeCatalogue, restrictCatalogue } from "../../extensions/dispatch/catalogue.ts";
+import { CATALOGUE, CONFIGURED_PROVIDERS, ROUTING, grab } from "./helpers.ts";
 
 describe("resolveModelSpec", () => {
   // 2026-08-13: ROUTING's `cheap` tier declares `thinkingLevel: "low"`, and `resolveTier`
@@ -66,6 +66,10 @@ describe("resolveModelSpec", () => {
    * session's data may go there. That refusal was the withdrawn egress-containment rule in another
    * costume — a provider the config forgot to label became a provider nobody could use — so it went
    * with the rest of it. An unclassed provider is now UNLABELLED: it resolves, and carries no class.
+   *
+   * 2026-08-14: still true of RESOLUTION, which is what this test calls — no `admission` argument is
+   * passed, so no admission gate runs. It is no longer true of DISPATCH: with an admission, an
+   * unclassed provider is refused before its class is ever read. See the admission describe below.
    */
   it("resolves a provider with no declared egress class, leaving the label empty", () => {
     const t = resolveModelSpec(ROUTING, "anthropic/claude", "fast");
@@ -144,6 +148,100 @@ describe("resolveModelSpec against the model registry", () => {
     assert.equal(err.kind, "unknown_tier");
     assert.match(err.message, /neither a known tier \(strong, fast, cheap, confidential, local\)/);
     assert.doesNotMatch(err.message, /Did you mean/);
+  });
+});
+
+/**
+ * The admission gate, at the level it actually lives — `assertAvailable`, not the rules layer.
+ *
+ * The owner's rule, 2026-08-14: a provider that is not configured does not exist. `deepseek` is in
+ * PI's built-in runtime registry and in neither `config/models.json` nor `config/routing.json`, and
+ * it reached a dispatch. These pin the refusal at the last gate before the child launches, so a
+ * caller that bypasses the rules layer still cannot get there.
+ *
+ * `deepseek` is the example, never the rule: nothing here or in `tiers.ts` matches on the string.
+ */
+describe("resolveModelSpec against the admission rule", () => {
+  const ADMISSION = admissibleProviders(ROUTING, CONFIGURED_PROVIDERS);
+  /** What `session_start` really hands the gate — the registry minus the inadmissible ids. */
+  const RESTRICTED = restrictCatalogue(CATALOGUE, ADMISSION).catalogue;
+
+  it("refuses a literal id on an unconfigured provider, naming model, provider, reason and the way out", () => {
+    const err = grab(() =>
+      resolveModelSpec(ROUTING, "deepseek/deepseek-v4-flash", "fast", RESTRICTED, ADMISSION),
+    ) as DispatchError;
+    assert.equal(err.kind, "unconfigured_provider", "distinct from unknown_model: the id may well exist");
+    assert.match(err.message, /model "deepseek\/deepseek-v4-flash"/, "names the model");
+    assert.match(err.message, /"deepseek" is not configured for dispatch/, "names the provider");
+    assert.match(err.message, /not configured in config\/models\.json/, "names the first failing half");
+    assert.match(err.message, /no egress class in config\/routing\.json/, "names the second");
+    assert.match(err.message, /Dispatchable providers are: databricks, github-copilot, local, openai/);
+    assert.match(err.message, /Nothing is substituted/, "fail loud: no fallback model");
+  });
+
+  it("refuses on the provider BEFORE the id, so the message points at the config and not at a typo", () => {
+    // Both halves fail at once: the provider is unconfigured AND the id is absent from the
+    // restricted catalogue. `unknown_model` here would send the reader hunting for a misspelling.
+    const err = grab(() =>
+      resolveModelSpec(ROUTING, "deepseek/deepseek-v9-imaginary", "fast", RESTRICTED, ADMISSION),
+    ) as DispatchError;
+    assert.equal(err.kind, "unconfigured_provider");
+    assert.doesNotMatch(err.message, /Closest available/, "no suggestion: the provider is the problem");
+  });
+
+  it("refuses even with no catalogue at all — the gate does not depend on the registry", () => {
+    // `ctx.modelRegistry` can be unavailable; that suspends the EXISTENCE check, not this one.
+    // Whether a provider is configured is answered by two files on disk.
+    const err = grab(() =>
+      resolveModelSpec(ROUTING, "deepseek/deepseek-v4-flash", "fast", undefined, ADMISSION),
+    ) as DispatchError;
+    assert.equal(err.kind, "unconfigured_provider");
+  });
+
+  it("refuses a tier whose target names an unconfigured provider, blaming routing.json", () => {
+    const routing = { ...ROUTING, tiers: { ...ROUTING.tiers, cheap: { model: "deepseek/deepseek-v4-flash" } } };
+    const err = grab(() => resolveModelSpec(routing, "cheap", "fast", RESTRICTED, ADMISSION)) as DispatchError;
+    assert.equal(err.kind, "unconfigured_provider");
+    assert.match(err.message, /tier "cheap" resolves to deepseek\/deepseek-v4-flash \(config\/routing\.json\)/);
+  });
+
+  it("refuses an `optional` tier too — optional excuses an absent model, not an absent provider", () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, local: { model: "deepseek/deepseek-v4-flash", optional: true } },
+    };
+    const err = grab(() => resolveModelSpec(routing, "local", "fast", RESTRICTED, ADMISSION)) as DispatchError;
+    assert.equal(err.kind, "unconfigured_provider", "llama-swap being down is a runtime fact; this is a config one");
+  });
+
+  it("passes a configured, classified provider through untouched", () => {
+    const t = resolveModelSpec(ROUTING, "github-copilot/gpt-5.4-mini", "fast", RESTRICTED, ADMISSION);
+    assert.equal(t.model, "github-copilot/gpt-5.4-mini");
+    assert.equal(t.egress, "public");
+  });
+
+  it("degraded (models.json unreadable): keeps the classified half and still refuses on it", () => {
+    // The stated policy in `ProviderAdmission.degraded` — one unreadable file must not empty the
+    // world, but `egress` alone already excludes everything PI merely knows natively.
+    const degraded = admissibleProviders(ROUTING, undefined);
+    assert.equal(degraded.degraded, true);
+    const err = grab(() =>
+      resolveModelSpec(ROUTING, "deepseek/deepseek-v4-flash", "fast", CATALOGUE, degraded),
+    ) as DispatchError;
+    assert.equal(err.kind, "unconfigured_provider");
+    assert.match(err.message, /no egress class in config\/routing\.json/);
+    assert.doesNotMatch(err.message, /models\.json/, "an unreadable file convicts nobody");
+    assert.equal(
+      resolveModelSpec(ROUTING, "github-copilot/gpt-5.4-mini", "fast", CATALOGUE, degraded).model,
+      "github-copilot/gpt-5.4-mini",
+      "and the four configured providers keep working",
+    );
+  });
+
+  it("changes nothing when no admission is supplied", () => {
+    // Callers that legitimately do not have the config — `registry.ts` before it is loaded — must
+    // not start refusing. Absence of the argument is absence of the gate, never a silent deny.
+    assert.equal(resolveModelSpec(ROUTING, "deepseek/deepseek-v4-flash", "fast").model, "deepseek/deepseek-v4-flash");
   });
 });
 

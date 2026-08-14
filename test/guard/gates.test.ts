@@ -7,7 +7,6 @@ import {
 } from "../../extensions/lib/dispatch-veto.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { buildRules } from "../../extensions/guard.ts";
-import { resetSessionApprovals } from "../../extensions/guard/gates/bash-allowlist.ts";
 import { collectStringLeaves, collectTargets } from "../../extensions/guard/targets.ts";
 import {
   bashEvent,
@@ -21,18 +20,18 @@ import {
   TEST_CWD,
 } from "./helpers.ts";
 
+// `PI_GUARD_APPROVE`, `PI_GUARD_HEADLESS` and `PI_GUARD_SESSION_ALLOWLIST` were the allow-list
+// gate's session state and escalation switches. They are unset here, and stay unset, so that
+// `relaxed.test.ts`'s "nothing reads them any more" assertions cannot be satisfied by an
+// environment that happens to be clean; the reset that mattered — the module-level `sessionApproved`
+// Set — no longer exists because the module no longer exists.
 beforeEach(() => {
   resetSurfaced();
-  resetSessionApprovals();
   resetDispatchVetoes();
-  delete process.env.PI_GUARD_APPROVE;
-  delete process.env.PI_GUARD_HEADLESS;
   delete process.env.PI_GUARD_TEST_THROW;
 });
 
 afterEach(() => {
-  delete process.env.PI_GUARD_APPROVE;
-  delete process.env.PI_GUARD_HEADLESS;
   delete process.env.PI_GUARD_TEST_THROW;
 });
 
@@ -211,7 +210,7 @@ describe("target harvesting — F3, no more key allowlist", () => {
   });
 });
 
-describe("destructive-git — REQ-PRV-42", () => {
+describe("destructive-git — history destruction only (2026-08-14)", () => {
   async function check(command: string, overrides = {}) {
     const rec = recorder();
     const rules = safetyRules(testPolicy(overrides), rec.services);
@@ -219,25 +218,15 @@ describe("destructive-git — REQ-PRV-42", () => {
     return { result, rec };
   }
 
-  it("allows a push to any remote when the allowlist is empty", async () => {
-    const { result } = await check("git push origin main");
-    assert.equal(result.blocked, false);
-  });
-
-  it("blocks a push to a remote outside a configured allowlist", async () => {
-    const { result } = await check("git push evil main", { remoteAllowlist: ["origin"] });
-    assert.equal(result.gateId, "GIT-REMOTE");
-  });
-
-  it("sees through git's global options to the subcommand", async () => {
-    const { result } = await check("git -C /workspace/project reset --hard HEAD");
-    assert.equal(result.gateId, "GIT-RESET");
-  });
-
-  // A history rewrite run in a working checkout removes the `origin` remote and its
-  // `refs/remotes/*`, and truncates every reflog in the shared git dir to zero bytes — `logs/HEAD`,
-  // each branch reflog, and every linked worktree's own `worktrees/<name>/logs/HEAD`. Commits
-  // survive; the undo path does not, and it happens even when the rewrite changes nothing.
+  // ------------------------------------------------------------------------------------------
+  // What still blocks.
+  //
+  // 2026-08-14, verified against the damaged repo: `git filter-repo --mailmap <file> --force` run
+  // in a working checkout removed the `origin` remote, its `refs/remotes/*`, and truncated every
+  // reflog in the shared git dir to zero bytes — `logs/HEAD`, both branch reflogs and the linked
+  // worktree's own `worktrees/<name>/logs/HEAD`. Commits survived; the undo path did not. That is
+  // the whole reason a `GIT` gate still exists: every other git operation on this list was
+  // recoverable *by* the reflog, and this is the one that takes the reflog away.
   it("blocks a history rewrite in place — git filter-repo expires every reflog", async () => {
     const { result } = await check("git filter-repo --mailmap mailmap.txt --force");
     assert.equal(result.gateId, "GIT-REWRITE");
@@ -253,18 +242,77 @@ describe("destructive-git — REQ-PRV-42", () => {
     assert.equal(result.gateId, "GIT-REWRITE");
   });
 
-  it("every git rule offers the written-justification hatch", async () => {
+  it("blocks a force-push onto a protected branch — remote history has no reflog", async () => {
     for (const command of [
       "git push --force origin main",
-      "git reset --hard HEAD~1",
-      "git branch -D dead",
-      "git clean -fd",
-      "git checkout -- .",
-      "git filter-repo --force",
+      "git push -f origin master",
+      "git push --force-with-lease origin main",
+      "git push --force-if-includes origin main",
+      "git push --force origin HEAD:main",
+      "git push --force origin +main",
+      "git push --force origin refs/heads/main",
     ]) {
+      const { result } = await check(command);
+      assert.equal(result.gateId, "GIT-FORCE-PROTECTED", command);
+    }
+  });
+
+  it("blocks --force --all / --mirror, which sweep the protected branches in with the rest", async () => {
+    for (const command of ["git push --force --all origin", "git push --mirror --force origin"]) {
+      const { result } = await check(command);
+      assert.equal(result.gateId, "GIT-FORCE-PROTECTED", command);
+    }
+  });
+
+  it("both surviving rules offer the written-justification hatch", async () => {
+    for (const command of ["git push --force origin main", "git filter-repo --force"]) {
       const { result } = await check(command);
       assert.match(result.reason ?? "", /PI-JUSTIFY/, command);
     }
+  });
+
+  // ------------------------------------------------------------------------------------------
+  // What stopped blocking. Each of these had its own rule until 2026-08-14 — GIT-REMOTE,
+  // GIT-RESET, GIT-BRANCH-D, GIT-CLEAN, GIT-CHECKOUT-DOT, and GIT-FORCE for non-protected
+  // branches. All are recoverable, all are routine, and gating them stopped work.
+  it("no longer gates ordinary destructive-looking git", async () => {
+    for (const command of [
+      "git push origin main",
+      "git push evil main",
+      "git -C /workspace/project reset --hard HEAD",
+      "git reset --hard HEAD~5",
+      "git branch -D feature/dead",
+      "git clean -fdx",
+      "git checkout -- .",
+      "git restore .",
+      "git rebase -i HEAD~3",
+      "git push --force origin feature/implement-waves",
+      "git push -f origin feature/wip:feature/wip",
+    ]) {
+      const { result } = await check(command);
+      assert.equal(result.blocked, false, `${command} blocked by ${result.gateId}`);
+    }
+  });
+
+  it("writes no audit record for ordinary git either — it is ordinary, not merely tolerated", async () => {
+    const { rec } = await check("git reset --hard HEAD~5");
+    assert.deepEqual(rec.audit, []);
+  });
+
+  it("a bare `git push -f` is judged by the branch on disk, not refused for being ambiguous", async () => {
+    // `git push -f` with no refspec pushes the CURRENT branch. Refusing because the destination
+    // is not on the command line would put the plain two-word spelling straight back on the block
+    // list; allowing it unconditionally would miss the one shape the rule exists for. The gate
+    // reads `HEAD`, so the verdict depends on the checkout — here, a scratch cwd that is not a
+    // repo at all, which resolves to "no protected branch involved".
+    const rec = recorder();
+    const result = await runRules(
+      safetyRules(testPolicy(), rec.services),
+      bashEvent("git push -f origin"),
+      fakeCtx({ cwd: "/workspace/project" }, rec),
+      rec.services,
+    );
+    assert.equal(result.blocked, false);
   });
 });
 
@@ -274,22 +322,25 @@ describe("the escape hatch round trip — REQ-CTX-06", () => {
     const rules = safetyRules(testPolicy(), rec.services);
     const ctx = fakeCtx({}, rec);
 
-    const first = await runRules(rules, bashEvent("git branch -D feature/dead"), ctx, rec.services);
-    assert.equal(first.gateId, "GIT-BRANCH-D");
-    assert.match(first.reason ?? "", /# PI-JUSTIFY\(GIT-BRANCH-D\):/);
+    const command = "git push --force origin main";
+
+    const first = await runRules(rules, bashEvent(command), ctx, rec.services);
+    assert.equal(first.gateId, "GIT-FORCE-PROTECTED");
+    assert.match(first.reason ?? "", /# PI-JUSTIFY\(GIT-FORCE-PROTECTED\):/);
 
     const justified =
-      "# PI-JUSTIFY(GIT-BRANCH-D): the branch was merged by squash so git thinks it is unmerged\n" +
-      "git branch -D feature/dead";
+      "# PI-JUSTIFY(GIT-FORCE-PROTECTED): the remote branch was pushed from a bad rebase and " +
+      "nobody else has fetched it yet\n" +
+      command;
     const event = bashEvent(justified, "tc-2");
     const second = await runRules(rules, event, ctx, rec.services);
 
     assert.equal(second.blocked, false);
     const overrides = rec.audit.filter(([type]) => type === "guard.override");
     assert.equal(overrides.length, 1);
-    assert.equal((overrides[0]![1] as { gateId: string }).gateId, "GIT-BRANCH-D");
+    assert.equal((overrides[0]![1] as { gateId: string }).gateId, "GIT-FORCE-PROTECTED");
     // The comment is stripped, so what actually runs is the original command.
-    assert.equal((event.input as { command: string }).command, "git branch -D feature/dead");
+    assert.equal((event.input as { command: string }).command, command);
   });
 
   it("rejects a justification that just restates the command", async () => {
@@ -297,11 +348,11 @@ describe("the escape hatch round trip — REQ-CTX-06", () => {
     const rules = safetyRules(testPolicy(), rec.services);
     const result = await runRules(
       rules,
-      bashEvent("# PI-JUSTIFY(GIT-RESET): git reset --hard HEAD~1\ngit reset --hard HEAD~1"),
+      bashEvent("# PI-JUSTIFY(GIT-REWRITE): git filter-repo --force\ngit filter-repo --force"),
       fakeCtx({}, rec),
       rec.services,
     );
-    assert.equal(result.gateId, "GIT-RESET");
+    assert.equal(result.gateId, "GIT-REWRITE");
     assert.equal(rec.audit.filter(([t]) => t === "guard.override").length, 0);
   });
 
@@ -310,11 +361,11 @@ describe("the escape hatch round trip — REQ-CTX-06", () => {
     const rules = safetyRules(testPolicy(), rec.services);
     const result = await runRules(
       rules,
-      bashEvent("# PI-JUSTIFY(GIT-CLEAN): need it\ngit clean -fd"),
+      bashEvent("# PI-JUSTIFY(GIT-REWRITE): need it\ngit filter-repo --force"),
       fakeCtx({}, rec),
       rec.services,
     );
-    assert.equal(result.gateId, "GIT-CLEAN");
+    assert.equal(result.gateId, "GIT-REWRITE");
   });
 
   it("a non-overridable gate accepts no justification at all", async () => {
@@ -330,53 +381,34 @@ describe("the escape hatch round trip — REQ-CTX-06", () => {
   });
 });
 
-describe("bash-allowlist — REQ-PRV-38", () => {
+/**
+ * The former `ALW` gate — `REQ-PRV-38`, removed outright by the owner on 2026-08-14.
+ *
+ * These are the same scenarios the allow-list gate was tested with, inverted. They are kept rather
+ * than deleted because they are the precise shapes that stopped work: an unlisted binary headless,
+ * `cd sub && npm run build` in `mode=json`, a pipeline with one unlisted segment, a command
+ * substitution the tokeniser cannot see into. Every one of them now runs.
+ */
+describe("the program allow-list is gone — REQ-PRV-38 withdrawn", () => {
   function rules(overrides = {}) {
     const rec = recorder();
     return { rec, rules: buildRules(testPolicy(overrides), rec.services) };
   }
 
-  it("an allowlisted command never prompts", async () => {
+  it("an arbitrary unlisted binary runs headless, with no prompt and no refusal", async () => {
     const { rec, rules: r } = rules();
-    const ctx = fakeCtx({}, rec);
-    const result = await runRules(r, bashEvent("git status"), ctx, rec.services);
+    const result = await runRules(
+      r,
+      bashEvent("some-unallowlisted-binary --help"),
+      fakeCtx({ hasUI: false, mode: "json" }, rec),
+      rec.services,
+    );
     assert.equal(result.blocked, false);
-    assert.deepEqual(rec.selected, []);
+    assert.deepEqual(rec.selected, [], "no dialog may be raised — fewer approvals is the point");
+    assert.deepEqual(rec.confirmed, []);
   });
 
-  it("fails CLOSED with a named reason when there is no UI", async () => {
-    const { rec, rules: r } = rules();
-    const result = await runRules(
-      r,
-      bashEvent("some-unallowlisted-binary --help"),
-      fakeCtx({ hasUI: false, mode: "json" }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true);
-    assert.match(result.reason ?? "", /approval cannot be requested/);
-    assert.match(result.reason ?? "", /some-unallowlisted-binary/);
-    assert.match(result.reason ?? "", /mode=json/);
-  });
-
-  it("the headless refusal names the allowlist, so 'use an equivalent' is actionable", async () => {
-    // A headless child cannot go and look the allowlist up, so a refusal that does not name it
-    // leaves the model guessing and re-running variants of the same rejected command.
-    const { rec, rules: r } = rules();
-    const result = await runRules(
-      r,
-      bashEvent("some-unallowlisted-binary --help"),
-      fakeCtx({ hasUI: false, mode: "json" }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true);
-    assert.match(result.reason ?? "", /Allowlisted programs: .*\bnpm\b/);
-    assert.match(result.reason ?? "", /\bgit\b/);
-  });
-
-  it("a refused 'cd' is told to use the program's own directory flag", async () => {
-    // The failure this addresses: `cd sub && npm run build` in mode=json. `npm` clears the
-    // allowlist and only the `cd` segment misses, so the remedy is a different command shape,
-    // not a different program — and the message has to say which shape.
+  it("`cd sub && npm run build` runs — the exact shape from the 24-of-33 measurement", async () => {
     const { rec, rules: r } = rules();
     const result = await runRules(
       r,
@@ -384,94 +416,21 @@ describe("bash-allowlist — REQ-PRV-38", () => {
       fakeCtx({ hasUI: false, mode: "json" }, rec),
       rec.services,
     );
-    assert.equal(result.blocked, true);
-    assert.match(result.reason ?? "", /cd/);
-    assert.match(result.reason ?? "", /no cwd parameter/);
-    assert.match(result.reason ?? "", /--prefix/);
-    assert.match(result.reason ?? "", /-C DIR/);
+    assert.equal(result.blocked, false);
   });
 
-  it("the cd remedy is only attached when cd is what was blocked", async () => {
+  it("a pipeline no longer needs every segment listed", async () => {
     const { rec, rules: r } = rules();
-    const result = await runRules(
-      r,
-      bashEvent("perl -e 'print 1'"),
-      fakeCtx({ hasUI: false, mode: "json" }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true);
-    assert.doesNotMatch(result.reason ?? "", /no cwd parameter/);
-  });
-
-  it("cd stays OFF the allowlist because secret-paths resolves against the session cwd", async () => {
-    // This is why the fix is the message and not the allowlist. `secret-paths.ts` resolves
-    // relative arguments against `ctx.cwd`, never against a directory an earlier segment already
-    // moved to, so allowlisting `cd` would let `cd ~/.aws && cat credentials` through: `cat` is
-    // allowlisted and the bare `credentials` resolves under the session cwd. Two things stop it —
-    // the ALW gate refusing `cd`, and SEC-AWS matching the directory argument itself.
-    const { rec, rules: r } = rules();
-    const result = await runRules(
-      r,
-      bashEvent("cd ~/.aws && cat credentials"),
-      fakeCtx({ hasUI: false, mode: "json" }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true, "cd must remain non-allowlisted for this to stay blocked");
-  });
-
-  it("the documented per-invocation escalation opens it, and only then", async () => {
-    const { rec, rules: r } = rules();
-    const ctx = fakeCtx({ hasUI: false, mode: "print" }, rec);
-    process.env.PI_GUARD_APPROVE = "1";
-    assert.equal(
-      (await runRules(r, bashEvent("some-unallowlisted-binary --help"), ctx, rec.services)).blocked,
-      false,
-    );
-    process.env.PI_GUARD_APPROVE = "0";
-    assert.equal(
-      (await runRules(r, bashEvent("some-unallowlisted-binary --help"), ctx, rec.services)).blocked,
-      true,
-    );
-  });
-
-  it("F9: PI_GUARD_HEADLESS is no longer a hard-coded second escalation", async () => {
-    // Before the fix, this literal spelling bypassed `allowlist-only` regardless of what
-    // `config/guard.json` names as the escalation. The only escalation now is `policy`'s.
-    const { rec, rules: r } = rules();
-    process.env.PI_GUARD_HEADLESS = "allow-allowlisted";
-    const result = await runRules(
-      r,
-      bashEvent("some-unallowlisted-binary --help"),
-      fakeCtx({ hasUI: false }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true, "an unrecognised env var must not escalate anything");
-  });
-
-  it("F9: escalation is sourced entirely from policy — rename the var, rename the check", async () => {
-    // A policy that names a DIFFERENT env var/value must be the only thing honoured.
-    const { rec, rules: r } = rules({
-      escalationEnv: "PI_GUARD_HEADLESS",
-      escalationValue: "allow-allowlisted",
-    });
     const ctx = fakeCtx({ hasUI: false }, rec);
-
-    process.env.PI_GUARD_HEADLESS = "allow-allowlisted";
-    assert.equal(
-      (await runRules(r, bashEvent("some-unallowlisted-binary --help"), ctx, rec.services)).blocked,
-      false,
-    );
-
-    // And the OLD default name must no longer work once policy points elsewhere.
-    process.env.PI_GUARD_HEADLESS = "";
-    process.env.PI_GUARD_APPROVE = "1";
-    assert.equal(
-      (await runRules(r, bashEvent("some-unallowlisted-binary --help"), ctx, rec.services)).blocked,
-      true,
-    );
+    for (const command of ["cat a.txt | jq .x", "cat a.txt | perl -pe s/a/b/"]) {
+      assert.equal((await runRules(r, bashEvent(command), ctx, rec.services)).blocked, false, command);
+    }
   });
 
-  it("an opaque segment is treated as suspicious, never as allowlisted", async () => {
+  it("an opaque segment is no longer suspicious by construction", async () => {
+    // `$(…)` defeats the tokeniser, and the old gate turned "cannot see it" into "refuse it".
+    // What the tokeniser cannot see, the DB patterns cannot see either — that limit was always
+    // there, and OS-level containment, not a regex, was always the answer to it.
     const { rec, rules: r } = rules();
     const result = await runRules(
       r,
@@ -479,81 +438,39 @@ describe("bash-allowlist — REQ-PRV-38", () => {
       fakeCtx({ hasUI: false }, rec),
       rec.services,
     );
-    assert.equal(result.blocked, true);
-    assert.match(result.reason ?? "", /<opaque>/);
+    assert.equal(result.blocked, false);
   });
 
-  it("a piped command is allowlisted only when EVERY segment is", async () => {
+  it("`cd` runs, and SEC — not the allow-list — is what catches `cd ~/.aws && cat credentials`", async () => {
+    // Correcting a claim this file used to make. The old note said the ALW gate was "the only
+    // thing that stops" this line, because `secret-paths.ts` resolves relative arguments against
+    // `ctx.cwd` and never against a directory an earlier segment moved to. The first half is true
+    // and the conclusion was not: `SEC-AWS` matches the *directory* `~/.aws` in the `cd` segment,
+    // so the line is still refused with the allow-list gone. What genuinely relies on the removed
+    // gate is a `cd` into a directory SEC has no pattern for — that residual is in the README.
     const { rec, rules: r } = rules();
-    const ctx = fakeCtx({ hasUI: false }, rec);
-    assert.equal((await runRules(r, bashEvent("cat a.txt | jq .x"), ctx, rec.services)).blocked, false);
+    const ctx = fakeCtx({ hasUI: false, mode: "json" }, rec);
     assert.equal(
-      (await runRules(r, bashEvent("cat a.txt | perl -pe s/a/b/"), ctx, rec.services)).blocked,
-      true,
+      (await runRules(r, bashEvent("cd ~/.aws && cat credentials"), ctx, rec.services)).gateId,
+      "SEC-AWS",
+    );
+    assert.equal(
+      (await runRules(r, bashEvent("cd frontend && cat package.json"), ctx, rec.services)).blocked,
+      false,
     );
   });
 
-  it("offers allow-once / allow-session / deny in the TUI", async () => {
-    const { rec, rules: r } = rules();
-    const ctx = fakeCtx({ select: (_t, options) => options[2] }, rec);
-    const result = await runRules(r, bashEvent("perl -e 'print 1'"), ctx, rec.services);
-    assert.equal(result.blocked, true);
-    assert.match(result.reason ?? "", /Denied by operator/);
-    assert.deepEqual(rec.selected, [["Allow once", "Allow for this session", "Deny"]]);
-  });
-
-  it("allow-once does not remember; allow-for-session does", async () => {
-    const { rec, rules: r } = rules();
-    const once = fakeCtx({ select: (_t, o) => o[0] }, rec);
-    await runRules(r, bashEvent("perl -e 'print 1'"), once, rec.services);
-    await runRules(r, bashEvent("perl -e 'print 1'"), once, rec.services);
-    assert.equal(rec.selected.length, 2);
-
-    const session = fakeCtx({ select: (_t, o) => o[1] }, rec);
-    await runRules(r, bashEvent("perl -e 'print 2'"), session, rec.services);
-    await runRules(r, bashEvent("perl -e 'print 2'"), session, rec.services);
-    assert.equal(rec.selected.length, 3);
-  });
-
-  it("a dismissed or timed-out dialog is a DENY", async () => {
-    const { rec, rules: r } = rules();
-    const ctx = fakeCtx({ select: () => undefined }, rec);
-    const result = await runRules(r, bashEvent("perl -e 'print 1'"), ctx, rec.services);
-    assert.equal(result.blocked, true);
-  });
-
-  it("approvalUi=confirm falls back to the two-way dialog", async () => {
-    const { rec, rules: r } = rules({ approvalUi: "confirm" });
-    const ctx = fakeCtx({ confirm: () => false }, rec);
-    const result = await runRules(r, bashEvent("perl -e 'print 1'"), ctx, rec.services);
-    assert.equal(result.blocked, true);
-    assert.equal(rec.confirmed.length, 1);
-  });
-
-  it("a degraded policy allowlists NOTHING — stricter, never looser", async () => {
+  it("a degraded policy no longer refuses everything — the deny-list is in code", async () => {
+    // This inverts the old "a degraded policy allowlists NOTHING" rule, which turned a missing
+    // config file into a total work stoppage. Degradation now costs the two branch names in
+    // `protectedBranches` and nothing else.
     const { rec, rules: r } = rules({ degraded: true });
-    const result = await runRules(
-      r,
-      bashEvent("git status"),
-      fakeCtx({ hasUI: false }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true);
+    const ctx = fakeCtx({ hasUI: false }, rec);
+    assert.equal((await runRules(r, bashEvent("git status"), ctx, rec.services)).blocked, false);
+    assert.equal((await runRules(r, bashEvent("rm -rf /"), ctx, rec.services)).gateId, "DB-RM-ROOT");
   });
 
-  it("nonInteractive=deny-all refuses bash outright without a UI", async () => {
-    const { rec, rules: r } = rules({ nonInteractive: "deny-all" });
-    const result = await runRules(
-      r,
-      bashEvent("git status"),
-      fakeCtx({ hasUI: false }, rec),
-      rec.services,
-    );
-    assert.equal(result.blocked, true);
-    assert.match(result.reason ?? "", /deny-all/);
-  });
-
-  it("the safety gates still win: a headless rm -rf / is DB-RM-ROOT, not an allowlist miss", async () => {
+  it("the safety gates still win headless: rm -rf / is DB-RM-ROOT", async () => {
     const { rec, rules: r } = rules();
     const result = await runRules(
       r,
@@ -565,7 +482,13 @@ describe("bash-allowlist — REQ-PRV-38", () => {
   });
 });
 
-describe("agent-routing — REQ-CTX-47", () => {
+/**
+ * `RTE` — audit only since 2026-08-14. `REQ-CTX-47` was always a SHOULD and a routing preference;
+ * a mis-routed dispatch costs tokens and destroys nothing, so it is off the block list by the
+ * owner's instruction. The gate still evaluates, because the case for `REQ-CTX-47` is a *count*
+ * and `guard.observed` is now the only place that count is taken.
+ */
+describe("agent-routing — REQ-CTX-47, observed not enforced", () => {
   it("matches nothing while no veto is registered (the wave-1 state)", async () => {
     const rec = recorder();
     const r = buildRules(testPolicy(), rec.services);
@@ -576,9 +499,10 @@ describe("agent-routing — REQ-CTX-47", () => {
       rec.services,
     );
     assert.equal(result.blocked, false);
+    assert.deepEqual(rec.audit, []);
   });
 
-  it("honours a registered veto and names the specialist", async () => {
+  it("records a registered veto and permits the dispatch anyway", async () => {
     registerDispatchVeto({
       id: "DV-SPECIALIST",
       evaluate: (req) =>
@@ -602,31 +526,42 @@ describe("agent-routing — REQ-CTX-47", () => {
       fakeCtx({}, rec),
       rec.services,
     );
-    assert.equal(result.gateId, "RTE-SPECIALIST");
-    assert.match(result.reason ?? "", /researcher/);
+    assert.equal(result.blocked, false);
+
+    const observed = rec.audit.filter(([type]) => type === "guard.observed");
+    assert.equal(observed.length, 1, "removing enforcement must not remove observability");
+    const entry = observed[0]![1] as { gateId: string; what: string; agentType: string };
+    assert.equal(entry.gateId, "RTE-SPECIALIST");
+    assert.equal(entry.agentType, "general-purpose");
+    assert.match(entry.what, /researcher/);
   });
 
-  it("the veto's own escape hatch works on the prompt argument", async () => {
+  it("a non-overridable veto is recorded and permitted too — nothing here can refuse", async () => {
+    // The consequence worth stating: this gate was the only consumer that turned a registered
+    // dispatch veto into a block. A veto registered against `lib/dispatch-veto.ts` still evaluates
+    // here, and it is now advisory. `overridable: false` no longer means anything on this path,
+    // and `# PI-JUSTIFY(RTE-…)` is no longer read here — there is nothing to unlock.
     registerDispatchVeto({
-      id: "DV-SPECIALIST",
+      id: "DV-ALWAYS",
       evaluate: () => ({
         veto: true,
-        denial: { gateId: "RTE-SPECIALIST", what: "generic agent", overridable: true },
+        denial: { gateId: "RTE-X", what: "everything", overridable: false },
       }),
     });
     const rec = recorder();
     const r = buildRules(testPolicy(), rec.services);
-    const event = customEvent("task", {
-      agentType: "general-purpose",
-      prompt:
-        "# PI-JUSTIFY(RTE-SPECIALIST): no specialist covers cross-domain triage of this incident\nTriage the incident",
-    });
-    const result = await runRules(r, event, fakeCtx({}, rec), rec.services);
+    const result = await runRules(
+      r,
+      customEvent("task", { agentType: "general-purpose", prompt: "anything at all" }),
+      fakeCtx({}, rec),
+      rec.services,
+    );
     assert.equal(result.blocked, false);
-    assert.equal(rec.audit.filter(([t]) => t === "guard.override").length, 1);
+    assert.equal(rec.audit.filter(([t]) => t === "guard.observed").length, 1);
+    assert.equal(rec.audit.filter(([t]) => t === "guard.override").length, 0);
   });
 
-  it("ignores a tool call that is not a dispatch", async () => {
+  it("ignores a tool call that is not a dispatch — no record either", async () => {
     registerDispatchVeto({
       id: "DV-ALWAYS",
       evaluate: () => ({
@@ -643,6 +578,7 @@ describe("agent-routing — REQ-CTX-47", () => {
       rec.services,
     );
     assert.equal(result.blocked, false);
+    assert.deepEqual(rec.audit, []);
   });
 });
 

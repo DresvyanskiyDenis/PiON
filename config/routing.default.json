@@ -41,7 +41,8 @@
       "quota",
       "network",
       "model-not-found",
-      "policy"
+      "policy",
+      "empty-response"
     ]
   }
 }

@@ -6,22 +6,41 @@ primitive. This module is the policy on top of it.
 Configured by [`config/guard.json`](../configuration/guard.md), which is where you should go for the
 key-by-key reference and for the consequences of relaxing anything.
 
-## Six gates, in policy order
+## Six gates, three that block and three that only observe
 
-The order is itself the policy: cheap and absolute first, the one that can block on a human last.
+**2026-08-14 — the deny-list inversion.** This used to be seven gates ending in a program allowlist
+(`ALW-*`) that refused headless by default and confirmed in the TUI. That gate is gone as a concept,
+along with the escalation variable and the session-inheritance mechanism (`PI_GUARD_SESSION_ALLOWLIST`)
+that existed only to widen it — deciding safety by *program name* never worked well, and what
+replaced it is a small, fixed set of catastrophic command shapes, decided by code rather than by
+config. Three of the remaining gates were downgraded from blocking to audit-only in the same
+change: they still see everything, they just no longer refuse anything. The order is still the
+policy — cheap and absolute first, the ones that can only record last.
 
-| Order | Gate | Rule ids | Override |
+| Order | Gate | Rule ids | Verdict |
 |---|---|---|---|
-| 1 | secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-KEY`, `SEC-AWS`, `SEC-AWS-CRED`, `SEC-CREDJSON`, `SEC-SECRETSDIR`, `SEC-SESSION`, `SEC-TOKENCACHE`, `SEC-PI-AUTH`, `SEC-PI-SECRETS`, `SEC-PI-STATE`, `SEC-QUOTA-TOKEN`, `SEC-QUOTA-PAT` | **never** |
-| 2 | dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | mostly none |
-| 3 | destructive git | `GIT-FORCE`, `GIT-FORCE-PROTECTED`, `GIT-RESET`, `GIT-CLEAN`, `GIT-CHECKOUT-DOT`, `GIT-BRANCH-D`, `GIT-REMOTE`, `GIT-REWRITE` | with a written justification |
-| 4 | privileged commands | `PRV-SUDO`, `PRV-CHMOD-777`, `PRV-PKILL-9`, `PRV-KILLALL` | none |
-| 5 | agent routing | `RTE-*` — the specialist-match veto on dispatch | a SHOULD-level veto, overridable |
-| 6 | bash allowlist | `ALW-*` | confirm in the TUI; **fail closed** headless |
+| 1 | secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-KEY`, `SEC-AWS`, `SEC-AWS-CRED`, `SEC-CREDJSON`, `SEC-SECRETSDIR`, `SEC-SESSION`, `SEC-TOKENCACHE`, `SEC-PI-AUTH`, `SEC-PI-SECRETS`, `SEC-PI-STATE`, `SEC-QUOTA-TOKEN`, `SEC-QUOTA-PAT` | **blocks, never overridable** |
+| 2 | dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | blocks, mostly not overridable |
+| 3 | destructive git | `GIT-REWRITE`, `GIT-FORCE-PROTECTED` | blocks, overridable with a written justification |
+| 4 | privileged commands | `PRV-SUDO`, `PRV-CHMOD-777`, `PRV-PKILL-9`, `PRV-KILLALL` | **observes only** — permitted, recorded |
+| 5 | write surface | `FS-OUTSIDE`, `FS-UNRESOLVED` — a bash write whose target is outside the working directory and the session temp dir, or cannot be shown to be inside | **observes only** — permitted, recorded |
+| 6 | agent routing | `RTE-*` — a generic agent dispatched where a specialist matches the prompt | **observes only** — permitted, recorded |
 
-Gate 1 is absolute by construction. There is no config key, no escalation variable and no
-justification that opens a secret path — a permission layer whose strongest rule has an escape
-hatch has no strongest rule.
+Gate 1 is absolute by construction. There is no config key and no justification that opens a secret
+path — a permission layer whose strongest rule has an escape hatch has no strongest rule. It is also
+the *only* gate a headless run cannot get past by any means, now that gates 4-6 cannot refuse at
+all: it is what stops `cd ~/.aws && cat credentials`, and there is nothing behind it to catch what
+it misses.
+
+Gates 4-6 write a `guard.observed` audit entry — same shape as a `guard.block` entry, plus what was
+seen — every time they fire. Removing enforcement did not remove observability: a form that stopped
+being recorded after this change is a regression, not a simplification. `git reset --hard`,
+`git branch -D`, `git clean -fd`, `git checkout -- .` and an ordinary force-push (to a branch outside
+`protectedBranches`) are no longer gated *or* recorded at all — those are treated as ordinary git,
+not merely tolerated.
+
+If you are reading this looking for `PI_GUARD_APPROVE` or `PI_GUARD_SESSION_ALLOWLIST`: both are
+removed rather than left inert. Neither name does anything any more.
 
 ## Why it does not delegate to a sandbox
 
@@ -31,16 +50,22 @@ TLS-intercepting proxy with a generated CA whose interaction with corporate TLS 
 unresolved. A gate that sits above a sandbox and assumes the sandbox holds is two layers with one
 guarantee between them.
 
-## The policy is data
+**There is therefore no OS-level containment around bash at all**, and nothing is auto-approved for
+being sandboxed, because nothing is sandboxed.
 
-`config/guard.json` is loaded, not compiled in. Extending the allowlist is a config commit rather
-than an edit to a gate.
+## The policy is data — what's left of it
+
+`config/guard.json` is loaded, not compiled in, and carries exactly two keys now:
+`protectedBranches` and `dispatchTools`. There is nothing left in it that widens what runs — the
+deny-list itself lives in code.
 
 A **missing or malformed** policy file does not disable the guard. `policy.ts` falls back to
 `DEFAULT_POLICY` — the same content the shipped JSON carries — sets `degraded: true`, and reports
-the problem loudly. Gates read `degraded` and get **stricter**, never looser. An unknown key is
-rejected rather than ignored, because a typo'd key that silently does nothing is how a policy stops
-applying without anyone noticing.
+the problem loudly. Degradation can only mean `protectedBranches` falls back to `main`/`master`; it
+cannot loosen `SEC-*`/`DB-*`/`GIT-*`, which do not read this file. An unknown key is rejected rather
+than ignored, because a typo'd key that silently does nothing is how a policy stops applying without
+anyone noticing — and any key from the old shape (`allowlist`, `nonInteractive`, `escalation`, …) is
+now exactly as unknown as a typo.
 
 ## Internal-error posture
 

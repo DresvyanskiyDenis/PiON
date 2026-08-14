@@ -48,6 +48,7 @@ import type {
   ExtensionCommandContext,
   ExtensionContext,
   ToolCallEvent,
+  ToolResultEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { SubagentCapabilityCeilingHandle } from "pi-subagents/capability-ceiling";
 import { guardedHandler, type GuardRule, type GuardVerdict } from "../lib/guarded-handler.ts";
@@ -72,11 +73,28 @@ import { assertDispatchShape } from "./contract.ts";
 import { describeRelaxation, relaxDispatchOutputSchemas } from "./output-schema.ts";
 import { DispatchError, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
 import {
+  admissibleProviders,
+  catalogueDisclosure,
+  describeServing,
   injectMenuOnce,
   makeCatalogue,
+  providersServing,
   renderModelMenu,
+  restrictCatalogue,
+  splitModelId,
   type ModelCatalogue,
+  type ProviderAdmission,
 } from "./catalogue.ts";
+import { requestedLevel, splitThinkingSuffix } from "./thinking.ts";
+import { reorderResultContent } from "./failure-slot.ts";
+import {
+  createAsyncFleet,
+  formatAnnouncement,
+  noteAsyncSpawn,
+  reconcile,
+  renderAsyncFleet,
+  takeAnnouncements,
+} from "./async-fleet.ts";
 
 export const id = "dispatch";
 
@@ -94,12 +112,25 @@ export interface State {
   depth: number;
   semaphores: ProviderSemaphoreSet;
   /**
-   * `ctx.modelRegistry.getAvailable()`, snapshotted at `session_start`. `undefined` means the
+   * `ctx.modelRegistry.getAvailable()`, snapshotted at `session_start` and then RESTRICTED to the
+   * providers this install actually configured (`restrictCatalogue`). `undefined` means the
    * registry could not be read — existence is then NOT asserted, and the reduced check is in
    * `problems`. It is never an empty catalogue: "no models exist" and "we cannot see the models"
    * must not produce the same refusal.
+   *
+   * Restricted once, here, rather than at each consumer: the menu, `suggestModels` and the
+   * existence gate all read this field, and filtering it in one place is what makes them agree.
    */
   catalogue?: ModelCatalogue;
+  /**
+   * Which providers dispatch will accept — configured in `models.json` AND classified in
+   * `routing.json`. Built at construction, because it depends on config rather than on the registry
+   * and must refuse an unconfigured provider even when the registry could not be read.
+   *
+   * `undefined` only when `routing.json` itself could not be loaded, which the shipped rules already
+   * refuse every dispatch for; there is then no egress map to admit anyone against.
+   */
+  admission?: ProviderAdmission;
   /** Memoised system-prompt block; rebuilt only when `session_start` re-runs. */
   menu?: string;
   ceiling?: SubagentCapabilityCeilingHandle;
@@ -110,6 +141,10 @@ export interface State {
 }
 
 export function register(pi: ExtensionAPI): void {
+  // Deliberately NOT part of `State`: this is per-session runtime, `State` is per-session config,
+  // and `State` is constructed by name in `test/dispatch/rules.test.ts`. See `async-fleet.ts` for
+  // why it exists at all.
+  const fleet = createAsyncFleet();
   const settings = loadDispatchSettings();
   const state: State = {
     settings,
@@ -120,6 +155,9 @@ export function register(pi: ExtensionAPI): void {
     ceilingNotes: [],
     vetoIds: [],
     problems: [...settings.problems],
+    ...(settings.routing !== undefined
+      ? { admission: admissibleProviders(settings.routing, settings.configuredProviders) }
+      : {}),
   };
 
   // The vetoes read live state through closures, so they can be registered before session_start
@@ -183,10 +221,66 @@ export function register(pi: ExtensionAPI): void {
     }),
   );
 
+  // The async fleet, reconciled against each run's own `status.json`. `pi-subagents` promises at
+  // spawn time that "Pi will wake you on completion"; when its result-watcher does not deliver,
+  // nothing enters the transcript and the orchestrator keeps calling a dead run active. These two
+  // handlers close that gap without duplicating any lifecycle — see `async-fleet.ts`.
+  pi.on("tool_execution_end", (event) => {
+    try {
+      if (!state.settings.dispatch.dispatchTools.includes(event.toolName)) return;
+      noteAsyncSpawn(fleet, event.result);
+    } catch (err) {
+      surfaceOnce(undefined, "dispatch:async-track", () => {
+        pi.appendEntry("dispatch_problem", { phase: "async-track", problem: describeError(err) });
+      });
+    }
+  });
+
+  // The failure slot. `pi-subagents` hands the parent the child's WHOLE stderr tail as the run's
+  // error text, so a classified provider abort ends up underneath whichever extension announced
+  // itself first at the child's session_start. This reorders that one text part — nothing is
+  // dropped, filtered or shortened; see `failure-slot.ts`. `tool_result` is used because it is the
+  // only PI event documented to modify a result; `tool_execution_end` above is notification-only
+  // and cannot.
+  //
+  // The return type is inferred rather than annotated: PI's `ToolResultEventResult` type is not
+  // re-exported from the package root as of 0.84.0, unlike its `ToolCallEventResult` sibling.
+  // Reaching into `dist/` for it would pin us to that layout, so the `pi.on("tool_result", …)`
+  // overload contextually types the literal below instead.
+  pi.on("tool_result", (event: ToolResultEvent) => {
+    try {
+      if (!state.settings.dispatch.dispatchTools.includes(event.toolName)) return undefined;
+      const content = reorderResultContent(event.content);
+      if (content === undefined) return undefined;
+      // `content` only. `details` carries the async run's own metadata (`noteAsyncSpawn` reads
+      // it), and `isError` is the runner's own verdict — neither is ours to restate, and this
+      // change is about ordering, not about re-judging the run.
+      return { content };
+    } catch (err) {
+      surfaceOnce(undefined, "dispatch:failure-slot", () => {
+        pi.appendEntry("dispatch_problem", { phase: "failure-slot", problem: describeError(err) });
+      });
+      return undefined;
+    }
+  });
+
+  pi.on("turn_end", (_event, ctx) => {
+    try {
+      const announcement = formatAnnouncement(takeAnnouncements(fleet, reconcile(fleet)));
+      if (announcement === undefined) return;
+      pi.sendMessage(
+        { customType: "dispatch-async-terminal", content: [{ type: "text", text: announcement }], display: true },
+        { deliverAs: "nextTurn" },
+      );
+    } catch (err) {
+      report(ctx, `[pi-config] dispatch: async reconciliation failed: ${describeError(err)}`, "error");
+    }
+  });
+
   pi.registerCommand("agents", {
     description: "Sub-agent registry: what can be dispatched, on what model, and what cannot",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
-      ctx.ui.notify(renderStatus(state, ctx.cwd), "info");
+      ctx.ui.notify(`${renderStatus(state, ctx.cwd)}${renderAsyncFleet(fleet)}`, "info");
     },
   });
 }
@@ -225,9 +319,44 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
 
   let available: Set<string> | undefined;
   try {
-    const ids = ctx.modelRegistry.getAvailable().map((m) => `${m.provider}/${m.id}`);
-    state.catalogue = makeCatalogue(ids);
-    available = new Set(ids);
+    const models = ctx.modelRegistry.getAvailable();
+    const ids = models.map((m) => `${m.provider}/${m.id}`);
+    // The reasoning vocabulary is snapshotted alongside the ids, from the same registry read: it is
+    // what makes a dispatch able to report the effort it will REALLY run at. PI clamps the level in
+    // the child process, past any point this extension can observe, so the only honest way to name
+    // the effective level here is to apply the same rule to the same data.
+    const full = makeCatalogue(
+      ids,
+      models.map((m) => [
+        `${m.provider}/${m.id}`,
+        {
+          reasoning: m.reasoning,
+          ...(m.thinkingLevelMap !== undefined ? { thinkingLevelMap: m.thinkingLevelMap } : {}),
+        },
+      ] as const),
+    );
+    // A provider that is not configured does not exist. PI's registry carries providers it knows
+    // natively whether or not this install ever set them up, and everything downstream — the menu,
+    // `suggestModels`, the existence gate, `loadAgentRegistry`'s availability pass — reads this one
+    // value, so it is restricted here, once, and they cannot disagree afterwards.
+    const restricted =
+      state.admission !== undefined ? restrictCatalogue(full, state.admission) : { catalogue: full, dropped: [] };
+    state.catalogue = restricted.catalogue;
+    available = new Set(restricted.catalogue.ids);
+    if (restricted.dropped.length > 0) {
+      // Operator-facing, and deliberately NOT in the system prompt: telling the orchestrating model
+      // which models it may not have is an invitation to try one. A human needs to know, because
+      // "why is that model not on the menu" is otherwise unanswerable.
+      const providers = [...new Set(restricted.dropped.map((m) => splitModelId(m).provider))].sort();
+      state.problems.push(
+        `${restricted.dropped.length} model(s) from provider(s) ${providers.join(", ")} are in this ` +
+          `session's model registry but are NOT dispatchable and are not offered: each is missing ` +
+          `from config/models.json, from config/routing.json's egress map, or from both` +
+          (state.admission?.degraded === true
+            ? ` (models.json could not be read, so only the egress map was applied)`
+            : ``),
+      );
+    }
   } catch (err) {
     // Without the registry we cannot say "this model does not exist"; we can still resolve tiers.
     // Announce the reduced check rather than silently skipping it.
@@ -244,6 +373,7 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
     catalogue: state.catalogue,
     sessionEgress: state.sessionEgress,
     defaultTier: cfg.defaultTier,
+    configuredProviders: state.settings.configuredProviders,
   });
 
   const registry = loadAgentRegistry({
@@ -251,6 +381,9 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
     routing: state.settings.routing,
     config: cfg,
     ...(available !== undefined ? { availableModels: available } : {}),
+    // So an agent file naming an unconfigured provider is refused at LOAD with the same named
+    // reason a dispatch would give, instead of a bare "not in the model registry".
+    ...(state.admission !== undefined ? { admission: state.admission } : {}),
   });
   state.registry = registry;
   state.problems.push(...registry.problems);
@@ -486,20 +619,93 @@ export function rules(state: State): GuardRule[] {
         let provider: string | undefined;
         if (spec) {
           try {
-            const target = resolveModelSpec(routing, spec, state.settings.dispatch.defaultTier, state.catalogue);
+            const target = resolveModelSpec(
+              routing,
+              spec,
+              state.settings.dispatch.defaultTier,
+              state.catalogue,
+              state.admission,
+            );
             provider = target.provider;
+            // What effort this will ACTUALLY run at. PI clamps an unsupported level against the
+            // model's own vocabulary before the wire (`clampThinkingLevel`,
+            // @earendil-works/pi-ai/dist/models.js:562), and it is right to: a gateway that does
+            // not serve `reasoning_effort=max` answers 400, so shipping it would abort the run
+            // rather than think harder. The clamp was never the defect — the SILENCE was.
+            // `_meta.json` records the launch string verbatim (`model: target.model`,
+            // pi-subagents/src/runs/foreground/execution.ts:137 and the background twin at
+            // runs/background/subagent-runner.ts:255), so a string reading `:max` put `"max"` in
+            // the run metadata and `effort max` on the menu for runs that shipped `high`. That
+            // read as max for an afternoon of work; it never was.
+            //
+            // So the suffix is rewritten to the effective level HERE, before the package sees it.
+            // That is disclosure, not substitution: the wire value is identical either way (PI would
+            // clamp to exactly this), and it is the one field we control that reaches `_meta.json`.
+            // The REQUESTED level is not lost — `from` below still carries the string as written,
+            // and the audit entry names both.
+            const disclosure = catalogueDisclosure(state.catalogue, target.model);
+            const effectiveModel = disclosure?.clamped ? disclosure.effectiveModel : target.model;
+            // "Then what WOULD serve it?" is the reader's next question every single time, and the
+            // registry can answer it. A hint only — nothing below reroutes, and the egress class
+            // rides along with every candidate because leaving `internal` for `confidential` or
+            // `public` is the operator's call and not a routing optimisation.
+            //
+            // `configuredProviders` is what keeps the answer honest: the registry alone would
+            // volunteer endpoints this install never configured (see `providersServing`).
+            const serving = disclosure?.clamped
+              ? describeServing(
+                  providersServing(state.catalogue, routing, disclosure.requested, state.settings.configuredProviders),
+                  disclosure.requested,
+                )
+              : undefined;
+            if (disclosure?.clamped && state.settings.dispatch.onThinkingClamp === "abort") {
+              return {
+                block: true,
+                reason:
+                  `refusing this dispatch: it asked for reasoning effort \`${disclosure.requested}\` and ` +
+                  `${splitThinkingSuffix(target.model).baseModel} serves only ` +
+                  `${disclosure.supported.join(", ")}, so the run would have been silently downgraded to ` +
+                  `\`${disclosure.effective}\`. config/dispatch.json sets onThinkingClamp="abort", which ` +
+                  `says a downgraded effort is worse than no run here. ${serving} Or ask again at ` +
+                  `\`${disclosure.effective}\` to accept what this model can do.`,
+              };
+            }
             resolvedModel = {
               from: spec,
-              to: target.model,
+              to: effectiveModel,
               tier: target.tier,
+              ...(disclosure !== undefined
+                ? {
+                    thinking: {
+                      requested: disclosure.requested,
+                      effective: disclosure.effective,
+                      clamped: disclosure.clamped,
+                      ...(disclosure.clamped ? { supported: disclosure.supported } : {}),
+                    },
+                  }
+                : {}),
               // Which kind of write this was. A reader of the bookkeeping cannot tell "we
               // resolved what the call asked for" from "we set a floor the children may still
               // override" without it, and only one of the two is overridable downstream.
               ...(tierScope !== undefined ? { defaultedScope: tierScope } : {}),
             };
-            if (input.model !== target.model) {
-              input.model = target.model;
+            if (input.model !== effectiveModel) {
+              input.model = effectiveModel;
               applied.model = resolvedModel;
+            }
+            if (disclosure?.clamped) {
+              report(
+                ctx,
+                `[pi-config] dispatch: "${agentLabel(input, def)}" asked for reasoning effort ` +
+                  `\`${disclosure.requested}\` and will run at \`${disclosure.effective}\` — ` +
+                  `${splitThinkingSuffix(target.model).baseModel} does not serve ` +
+                  `\`${disclosure.requested}\` (it serves ${disclosure.supported.join(", ")}, per ` +
+                  `config/models.json's thinkingLevelMap). PI clamps this before the wire either way; ` +
+                  `the model string was rewritten to \`${effectiveModel}\` so the run metadata and this ` +
+                  `line agree with what is actually sent. Nothing was rerouted — the model is unchanged. ` +
+                  `${serving}`,
+                "warning",
+              );
             }
             if (tierScope === "workflow-floor") {
               report(
@@ -621,6 +827,27 @@ export function rules(state: State): GuardRule[] {
 }
 
 /**
+ * Every tier whose declared reasoning effort the resolved model will not serve, as
+ * `tier: requested -> effective` lines. Empty when the registry is unavailable — an unknown
+ * vocabulary must not be rendered as "nothing is clamped".
+ *
+ * Exported for `test/dispatch/rules.test.ts`, which asserts the `/agents` line without a session.
+ */
+export function clampedTiers(state: State): string[] {
+  const routing = state.settings.routing;
+  if (routing === undefined || state.catalogue === undefined) return [];
+  const out: string[] = [];
+  for (const [tier, def] of Object.entries(routing.tiers)) {
+    const asked = requestedLevel(def.model) ?? def.thinkingLevel;
+    if (asked === undefined) continue;
+    const disclosure = catalogueDisclosure(state.catalogue, `${splitThinkingSuffix(def.model).baseModel}:${asked}`);
+    if (disclosure?.clamped !== true) continue;
+    out.push(`${tier} asks ${disclosure.requested}, runs ${disclosure.effective} (serves ${disclosure.supported.join("|")})`);
+  }
+  return out;
+}
+
+/**
  * Mirrors `teammates/index.ts`'s `sessionId()`: a missing or unreachable session id degrades the
  * event log, never the dispatch it is describing.
  */
@@ -730,6 +957,13 @@ function renderStatus(state: State, cwd: string): string {
   lines.push(
     `model registry: ${state.catalogue ? `${state.catalogue.ids.length} model(s) available; a call-time provider/id is checked against them` : "UNAVAILABLE — a call-time provider/id is NOT checked for existence"}`,
   );
+  // The tiers whose declared effort the model will not actually serve. Shown unconditionally rather
+  // than only on dispatch, because the question this answers — "am I really getting the effort
+  // routing.json promises?" — is one an operator asks after the fact, not during a call.
+  const clamped = clampedTiers(state);
+  if (clamped.length > 0) {
+    lines.push(`reasoning effort CLAMPED: ${clamped.join("; ")}`);
+  }
   lines.push("");
   lines.push(state.registry ? renderRegistry(state.registry, cwd) : "registry not loaded yet");
   if (state.menu) {

@@ -41,7 +41,12 @@ import {
   pingLocal,
   readConfiguredLocalProvider,
 } from "./lib/local-catalogue.ts";
-import { buildProviderFailure, surfaceProviderFailure } from "./lib/provider-error.ts";
+import {
+  buildEmptyCompletionFailure,
+  buildProviderFailure,
+  isEmptyCompletion,
+  surfaceProviderFailure,
+} from "./lib/provider-error.ts";
 import { surfaceOnce } from "./lib/once.ts";
 
 export const id = "credentials";
@@ -215,10 +220,11 @@ export async function warmUp(ctx: ExtensionContext): Promise<void> {
 
 interface ObservedResponse {
   readonly status: number;
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 /**
- * Wire the two events that, together, cover both failure shapes:
+ * Wire the two events that, together, cover all three failure shapes:
  *
  *   - **non-2xx.** `after_provider_response` fires with the status; the status is remembered, and
  *     the assistant message that follows carries the upstream text.
@@ -228,10 +234,17 @@ interface ObservedResponse {
  *     `stopReason` to `"error"`, and `message_end` is where that becomes visible. The failure is
  *     then classified from the message text and rendered as "headers ok; the stream failed after
  *     them" rather than as a misleading `http 200`.
+ *   - **200 that carries no completion at all.** Nothing fails: the headers are 200, the stream
+ *     is well formed, it simply contains no delta, and PI hands up a normal assistant message with
+ *     `content: []`, `stopReason: "stop"` and zero usage. There is no error anywhere for the two
+ *     branches above to catch, and PI's own retry predicate (`isRetryableAssistantError`) requires
+ *     `stopReason === "error"`, so this shape passes every guard in the stack and is read
+ *     downstream as "the model had nothing to say". `isEmptyCompletion` is the only thing between
+ *     that and a silent no-op turn.
  *
- * Both therefore converge on `message_end`, which is the only point where the turn's outcome is
- * final. `stopReason: "aborted"` is deliberately not reported: that is the user pressing Esc, not
- * a provider failing.
+ * All three therefore converge on `message_end`, which is the only point where the turn's outcome
+ * is final. `stopReason: "aborted"` is deliberately not reported: that is the user pressing Esc,
+ * not a provider failing.
  */
 function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
   let observed: ObservedResponse | undefined;
@@ -241,7 +254,7 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
   });
 
   pi.on("after_provider_response", (event) => {
-    observed = { status: event.status };
+    observed = { status: event.status, headers: event.headers };
   });
 
   pi.on("message_end", (event: MessageEndEvent, ctx: ExtensionContext) => {
@@ -250,9 +263,34 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
 
     const message = event.message;
     if (message.role !== "assistant") return;
-    if (message.stopReason !== "error") return;
 
     const status = response?.status;
+
+    if (message.stopReason !== "error") {
+      // Observed 2026-08-14 against an OpenAI-compatible LiteLLM gateway serving `gpt-5.6-luna`:
+      // nine subagent runs whose last turn is `content: []` / `stopReason: "stop"` / usage all
+      // zeros. Reported by `pi-subagents` as "Subagent produced no output (possible model
+      // cold-start or empty response)" — a guessed cause that named the model instead of the
+      // gateway. Say what was observed instead.
+      if (isEmptyCompletion(message)) {
+        surfaceProviderFailure(
+          ctx,
+          buildEmptyCompletionFailure({
+            provider: message.provider ?? "(unknown provider)",
+            model: message.model ?? "(unknown model)",
+            ...(status !== undefined ? { status } : {}),
+            stopReason: message.stopReason,
+            ...(message.rawStopReason !== undefined ? { rawStopReason: message.rawStopReason } : {}),
+            ...(message.responseId !== undefined ? { responseId: message.responseId } : {}),
+            ...(ctx.thinkingLevel !== undefined ? { thinkingLevel: ctx.thinkingLevel } : {}),
+            usage: message.usage,
+            ...(response?.headers !== undefined ? { headers: response.headers } : {}),
+          }),
+        );
+      }
+      return;
+    }
+
     const midStream = status !== undefined && status >= 200 && status < 300;
 
     surfaceProviderFailure(

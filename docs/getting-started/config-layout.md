@@ -109,7 +109,7 @@ knows it exists.
 | `config/settings.json` | PI core | Default model and thinking level, trust posture, retry, compaction reserve, and the `skills` / `prompts` / `extensions` / `packages` resource paths |
 | `config/models.json` | PI core | Providers, wire APIs, credential *references* (`$VAR` / `!command`), `compat` blocks, and per-model `contextWindow` overrides |
 | `config/routing.json` | this repo's extensions, `pi-tier` | The five tiers, per-provider egress class, per-provider concurrency cap, and `onProviderError` |
-| `config/guard.json` | [`guard`](../extensions/guard.md) | Headless bash allowlist, escalation variable, protected branches, confirm timeout |
+| `config/guard.json` | [`guard`](../extensions/guard.md) | Protected branches, and the tool names the routing observer watches |
 | `config/dispatch.json` | [`dispatch`](../extensions/dispatch.md) | Depth limit, default tier and egress, agent registry directories, concurrency defaults |
 | `config/subagent.json` | `pi-subagents` (linked to `extensions/subagent/config.json`, the package's own config path — not `dispatch.json`) | The package's global fan-out ceiling and legacy top-level `parallel` caps |
 | `config/compaction.json` | [`compaction`](../extensions/compaction.md) | Loop-guard thresholds, headless exit code, pinned sources, absolute threshold |

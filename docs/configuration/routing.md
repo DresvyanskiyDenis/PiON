@@ -186,7 +186,7 @@ provider has no row here.
   "policy": "abort",
   "substituteProvider": false,
   "report": ["provider", "model", "errorClass", "message", "causeChain"],
-  "errorClasses": ["auth", "quota", "network", "model-not-found", "policy"]
+  "errorClasses": ["auth", "quota", "network", "model-not-found", "policy", "empty-response"]
 }
 ```
 
@@ -208,13 +208,36 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
 [pi-config] provider call failed:
   provider    : <name>
   model       : <id>
-  error class : auth | quota | network | model-not-found | policy
+  error class : auth | quota | network | model-not-found | policy | empty-response
   message     : <upstream text>
   caused by   : <cause chain>
 ```
 
 `report` selects the fields in that block. `errorClasses` is the classification vocabulary.
 `policy` and `substituteProvider` are the two you should not change.
+
+!!! note "`empty-response` is a shape, not a message"
+    The other five are decided by reading the provider's error text. `empty-response` is not: it is
+    an HTTP **200** with a well-formed body that carried no completion — zero content parts, a
+    `stop`-family finish reason, and usage of zero prompt and zero completion tokens. Nothing in the
+    stack sees that as a failure on its own; PI materialises it as an ordinary assistant turn, the
+    retry predicate skips it because the stop reason is not `error`, and `pi -p --mode json` exits
+    **0** with no output. Downstream that surfaces as a sub-agent that "produced no output", which
+    is a description of the symptom and tells you nothing about where it happened.
+
+    The check is deliberately narrow — an empty `content` array — and deliberately unreachable from
+    the text classifier, so no wording of a provider message can be mistaken for it. The report
+    names the provider, the model, the status, the finish reason, the effective reasoning effort,
+    the zero usage and the `responseId`. It states what was observed and does not guess at a cause.
+
+    Two guesses that *did* get made and then had to be walked back, 2026-08-14, against an
+    OpenAI-compatible gateway serving hundreds of reproductions: zero prompt tokens does **not**
+    mean the request never reached the model — the underlying provider client pre-initialises usage
+    to zero and only overwrites it from a usage chunk, so "no usage chunk arrived" and "the provider
+    reported zero" reach this report byte-identical. And the `responseId`'s *form* — a gateway-issued
+    id versus an upstream-shaped one — does **not** discriminate a dropped request either; a live
+    check found it decided entirely by whether the request carried `tools`, which every agent turn
+    does. Neither is printed as a cause; both are printed as what they are, an observation.
 
 ---
 

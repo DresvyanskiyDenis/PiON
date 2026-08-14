@@ -7,6 +7,7 @@ import {
   DEFAULT_DISPATCH_CONFIG,
   configPaths,
   expandDir,
+  loadConfiguredProviders,
   loadDispatchSettings,
   registryDirs,
 } from "../../extensions/dispatch/config.ts";
@@ -31,10 +32,11 @@ const MINIMAL_ROUTING = {
  * below have to hold for both, because the installer produces one from the other.
  */
 const SHIPPED_ROUTING = shippedConfig("routing");
+const SHIPPED_MODELS = shippedConfig("models");
 
 describe("the repo's own config files", () => {
   it("loads config/dispatch.json and the shipped routing table clean", () => {
-    const settings = loadDispatchSettings({ routingPath: SHIPPED_ROUTING });
+    const settings = loadDispatchSettings({ routingPath: SHIPPED_ROUTING, modelsPath: SHIPPED_MODELS });
     assert.deepEqual(settings.problems, [], `problems: ${settings.problems.join(" | ")}`);
     assert.match(settings.sources.dispatch, /config\/dispatch\.json$/);
     assert.match(settings.sources.routing, /config\/routing(\.default)?\.json$/);
@@ -195,6 +197,21 @@ describe("loadDispatchSettings", () => {
     assert.deepEqual(settings.dispatch.dispatchTools, DEFAULT_DISPATCH_CONFIG.dispatchTools);
   });
 
+  it("reads onThinkingClamp, and keeps warning-and-proceeding when it is misspelled", () => {
+    const dir = scratch();
+    const abort = loadDispatchSettings({
+      dispatchPath: write(dir, "dispatch.json", { onThinkingClamp: "abort" }),
+      routingPath: write(dir, "routing.json", MINIMAL_ROUTING),
+    });
+    assert.equal(abort.dispatch.onThinkingClamp, "abort");
+    const typo = loadDispatchSettings({
+      dispatchPath: write(dir, "dispatch2.json", { onThinkingClamp: "Abort" }),
+      routingPath: write(dir, "routing.json", MINIMAL_ROUTING),
+    });
+    assert.match(typo.problems.join("\n"), /"onThinkingClamp" must be "warn" or "abort"/);
+    assert.equal(typo.dispatch.onThinkingClamp, "warn", "a typo must not silently refuse every dispatch");
+  });
+
   it("lets a routing.json dispatch block win over dispatch.json, so the shared file is authoritative", () => {
     const dir = scratch();
     const settings = loadDispatchSettings({
@@ -232,5 +249,42 @@ describe("configPaths", () => {
     const paths = configPaths("dispatch.json", "/somewhere/else.json");
     assert.equal(paths[0], "/somewhere/else.json");
     assert.ok(paths.some((p) => p.endsWith("/config/dispatch.json")));
+  });
+});
+
+describe("loadConfiguredProviders", () => {
+  it("reads the repo's own shipped provider list, and nothing PI merely knows about", () => {
+    // `config/models.json` is generated and git-ignored; on a clean checkout `shippedConfig()`
+    // falls back to `config/models.default.json`, which declares only `github-copilot`. Either way
+    // the set must be exactly the providers file's own keys — never a provider PI's own registry
+    // happens to know a client for.
+    const providers = loadConfiguredProviders(shippedConfig("models"));
+    assert.ok(providers);
+    const raw = JSON.parse(readFileSync(shippedConfig("models"), "utf8")) as { providers?: Record<string, unknown> };
+    assert.deepEqual([...providers!].sort(), Object.keys(raw.providers ?? {}).sort());
+    assert.ok(!providers!.has("deepseek"), "the provider nobody configured: known to PI, declared by nobody");
+  });
+
+  it("returns the keys of an override file, ignoring everything else in it", () => {
+    const dir = scratch("ext05-models-");
+    const path = write(dir, "models.json", { _costNote: "x", providers: { litellm: { baseUrl: "https://x" } } });
+    assert.deepEqual([...loadConfiguredProviders(path)!], ["litellm"]);
+  });
+
+  it("is undefined — 'cannot say' — when the file is absent or has no providers block", () => {
+    const dir = scratch("ext05-models-");
+    assert.equal(loadConfiguredProviders(join(dir, "nope.json")), undefined);
+    assert.equal(loadConfiguredProviders(write(dir, "models.json", { providers: [] })), undefined);
+    assert.equal(loadConfiguredProviders(write(dir, "empty.json", {})), undefined);
+  });
+
+  it("says so in problems when the list could not be read, rather than filtering at half strength silently", () => {
+    const dir = scratch("ext05-models-");
+    const settings = loadDispatchSettings({
+      routingPath: write(dir, "routing.json", MINIMAL_ROUTING),
+      modelsPath: join(dir, "absent-models.json"),
+    });
+    assert.equal(settings.configuredProviders, undefined);
+    assert.ok(settings.problems.some((p) => p.includes("models.json could not be read")));
   });
 });

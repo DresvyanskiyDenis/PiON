@@ -1,26 +1,30 @@
 /**
- * `REQ-CTX-47` — the sub-agent routing veto, SHOULD-level and overridable.
+ * `RTE-*` — the sub-agent routing veto's call site. **Audit only since 2026-08-14.**
  *
- * The dispatch runtime does not exist in wave 1. This item splits the work:
- * `EXT-01` owns the interface (`lib/dispatch-veto.ts`), **`EXT-03` ships the call site — this
- * file** — and `EXT-05` fills the implementation by registering vetoes against `pi-subagents`'
- * `registerSubagentCapabilityCeiling()`. Until then the gate registers, finds no registered
- * veto, matches nothing, and is exercised only by its unit test.
+ * This was never a safety rule: it moves the default from `general-purpose` to a matching
+ * specialist. Removed outright by owner decision, 2026-08-14 — the allow-list model is gone,
+ * only catastrophic commands are blocked — takes a routing preference off the block list by
+ * definition. A mis-routed dispatch costs some tokens; it destroys nothing.
  *
- * The counters are why this is a gate and not a sentence in `AGENTS.md`: 177 `general-purpose`
- * dispatches against 136 across all fourteen specialists combined, with the instruction already
- * written down. An instruction 100k tokens from the decision point loses to
- * a tool description that sounds right. A gate does not lose.
+ * The gate is kept as an observer rather than deleted, and the reason is measurement, not
+ * caution. The whole case for routing to a specialist is a count — 177 `general-purpose`
+ * dispatches against 136 across all specialists combined, on one measured project — and
+ * `guard.observed` is now the only place that count keeps being taken. Deleting the call site
+ * would leave the next argument about routing with no data at all.
+ *
+ * **Consequence, stated rather than discovered:** this was the only consumer that turned a
+ * registered dispatch veto into a block. A veto registered against `lib/dispatch-veto.ts` still
+ * evaluates here — but its verdict is now recorded and permitted. Any dispatch veto registered
+ * from anywhere is advisory until something else chooses to enforce it.
  */
 import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { GuardRule } from "../../lib/guarded-handler.ts";
-import { denyWithEscapeHatch } from "../../lib/escape-hatch.ts";
 import {
   evaluateDispatch,
   type DispatchRequest,
   type EgressClass,
 } from "../../lib/dispatch-veto.ts";
-import { tryOverride } from "../override.ts";
+import { observe } from "../observe.ts";
 import type { GuardServices } from "../services.ts";
 import type { Policy } from "../policy.ts";
 
@@ -41,20 +45,13 @@ export function agentRoutingGate(policy: Policy, services: GuardServices): Guard
       const verdict = await evaluateDispatch(request, services.log);
       if (!verdict.veto) return { block: false };
 
-      const denial = verdict.denial;
-      if (
-        denial.overridable &&
-        tryOverride({
-          event,
-          gateId: denial.gateId,
-          keys: PROMPT_KEYS,
-          services,
-          detail: { agentType: request.agentType },
-        })
-      ) {
-        return { block: false };
-      }
-      return denyWithEscapeHatch(denial);
+      return observe({
+        event,
+        gateId: verdict.denial.gateId,
+        what: verdict.denial.what,
+        services,
+        detail: { agentType: request.agentType },
+      });
     },
   };
 }

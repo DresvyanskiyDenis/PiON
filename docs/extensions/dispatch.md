@@ -10,7 +10,7 @@ What ships here is the remainder. Configured by
 
 Registers `/agents`.
 
-## The five parts
+## The parts
 
 | Part | What it does |
 |---|---|
@@ -19,6 +19,8 @@ Registers `/agents`.
 | `isolation.ts` | Honours `isolation: worktree`; the worktree itself comes from [`worktree`](worktree.md) |
 | `tiers.ts` | Tier name → `provider/id`, from `routing.json`, the single source of truth |
 | `catalogue.ts` | The model registry as a dispatch surface |
+| `thinking.ts` | The reasoning-effort suffix: what was asked, what the model serves, what will actually run |
+| `async-fleet.ts` | Re-reads the state a background run wrote for itself, and announces the ones that ended |
 
 ## The two non-negotiable acceptance criteria
 
@@ -62,6 +64,45 @@ effort it resolves to, so the cost of a choice is visible at the point of choosi
 
 Until 2026-08-13 the list was filtered by the session's own class and what had been removed was
 counted on one line. The filter went with the containment rule it implemented.
+
+## Reasoning effort is disclosed, never assumed
+
+A reasoning effort rides inside the model string as a suffix (`provider/id:max`), and that suffix is
+a **request**: PI clamps it against the model's declared vocabulary before the wire. Nothing warned
+about that, so a run commissioned at `max` could ship at `high` and record `max` in its own metadata
+— visibly wrong only to someone who went looking.
+
+Now every dispatch that would be clamped says so, naming the requested level, the effective one,
+what the model does serve, and which other configured providers serve what was asked — each with its
+egress class, because moving between classes is the operator's decision and not a routing
+optimisation. It is a hint: **nothing is rerouted**. The model string is rewritten to the effective
+level before the package sees it, so the run metadata and the announcement agree with the wire.
+
+The menu prints the same thing rather than the request alone — `effort high (asked max; <provider>
+does not serve it — serves low|medium|high)` — and `/agents` lists any tier in that state under
+`reasoning effort CLAMPED:`. A model whose vocabulary the registry does not know produces no
+disclosure and no rewrite: "cannot say" must not render as "no clamp will happen". Whether a clamp
+warns or refuses is
+[`onThinkingClamp`](../configuration/dispatch.md#onthinkingclamp).
+
+## Async runs announce their own terminal state
+
+`pi-subagents` acknowledges an async dispatch with a promise to wake you when it finishes. When that
+delivery path fails, nothing enters the transcript at all — and the acknowledgement is then the only
+in-context evidence the orchestrator has, so it keeps reporting a run that died seconds ago as live.
+Measured: every async result file of one session still on disk, undeleted, `"state": "failed"`, and
+zero notifications in the transcript.
+
+This module does not add a second lifecycle. The authoritative state is already on disk in the run's
+own `status.json`, written by the package's runner; the only thing missing was that nobody read it
+unless the model thought to ask. So each async spawn's directory is remembered, re-read at
+`turn_end`, and each run that has reached a terminal state and has not been reported yet produces one
+message. `paused` is deliberately **not** terminal — announcing it would spend the run's single
+announcement and hide the real ending.
+
+Duplication was chosen over silence: if the package's own notification does arrive, you may hear
+about a finished run twice. Being told twice is a nuisance; not being told is a wrong answer. The
+upstream delivery failure is routed around, not repaired.
 
 The block is built once at `session_start` and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. `/agents` prints the same text **verbatim** — if the human

@@ -19,13 +19,14 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { describeError } from "./once.ts";
 
-/** The five classes fixed by `config/routing.json` -> `onProviderError.errorClasses`. */
+/** The six classes fixed by `config/routing.json` -> `onProviderError.errorClasses`. */
 export type ProviderErrorClass =
   | "auth" // 401/403, expired or missing credential
   | "quota" // 429/402 with a quota, rate-limit or billing signal
   | "network" // DNS, TLS, proxy, timeout — anything that never reached the model
   | "model-not-found" // the id is not served by this provider (the Databricks endpoint trap, V-30)
-  | "policy"; // the provider refused on tenant policy (the V-12 outcome-D shape)
+  | "policy" // the provider refused on tenant policy (the V-12 outcome-D shape)
+  | "empty-response"; // a well-formed 200 whose body carried no completion at all
 
 /**
  * PI's own carrier for "what actually threw": `AssistantMessage.diagnostics`, shaped by
@@ -82,6 +83,20 @@ export interface ProviderFailure {
    * rendered block says so explicitly rather than reporting a misleading "http 200".
    */
   readonly midStream: boolean;
+  /**
+   * Gateway correlation headers, already filtered to the ones worth printing, in render order.
+   *
+   * These are what makes a report actionable on the OTHER side of the gateway: `x-litellm-call-id`
+   * is the handle a proxy admin greps their own logs for. They were being discarded — the
+   * `after_provider_response` handler kept `event.status` and dropped `event.headers`, which is
+   * public on `AfterProviderResponseEvent` and populated by `pi-ai`
+   * (`dist/api/openai-completions.js`). An empty 200 has no body to quote, so a header that
+   * identifies the request server-side is the single most useful thing the block can carry.
+   *
+   * Absent headers are omitted rather than rendered empty: `x-litellm-call-id: undefined` reads as
+   * a value the gateway sent, and it is not.
+   */
+  readonly gatewayHeaders?: readonly (readonly [string, string])[];
 }
 
 export interface ClassifyInput {
@@ -240,11 +255,15 @@ export function recoverStatus(input: ClassifyInput): number | undefined {
  * The status feeding those steps comes from `recoverStatus`, so a status that only ever existed
  * inside the error text steers the class exactly as one read off the wire would.
  *
- * The last resort is `network`, and it is a deliberate choice rather than a guess: with the five
+ * The last resort is `network`, and it is a deliberate choice rather than a guess: with the
  * classes closed by `routing.json` there is no "unknown", and a response that we cannot classify
  * demonstrably did not produce a usable completion. Nothing is hidden by it — the rendered block
  * always carries the raw status and the untruncated upstream text, so the class is a routing
  * hint, never the evidence.
+ *
+ * `empty-response` is deliberately NOT reachable from here. It is not a property of any text —
+ * an empty completion carries none — but of the message's shape, so it is recognised by
+ * `isEmptyCompletion` and built by `buildEmptyCompletionFailure`, never guessed at from a string.
  */
 export function classifyProviderError(input: ClassifyInput): ProviderErrorClass {
   const text = classificationHaystack(input);
@@ -286,14 +305,213 @@ export function buildProviderFailure(input: BuildFailureInput): ProviderFailure 
   };
 }
 
+/**
+ * The shape `isEmptyCompletion` needs from `AssistantMessage`. Declared structurally rather than
+ * imported so the predicate can be exercised from a recorded transcript record, which is where the
+ * evidence for this failure lives (`.pi-subagents/artifacts/*_transcript.jsonl`).
+ */
+export interface CompletionShape {
+  readonly content?: readonly { readonly type: string }[];
+  readonly stopReason: string;
+  readonly rawStopReason?: string;
+  readonly responseId?: string;
+  readonly usage?: { readonly input?: number; readonly output?: number };
+}
+
+/**
+ * Stop reasons for which "no content" is a legitimate state rather than a failed turn:
+ * `error` and `aborted` are reported elsewhere (the first by the `stopReason === "error"` branch,
+ * the second is the operator pressing Esc), `pending` is a message that has not finished, and
+ * `deferred` is a batch handle whose content arrives later by design.
+ */
+const NOT_AN_ANSWER: readonly string[] = ["error", "aborted", "pending", "deferred"];
+
+/**
+ * A turn that ended with a completion carrying **nothing** — no text, no thinking block, no tool
+ * call — while the provider called it a normal termination.
+ *
+ * Observed 2026-08-14 against an OpenAI-compatible LiteLLM gateway serving `gpt-5.6-luna`, in nine
+ * subagent runs whose transcripts all end on the identical record: `content: []`,
+ * `stopReason: "stop"`, `rawStopReason: "stop"`, `usage` zero on every field, and a `responseId` in
+ * the gateway's own `chatcmpl-<uuid4>` form rather than the upstream provider's — i.e. the gateway
+ * answered 200 with a stream that carried no delta at all. Not luna-only, and not rare: this shape
+ * recurs against other models behind the same gateway. Nothing downstream could tell that from
+ * a model that simply had nothing to say: `pi-subagents` reported it as "Subagent produced no
+ * output (possible model cold-start or empty response)", a guess that named a cause nobody had
+ * established and cost hours of transcript archaeology.
+ *
+ * The `responseId` FORM (`chatcmpl-<uuid4>` versus an upstream-shaped id) is not evidence and was
+ * briefly treated as though it were. A live check of hundreds of session records found it decided
+ * by nothing more than whether the request body carried `tools` — toolless calls get the upstream
+ * form, calls with `tools` get the gateway's own uuid4 — and PI attaches `tools` on every agent
+ * turn, so this harness never sees the upstream form at all, healthy or not. Zero discriminating
+ * power; see `buildEmptyCompletionFailure` for the matching correction to the `usage` claim.
+ *
+ * The predicate is shape-only and was checked against the counter-example set before being
+ * wired up: across the 19 successful runs in the same artifact directory, 304 assistant messages,
+ * **zero** carry an empty `content`. `content.length === 0` is the whole predicate. `usage` is
+ * NOT part of it and must not become part of it — see below for why.
+ */
+export function isEmptyCompletion(message: CompletionShape): boolean {
+  if (NOT_AN_ANSWER.includes(message.stopReason)) return false;
+  // A message with no `content` array at all is not evidence of an empty completion — PI always
+  // sets one — so it is left alone rather than reported on a shape nobody has seen.
+  return Array.isArray(message.content) && message.content.length === 0;
+}
+
+export interface EmptyCompletionInput {
+  readonly provider: string;
+  readonly model: string;
+  /** HTTP status of the response that carried the empty body, when `after_provider_response` saw one. */
+  readonly status?: number;
+  readonly stopReason: string;
+  readonly rawStopReason?: string;
+  readonly responseId?: string;
+  readonly usage?: { readonly input?: number; readonly output?: number };
+  /**
+   * The session's reasoning effort at the time of the call — `ctx.thinkingLevel`, i.e. the level
+   * PI had already clamped to the model's `thinkingLevelMap`, which is what actually went on the
+   * wire. It is here because the level was the first suspect when this failure was investigated
+   * and it took a live probe to rule out: a run that names `:max` in its metadata but reports
+   * `high` here has been clamped, and the gateway's `reasoning_effort` vocabulary is not the cause.
+   */
+  readonly thinkingLevel?: string;
+  /** `AfterProviderResponseEvent.headers`, raw. Filtered by `pickGatewayHeaders`. */
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
+/**
+ * The response headers worth carrying into a failure report, lower-cased, in this order.
+ *
+ * Four, and only four, chosen because each answers a question the report otherwise cannot:
+ *   - `x-litellm-call-id` — the handle a proxy admin greps for. Without it a report of an empty 200
+ *     is unactionable on the gateway side, which is where the fault now looks like it lives.
+ *   - `x-litellm-model-id` — WHICH deployment behind the model group served it. A model group fans
+ *     out, and "gpt-5.6-luna failed" does not say which member did.
+ *   - `x-litellm-response-duration-ms` — the gateway's own timing, independent of ours.
+ *   - `x-litellm-version` — so a report stays readable after the proxy is upgraded.
+ *
+ * Named explicitly rather than swept in by an `x-litellm-*` prefix match: a blanket copy would put
+ * whatever the proxy adds next into a message that reaches a log and a report, and
+ * `x-litellm-key-*` headers on that surface are spend and key metadata. An allow-list is the safe
+ * default when the producer is not ours.
+ */
+const GATEWAY_HEADERS: readonly string[] = [
+  "x-litellm-call-id",
+  "x-litellm-model-id",
+  "x-litellm-response-duration-ms",
+  "x-litellm-version",
+];
+
+/**
+ * The subset of `headers` that is present and non-empty, in `GATEWAY_HEADERS` order.
+ *
+ * Header names are matched case-insensitively: HTTP header names are case-insensitive by spec, and
+ * what reaches `AfterProviderResponseEvent.headers` is whatever the fetch implementation chose to
+ * key them by. Returns `undefined` — never `[]` — when nothing matched, so the caller can omit the
+ * field rather than render an empty one.
+ */
+export function pickGatewayHeaders(
+  headers: Readonly<Record<string, string>> | undefined,
+): readonly (readonly [string, string])[] | undefined {
+  if (headers === undefined) return undefined;
+  const lowered = new Map<string, string>();
+  for (const [key, value] of Object.entries(headers)) lowered.set(key.toLowerCase(), value);
+  const picked: (readonly [string, string])[] = [];
+  for (const name of GATEWAY_HEADERS) {
+    const value = lowered.get(name);
+    if (typeof value === "string" && value.trim() !== "") picked.push([name, value.trim()] as const);
+  }
+  return picked.length > 0 ? picked : undefined;
+}
+
+/**
+ * The `empty-response` failure, built from what was observed and nothing else.
+ *
+ * There is no upstream text to quote here — that is the entire complaint — so `message` states the
+ * facts a reader needs to tell "the gateway dropped this" from "the model chose to say nothing":
+ * the part count, both stop reasons, the reasoning effort, the response id and the token counts.
+ * It explains none of them.
+ *
+ * ## The one sentence that WAS a cause, and how it was refuted
+ *
+ * Until 2026-08-14 this function appended: *"Zero prompt tokens on a request that carried a prompt
+ * means the gateway billed nothing for it — the request did not reach the model behind it."* That
+ * is an inference, it was printed as fact, and it is wrong on the instrument alone.
+ *
+ * `pi-ai`'s OpenAI-completions stream initialises `output.usage` to zeros on every field and
+ * overwrites it ONLY from a usage chunk sent partway through the stream. On this failure no usage
+ * chunk arrives at all, so the assistant message reports 0/0 no matter what the gateway did or did
+ * not bill. `0 prompt tokens` is therefore the DEFAULT, not a measurement, and it carries no
+ * information about whether the request reached the model.
+ *
+ * A live probe then contradicted the claim outright: every empty-200 reproduction had no usage
+ * chunk, every healthy response had one, and an identical NON-streaming request against the same
+ * gateway returned a real rate-limit error seconds later instead of an empty 200 — streaming never
+ * did. The leading hypothesis is now the opposite of what the sentence said — the gateway's
+ * streaming path swallowing an upstream rate limit — and it is a hypothesis, so it is not printed
+ * either, and nothing here retries automatically on it.
+ *
+ * ## Why the absence is not reported as the discriminator
+ *
+ * Usage-chunk absence is the real signal and it would be worth printing, but it is not observable
+ * from here. Because `output.usage` is pre-initialised, "no usage chunk arrived" and "the provider
+ * reported zero" reach `message_end` as the byte-identical object `{input: 0, output: 0, …}`.
+ * Nothing on `CompletionShape` can separate them, so the distinction is NOT invented: the counts
+ * are printed with the caveat that they do not discriminate, and the shape check in
+ * `isEmptyCompletion` is left exactly as it was.
+ */
+export function buildEmptyCompletionFailure(input: EmptyCompletionInput): ProviderFailure {
+  const inTokens = input.usage?.input ?? 0;
+  const outTokens = input.usage?.output ?? 0;
+  const gatewayHeaders = pickGatewayHeaders(input.headers);
+  return {
+    provider: input.provider,
+    model: input.model,
+    klass: "empty-response",
+    message:
+      `the provider returned an empty completion: 0 content parts (no text, no thinking, no ` +
+      `tool call), stopReason=${input.stopReason}, ` +
+      `finish_reason=${input.rawStopReason ?? "(none reported)"}, ` +
+      `reasoning effort=${input.thinkingLevel ?? "(not reported by the session)"}, ` +
+      `responseId=${input.responseId ?? "(none reported)"}, ` +
+      `usage ${inTokens} prompt / ${outTokens} completion token(s). ` +
+      (inTokens === 0 && outTokens === 0
+        ? `Those counts are not evidence: pi-ai initialises usage to zero and overwrites it only ` +
+          `from a usage chunk, so 0/0 is what arrives both when no usage chunk was sent and when ` +
+          `the provider genuinely reported zero, and the two are indistinguishable from here. `
+        : "") +
+      `The turn produced no answer.`,
+    ...(input.rawStopReason !== undefined ? { rawStopReason: input.rawStopReason } : {}),
+    ...(input.status !== undefined ? { status: input.status } : {}),
+    ...(gatewayHeaders !== undefined ? { gatewayHeaders } : {}),
+    midStream: false,
+  };
+}
+
+/**
+ * Where the failure happened, in one clause. `empty-response` gets its own because a bare
+ * `http 200` on a turn that produced nothing reads as "the call was fine", which is the exact
+ * misreading this class exists to prevent — the headers were fine and the body was the failure.
+ */
+function describeWhere(f: ProviderFailure): string {
+  if (f.klass === "empty-response") return `http ${f.status ?? "2xx"}, empty body`;
+  if (f.midStream) return `http ${f.status ?? "2xx"} then stream failure`;
+  return f.status !== undefined ? `http ${f.status}` : "no status";
+}
+
+/**
+ * The literal text every classified failure block starts with.
+ *
+ * Exported so `extensions/dispatch/failure-slot.ts` can find this exact marker in a child's raw
+ * stderr tail and lift it to the front of a tool result, rather than re-deriving the string in two
+ * places and having them drift.
+ */
+export const PROVIDER_FAILURE_MARKER = "[pi-config] provider call failed:";
+
 /** The one-line form, for a TUI toast and for grepping a log. */
 export function summariseProviderFailure(f: ProviderFailure): string {
-  const where = f.midStream
-    ? `http ${f.status ?? "2xx"} then stream failure`
-    : f.status !== undefined
-      ? `http ${f.status}`
-      : "no status";
-  return `[pi-config] provider call failed: ${f.provider}/${f.model} — ${f.klass} (${where})`;
+  return `${PROVIDER_FAILURE_MARKER} ${f.provider}/${f.model} — ${f.klass} (${describeWhere(f)})`;
 }
 
 /**
@@ -307,15 +525,21 @@ export function formatProviderFailure(f: ProviderFailure): string {
     `  model    : ${f.model}`,
     `  class    : ${f.klass}`,
     `  http     : ${
-      f.midStream
-        ? `${f.status ?? "2xx"} (headers ok; the stream failed after them, so the status is not the error)`
-        : // Not "the request never reached the provider": that is an inference, and it was the
-          // wrong one on the Databricks 403 that `recoverStatus` now catches. State only what was
-          // established — no status anywhere — and leave the message line to say the rest.
-          (f.status?.toString() ?? "(no status — none on the wire, none in the upstream text)")
+      f.klass === "empty-response"
+        ? `${f.status ?? "2xx"} (a complete, well-formed response whose body carried no completion — ` +
+          `the status is not the error)`
+        : f.midStream
+          ? `${f.status ?? "2xx"} (headers ok; the stream failed after them, so the status is not the error)`
+          : // Not "the request never reached the provider": that is an inference, and it was the
+            // wrong one on the Databricks 403 that `recoverStatus` now catches. State only what was
+            // established — no status anywhere — and leave the message line to say the rest.
+            (f.status?.toString() ?? "(no status — none on the wire, none in the upstream text)")
     }`,
     `  message  : ${f.message}`,
   ];
+  if (f.gatewayHeaders !== undefined && f.gatewayHeaders.length > 0) {
+    lines.push(`  gateway  : ${f.gatewayHeaders.map(([k, v]) => `${k}=${v}`).join(", ")}`);
+  }
   if (f.rawStopReason !== undefined) {
     lines.push(`  rawStop  : ${f.rawStopReason}`);
   }

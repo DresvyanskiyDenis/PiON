@@ -172,7 +172,7 @@ Where the semaphore cannot reach is documented honestly in
   "policy": "abort",
   "substituteProvider": false,
   "report": ["provider", "model", "errorClass", "message", "causeChain"],
-  "errorClasses": ["auth", "quota", "network", "model-not-found", "policy"]
+  "errorClasses": ["auth", "quota", "network", "model-not-found", "policy", "empty-response"]
 }
 ```
 
@@ -192,7 +192,7 @@ renders:
 [pi-config] provider call failed:
   provider    : <name>
   model       : <id>
-  error class : auth | quota | network | model-not-found | policy
+  error class : auth | quota | network | model-not-found | policy | empty-response
   message     : <upstream text>
   caused by   : <cause chain>
 ```

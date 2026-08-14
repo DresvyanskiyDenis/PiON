@@ -4,15 +4,17 @@ import {
   MENU_CLOSE,
   MENU_OPEN,
   describeAlternatives,
+  describeServing,
   injectMenuOnce,
   makeCatalogue,
+  providersServing,
   renderModelMenu,
   selectMenuModels,
   splitModelId,
   stripMenu,
   suggestModels,
 } from "../../extensions/dispatch/catalogue.ts";
-import { CATALOGUE, CONFIG, ROUTING } from "./helpers.ts";
+import { CATALOGUE, CONFIG, CONFIGURED_PROVIDERS, ROUTING, THINKING_CAPS } from "./helpers.ts";
 
 describe("splitModelId", () => {
   it("splits on the FIRST slash, so a local model id keeps its own", () => {
@@ -81,21 +83,137 @@ describe("describeAlternatives", () => {
   });
 });
 
+describe("providersServing", () => {
+  it("groups the models that serve a level, and carries each provider's egress class", () => {
+    assert.deepEqual(providersServing(CATALOGUE, ROUTING, "max"), [
+      { provider: "databricks", egress: "confidential", models: ["databricks/databricks-claude-sonnet-4-5"] },
+    ]);
+  });
+
+  it("returns every provider that serves a level they all serve", () => {
+    const providers = providersServing(CATALOGUE, ROUTING, "medium").map((s) => s.provider);
+    assert.deepEqual(providers, ["github-copilot", "databricks"], "registry order, not alphabetical");
+  });
+
+  /** A model the registry does not describe is skipped: "cannot say" must never render as "yes". */
+  it("never guesses for a model with no declared vocabulary", () => {
+    const all = providersServing(CATALOGUE, ROUTING, "high").flatMap((s) => s.models);
+    assert.ok(!all.includes("github-copilot/claude-opus-5"), "no capability entry means no claim");
+    assert.ok(!all.includes("github-copilot/gpt-5.4-mini"), "reasoning: false serves nothing but off");
+  });
+
+  it("says nothing at all when the registry was unavailable", () => {
+    assert.deepEqual(providersServing(undefined, ROUTING, "max"), []);
+  });
+
+  /**
+   * The registry carries providers PI knows natively whether or not this install configured them.
+   * A hint exists to say where the requested level would REALLY run, so an endpoint that appears in
+   * neither `config/models.json` nor `routing.json`'s egress map is not a candidate — it could not
+   * even be assigned a class, and `egress unlabelled` was the map admitting it could not classify a
+   * route it was nonetheless recommending.
+   */
+  describe("only configured, classified providers are candidates", () => {
+    /** Registry order matters, so the unconfigured one sits first: it must be dropped, not shadowed. */
+    const WITH_DEEPSEEK = makeCatalogue(
+      ["deepseek/deepseek-v4-flash", "databricks/databricks-claude-sonnet-4-5"],
+      [
+        [
+          "deepseek/deepseek-v4-flash",
+          { reasoning: true, thinkingLevelMap: { low: "low", medium: "medium", high: "high", max: "max" } },
+        ],
+        ...THINKING_CAPS.filter(([id]) => id === "databricks/databricks-claude-sonnet-4-5"),
+      ],
+    );
+
+    it("drops a provider routing.json does not classify, even without a models.json list", () => {
+      assert.deepEqual(providersServing(WITH_DEEPSEEK, ROUTING, "max"), [
+        { provider: "databricks", egress: "confidential", models: ["databricks/databricks-claude-sonnet-4-5"] },
+      ]);
+    });
+
+    it("drops a classified provider that config/models.json does not declare", () => {
+      const routing = { ...ROUTING, egress: { ...ROUTING.egress, deepseek: "public" as const } };
+      const providers = providersServing(WITH_DEEPSEEK, routing, "max", CONFIGURED_PROVIDERS).map((s) => s.provider);
+      assert.deepEqual(providers, ["databricks"], "classified is not enough; it must also be configured");
+    });
+
+    it("keeps the classified half working when models.json could not be read", () => {
+      const routing = { ...ROUTING, egress: { ...ROUTING.egress, deepseek: "public" as const } };
+      const providers = providersServing(WITH_DEEPSEEK, routing, "max", undefined).map((s) => s.provider);
+      assert.deepEqual(providers, ["deepseek", "databricks"], "an unreadable file must not empty the hint");
+    });
+
+    it("still names a provider that is both configured and classified", () => {
+      assert.deepEqual(providersServing(CATALOGUE, ROUTING, "max", CONFIGURED_PROVIDERS), [
+        { provider: "databricks", egress: "confidential", models: ["databricks/databricks-claude-sonnet-4-5"] },
+      ]);
+    });
+  });
+});
+
+describe("describeServing", () => {
+  it("reads as a hint and explicitly not as a reroute", () => {
+    const text = describeServing(providersServing(CATALOGUE, ROUTING, "max"), "max");
+    assert.match(text, /Models that DO serve `max`: databricks \(egress confidential\)/);
+    assert.match(text, /hint, not a reroute/);
+  });
+
+  it("calls an empty list the configuration's ceiling, not silence", () => {
+    assert.match(describeServing([], "xhigh"), /No configured model serves `xhigh` at all/);
+    assert.match(describeServing([], "xhigh"), /ceiling rather than a routing choice/);
+  });
+
+  it("caps a long list rather than reprinting the model menu", () => {
+    const many = [{ provider: "openai-compatible", egress: "internal" as const, models: ["a", "b", "c", "d", "e"] }];
+    assert.match(describeServing(many, "max"), /openai-compatible \(egress internal\): a, b, c \+2 more/);
+  });
+});
+
 describe("selectMenuModels", () => {
   const input = (sessionEgress: "public" | "internal" | "confidential") => ({
     routing: ROUTING,
     catalogue: CATALOGUE,
     sessionEgress,
     defaultTier: CONFIG.defaultTier,
+    configuredProviders: CONFIGURED_PROVIDERS,
   });
 
-  const ALL_PROVIDERS = ["github-copilot", "databricks", "deepseek"];
+  /** What this install has. `deepseek` is in the registry fixture and in neither config. */
+  const DISPATCHABLE = ["github-copilot", "databricks"];
 
-  it("groups by provider and keeps providers routing.json does not classify", () => {
+  /**
+   * REVISED 2026-08-14. This used to assert `unclassed: ["deepseek/deepseek-v4-flash"]` — "reported,
+   * but not withheld". The owner's rule replaced it: a provider that is not configured does not
+   * exist, so it is withheld, and the menu and the dispatch gate now give the same answer.
+   */
+  it("groups by provider and drops any provider this install has not configured", () => {
     const sel = selectMenuModels(input("public"));
-    assert.deepEqual([...sel.byProvider.keys()], ALL_PROVIDERS);
-    assert.deepEqual(sel.unclassed, ["deepseek/deepseek-v4-flash"], "reported, but not withheld");
-    assert.deepEqual(sel.byProvider.get("deepseek"), ["deepseek-v4-flash"]);
+    assert.deepEqual([...sel.byProvider.keys()], DISPATCHABLE);
+    assert.equal(sel.byProvider.get("deepseek"), undefined);
+    assert.deepEqual(sel.excluded, ["deepseek/deepseek-v4-flash"]);
+  });
+
+  it("drops a classified provider that models.json does not declare, and vice versa", () => {
+    // Both halves, independently: the rule is a conjunction, so either one alone must exclude.
+    const onlyClassified = selectMenuModels({
+      ...input("public"),
+      configuredProviders: new Set(["github-copilot"]),
+    });
+    assert.deepEqual([...onlyClassified.byProvider.keys()], ["github-copilot"]);
+    const onlyConfigured = selectMenuModels({
+      ...input("public"),
+      routing: { ...ROUTING, egress: { "github-copilot": "public" as const } },
+    });
+    assert.deepEqual([...onlyConfigured.byProvider.keys()], ["github-copilot"]);
+  });
+
+  it("falls back to the classified half when models.json could not be read", () => {
+    // Degradation, not silence: an unreadable file must not empty the menu. `deepseek` is still
+    // absent, because it is unclassified too — which is why the fallback is safe here.
+    const sel = selectMenuModels({ ...input("public"), configuredProviders: undefined });
+    assert.deepEqual([...sel.byProvider.keys()], DISPATCHABLE);
+    assert.deepEqual(sel.excluded, ["deepseek/deepseek-v4-flash"]);
   });
 
   /**
@@ -105,14 +223,15 @@ describe("selectMenuModels", () => {
    * exactly what made "switch provider mid-session" impossible, and a menu that omits a model the
    * dispatcher can legally name is a menu that teaches the wrong contract. The new rule is that the
    * class annotates and never subtracts, so one test replaces the three: the menu is identical for
-   * every session class.
+   * every session class. Still true — the 2026-08-14 filter asks a different question ("does this
+   * install have it") and is the same for every session class.
    */
-  it("shows every model to every session class — the class does not filter", () => {
+  it("shows every dispatchable model to every session class — the class does not filter", () => {
     for (const cls of ["public", "internal", "confidential"] as const) {
       const sel = selectMenuModels(input(cls));
-      assert.deepEqual([...sel.byProvider.keys()], ALL_PROVIDERS, cls);
+      assert.deepEqual([...sel.byProvider.keys()], DISPATCHABLE, cls);
       const total = [...sel.byProvider.values()].reduce((n, ids) => n + ids.length, 0);
-      assert.equal(total, CATALOGUE.ids.length, `${cls}: every id in the registry is selectable`);
+      assert.equal(total, CATALOGUE.ids.length - 1, `${cls}: every dispatchable id is selectable`);
     }
   });
 });
@@ -124,6 +243,7 @@ describe("renderModelMenu", () => {
       catalogue: withCatalogue ? CATALOGUE : undefined,
       sessionEgress,
       defaultTier: CONFIG.defaultTier,
+      configuredProviders: CONFIGURED_PROVIDERS,
     });
 
   it("states the contract the dispatching model has to satisfy", () => {
@@ -171,14 +291,43 @@ describe("renderModelMenu", () => {
 
   it("keeps the session's own class on the page, as a label that restricts nothing", () => {
     assert.match(menu("confidential"), /This session is classed `confidential`; the class is a label and restricts nothing/);
-    assert.match(menu("confidential"), /All 9 concrete id\(s\) below are selectable/);
+    // 9 in the registry fixture, 8 dispatchable: `deepseek` is in neither config file.
+    assert.match(menu("confidential"), /All 8 concrete id\(s\) below are selectable/);
   });
 
-  it("labels an unclassed provider rather than withholding it", () => {
+  /**
+   * REPLACES "labels an unclassed provider rather than withholding it" (2026-08-13 - 2026-08-14).
+   * That test asserted `- deepseek (egress unlabelled): deepseek-v4-flash` was rendered. Under the
+   * owner's rule — a provider that is not configured does not exist — `unlabelled` stopped being a
+   * renderable state and became a filter, so the assertion is inverted.
+   */
+  it("never names a provider this install has not configured, anywhere on the page", () => {
     const text = menu();
-    assert.match(text, /- deepseek \(egress unlabelled\): deepseek-v4-flash/);
-    assert.match(text, /1 of them come from provider\(s\) with no egress class in routing\.json \(deepseek\)/);
-    assert.match(text, /they are selectable and reported as unlabelled/);
+    assert.doesNotMatch(text, /deepseek/);
+    assert.doesNotMatch(text, /unlabelled/);
+    // ...and says the list is complete, so the model does not go looking for what is missing.
+    assert.match(text, /This is the complete set/);
+    assert.match(text, /a provider this install has not configured is not on it and cannot be dispatched to/);
+  });
+
+  it("flags a tier pointing at an unconfigured provider instead of labelling it unlabelled", () => {
+    // A broken tier must be visible: `tiers.ts` aborts the dispatch, and the menu saying so is what
+    // stops the model discovering it by calling it. This is a config error surfaced, not a leak.
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, strong: { model: "deepseek/deepseek-v4-flash" } },
+    };
+    const text = renderModelMenu({
+      routing,
+      catalogue: CATALOGUE,
+      sessionEgress: "public",
+      defaultTier: CONFIG.defaultTier,
+      configuredProviders: CONFIGURED_PROVIDERS,
+    });
+    assert.match(text, /tier `strong` -> deepseek\/deepseek-v4-flash — NOT DISPATCHABLE:/);
+    assert.match(text, /it is not configured in config\/models\.json/);
+    assert.match(text, /it has no egress class in config\/routing\.json/);
+    assert.doesNotMatch(text, /egress unlabelled/);
   });
 
   it("says so plainly when the registry could not be read, rather than printing an empty list", () => {
@@ -206,8 +355,45 @@ describe("renderModelMenu", () => {
       catalogue: CATALOGUE,
       sessionEgress: "public",
       defaultTier: CONFIG.defaultTier,
+      configuredProviders: CONFIGURED_PROVIDERS,
     });
     assert.match(noLevelText, /tier `strong` -> github-copilot\/claude-opus-5 \(egress public, effort provider default\)/);
+  });
+
+  /**
+   * The status-line half of the `:max` defect. The menu is the text both the operator and the
+   * dispatching model read to decide what a tier costs; while it printed the REQUESTED level, a
+   * tier could advertise `effort max` for months of runs that shipped `high`. Both levels are now
+   * on the line, and so is the vocabulary that explains the difference.
+   */
+  it("shows the effort a tier will really run at, not the one it asked for", () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4", thinkingLevel: "max" } },
+    };
+    const text = renderModelMenu({
+      routing,
+      catalogue: CATALOGUE,
+      sessionEgress: "public",
+      defaultTier: CONFIG.defaultTier,
+      configuredProviders: CONFIGURED_PROVIDERS,
+    });
+    assert.match(text, /tier `cheap` -> github-copilot\/gpt-5\.4 \(egress public, effort high \(asked max; github-copilot does not serve it — serves low\|medium\|high\)\)/);
+  });
+
+  it("reports a level the model does serve without any annotation", () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4", thinkingLevel: "medium" } },
+    };
+    const text = renderModelMenu({
+      routing,
+      catalogue: CATALOGUE,
+      sessionEgress: "public",
+      defaultTier: CONFIG.defaultTier,
+      configuredProviders: CONFIGURED_PROVIDERS,
+    });
+    assert.match(text, /tier `cheap` -> github-copilot\/gpt-5\.4 \(egress public, effort medium\)/);
   });
 
   it("stays well inside the byte budget with the real machine's model count", () => {
@@ -216,7 +402,13 @@ describe("renderModelMenu", () => {
       ...CATALOGUE.ids,
       ...Array.from({ length: 30 }, (_, i) => `github-copilot/synthetic-model-${i}`),
     ]);
-    const text = renderModelMenu({ routing: ROUTING, catalogue: many, sessionEgress: "public", defaultTier: "fast" });
+    const text = renderModelMenu({
+      routing: ROUTING,
+      catalogue: many,
+      sessionEgress: "public",
+      defaultTier: "fast",
+      configuredProviders: CONFIGURED_PROVIDERS,
+    });
     assert.ok(Buffer.byteLength(text, "utf8") < 4096, `menu was ${Buffer.byteLength(text, "utf8")} bytes`);
   });
 });

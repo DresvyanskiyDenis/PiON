@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import {
   MUST_BLOCK,
   MUST_BLOCK_EXTRA,
+  MUST_OBSERVE,
   MUST_PASS,
   MUST_PASS_EXTRA,
 } from "../../extensions/guard/__tests__/patterns.table.ts";
@@ -21,11 +22,12 @@ import { bashEvent, fakeCtx, recorder, runRules, safetyRules, testPolicy } from 
 async function verdict(command: string) {
   const rec = recorder();
   const rules = safetyRules(testPolicy(), rec.services);
-  return runRules(rules, bashEvent(command), fakeCtx({}, rec), rec.services);
+  const result = await runRules(rules, bashEvent(command), fakeCtx({}, rec), rec.services);
+  return { ...result, rec };
 }
 
 describe("the ported table — REQ-EXT-15", () => {
-  it("blocks all 21 MUST_BLOCK commands, each with the expected gate id", async () => {
+  it("blocks all 20 MUST_BLOCK commands, each with the expected gate id", async () => {
     const failures: string[] = [];
     for (const [command, gateId] of MUST_BLOCK) {
       const result = await verdict(command);
@@ -35,20 +37,55 @@ describe("the ported table — REQ-EXT-15", () => {
       }
     }
     assert.deepEqual(failures, []);
-    assert.equal(MUST_BLOCK.length, 21);
+    // 21 until 2026-08-14: `git reset --hard HEAD~5` moved to MUST_PASS.
+    assert.equal(MUST_BLOCK.length, 20);
   });
 
-  it("passes all 10 MUST_PASS commands — the design rule", async () => {
+  it("passes all 11 MUST_PASS commands — the design rule", async () => {
     const failures: string[] = [];
     for (const command of MUST_PASS) {
       const result = await verdict(command);
       if (result.blocked) failures.push(`BLOCKED by ${result.gateId}: ${command}`);
     }
     assert.deepEqual(failures, []);
-    assert.equal(MUST_PASS.length, 10);
+    assert.equal(MUST_PASS.length, 11);
   });
 
-  it("blocks the added cases (PRV-*, tokeniser, the two SEC patterns §6.4 omitted)", async () => {
+  it("permits and RECORDS every MUST_OBSERVE command — audit-only is still a verdict", async () => {
+    const failures: string[] = [];
+    for (const [command, gateId] of MUST_OBSERVE) {
+      const result = await verdict(command);
+      if (result.blocked) {
+        failures.push(`BLOCKED by ${result.gateId}: ${command}`);
+        continue;
+      }
+      const observed = result.rec.audit
+        .filter(([type]) => type === "guard.observed")
+        .map(([, data]) => (data as { gateId: string }).gateId);
+      if (observed.length !== 1 || observed[0] !== gateId) {
+        failures.push(`${command}: expected one ${gateId}, got ${JSON.stringify(observed)}`);
+      }
+    }
+    assert.deepEqual(failures, []);
+  });
+
+  it("every MUST_OBSERVE record carries the tool call it came from", async () => {
+    // A record with no `toolCallId` cannot be tied back to anything in the transcript, which makes
+    // it decoration rather than observability.
+    const { rec } = await verdict("sudo apt-get install nmap");
+    const entry = rec.audit.find(([type]) => type === "guard.observed")?.[1] as {
+      toolCallId: string;
+      toolName: string;
+      what: string;
+      at: number;
+    };
+    assert.equal(entry.toolCallId, "tc-1");
+    assert.equal(entry.toolName, "bash");
+    assert.ok(entry.what.length > 10);
+    assert.ok(entry.at > 0);
+  });
+
+  it("blocks the added cases (tokeniser, git history rewrites, the SEC patterns §6.4 omitted)", async () => {
     const failures: string[] = [];
     for (const [command, gateId] of MUST_BLOCK_EXTRA) {
       const result = await verdict(command);
@@ -65,6 +102,16 @@ describe("the ported table — REQ-EXT-15", () => {
     for (const command of MUST_PASS_EXTRA) {
       const result = await verdict(command);
       if (result.blocked) failures.push(`BLOCKED by ${result.gateId}: ${command}`);
+    }
+    assert.deepEqual(failures, []);
+  });
+
+  it("ordinary work is not recorded either — a log that records everything records nothing", async () => {
+    const failures: string[] = [];
+    for (const command of [...MUST_PASS, ...MUST_PASS_EXTRA]) {
+      const { rec } = await verdict(command);
+      const observed = rec.audit.filter(([type]) => type === "guard.observed");
+      if (observed.length > 0) failures.push(`${command}: ${JSON.stringify(observed[0])}`);
     }
     assert.deepEqual(failures, []);
   });

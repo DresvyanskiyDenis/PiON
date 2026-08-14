@@ -44,9 +44,12 @@ const DENY: ReadonlyArray<[string, RegExp]> = [
   // `(\/|$)` and not `\/`: the directory itself is a target, not only the paths under it. A bare
   // `~/.aws` reaches this table whenever it is an argument — `cd ~/.aws`, `ls ~/.ssh`,
   // `tar -cf x ~/.aws` — and with a trailing-slash-only anchor none of those matched. That was
-  // survivable while the bash allowlist refused every unknown program headless; it stops being
-  // survivable the moment a headless run can be escalated (see `../escalation.ts`), so the
-  // directory rules are anchored here rather than left resting on a different gate.
+  // survivable while the bash allowlist refused every unknown program headless; it stopped being
+  // survivable the moment a headless run could be escalated past that gate. As of the 2026-08-14
+  // deny-list inversion there is no other gate left to rest on at all — the allowlist, the
+  // escalation and the FS boundary are gone or advisory — so this anchoring is now the *only*
+  // thing that refuses `cd ~/.aws && cat credentials`, and it has no override. Do not loosen it
+  // back.
   // Deliberately NOT applied to `SEC-SECRETSDIR` below: `secrets?` is an ordinary English word
   // and `(\/|$)` there would deny every command whose last argument happens to be `secret`.
   ["SEC-SSH", /(^|\/)\.ssh(\/|$)/],

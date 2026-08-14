@@ -1,6 +1,6 @@
 import { shippedConfig } from "../lib/repo-config.ts";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -32,28 +32,40 @@ describe("loadPolicy", () => {
 
   it("the shipped file and the built-in defaults agree — no drifting second copy", () => {
     const shipped = loadPolicy(SHIPPED_GUARD);
-    assert.deepEqual([...shipped.allowlist].sort(), [...DEFAULT_POLICY.allowlist].sort());
-    assert.equal(shipped.nonInteractive, DEFAULT_POLICY.nonInteractive);
-    assert.equal(shipped.escalationEnv, DEFAULT_POLICY.escalationEnv);
-    assert.equal(shipped.escalationValue, DEFAULT_POLICY.escalationValue);
     assert.deepEqual(shipped.protectedBranches, DEFAULT_POLICY.protectedBranches);
     assert.deepEqual(shipped.dispatchTools, DEFAULT_POLICY.dispatchTools);
   });
 
-  it("ships the allowlist as data, exactly as implementation_plan.md 4.3 lists it", () => {
-    const policy = loadPolicy(SHIPPED_GUARD);
-    for (const program of ["git", "npm", "npx", "node", "uv", "uvx", "python", "pytest", "ruff",
-      "mypy", "sleep", "echo", "cat", "ls", "rg", "fd", "jq", "make", "docker", "gh"]) {
-      assert.ok(policy.allowlist.has(program), program);
+  it("carries exactly two keys — the deny-list is code, not data (2026-08-14 inversion)", () => {
+    // The regression this guards against is the allow-list growing back. It was removed as a
+    // concept, not shortened: there is no key here a future edit can extend to re-admit
+    // decide-by-program-name. Anything new appearing in the shipped file is a design change and
+    // has to be argued for, not slipped in.
+    const shipped = JSON.parse(readFileSync(SHIPPED_GUARD, "utf8")) as Record<string, unknown>;
+    assert.deepEqual(Object.keys(shipped).sort(), ["dispatchTools", "protectedBranches"]);
+  });
+
+  it("has no allowlist and no nonInteractive mode, in the file or in the defaults", () => {
+    const shipped = JSON.parse(readFileSync(SHIPPED_GUARD, "utf8")) as Record<string, unknown>;
+    for (const dead of ["allowlist", "nonInteractive", "approvalUi", "confirmTimeoutMs",
+      "escalation", "escalationEnv", "escalationValue", "remoteAllowlist"]) {
+      assert.equal(shipped[dead], undefined, dead);
+      assert.equal((DEFAULT_POLICY as unknown as Record<string, unknown>)[dead], undefined, dead);
     }
-    assert.equal(policy.allowlist.size, 20);
+  });
+
+  it("protects main and master by default — the only branch names GIT-FORCE-PROTECTED knows", () => {
+    assert.deepEqual([...loadPolicy(SHIPPED_GUARD).protectedBranches].sort(), ["main", "master"]);
   });
 
   it("a missing file degrades LOUDLY and keeps the built-in defaults", () => {
     const policy = loadPolicy(join(scratch(), "absent.json"));
     assert.equal(policy.degraded, true);
     assert.match(policy.problem ?? "", /not found/);
-    assert.match(policy.problem ?? "", /allowlist is treated as EMPTY/);
+    // Degradation no longer weakens anything that blocks: SEC/DB/GIT live in code. The message
+    // has to say so, because the old message said the opposite and operators read it.
+    assert.match(policy.problem ?? "", /deny-list is in code and is unaffected/);
+    assert.deepEqual(policy.protectedBranches, DEFAULT_POLICY.protectedBranches);
   });
 
   it("malformed JSON degrades LOUDLY rather than silently allowing everything", () => {
@@ -63,6 +75,7 @@ describe("loadPolicy", () => {
     const policy = loadPolicy(file);
     assert.equal(policy.degraded, true);
     assert.match(policy.problem ?? "", /not valid JSON/);
+    assert.match(policy.problem ?? "", /deny-list is in code and is unaffected/);
   });
 
   it("a non-object policy is refused", () => {
@@ -75,32 +88,26 @@ describe("loadPolicy", () => {
 
   it("reports a bad field without discarding the rest of the file", () => {
     const file = join(scratch(), "guard.json");
-    writeFileSync(file, JSON.stringify({ allowlist: ["git"], nonInteractive: "sometimes" }));
+    writeFileSync(file, JSON.stringify({ protectedBranches: ["release"], dispatchTools: "task" }));
     const policy = loadPolicy(file);
     assert.equal(policy.degraded, false);
-    assert.match(policy.problem ?? "", /"nonInteractive" must be one of/);
-    assert.equal(policy.nonInteractive, "allowlist-only");
-    assert.deepEqual([...policy.allowlist], ["git"]);
+    assert.match(policy.problem ?? "", /"dispatchTools" must be an array of strings/);
+    assert.deepEqual(policy.dispatchTools, DEFAULT_POLICY.dispatchTools);
+    assert.deepEqual(policy.protectedBranches, ["release"]);
   });
 
   it("names an unknown key instead of ignoring it", () => {
     const file = join(scratch(), "guard.json");
-    writeFileSync(file, JSON.stringify({ allowlist: [], allowlst: ["git"] }));
-    assert.match(loadPolicy(file).problem ?? "", /unknown key "allowlst"/);
-  });
-
-  it("parses the plan's one-string escalation form", () => {
-    const file = join(scratch(), "guard.json");
-    writeFileSync(file, JSON.stringify({ escalation: "MY_VAR=yes" }));
-    const policy = loadPolicy(file);
-    assert.equal(policy.escalationEnv, "MY_VAR");
-    assert.equal(policy.escalationValue, "yes");
+    writeFileSync(file, JSON.stringify({ protectedBranches: [], allowlist: ["git"] }));
+    // `allowlist` is now exactly as unknown as a typo. That is the point: a config that still
+    // carries one is reported, not quietly honoured and not quietly dropped.
+    assert.match(loadPolicy(file).problem ?? "", /unknown key "allowlist"/);
   });
 
   it("PI_GUARD_POLICY wins over the shipped file", () => {
     const file = join(scratch(), "guard.json");
-    writeFileSync(file, JSON.stringify({ allowlist: ["only-this"] }));
+    writeFileSync(file, JSON.stringify({ protectedBranches: ["only-this"] }));
     process.env.PI_GUARD_POLICY = file;
-    assert.deepEqual([...loadPolicy().allowlist], ["only-this"]);
+    assert.deepEqual(loadPolicy().protectedBranches, ["only-this"]);
   });
 });

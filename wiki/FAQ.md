@@ -146,9 +146,9 @@ guardrail module that failed to load trips a deadman that blocks the dangerous t
 
 ## Can I run it in CI?
 
-Yes, with `bin/pi-run`, `nonInteractive: "allowlist-only"` (so anything needing confirmation fails
-closed rather than running unattended), and a scheduler script that reads the exit code. Recipe 22 in
-the [[Cookbook]].
+Yes, with `bin/pi-run` and a scheduler script that reads the exit code. The guard needs no CI-specific
+configuration: the same small set of catastrophic commands refuses headless as interactively, and
+nothing else ever needed a confirmation to begin with. Recipe 22 in the [[Cookbook]].
 
 ## How do I contribute?
 

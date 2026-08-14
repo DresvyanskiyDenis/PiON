@@ -33,6 +33,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
+import { admissibleProviders } from "../dispatch/catalogue.ts";
 import { loadDispatchSettings, registryDirs, type DispatchSettings } from "../dispatch/config.ts";
 import { currentDepth, evaluateDepth } from "../dispatch/depth.ts";
 import { loadAgentRegistry, type AgentDef, type AgentRegistry } from "../dispatch/registry.ts";
@@ -391,10 +392,16 @@ async function onSessionStart(ctx: ExtensionContext, state: State): Promise<void
     );
   }
 
+  // A teammate is a dispatch, so the admission rule applies here exactly as it does for subagents:
+  // a provider absent from `config/models.json` and from `routing.json`'s `egress` map is not
+  // somewhere a teammate can be spawned, and the file that names one is refused here rather than in
+  // a live session much later. Without this argument the gate would be enforced for subagents and
+  // silently skipped for teammates — the same registry loader, two different answers.
   state.agents = loadAgentRegistry({
     dirs: registryDirs(cfg, ctx.cwd),
     routing,
     config: cfg,
+    admission: admissibleProviders(routing, state.settings.configuredProviders),
     ...(available !== undefined ? { availableModels: available } : {}),
   });
   state.semaphores = new ProviderSemaphoreSet(routing.concurrency, cfg.concurrencyDefault);

@@ -33,8 +33,9 @@ shell and are exercised on macOS.
 
 - **A permission layer PI does not have**
 
-    Six ordered gates over every tool call: secret paths, catastrophic bash, destructive git,
-    privileged commands, agent routing, and a headless bash allowlist that fails closed.
+    Six ordered gates over every tool call: secret paths, catastrophic bash and destructive git
+    block outright; privileged commands, the write surface and agent routing are recorded, not
+    refused.
     → [Safety model](concepts/safety-model.md) · [`guard`](extensions/guard.md)
 
 - **MCP behind a default-deny trust gate**

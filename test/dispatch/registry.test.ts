@@ -8,9 +8,26 @@ import {
   parseFrontmatter,
   renderRegistry,
 } from "../../extensions/dispatch/registry.ts";
-import { ALL_MODELS, CONFIG, GOOD_SCOUT, ROUTING, scratch, writeAgents, type AgentFile } from "./helpers.ts";
+import { admissibleProviders } from "../../extensions/dispatch/catalogue.ts";
+import {
+  ALL_MODELS,
+  CONFIG,
+  CONFIGURED_PROVIDERS,
+  GOOD_SCOUT,
+  ROUTING,
+  scratch,
+  writeAgents,
+  type AgentFile,
+} from "./helpers.ts";
 
-function load(files: readonly AgentFile[]) {
+/**
+ * Mirrors what `register()` really builds, `admission` included. Without it the load path would be
+ * ungated here and gated in production, which is the shape a test suite goes green under while the
+ * harness refuses agents at session start.
+ */
+const ADMISSION = admissibleProviders(ROUTING, CONFIGURED_PROVIDERS);
+
+function load(files: readonly AgentFile[], opts: { readonly admission?: undefined } = {}) {
   const dir = writeAgents(join(scratch(), "agents"), files);
   return {
     dir,
@@ -19,6 +36,7 @@ function load(files: readonly AgentFile[]) {
       routing: ROUTING,
       config: CONFIG,
       availableModels: ALL_MODELS,
+      ...("admission" in opts ? {} : { admission: ADMISSION }),
     }),
   };
 }
@@ -163,13 +181,35 @@ describe("loadAgentRegistry", () => {
     assert.equal(registry.byName.get("tenant")?.target?.egress, "confidential");
   });
 
-  it("loads an agent on an UNCLASSED provider, leaving its label empty rather than refusing", () => {
-    const { registry } = load([
-      { name: "seeker", frontmatter: "name: seeker\ndescription: Pinned to a provider routing.json says nothing about.\nmodel: deepseek/deepseek-v4-flash" },
-    ]);
+  /**
+   * REPLACES `loads an agent on an UNCLASSED provider, leaving its label empty rather than refusing`
+   * (2026-08-13 - 2026-08-14). Under the admission rule there is no unclassed-but-loadable state: a
+   * provider absent from `config/models.json` and from `egress` is not a place a dispatch can go, so
+   * a file pinned to one is a broken file and says so at load, not at minute 40 in a child process.
+   */
+  const SEEKER: AgentFile = {
+    name: "seeker",
+    frontmatter:
+      "name: seeker\ndescription: Pinned to a provider this install never configured.\nmodel: deepseek/deepseek-v4-flash",
+  };
+
+  it("ACCEPTANCE: an agent pinned to an UNCONFIGURED provider is invalid at load, with the reason named", () => {
+    const { registry } = load([SEEKER]);
+    assert.equal(registry.byName.get("seeker")?.status, "invalid");
+    const text = problemText(registry);
+    assert.match(text, /unconfigured_provider:/, "the kind, so the reader knows it is not a typo");
+    assert.match(text, /"deepseek" is not configured for dispatch/, "names the provider");
+    assert.match(text, /not configured in config\/models\.json/, "names the file to fix");
+    assert.match(text, /no egress class in config\/routing\.json/, "and the other one");
+    assert.deepEqual(dispatchableNames(registry), [], "and it is not dispatchable");
+  });
+
+  it("without an admission the same file loads — absence of the config is not a silent deny", () => {
+    // `register()` builds no admission when `routing.json` itself is unreadable. That must suspend
+    // the gate, not close it: the harness cannot convict a provider on evidence it failed to read.
+    const { registry } = load([SEEKER], { admission: undefined });
     assert.deepEqual(registry.problems, []);
     assert.equal(registry.byName.get("seeker")?.status, "ok");
-    assert.equal(registry.byName.get("seeker")?.target?.egress, undefined);
     assert.deepEqual(dispatchableNames(registry), ["seeker"]);
   });
 

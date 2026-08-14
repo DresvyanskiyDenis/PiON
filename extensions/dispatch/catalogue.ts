@@ -19,18 +19,51 @@
  * rewrites a call. "Fail loud, no provider failover" is the project rule and this is the module
  * with the most temptation to break it.
  *
- * ## Why the menu is annotated, not filtered
+ * ## A provider that is not configured does not exist
  *
- * The menu lists **every** model in the session's registry, grouped by provider and annotated with
- * that provider's `routing.json` egress class (or `unlabelled`, when it has none). It used to hide
- * anything outside the session's own class; that filter was withdrawn on 2026-08-13 along with the
- * containment rule it served, because hiding a model the session is perfectly entitled to use is
- * exactly what stopped a provider switch mid-session. Existence is still the only gate: a model
- * that is not in the registry is still refused by name.
+ * `ctx.modelRegistry.getAvailable()` is PI's own registry, and it carries providers PI knows
+ * natively whether or not this install ever set them up. Before the 2026-08-14 deny-list inversion
+ * that whole registry was the menu, the suggestion pool and the existence gate, so a provider
+ * present in neither `config/models.json` nor `config/routing.json`'s `egress` map, and with no key
+ * on this machine, could still be offered as a routing target, listed as selectable, reachable by
+ * typo correction, and accepted by the gate. It would then fail in the child process, minutes
+ * later, on a missing credential, attributed to the wrong thing.
+ *
+ * The rule, as an owner decision dated 2026-08-14: *a provider that is not configured does not
+ * exist*. A provider is dispatchable only when it is BOTH
+ *
+ *   - **configured** — declared in `config/models.json`'s `providers` object, i.e. this install has
+ *     an endpoint and a credential for it; and
+ *   - **classified** — carrying an entry in `config/routing.json`'s `egress` map, i.e. somebody has
+ *     said out loud what class of data may leave for it.
+ *
+ * That is a structural rule about the two config files, not a list of banned provider names —
+ * nothing here hardcodes a provider identity. `admissibleProviders` computes the set,
+ * `describeProviderRefusal` explains an exclusion in the operator's terms, and `restrictCatalogue`
+ * applies it once so that the menu, the suggestions and `tiers.ts`'s existence gate cannot disagree
+ * about what exists.
+ *
+ * Consequently `unlabelled` is no longer a class this module can render. It was the egress map
+ * saying out loud that it could not classify a route it was nonetheless offering; it is now a
+ * filter.
+ *
+ * The earlier session-class filter — hiding models outside the session's own egress class — stays
+ * withdrawn (2026-08-13). Hiding a model the session is entitled to use is what stopped a provider
+ * switch mid-session. This is a different question: not "may this session use it" but "does this
+ * install have it at all".
  */
 import type { EgressClass } from "../lib/dispatch-veto.ts";
 import type { RoutingConfig } from "./config.ts";
-import { THINKING_LEVELS, effectiveLevel } from "./thinking.ts";
+import {
+  THINKING_LEVELS,
+  discloseThinking,
+  requestedLevel,
+  splitThinkingSuffix,
+  supportedThinkingLevels,
+  type ThinkingCapability,
+  type ThinkingDisclosure,
+  type ThinkingLevel,
+} from "./thinking.ts";
 
 /**
  * The registry as this extension consumes it: `provider/id` strings, in the registry's own order.
@@ -38,15 +71,223 @@ import { THINKING_LEVELS, effectiveLevel } from "./thinking.ts";
  * `undefined` is a distinct, meaningful state — `ctx.modelRegistry` threw at `session_start`, so
  * existence cannot be asserted at all. Every consumer treats it as "skip the check and say so",
  * never as "the catalogue is empty".
+ *
+ * `thinking` carries each model's reasoning vocabulary, so a dispatch can say what effort it will
+ * ACTUALLY run at rather than what it asked for. It is keyed by bare `provider/id`, never by a
+ * suffixed string, and a model missing from it simply gets no disclosure — an unknown vocabulary
+ * must read as "cannot say", never as "no clamp will happen".
  */
 export interface ModelCatalogue {
   readonly ids: readonly string[];
   readonly set: ReadonlySet<string>;
+  readonly thinking: ReadonlyMap<string, ThinkingCapability>;
 }
 
-export function makeCatalogue(ids: Iterable<string>): ModelCatalogue {
+export function makeCatalogue(
+  ids: Iterable<string>,
+  thinking?: Iterable<readonly [string, ThinkingCapability]>,
+): ModelCatalogue {
   const list = [...ids];
-  return { ids: list, set: new Set(list) };
+  return { ids: list, set: new Set(list), thinking: new Map(thinking ?? []) };
+}
+
+// --------------------------------------------------------------------------------------------
+// Admission: which providers this install actually has
+// --------------------------------------------------------------------------------------------
+
+/** The provider names dispatch will accept, and whether that answer had to be degraded. */
+export interface ProviderAdmission {
+  /** Configured AND classified. Anything outside it is refused by name, never silently dropped. */
+  readonly dispatchable: ReadonlySet<string>;
+  /** The two inputs, kept so a refusal can name WHICH half failed. See `describeProviderRefusal`. */
+  readonly routing: RoutingConfig;
+  readonly configuredProviders: ReadonlySet<string> | undefined;
+  /**
+   * `config/models.json` could not be read, so only the classified half was applied.
+   *
+   * The alternative — refusing every dispatch until the file parses — turns one unreadable config
+   * into a total outage, and the file is not the only evidence: `routing.json`'s `egress` map is an
+   * independent statement about the same providers, written by hand, and on its own it already
+   * excludes anything PI merely knows about natively. So the conjunct is dropped rather than the
+   * world emptied, and the degradation is announced through `problems` at `session_start` and shown
+   * in `/agents`.
+   */
+  readonly degraded: boolean;
+}
+
+/**
+ * The dispatchable set: `routing.json`'s classified providers, narrowed to those `models.json`
+ * declares.
+ *
+ * Built from the egress map rather than from the registry, because the question is what this
+ * install configured, not what PI happens to ship a client for.
+ */
+export function admissibleProviders(
+  routing: RoutingConfig,
+  configuredProviders: ReadonlySet<string> | undefined,
+): ProviderAdmission {
+  const classified = Object.keys(routing.egress);
+  const dispatchable =
+    configuredProviders === undefined
+      ? new Set(classified)
+      : new Set(classified.filter((p) => configuredProviders.has(p)));
+  return { dispatchable, routing, configuredProviders, degraded: configuredProviders === undefined };
+}
+
+/**
+ * Why `provider` is not dispatchable, in the operator's terms and naming the file at fault, or
+ * `undefined` when it is dispatchable.
+ *
+ * Both halves are reported when both fail, because "it is not configured" and "it has no egress
+ * class" are two different pieces of work and a message that names one sends the reader to fix half
+ * the problem.
+ */
+export function describeProviderRefusal(provider: string, admission: ProviderAdmission): string | undefined {
+  const classified = admission.routing.egress[provider] !== undefined;
+  // An unreadable `models.json` cannot convict anyone; see `ProviderAdmission.degraded`.
+  const configured = admission.configuredProviders === undefined || admission.configuredProviders.has(provider);
+  if (classified && configured) return undefined;
+  const reasons: string[] = [];
+  if (!configured) reasons.push(`it is not configured in config/models.json`);
+  if (!classified) reasons.push(`it has no egress class in config/routing.json`);
+  return reasons.join(", and ");
+}
+
+/** A catalogue narrowed to the dispatchable providers, plus what that removed. */
+export interface RestrictedCatalogue {
+  readonly catalogue: ModelCatalogue;
+  /**
+   * Registry ids dropped because their provider is not dispatchable, registry order preserved.
+   *
+   * Reported to the OPERATOR — `problems` and `/agents` — and to nobody else. It is deliberately
+   * not rendered into the system prompt: telling the orchestrating model which models it may not
+   * have is an invitation to try one, and "must not appear on any surface" is the rule. A human
+   * still needs to know their registry holds providers this install never configured.
+   */
+  readonly dropped: readonly string[];
+}
+
+/**
+ * Applies the admission rule to a whole catalogue, once, at `session_start`.
+ *
+ * Doing it here rather than at each call site is the point: the menu, `suggestModels` and the
+ * existence gate in `tiers.ts` all read the same `ModelCatalogue`, so filtering it once is what
+ * makes them agree. A menu that offers what the gate refuses costs a dispatch; a gate that accepts
+ * what the menu never showed costs a credential error in a child process much later.
+ */
+export function restrictCatalogue(catalogue: ModelCatalogue, admission: ProviderAdmission): RestrictedCatalogue {
+  const kept: string[] = [];
+  const dropped: string[] = [];
+  for (const full of catalogue.ids) {
+    const { provider } = splitModelId(full);
+    (provider && admission.dispatchable.has(provider) ? kept : dropped).push(full);
+  }
+  if (dropped.length === 0) return { catalogue, dropped };
+  const thinking = [...catalogue.thinking].filter(([full]) => {
+    const { provider } = splitModelId(full);
+    return provider !== "" && admission.dispatchable.has(provider);
+  });
+  return { catalogue: makeCatalogue(kept, thinking), dropped };
+}
+
+/**
+ * What effort a resolved model string will really run at. Takes the full string (suffix and all)
+ * and strips it internally, so callers never have to remember whether the catalogue is keyed with
+ * or without the level.
+ */
+export function catalogueDisclosure(
+  catalogue: ModelCatalogue | undefined,
+  model: string,
+): ThinkingDisclosure | undefined {
+  if (catalogue === undefined) return undefined;
+  const { baseModel } = splitThinkingSuffix(model);
+  return discloseThinking(model, catalogue.thinking.get(baseModel));
+}
+
+/** One provider's models that can serve a given reasoning level, with the class of leaving for it. */
+export interface ServingProvider {
+  readonly provider: string;
+  /**
+   * Always a real class. A provider `routing.json` does not classify never becomes a candidate at
+   * all (see `providersServing`), so `unlabelled` is not a state this type can hold.
+   */
+  readonly egress: EgressClass;
+  readonly models: readonly string[];
+}
+
+/**
+ * Which configured models actually serve `level`, grouped by provider, registry order preserved.
+ *
+ * This is the routing HINT half of a clamp disclosure: when a dispatch asks for an effort its model
+ * will not run at, the reader's next question is always "then what would?", and answering it from
+ * the registry is cheaper and more honest than letting them guess. It is emphatically not failover
+ * — nothing here reroutes anything, and the egress class travels with every entry precisely because
+ * moving a job from `internal` to `confidential` or `public` is a decision only the operator makes.
+ *
+ * A model with no entry in `catalogue.thinking` is skipped rather than assumed capable: an unknown
+ * vocabulary must read as "cannot say", never as "yes".
+ *
+ * The candidates are the dispatchable providers and only those (`admissibleProviders`), applied
+ * here as well as at the catalogue, because a HINT is the surface where an unconfigured endpoint
+ * used to do the most damage: an unconfigured provider labelled `egress unlabelled` could be
+ * offered as a place to run `max` on a machine with no block for it in `config/models.json` and no
+ * key for one. `egress unlabelled` was the egress map saying out loud that it could not classify a
+ * route it was nonetheless recommending, and the map exists precisely to stop work reaching an
+ * unintended destination.
+ *
+ * Nothing about the consequence changes: still a hint, still never a reroute, and the egress class
+ * is still shown per provider and still never altered for anyone.
+ */
+export function providersServing(
+  catalogue: ModelCatalogue | undefined,
+  routing: RoutingConfig,
+  level: ThinkingLevel,
+  configuredProviders?: ReadonlySet<string>,
+): ServingProvider[] {
+  if (catalogue === undefined) return [];
+  const admission = admissibleProviders(routing, configuredProviders);
+  const byProvider = new Map<string, { egress: EgressClass; models: string[] }>();
+  for (const full of catalogue.ids) {
+    const cap = catalogue.thinking.get(full);
+    if (cap === undefined) continue;
+    if (!supportedThinkingLevels(cap).includes(level)) continue;
+    const { provider } = splitModelId(full);
+    if (!provider) continue;
+    if (!admission.dispatchable.has(provider)) continue;
+    // Dispatchable implies classified, so this is a real class and never `unlabelled`.
+    const egress = routing.egress[provider] as EgressClass;
+    const bucket = byProvider.get(provider);
+    if (bucket) bucket.models.push(full);
+    else byProvider.set(provider, { egress, models: [full] });
+  }
+  return [...byProvider].map(([provider, { egress, models }]) => ({ provider, egress, models }));
+}
+
+/** Hard cap per provider, so a clamp warning stays a sentence and not a second model menu. */
+const MAX_SERVING_MODELS_PER_PROVIDER = 3;
+
+/** The routing hint as one sentence, for the clamp warning and for an abort reason. */
+export function describeServing(serving: readonly ServingProvider[], level: string): string {
+  // "Configured" rather than "in this session's registry": since `providersServing` started
+  // filtering, an empty list no longer means the registry holds nothing that serves the level — it
+  // means nothing CONFIGURED does. Naming the unconfigured ones instead is exactly the inversion
+  // this rule exists to stop, so this stays the answer for that case and only the noun moved.
+  if (serving.length === 0) {
+    return (
+      `No configured model serves \`${level}\` at all, so this is the configuration's ceiling ` +
+      `rather than a routing choice — see config/models.json's thinkingLevelMap notes for who ` +
+      `could raise it.`
+    );
+  }
+  const parts = serving.map((s) => {
+    const shown = s.models.slice(0, MAX_SERVING_MODELS_PER_PROVIDER);
+    const more = s.models.length - shown.length;
+    return `${s.provider} (egress ${s.egress}): ${shown.join(", ")}` + (more > 0 ? ` +${more} more` : "");
+  });
+  return (
+    `Models that DO serve \`${level}\`: ${parts.join("; ")}. Naming one is yours to decide — this is a ` +
+    `hint, not a reroute, and changing egress class is never done for you.`
+  );
 }
 
 /** Splits on the FIRST slash: `local/vendor/Model-30B-A3B-GGUF` is one provider, one id. */
@@ -158,31 +399,44 @@ export interface MenuInput {
   readonly catalogue: ModelCatalogue | undefined;
   readonly sessionEgress: EgressClass;
   readonly defaultTier: string;
+  /**
+   * `config/models.json`'s provider names. `undefined` means the file could not be read — see
+   * `ProviderAdmission.degraded`.
+   *
+   * The menu applies the admission rule itself rather than trusting its caller to have passed a
+   * catalogue that was already restricted. The menu is the model's only picture of what exists, and
+   * a surface that leaks an unconfigured provider is one the model will call.
+   */
+  readonly configuredProviders: ReadonlySet<string> | undefined;
 }
 
 export interface MenuSelection {
-  /** Provider -> every id under it in the registry, registry order preserved. */
+  /** Provider -> every id under it that is dispatchable, registry order preserved. */
   readonly byProvider: ReadonlyMap<string, readonly string[]>;
   /**
-   * Selectable like everything else, but the provider has no egress class in `routing.json`, so the
-   * menu can only label it `unlabelled`. Reported so a missing class reads as a configuration fact.
+   * Registry ids the menu will not offer, because their provider is not dispatchable. Operator-
+   * facing only — see `RestrictedCatalogue.dropped`, which is the same fact from the same rule.
    */
-  readonly unclassed: readonly string[];
+  readonly excluded: readonly string[];
 }
 
 /** Pure, so the grouping is assertable without a live session or a system prompt. */
 export function selectMenuModels(input: MenuInput): MenuSelection {
+  const admission = admissibleProviders(input.routing, input.configuredProviders);
   const byProvider = new Map<string, string[]>();
-  const unclassed: string[] = [];
+  const excluded: string[] = [];
   for (const full of input.catalogue?.ids ?? []) {
     const { provider, id } = splitModelId(full);
     if (!provider) continue;
-    if (input.routing.egress[provider] === undefined) unclassed.push(full);
+    if (!admission.dispatchable.has(provider)) {
+      excluded.push(full);
+      continue;
+    }
     const bucket = byProvider.get(provider);
     if (bucket) bucket.push(id);
     else byProvider.set(provider, [id]);
   }
-  return { byProvider, unclassed };
+  return { byProvider, excluded };
 }
 
 /**
@@ -222,11 +476,33 @@ export function renderModelMenu(input: MenuInput): string {
 
   for (const [tier, def] of Object.entries(input.routing.tiers)) {
     const { provider } = splitModelId(def.model);
-    const level = effectiveLevel(def.model) ?? def.thinkingLevel;
+    // A tier declares its level in either of two places; the suffix on the id wins, exactly as
+    // `applyTierThinkingLevel` decides it (tiers.ts).
+    const asked = requestedLevel(def.model) ?? def.thinkingLevel;
+    // ...and then the model's own vocabulary has the last word. Showing only `asked` here is what
+    // hid an afternoon of runs that were commissioned at `max` and shipped `high`.
+    const disclosure =
+      asked === undefined
+        ? undefined
+        : catalogueDisclosure(input.catalogue, `${splitThinkingSuffix(def.model).baseModel}:${asked}`);
+    const effort =
+      disclosure === undefined
+        ? (asked ?? "provider default")
+        : disclosure.clamped
+          ? `${disclosure.effective} (asked ${disclosure.requested}; ${provider} does not serve it — serves ${disclosure.supported.join("|")})`
+          : disclosure.effective;
+    // A tier is only as good as its provider. If `routing.json` points a tier at something this
+    // install has not configured, the dispatch aborts (`tiers.ts` refuses it by name) — so the menu
+    // says that here rather than labelling the tier `egress unlabelled` and letting the model find
+    // out by calling it.
+    const refusal = describeProviderRefusal(provider, admissibleProviders(input.routing, input.configuredProviders));
     lines.push(
-      `  - tier \`${tier}\` -> ${def.model} (egress ${describeClass(input.routing.egress[provider])}, ` +
-        `effort ${level ?? "provider default"})` +
-        (def.purpose ? ` — ${def.purpose}` : ""),
+      refusal !== undefined
+        ? `  - tier \`${tier}\` -> ${def.model} — NOT DISPATCHABLE: ${refusal}. Calling it aborts; ` +
+            `this is a config/routing.json error to fix, not a model to work around.`
+        : `  - tier \`${tier}\` -> ${def.model} (egress ${input.routing.egress[provider]}, ` +
+            `effort ${effort})` +
+            (def.purpose ? ` — ${def.purpose}` : ""),
     );
   }
 
@@ -241,27 +517,15 @@ export function renderModelMenu(input: MenuInput): string {
   const total = [...selection.byProvider.values()].reduce((n, ids) => n + ids.length, 0);
   lines.push(
     `This session is classed \`${input.sessionEgress}\`; the class is a label and restricts nothing. ` +
-      `All ${total} concrete id(s) below are selectable, grouped by provider:`,
+      `All ${total} concrete id(s) below are selectable, grouped by provider. This is the complete ` +
+      `set — a provider this install has not configured is not on it and cannot be dispatched to:`,
   );
   for (const [provider, ids] of selection.byProvider) {
-    lines.push(`  - ${provider} (egress ${describeClass(input.routing.egress[provider])}): ${ids.join(", ")}`);
+    lines.push(`  - ${provider} (egress ${input.routing.egress[provider]}): ${ids.join(", ")}`);
   }
   lines.push(`  Write them qualified, e.g. \`${firstExample(selection)}\`.`);
 
-  if (selection.unclassed.length > 0) {
-    const providers = [...new Set(selection.unclassed.map((m) => splitModelId(m).provider))];
-    lines.push(
-      `  ${selection.unclassed.length} of them come from provider(s) with no egress class in ` +
-        `routing.json (${providers.join(", ")}); they are selectable and reported as unlabelled.`,
-    );
-  }
-
   return lines.join("\n");
-}
-
-/** One spelling for "routing.json says nothing about this provider", used everywhere it is shown. */
-function describeClass(cls: EgressClass | undefined): string {
-  return cls ?? "unlabelled";
 }
 
 function firstExample(selection: MenuSelection): string {

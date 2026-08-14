@@ -35,6 +35,7 @@ import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { DispatchConfig, RoutingConfig } from "./config.ts";
 import { DispatchError, resolveModelSpec, type ModelTarget } from "./tiers.ts";
+import type { ProviderAdmission } from "./catalogue.ts";
 import { splitThinkingSuffix } from "./thinking.ts";
 import { describeReturnContract, parseReturnContract, type ReturnContract } from "./contract.ts";
 
@@ -99,6 +100,13 @@ export interface LoadRegistryOptions {
   readonly config: DispatchConfig;
   /** `provider/id` strings from `ctx.modelRegistry.getAvailable()`. Skipped when undefined. */
   readonly availableModels?: ReadonlySet<string>;
+  /**
+   * Which providers this install configured. Passed through to `resolveModelSpec` so an agent file
+   * naming an unconfigured provider is rejected at LOAD with the named reason ("not configured in
+   * config/models.json") rather than the generic "not in the model registry" below, which would
+   * send the reader looking for a typo that is not there.
+   */
+  readonly admission?: ProviderAdmission;
 }
 
 interface Frontmatter {
@@ -344,7 +352,7 @@ function loadOne(
     local.push(`routing.json could not be loaded, so "${spec}" cannot be resolved to a provider/id`);
   } else {
     try {
-      target = resolveModelSpec(opts.routing, spec, opts.config.defaultTier);
+      target = resolveModelSpec(opts.routing, spec, opts.config.defaultTier, undefined, opts.admission);
     } catch (err) {
       local.push(err instanceof DispatchError ? `${err.kind}: ${err.message}` : String(err));
     }

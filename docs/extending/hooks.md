@@ -10,8 +10,10 @@ order, the fail-closed inversion, what happens to a broken file — is on
 
 !!! warning "Hooks can only add denial, never remove it"
     They stack **on top of** the [guard](../extensions/guard.md), which loads first. A hook cannot
-    permit something the guard refused. If you are trying to *allow* something, you are looking for
-    `config/guard.json`'s allowlist, not this file.
+    permit something the guard refused. There is no allowlist to be looking for any more —
+    `SEC-*`/`DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` are the only things a bash command can be
+    refused for by the guard itself, and none of them is configurable from here or from
+    `config/guard.json`.
 
 ---
 
@@ -81,10 +83,9 @@ Restart `pi` and try it. The `reason` is what the model reads, so write it as a 
 ```
 
 !!! danger "`confirm` has no meaning in a headless run"
-    There is nobody to answer. Combined with `config/guard.json`'s
-    `nonInteractive: "allowlist-only"`, an unattended run fails closed rather than guessing — which
-    is correct, and is also why a `confirm` rule on a command your scheduled job needs will stop that
-    job. Use `warn` for rules that should not gate automation.
+    There is nobody to answer. Hooks fail **closed** — an unattended run refuses rather than
+    guessing, which is correct, and is also why a `confirm` rule on a command your scheduled job
+    needs will stop that job. Use `warn` for rules that should not gate automation.
 
 ## A nudge rather than a gate
 

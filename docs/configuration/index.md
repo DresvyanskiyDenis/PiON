@@ -40,7 +40,7 @@ that template plus your answers, and git-ignored.
 | `config/routing.json` | `routing.default.json` + your tier choices |
 | `config/mcp.json` | `mcp.default.json` (ships no servers) + whatever you picked at the MCP step |
 | `config/settings.json` | `settings.default.json` + default provider, model, thinking level, theme, editor, TUI mode |
-| `config/guard.json` | `guard.default.json` + your headless policy, protected branches and allowlist additions |
+| `config/guard.json` | `guard.default.json` + your protected branches |
 | `config/trusted-roots.json` | `trusted-roots.default.json` + the roots you named, plus `~/pi-config` |
 | `config/path-defaults.json` | `path-defaults.default.json`, rewritten around your first trusted root |
 | `config/web.json`, `config/web-search.json` | their templates + your search-backend answer |
@@ -86,7 +86,6 @@ Fact 2.
 | stop two local dispatches thrashing one GPU | `concurrency` in `config/routing.json` | [routing.json](routing.md#concurrency) |
 | change the default model or thinking level | `config/settings.json` | [settings.json](settings.md) |
 | make compaction fire earlier or later | `contextWindow`, then `compaction.reserveTokens` | [settings.json](settings.md#compaction) · [Context windows](../concepts/context-windows.md) |
-| stop being asked before every shell command | `config/guard.json` | [guard.json](guard.md) |
 | protect more branches from force-push | `protectedBranches` in `config/guard.json` | [guard.json](guard.md#protectedbranches) |
 | raise the timeout for a long build | `config/bash-timeouts.json` | [Tool behaviour](tools.md#bash-timeoutsjson) |
 | add a declarative block/confirm/warn rule | `config/hooks.yaml` | [Tool behaviour](tools.md#hooksyaml) |
@@ -119,7 +118,7 @@ Task-shaped versions of these, with the commands, live in the
 | [`routing.json`](routing.md) | **yes** | the five tiers, `egress` classes, per-provider `concurrency`, `onProviderError` |
 | [`mcp.json`](mcp.md) | **yes** | MCP servers, `hostConfigDiscovery`, `directTools` |
 | [`settings.json`](settings.md) | **yes** | PI's own behaviour: default model, thinking, trust, compaction, retry, resource paths |
-| [`guard.json`](guard.md) | **yes** | shell-execution safety: headless policy, allowlist, escalation, protected branches |
+| [`guard.json`](guard.md) | **yes** | shell-execution safety: protected branches, dispatch-tool names for the routing observer |
 | [`trusted-roots.json`](paths-and-trust.md), [`path-defaults.json`](paths-and-trust.md) | **yes** | which filesystem roots are auto-trusted, and per-root tier/egress defaults |
 | [`web.json`](tools.md#web), [`web-search.json`](tools.md#web) | **yes** | search backend, SSRF policy, cookie policy, tool names |
 | [`quota.json`](sessions.md#quotajson) | **yes** | quota metering for metered providers |

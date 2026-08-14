@@ -1004,50 +1004,22 @@ plan_add "update config/settings.json (default model, thinking, theme, editor)"
 
 # =========================================================================== SECTION 6: safety ===
 section "Safety posture" \
-  "PI can run shell commands. This decides what it may do WITHOUT asking you first — the one setting nobody should accept blindly."
+  "PI can run shell commands. A small, fixed set of catastrophic shapes — credential-file reads, rm -rf /, a disk-format command, a force-push onto a protected branch, and a handful of others — is refused outright, in code, and there is nothing to configure for that. Everything else runs unattended, with no prompt. This section only asks which branches count as protected."
 
 GUARD_FILE="$REPO_DIR/config/guard.json"
 TRUST_FILE="$REPO_DIR/config/trusted-roots.json"
 PATHS_FILE="$REPO_DIR/config/path-defaults.json"
 
-# Deliberately asked even on the express path: a user who did not consciously choose this has
-# not understood what they installed. The permissive option is never the default and never quiet.
 if ask_section safety && [ "$INTERACTIVE" = 1 ]; then
-  printf '\n   %sIn a headless run (bin/pi-run, cron, CI) there is nobody to answer a prompt.%s\n' "$C_D" "$C_0"
-  printf '   %sWhat should PI be allowed to execute in that situation?%s\n\n' "$C_D" "$C_0"
-  printf '     1) allowlist-only  only the commands on the allowlist run unattended; anything else\n'
-  printf '                        is refused and reported                        %s(recommended)%s\n' "$C_OK" "$C_0"
-  printf '     2) deny-all        no command runs unattended at all. Safest, and headless\n'
-  printf '                        automation stops working\n'
-  printf '     3) allow-all       any command runs unattended, including ones that delete things\n'
-  printf '                        %sthis is the dangerous one%s\n' "$C_ER" "$C_0"
+  printf '\n   %sThere is no allowlist and no per-command approval to configure: every program runs%s\n' "$C_D" "$C_0"
+  printf '   %sheadless, with no prompt, unless the exact command shape it is used for is one of the%s\n' "$C_D" "$C_0"
+  printf '   %shandful this refuses unconditionally. That refusal is not a setting — it cannot be%s\n' "$C_D" "$C_0"
+  printf '   %swidened from here.%s\n\n' "$C_D" "$C_0"
 fi
-_guard_def="allowlist-only"
-if ask_section safety && [ "$INTERACTIVE" = 1 ]; then
-  _g=""
-  while :; do
-    printf '   choice [1]: '; _read_tty _g; [ -n "$_g" ] || _g=1
-    case "$_g" in
-      1) ans_set guard.nonInteractive allowlist-only; break ;;
-      2) ans_set guard.nonInteractive deny-all; break ;;
-      3) printf '   %sallow-all means an unattended session can run any command as you.%s\n' "$C_ER" "$C_0"
-         if ask_yes_no "are you sure?" n; then ans_set guard.nonInteractive allow-all; break; fi ;;
-      *) printf '   %s1, 2 or 3%s\n' "$C_ER" "$C_0" ;;
-    esac
-  done
-else
-  ans_has guard.nonInteractive || ans_set guard.nonInteractive "$_guard_def"
-fi
-ok "unattended execution: $(ans_get guard.nonInteractive)"
 
 if ask_section safety && [ "$EXPRESS" = 0 ]; then
-  # cfg_seed, not $GUARD_FILE: during the interview the generated file may not exist yet, and the
-  # honest answer to "already allowed?" is then whatever the shipped template allows.
-  _cur_allow="$(node "$LIB_CONFIGURE" show "$(cfg_seed guard)" allowlist | cut -f2 | tr -d '[]"' | tr -s ' ')"
-  ask guard.allowlistExtra "extra commands to allow unattended (comma-separated, blank for none)" "" string 0 "" \
-    "Already allowed: ${_cur_allow:-none}. Add your own build tools here if headless runs need them." >/dev/null
   ask guard.protectedBranches "branches PI must never push to or force-update" "main,master" string 1 "" \
-    "A commit or a force-push onto one of these is refused outright, in every mode." >/dev/null
+    "A force-push onto one of these is refused outright, in every mode." >/dev/null
 fi
 
 # Project roots: derived from what actually exists on this machine, never inherited from whoever
@@ -1574,15 +1546,10 @@ cfg_set "$SETTINGS_FILE" \
   "externalEditor=str:$(ans_get settings.externalEditor)" \
   "tuiMode=$(ans_get settings.tuiMode)"
 
-# guard.json — the safety posture, plus any extra allowlist entries the user asked for.
-cfg_set "$GUARD_FILE" "nonInteractive=$(ans_get guard.nonInteractive)"
+# guard.json — protected branches only. The 2026-08-14 deny-list inversion left nothing else in
+# this file to configure: the catastrophic-command set is in code, not data.
 _pb="$(ans_get guard.protectedBranches)"
 [ -z "$_pb" ] || cfg_set "$GUARD_FILE" "protectedBranches=[$_pb]"
-_extra="$(ans_get guard.allowlistExtra)"
-if [ -n "$_extra" ] && [ "$DRY_RUN" = 0 ]; then
-  _cur="$(node "$LIB_CONFIGURE" show "$GUARD_FILE" allowlist | cut -f2 | tr -d '[]"' | tr -s ' ')"
-  cfg_set "$GUARD_FILE" "allowlist=[$_cur,$_extra]"
-fi
 
 # trusted-roots.json and path-defaults.json — machine-specific filesystem roots, derived from
 # this machine, never inherited from whoever built the repo.
@@ -1993,7 +1960,7 @@ printf '\nWhat you now have:\n'
 printf '   providers    %s\n' "$SELECTED"
 printf '   pi           %s (%s), at %s/pi\n' "$PI_VERSION_EXPECTED" "$( [ "$SKIP_RUNTIME" = 1 ] && printf untouched || printf '%s' "$MODE" )" "$BIN_DIR"
 printf '   live config  %s -> %s\n' "$AGENT_DIR" "$STABLE_LINK"
-printf '   safety       unattended execution is "%s"\n' "$(ans_get guard.nonInteractive)"
+printf '   safety       SEC-*/DB-*/GIT-REWRITE/GIT-FORCE-PROTECTED always refuse; protected branches: %s\n' "$(ans_get guard.protectedBranches)"
 # Read back from the file rather than reported from the answer: on a re-run the MCP step stands
 # down (mcp.json is already yours), so $MCP_PICKED is empty even though servers are configured,
 # and a summary that then says "none" is simply wrong.

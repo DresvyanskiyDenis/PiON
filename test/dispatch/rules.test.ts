@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
-import { AGENT_KEYS, rules, type State } from "../../extensions/dispatch/index.ts";
+import { AGENT_KEYS, clampedTiers, rules, type State } from "../../extensions/dispatch/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { ProviderSemaphoreSet } from "../../extensions/dispatch/semaphore.ts";
 import { loadAgentRegistry, type AgentRegistry } from "../../extensions/dispatch/registry.ts";
@@ -11,7 +11,19 @@ import { resetWorktreeProvider } from "../../extensions/dispatch/isolation.ts";
 import type { EgressClass } from "../../extensions/lib/dispatch-veto.ts";
 import type { GuardRule } from "../../extensions/lib/guarded-handler.ts";
 import { resetIndexDbCache } from "../../extensions/session-index/db.ts";
-import { ALL_MODELS, CATALOGUE, CONFIG, GOOD_SCOUT, ROUTING, scratch, writeAgents, type AgentFile } from "./helpers.ts";
+import { admissibleProviders, makeCatalogue, restrictCatalogue } from "../../extensions/dispatch/catalogue.ts";
+import {
+  ALL_MODELS,
+  CATALOGUE,
+  CONFIG,
+  CONFIGURED_PROVIDERS,
+  GOOD_SCOUT,
+  ROUTING,
+  THINKING_CAPS,
+  scratch,
+  writeAgents,
+  type AgentFile,
+} from "./helpers.ts";
 
 // DSP-RESOLVE writes a `dispatch.resolve:*` event, and `logEvent` opens whatever database
 // `PI_INDEX_DB` names — by default the operator's real `index.db`. Point this whole file at a
@@ -68,15 +80,25 @@ interface StateOpts {
   readonly withRegistry?: boolean;
   /** `false` models a session_start where `ctx.modelRegistry` threw: existence is not asserted. */
   readonly withCatalogue?: boolean;
+  /** `null` models an unreadable `config/models.json`: the "is it configured" filter half is off. */
+  readonly configuredProviders?: null;
 }
 
 function stateOf(opts: StateOpts = {}): State {
   const sessionEgress = opts.sessionEgress ?? "public";
+  const configuredProviders = opts.configuredProviders === null ? undefined : CONFIGURED_PROVIDERS;
+  // Mirrors `register()`: the admission set is built from config, and the catalogue is restricted
+  // through it ONCE. Building `State` by hand without this was a false green — the gate would never
+  // fire here while firing in production, which is the wrong direction for a test to be wrong in.
+  const admission = opts.withRouting === false ? undefined : admissibleProviders(ROUTING, configuredProviders);
+  const catalogue = admission === undefined ? CATALOGUE : restrictCatalogue(CATALOGUE, admission).catalogue;
   return {
-    ...(opts.withCatalogue === false ? {} : { catalogue: CATALOGUE }),
+    ...(opts.withCatalogue === false ? {} : { catalogue }),
+    ...(admission !== undefined ? { admission } : {}),
     settings: {
       dispatch: CONFIG,
       routing: opts.withRouting === false ? undefined : ROUTING,
+      configuredProviders,
       problems: opts.withRouting === false ? ["routing.json not found; DISPATCH IS REFUSED"] : [],
       sources: { dispatch: "<test>/dispatch.json", routing: "<test>/routing.json" },
     },
@@ -222,19 +244,25 @@ describe("call-time model override across egress classes (DSP-EGRESS withdrawn)"
     assert.equal(input.model, "databricks/databricks-claude-sonnet-4-5:medium", "and it is resolved to provider/id");
   });
 
-  it("REGRESSION: one session dispatches onto every class in turn, labelled or not", async () => {
-    // The complaint that ended the rule, as one test: a session classed `internal` fans out to a
-    // public provider, an unclassed one and the confidential one without a single refusal.
+  it("REGRESSION: one session dispatches onto all its classes in turn", async () => {
+    // The owner's actual complaint, as one test: a session classed `internal` fans out to a public
+    // provider, its own and the confidential one without a single refusal — every egress class in
+    // `ROUTING.egress`, from one session.
     //
     // 2026-08-13: the first two rows go through a TIER lookup, so `strong`'s and `cheap`'s declared
-    // thinkingLevel now rides along; the last two rows are literal provider/id overrides, which
-    // never carry a tier's thinkingLevel (see `applyTierThinkingLevel` in `tiers.ts`), so they still
-    // resolve to themselves unchanged. Used to assert the bare id on the first two rows.
+    // thinkingLevel now rides along; the last row is a literal provider/id override, which never
+    // carries a tier's thinkingLevel (see `applyTierThinkingLevel` in `tiers.ts`), so it still
+    // resolves to itself unchanged. Used to assert the bare id on the first two rows.
+    //
+    // 2026-08-14: a row for `deepseek/deepseek-v4-flash` was dropped. It stood for "an unclassed
+    // provider", and under the admission rule there is no such dispatchable state — a provider
+    // absent from `config/models.json` and from `egress` is refused before its class is ever
+    // consulted. What THIS test pins, that the session's own class never refuses, is unchanged; the
+    // refusal that replaced the row is pinned in the admission describe below.
     const state = stateOf({ sessionEgress: "internal" });
     for (const [model, resolved] of [
       ["strong", "github-copilot/claude-opus-5:high"],
       ["cheap", "databricks/databricks-claude-haiku-4-5:low"],
-      ["deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash"],
       ["databricks/databricks-claude-sonnet-4-5", "databricks/databricks-claude-sonnet-4-5"],
     ] as const) {
       const input: Record<string, unknown> = { agent: "scout", prompt: "x", model };
@@ -475,6 +503,38 @@ describe("DSP-AGENT", () => {
   });
 });
 
+/**
+ * `/agents` answers the question after the fact — "am I really getting the effort routing.json
+ * promises?" — which is the one an operator asks once an afternoon of runs has already gone by. It
+ * reads the same disclosure the dispatch path does, so the two cannot disagree.
+ */
+describe("clampedTiers (the /agents line)", () => {
+  it("is empty when every tier asks for something its model serves", () => {
+    assert.deepEqual(clampedTiers(stateOf()), []);
+  });
+
+  it("names the tier, both levels and the real vocabulary", () => {
+    const state = stateOf();
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4", thinkingLevel: "max" } },
+    };
+    assert.deepEqual(clampedTiers({ ...state, settings: { ...state.settings, routing } }), [
+      "cheap asks max, runs high (serves low|medium|high)",
+    ]);
+  });
+
+  /** "We cannot see the vocabulary" must not render as "nothing is clamped". */
+  it("reports nothing at all when the registry is unavailable", () => {
+    const state = stateOf({ withCatalogue: false });
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4", thinkingLevel: "max" } },
+    };
+    assert.deepEqual(clampedTiers({ ...state, settings: { ...state.settings, routing } }), []);
+  });
+});
+
 describe("DSP-RESOLVE", () => {
   it("rewrites the agent's tier to a provider-qualified model", async () => {
     const input: Record<string, unknown> = { agent: "scout", prompt: "x" };
@@ -512,6 +572,165 @@ describe("DSP-RESOLVE", () => {
     await run(rules(stateOf()), eventOf("subagent", input));
     assert.equal(input.thinking, undefined, "the package's `thinking` argument belongs to watchdog.configure");
     assert.equal(input.thinkingLevel, undefined);
+  });
+
+  /**
+   * The disclosure defect, end to end. `_meta.json` records the launch string verbatim
+   * (`model: target.model`, pi-subagents/src/runs/foreground/execution.ts:137), so a call that left
+   * `:max` on the string put `"max"` in the run metadata for a run that shipped `high`. The suffix
+   * is now rewritten to the level that will actually reach the provider.
+   */
+  it("rewrites an unsupported reasoning level to the one that will actually ship", async () => {
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "github-copilot/gpt-5.4:high", "this model serves low|medium|high; max 400s");
+  });
+
+  it("says so out loud, naming BOTH levels and what the model does serve", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    await run(rules(stateOf()), eventOf("subagent", input), ctx);
+    const line = notices.find((n) => n.includes("reasoning effort"));
+    assert.ok(line, `expected a clamp notice, got: ${JSON.stringify(notices)}`);
+    assert.match(line, /asked for reasoning effort `max`/);
+    assert.match(line, /will run at `high`/);
+    assert.match(line, /low, medium, high/, "the real vocabulary, so a retry has somewhere to go");
+    assert.match(line, /Nothing was rerouted/, "disclosure is not failover");
+  });
+
+  it("leaves a supported level alone and says nothing about it", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:medium" };
+    await run(rules(stateOf()), eventOf("subagent", input), ctx);
+    assert.equal(input.model, "github-copilot/gpt-5.4:medium");
+    assert.equal(notices.find((n) => n.includes("reasoning effort")), undefined);
+  });
+
+  /**
+   * `github-copilot/claude-opus-5` is in the catalogue's id set but carries no thinking capability,
+   * modelling a registry that does not describe the model. An unknown vocabulary must leave the
+   * string exactly as written — inventing a clamp would be the silent substitution this repo bans,
+   * pointed the other way.
+   */
+  it("does not touch a level it cannot check", async () => {
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/claude-opus-5:max" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "github-copilot/claude-opus-5:max");
+  });
+
+  it("does not touch a level when the whole registry is unavailable", async () => {
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    assert.equal(await run(rules(stateOf({ withCatalogue: false })), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "github-copilot/gpt-5.4:max");
+  });
+
+  it("clamps a level a TIER declared, not only one the call named", async () => {
+    const routing = {
+      ...ROUTING,
+      tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.4", thinkingLevel: "max" } },
+    };
+    const state = stateOf();
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x" };
+    assert.equal(
+      await run(rules({ ...state, settings: { ...state.settings, routing } }), eventOf("subagent", input)),
+      undefined,
+    );
+    assert.equal(input.model, "github-copilot/gpt-5.4:high");
+  });
+
+  /**
+   * The routing HINT. "max is not available here" invites the next question immediately, and the
+   * registry can answer it — `databricks/databricks-claude-sonnet-4-5` takes a token budget and so
+   * declares the full ladder. It is named, with its egress class, and nothing moves.
+   */
+  it("names which configured models DO serve the level, with their egress class", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    await run(rules(stateOf()), eventOf("subagent", input), ctx);
+    const line = notices.find((n) => n.includes("reasoning effort")) ?? "";
+    assert.match(line, /Models that DO serve `max`/);
+    assert.match(line, /databricks \(egress confidential\): databricks\/databricks-claude-sonnet-4-5/);
+    assert.match(line, /hint, not a reroute/, "naming an alternative must not read as failover");
+    assert.equal(input.model, "github-copilot/gpt-5.4:high", "the hint changes nothing about where this runs");
+  });
+
+  it("says so plainly when NOTHING configured serves the level", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    // A registry holding only the clamping model — the shape a session has when no configured
+    // provider can serve the asked level. The hint must then say "this is the ceiling", not go
+    // quiet: an empty list is a finding, and the reader needs to know it was looked for.
+    const state = stateOf();
+    const catalogue = makeCatalogue(
+      ["github-copilot/gpt-5.4"],
+      THINKING_CAPS.filter(([id]) => id === "github-copilot/gpt-5.4"),
+    );
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    await run(rules({ ...state, catalogue }), eventOf("subagent", input), ctx);
+    const line = notices.find((n) => n.includes("reasoning effort")) ?? "";
+    assert.match(line, /No configured model serves `max` at all/);
+    assert.match(line, /ceiling rather than a routing choice/);
+  });
+
+  /**
+   * The hint may only name endpoints this install actually has. `ctx.modelRegistry.getAvailable()`
+   * also carries providers PI knows natively — `deepseek` is in no `config/models.json` block and
+   * in no `routing.json` egress entry, so it can be assigned no class, and offering it as a place to
+   * run `max` inverts the hint's whole purpose. See `providersServing`.
+   */
+  it("never offers a provider that is in the registry but in no config", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    // A registry shaped like the real machine's: the clamping model, plus a native-catalogue
+    // provider that serves the asked level and that nothing here configures.
+    const catalogue = makeCatalogue(
+      ["github-copilot/gpt-5.4", "deepseek/deepseek-v4-flash"],
+      [
+        ...THINKING_CAPS.filter(([id]) => id === "github-copilot/gpt-5.4"),
+        [
+          "deepseek/deepseek-v4-flash",
+          { reasoning: true, thinkingLevelMap: { low: "low", medium: "medium", high: "high", max: "max" } },
+        ] as const,
+      ],
+    );
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    await run(rules({ ...stateOf(), catalogue }), eventOf("subagent", input), ctx);
+    const line = notices.find((n) => n.includes("reasoning effort")) ?? "";
+    assert.ok(!line.includes("deepseek"), "an unconfigured endpoint is not a routing candidate");
+    assert.ok(!line.includes("unlabelled"), "`unlabelled` is a filter now, never a rendered class");
+    assert.match(line, /No configured model serves `max` at all/, "and the ceiling wording covers the empty case");
+  });
+
+  /**
+   * `onThinkingClamp: "abort"` is for the run where a quietly downgraded effort is worse than no
+   * run. It refuses by name and still hints; it never picks another provider.
+   */
+  it("refuses the dispatch instead when config/dispatch.json says abort", async () => {
+    const state = stateOf();
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:max" };
+    const blocked = await run(
+      rules({ ...state, settings: { ...state.settings, dispatch: { ...CONFIG, onThinkingClamp: "abort" } } }),
+      eventOf("subagent", input),
+    );
+    assert.match(blocked?.reason ?? "", /refusing this dispatch/);
+    assert.match(blocked?.reason ?? "", /asked for reasoning effort `max`/);
+    assert.match(blocked?.reason ?? "", /silently downgraded to `high`/);
+    assert.match(blocked?.reason ?? "", /Models that DO serve `max`/);
+  });
+
+  it("abort does not fire for a level the model serves", async () => {
+    const state = stateOf();
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "github-copilot/gpt-5.4:high" };
+    assert.equal(
+      await run(
+        rules({ ...state, settings: { ...state.settings, dispatch: { ...CONFIG, onThinkingClamp: "abort" } } }),
+        eventOf("subagent", input),
+      ),
+      undefined,
+    );
   });
 
   it("VP-02: lowers a fanout to the provider's cap so the package queues the rest", async () => {
@@ -588,23 +807,82 @@ describe("DSP-RESOLVE", () => {
   });
 
   /**
-   * WITHDRAWN 2026-08-13. This asserted that a provider `routing.json` does not classify was refused
-   * outright ("no defensible answer to may this session's data go there"). That is egress
-   * containment in another costume: an unclassed provider is now unlabelled, not forbidden.
+   * The history of this one test is the history of the rule.
+   *
+   * Originally it asserted that a provider `routing.json` does not classify was refused outright
+   * ("no defensible answer to may this session's data go there"). WITHDRAWN 2026-08-13 as egress
+   * containment in another costume, and replaced by "dispatches onto it, leaving it unlabelled".
+   *
+   * REINSTATED on a different footing 2026-08-14, from the owner directly: *a provider that is not
+   * configured does not exist*. This is NOT the containment rule coming back — it does not ask
+   * whether this session's data may go there, and it is the same answer for every session class. It
+   * asks whether this install has the provider at all, and `deepseek` is in PI's built-in registry,
+   * in no `config/models.json` block and in no `routing.json` egress entry, with no key on the
+   * machine. The old behaviour admitted it here and let it die in a child process on a missing
+   * credential, minutes later, attributed to the wrong thing.
    */
-  it("dispatches onto a provider the routing map does not classify, leaving it unlabelled", async () => {
+  it("refuses a provider this install has not configured, naming the model, the provider and why", async () => {
     const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "deepseek/deepseek-v4-flash" };
-    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
-    assert.equal(input.model, "deepseek/deepseek-v4-flash");
+    const blocked = await run(rules(stateOf()), eventOf("subagent", input));
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    const reason = blocked?.reason ?? "";
+    assert.match(reason, /unconfigured_provider/, "its own error kind, not `unknown_model`");
+    assert.match(reason, /deepseek\/deepseek-v4-flash/, "names the model");
+    assert.match(reason, /"deepseek" is not configured for dispatch/, "names the provider");
+    assert.match(reason, /it is not configured in config\/models\.json/, "names the first missing config");
+    assert.match(reason, /it has no egress class in config\/routing\.json/, "and the second");
+    assert.match(reason, /Dispatchable providers are: databricks, github-copilot, local, openai/);
+    assert.match(reason, /Nothing is substituted/, "a refusal, never a fallback");
+    assert.equal(input.model, "deepseek/deepseek-v4-flash", "refused, not rewritten");
   });
 
-  it("still refuses an UNKNOWN model on an unclassed provider — existence is the surviving gate", async () => {
+  it("refuses on the provider BEFORE the model, so the reason points at the config and not at a typo", async () => {
+    // `deepseek/deepseek-v9-imaginary` is absent from the registry too. Reporting `unknown_model`
+    // would send the reader hunting for a spelling mistake; the model id is not the problem.
     const blocked = await run(
       rules(stateOf()),
       eventOf("subagent", { agent: "scout", prompt: "x", model: "deepseek/deepseek-v9-imaginary" }),
     );
     assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    assert.match(blocked?.reason ?? "", /unconfigured_provider/);
+    assert.doesNotMatch(blocked?.reason ?? "", /unknown_model/);
+  });
+
+  it("refuses an unconfigured provider even when the model registry could not be read", async () => {
+    // The two configs are readable whatever the registry did, so this gate does not depend on it.
+    // Without that, an unreadable registry would silently re-open the door.
+    const blocked = await run(
+      rules(stateOf({ withCatalogue: false })),
+      eventOf("subagent", { agent: "scout", prompt: "x", model: "deepseek/deepseek-v4-flash" }),
+    );
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    assert.match(blocked?.reason ?? "", /unconfigured_provider/);
+  });
+
+  it("keeps admitting a configured, classified provider — the rule is structural, not a deny-list", async () => {
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x", model: "databricks/databricks-claude-sonnet-4-5" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "databricks/databricks-claude-sonnet-4-5");
+  });
+
+  it("still refuses an unknown model on a CONFIGURED provider — existence is the second gate", async () => {
+    const blocked = await run(
+      rules(stateOf()),
+      eventOf("subagent", { agent: "scout", prompt: "x", model: "databricks/gpt-9-imaginary" }),
+    );
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
     assert.match(blocked?.reason ?? "", /unknown_model/);
+  });
+
+  it("does not name an unconfigured provider in a typo suggestion", async () => {
+    // `suggestModels` reads `state.catalogue`, which is restricted at session_start, so a correction
+    // cannot resolve to somewhere the gate would then refuse. Menu, suggestions and gate agree.
+    const blocked = await run(
+      rules(stateOf()),
+      eventOf("subagent", { agent: "scout", prompt: "x", model: "github-copilot/deepseek-v4-flash" }),
+    );
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    assert.doesNotMatch(blocked?.reason ?? "", /deepseek\/deepseek-v4-flash/);
   });
 
   it("does not assert existence when the model registry was unavailable at session start", async () => {

@@ -108,6 +108,27 @@ function assistantFailure(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * The 2026-08-14 shape, copied off a recorded transcript record and confirmed against a stub
+ * gateway that answers 200 with a stream carrying no content delta: a normal-looking assistant
+ * message with nothing in it.
+ */
+function emptyCompletion(overrides: Record<string, unknown> = {}) {
+  return {
+    message: {
+      role: "assistant",
+      content: [] as unknown[],
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      stopReason: "stop",
+      rawStopReason: "stop",
+      responseId: "chatcmpl-2e6c1517-8984-4434-9673-a0fb231c5e3f",
+      ...overrides,
+    },
+  };
+}
+
 const servers: Server[] = [];
 after(() => {
   for (const server of servers) server.close();
@@ -360,6 +381,87 @@ describe("provider error surfacing on message_end", () => {
     ]);
     assert.match(out, /\(unknown provider\)/);
     assert.match(out, /\(unknown model\)/);
+  });
+
+  it("reports a 200 that carried no completion, instead of letting it pass as a normal turn", () => {
+    // The 2026-08-14 subagent failures. `stopReason` is `"stop"`, so neither the `error` branch
+    // above nor PI's own `isRetryableAssistantError` sees anything wrong; the only trace is the
+    // shape of the message. Left unreported, it reaches `pi-subagents` as an exit-0 run with no
+    // final text and is renamed there into "possible model cold-start or empty response".
+    const { out, ctx } = drive([
+      ["before_provider_request", { type: "before_provider_request", payload: {} }],
+      ["after_provider_response", { type: "after_provider_response", status: 200, headers: {} }],
+      ["message_end", emptyCompletion()],
+    ]);
+    assert.match(out, /class {4}: empty-response/);
+    assert.match(out, /provider : openai/);
+    assert.match(out, /model {4}: gpt-5\.6-luna/);
+    assert.match(out, /0 content parts/);
+    assert.match(out, /responseId=chatcmpl-2e6c1517-8984-4434-9673-a0fb231c5e3f/);
+    assert.doesNotMatch(out, /cold[- ]start/i);
+    assert.equal(ctx.notices.length, 1);
+  });
+
+  it("keeps quiet for a normal turn that actually said something", () => {
+    // The counter-example set for the check above: across the 19 successful subagent runs in
+    // `.pi-subagents/artifacts/`, 304 assistant messages, none with an empty `content`.
+    const { out, ctx } = drive([
+      ["before_provider_request", { type: "before_provider_request", payload: {} }],
+      ["after_provider_response", { type: "after_provider_response", status: 200, headers: {} }],
+      [
+        "message_end",
+        emptyCompletion({ content: [{ type: "text", text: "done" }], usage: { input: 68, output: 3609 } }),
+      ],
+    ]);
+    assert.equal(out, "");
+    assert.deepEqual(ctx.notices, []);
+  });
+
+  it("carries the gateway's correlation headers from after_provider_response into the report", () => {
+    // `after_provider_response` fires before the body, `message_end` fires after — the headers
+    // captured in between are the only proof, on the OTHER side of the gateway, of which request
+    // this was. Losing them between the two events would make an empty-200 report unactionable.
+    const { out } = drive([
+      ["before_provider_request", { type: "before_provider_request", payload: {} }],
+      [
+        "after_provider_response",
+        {
+          type: "after_provider_response",
+          status: 200,
+          headers: { "x-litellm-call-id": "req-9f3a", "x-litellm-key-hash": "must-not-appear" },
+        },
+      ],
+      ["message_end", emptyCompletion()],
+    ]);
+    assert.match(out, /gateway {2}: x-litellm-call-id=req-9f3a/);
+    assert.doesNotMatch(out, /must-not-appear/);
+  });
+
+  it("names the reasoning effort that actually reached the wire", () => {
+    // The metadata of the runs this fix comes from says `openai/gpt-5.6-luna:max`, and the
+    // gateway answers 400 to `max` — which made the level the obvious suspect and cost a live
+    // probe to clear. `ctx.thinkingLevel` is post-clamp, so printing it settles that in one line.
+    const pi = fakePi();
+    register(pi as any);
+    const ctx = { ...fakeCtx(), thinkingLevel: "high" };
+    const out = captureStderr(() => pi.emit("message_end", emptyCompletion(), ctx));
+    assert.match(out, /reasoning effort=high/);
+  });
+
+  it("fails a headless child on an empty completion — the exit code is how dispatch hears about it", () => {
+    // A subagent child runs `pi --mode json -p`, and PI's own non-zero-exit branch is gated on
+    // text mode. Without this, the child exits 0 with no output and `pi-subagents` invents a
+    // cause for it.
+    const previous = process.exitCode;
+    try {
+      const pi = fakePi();
+      register(pi as any);
+      const ctx = fakeCtx(false);
+      captureStderr(() => pi.emit("message_end", emptyCompletion(), ctx));
+      assert.equal(process.exitCode, 1);
+    } finally {
+      process.exitCode = previous;
+    }
   });
 });
 

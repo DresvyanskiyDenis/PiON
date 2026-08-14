@@ -21,7 +21,12 @@
  * `routing.json` does not classify resolves normally with no class attached.
  */
 import type { EgressClass } from "../lib/dispatch-veto.ts";
-import { describeAlternatives, type ModelCatalogue } from "./catalogue.ts";
+import {
+  describeAlternatives,
+  describeProviderRefusal,
+  type ModelCatalogue,
+  type ProviderAdmission,
+} from "./catalogue.ts";
 import type { RoutingConfig } from "./config.ts";
 import { THINKING_LEVELS, isThinkingLevel, splitThinkingSuffix } from "./thinking.ts";
 
@@ -34,6 +39,15 @@ export type DispatchErrorKind =
   | "unknown_tier"
   /** A well-formed `provider/id` that the session's model registry does not have. */
   | "unknown_model"
+  /**
+   * A well-formed `provider/id` whose PROVIDER this install has not set up — absent from
+   * `config/models.json`, or unclassified in `config/routing.json`'s `egress` map, or both.
+   *
+   * Distinct from `unknown_model` on purpose. "That model does not exist" sends the reader looking
+   * for a spelling mistake; the model may well exist in PI's registry and still be undispatchable
+   * here, and the fix is a config file, not a retry with a different id.
+   */
+  | "unconfigured_provider"
   | "depth"
   | "schema"
   | "contract"
@@ -102,12 +116,15 @@ export function resolveModelSpec(
   spec: string,
   defaultTier: string,
   catalogue?: ModelCatalogue,
+  admission?: ProviderAdmission,
 ): ModelTarget {
   const trimmed = spec.trim();
-  if (trimmed.length === 0) return assertAvailable(resolveTier(routing, defaultTier, defaultTier), catalogue, routing);
+  if (trimmed.length === 0) {
+    return assertAvailable(resolveTier(routing, defaultTier, defaultTier), catalogue, routing, admission);
+  }
 
   if (trimmed.startsWith("tier:")) {
-    return assertAvailable(resolveTier(routing, trimmed.slice("tier:".length), trimmed), catalogue, routing);
+    return assertAvailable(resolveTier(routing, trimmed.slice("tier:".length), trimmed), catalogue, routing, admission);
   }
   if (trimmed.includes("/")) {
     const provider = trimmed.slice(0, trimmed.indexOf("/"));
@@ -123,10 +140,11 @@ export function resolveModelSpec(
       },
       catalogue,
       routing,
+      admission,
     );
   }
   if (Object.hasOwn(routing.tiers, trimmed)) {
-    return assertAvailable(resolveTier(routing, trimmed, trimmed), catalogue, routing);
+    return assertAvailable(resolveTier(routing, trimmed, trimmed), catalogue, routing, admission);
   }
 
   const unbound = unboundReason(routing, trimmed);
@@ -173,16 +191,51 @@ function didYouMean(spec: string, catalogue: ModelCatalogue): string {
 }
 
 /**
- * The existence check. Skipped for a tier flagged `optional` in `routing.json` — the local lane
- * requires a local model server to be running, and `registry.ts` already treats its absence as a runtime
- * condition rather than a misconfiguration. Everything else that resolves must exist, whether the
- * caller named it directly or a tier did.
+ * The existence check, in two steps: is the PROVIDER one this install has, and then is the MODEL in
+ * the registry.
+ *
+ * ## Step 1 — the provider
+ *
+ * A provider that is not configured does not exist (owner decision, 2026-08-14). `ctx.modelRegistry`
+ * carries providers PI knows natively whether or not this install ever set them up, so gating on
+ * the registry alone used to accept `<provider>/<id>` on a machine with no block for that provider
+ * in `config/models.json` and no key for one; the dispatch was admitted here and died later, in a
+ * child process, on a missing credential. The refusal names the model, the provider and which
+ * config file is missing it, because "unknown model" would send the reader hunting for a typo that
+ * is not there.
+ *
+ * This step runs even when `catalogue` is `undefined` — the registry being unreadable says nothing
+ * about what the two config files declare — and even for an `optional` tier, because "the local
+ * model server is not running right now" and "this provider was never configured" are different
+ * facts.
+ *
+ * ## Step 2 — the model
+ *
+ * Unchanged, and still skipped for a tier flagged `optional` in `routing.json`: the local lane
+ * requires a local model server to be running, and `registry.ts` already treats its absence as a
+ * runtime condition rather than a misconfiguration. Everything else that resolves must exist,
+ * whether the caller named it directly or a tier did.
  */
 function assertAvailable(
   target: ModelTarget,
   catalogue: ModelCatalogue | undefined,
   routing: RoutingConfig,
+  admission?: ProviderAdmission,
 ): ModelTarget {
+  if (admission !== undefined && !admission.dispatchable.has(target.provider)) {
+    const why = describeProviderRefusal(target.provider, admission) ?? "it is not a dispatchable provider";
+    const via =
+      target.tier !== undefined
+        ? `tier "${target.tier}" resolves to ${target.model} (config/routing.json), whose provider `
+        : `model "${target.spec}" names provider `;
+    throw new DispatchError(
+      "unconfigured_provider",
+      `${via}"${target.provider}" is not configured for dispatch: ${why}. ` +
+        `Dispatchable providers are: ${[...admission.dispatchable].sort().join(", ") || "(none)"}. ` +
+        `Nothing is substituted — name one of those, or add the provider to the config file above. ` +
+        `A provider PI knows natively is still not a provider this install has.`,
+    );
+  }
   if (catalogue === undefined || target.optional) return target;
   // The catalogue is keyed by `provider/id`, and a thinking level is not part of an id. So the
   // existence check asks about the base model while `target.model` keeps its suffix — the suffix

@@ -75,6 +75,15 @@ export interface DispatchConfig {
   readonly genericAgents: readonly string[];
   /** How many distinctive words a specialist must share with the prompt before it vetoes. */
   readonly specialistMatchMinScore: number;
+  /**
+   * What to do when the resolved model will not serve the reasoning effort the dispatch asked for.
+   *
+   * `warn` (default) discloses and proceeds: the clamp happens inside PI regardless, so proceeding
+   * preserves a working path and only the SILENCE was ever the defect. `abort` is for the run where
+   * a downgraded effort is worse than no run — a benchmark, or a job explicitly commissioned at max
+   * — and it refuses by name rather than quietly delivering less. Neither ever reroutes.
+   */
+  readonly onThinkingClamp: "warn" | "abort";
 }
 
 export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
@@ -88,12 +97,19 @@ export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
   dispatchTools: ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
   genericAgents: ["general-purpose", "general", "generalist"],
   specialistMatchMinScore: 2,
+  onThinkingClamp: "warn",
 };
 
 export interface DispatchSettings {
   readonly dispatch: DispatchConfig;
   /** `undefined` when routing could not be loaded — dispatch is refused in that case. */
   readonly routing: RoutingConfig | undefined;
+  /**
+   * The provider names `config/models.json` declares — the "is this endpoint set up at all" half of
+   * a routing recommendation. `undefined` when the file could not be read, which is a distinct
+   * state from "declares none" and must read as "cannot say", never as "nothing is configured".
+   */
+  readonly configuredProviders: ReadonlySet<string> | undefined;
   readonly problems: readonly string[];
   readonly sources: { readonly dispatch: string; readonly routing: string };
 }
@@ -214,6 +230,14 @@ function parseDispatchConfig(raw: Record<string, unknown> | undefined, problems:
       problems.push(`dispatch.json: "defaultEgress" must be one of ${[...EGRESS_CLASSES].join("|")}; using ${d.defaultEgress}`);
     }
   }
+  let onThinkingClamp = d.onThinkingClamp;
+  if (raw.onThinkingClamp !== undefined) {
+    if (raw.onThinkingClamp === "warn" || raw.onThinkingClamp === "abort") {
+      onThinkingClamp = raw.onThinkingClamp;
+    } else {
+      problems.push(`dispatch.json: "onThinkingClamp" must be "warn" or "abort"; using ${d.onThinkingClamp}`);
+    }
+  }
   return {
     maxDepth: num(raw, "maxDepth", d.maxDepth, problems, 0),
     defaultTier,
@@ -225,6 +249,7 @@ function parseDispatchConfig(raw: Record<string, unknown> | undefined, problems:
     dispatchTools: strArray(raw, "dispatchTools", d.dispatchTools, problems),
     genericAgents: strArray(raw, "genericAgents", d.genericAgents, problems),
     specialistMatchMinScore: num(raw, "specialistMatchMinScore", d.specialistMatchMinScore, problems, 1),
+    onThinkingClamp,
   };
 }
 
@@ -324,9 +349,30 @@ function parseRouting(raw: Record<string, unknown>, source: string, problems: st
   };
 }
 
+/**
+ * The providers this install actually declares, read from `config/models.json`.
+ *
+ * Only the KEYS of the `providers` object are read: base URLs and credentials are
+ * `extensions/credentials.ts`'s business, and this module wants exactly one fact — whether an
+ * endpoint exists in this install at all. `ctx.modelRegistry.getAvailable()` cannot answer that: it
+ * also carries every provider PI knows natively, configured here or not, which is how an
+ * unconfigured provider used to be recommended as a place to run a `max` dispatch on a machine that
+ * has no endpoint for it and no key for one.
+ *
+ * `undefined` on an unreadable file or a missing/malformed `providers` block — "cannot say", never
+ * "nothing is configured". `PI_CONFIG_MODELS_JSON` is the same test seam `credentials.ts` uses.
+ */
+export function loadConfiguredProviders(override?: string): ReadonlySet<string> | undefined {
+  const read = readJsonObject("models.json", override);
+  const providers = read.raw?.providers;
+  if (providers === null || typeof providers !== "object" || Array.isArray(providers)) return undefined;
+  return new Set(Object.keys(providers as Record<string, unknown>));
+}
+
 export interface LoadOptions {
   readonly dispatchPath?: string;
   readonly routingPath?: string;
+  readonly modelsPath?: string;
 }
 
 /** Synchronous by contract: `register()` must not start async work. */
@@ -352,9 +398,23 @@ export function loadDispatchSettings(opts: LoadOptions = {}): DispatchSettings {
     dispatch = parseDispatchConfig({ ...(dispatchRead.raw ?? {}), ...overlay }, problems);
   }
 
+  // Not fatal: without it the routing hint simply loses its "is this endpoint set up" half and
+  // falls back to the egress map alone, which is the half that keeps an unclassified provider out
+  // of a recommendation. Said out loud all the same — a filter running at half strength is not
+  // something to discover from the absence of a name in a hint.
+  const modelsPath = opts.modelsPath ?? process.env.PI_CONFIG_MODELS_JSON;
+  const configuredProviders = loadConfiguredProviders(modelsPath);
+  if (configuredProviders === undefined) {
+    problems.push(
+      `models.json could not be read for its provider list; routing hints fall back to routing.json's ` +
+        `egress map alone to decide which providers are configured`,
+    );
+  }
+
   return {
     dispatch,
     routing,
+    configuredProviders,
     problems,
     sources: { dispatch: dispatchRead.source, routing: routingRead.source },
   };

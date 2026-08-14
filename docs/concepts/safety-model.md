@@ -34,21 +34,43 @@ to block must reach the guard before anything rewrites its arguments. That singl
 
 ---
 
-## 1. The guard: six gates
+## 1. The guard: six gates, three verdicts
 
-In policy order — cheap and absolute first, the one that can block on a human last.
+**2026-08-14 — the deny-list inversion.** This used to be seven gates ending in a program allowlist
+that refused any command not on a name list, and refused it outright headless because there was no
+one to ask. That gate — and the escalation/session-inheritance machinery that existed only to widen
+it — is gone by owner decision: deciding safety by *program name* never worked, because a short list
+blocked ordinary work and a long list stopped meaning anything. What replaced it is a small, fixed
+set of catastrophic command *shapes*, decided in code. Three gates were downgraded from blocking to
+audit-only in the same change — they still see every call, they just no longer refuse one.
 
-| Order | Family | Overridable |
-|---|---|---|
-| 1 | `SEC-*` secret paths | **never** |
-| 2 | `DB-*` catastrophic bash | mostly not |
-| 3 | `GIT-*` destructive git | with a written justification |
-| 4 | `PRV-*` privileged commands | no |
-| 5 | `RTE-*` agent routing / specialist match | a SHOULD-level veto |
-| 6 | `ALW-*` bash allowlist | confirm in the TUI, **fail closed** headless |
+The taxonomy is now three verdicts, not two: **block**, **observe**, and (everything not named
+below) **pass with no record at all**.
 
-Gate 1 has no config key, no escalation variable and no justification path. A permission layer whose
-strongest rule has an escape hatch has no strongest rule.
+| Order | Family | Verdict | Overridable |
+|---|---|---|---|
+| 1 | `SEC-*` secret paths | **blocks** | never |
+| 2 | `DB-*` catastrophic bash | **blocks** | mostly not |
+| 3 | `GIT-REWRITE` / `GIT-FORCE-PROTECTED` | **blocks** | with a written justification |
+| 4 | `PRV-*` privileged commands | **observes** — permitted, recorded | n/a |
+| 5 | `FS-*` write surface — writes outside cwd and the session temp dir | **observes** — permitted, recorded | n/a |
+| 6 | `RTE-*` agent routing / specialist match | **observes** — permitted, recorded | n/a |
+
+Gate 1 has no config key and no justification path. A permission layer whose strongest rule has an
+escape hatch has no strongest rule — and now that gates 4-6 cannot refuse anything, gate 1 is also
+the *only* thing left that can catch a credential-directory `cd` followed by a bare filename read.
+
+Gates 4-6 write a `guard.observed` audit entry — same shape as `guard.block`, plus what was seen —
+every time they fire, and nothing they see is returned to the model. "Remove the enforcement, keep
+the observability" was the explicit instruction: a form that stops being recorded is a regression
+this tree's tests still fail on, even though nothing stops it from running. Ordinary git —
+`reset --hard`, `branch -D`, `clean -fd`, `checkout -- .`, a force-push to a branch outside
+`protectedBranches` — is not gated *or* recorded at all; it was judged genuinely ordinary, not merely
+tolerated.
+
+Read what gate 5 could and could not see before this change, and still cannot: it is a static text
+check on the command string, and it never saw a write expressed inside an interpreter —
+[Known limitations](../limitations.md#the-guard-is-not-a-sandbox).
 
 Full reference and the consequences of relaxing anything:
 [`config/guard.json`](../configuration/guard.md).
@@ -229,7 +251,9 @@ Stated plainly, because implied enforcement is worse than none.
 | **Egress classes are not a network boundary — and since 2026-08-13 they are not a refusal either** | Nothing intercepts a socket, and nothing refuses a dispatch on account of a class any more. `egress` is a word from `routing.json` printed beside every model and agent. If you need a real boundary, build one at the network layer |
 | **`path-defaults`' per-channel policy is declarative** | It computes and exports a value for other modules to honour at their own call sites. A tree with no such wiring enforces nothing from that channel |
 | **A process that already started** | The guard gates tool calls. It does not contain a running process, its children, or what it does to the filesystem |
-| **An allowlisted program that can run other programs** | Adding `sh`, `env`, `xargs` or `ssh` to the allowlist is functionally `allow-all` |
+| **Any program, by name, at all** | There is no allowlist and no denylist keyed on program name any more. `sh`, `env`, `xargs`, `ssh`, `sudo`, `curl` — everything runs headless, with no prompt, unless the *command shape* it is used for matches `SEC-*`/`DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` |
+| **A write expressed inside a program's own argument text** | `FS-*` reads the command as text, and even where it matches it only records, it does not refuse. `python3 -c`, `node -e`, `awk '{print > "…"}'`, a `make` target or a `$( )` subshell hides the destination where no static check can follow it. These are ordinary commands, not exotic ones |
+| **`PRV-*`/`FS-*`/`RTE-*` refusing anything** | All three are audit-only since 2026-08-14. They write a record; they do not ask permission and they do not block |
 | **Model quality** | A small model emits malformed tool JSON at a materially higher rate, and PI exposes no repair-retry knob. That is a routing decision, not a safety one |
 | **Prompt injection from fetched content** | Nothing here classifies retrieved text. The `web_fetch` result is data the model reads |
 

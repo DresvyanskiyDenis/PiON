@@ -76,12 +76,13 @@ To try it without touching your real setup:
 | 9 | **Shell integration** | The most common reason an install "does not work": the config is perfect and the shell never loads it |
 
 !!! danger "Section 6 is the one to actually read"
-    It sets `guard.json`'s `nonInteractive` — what runs unattended without a confirmation. The
-    shipped answer is `allowlist-only`. `allow-all` means an agent can run **any** shell command
-    with no prompt, in a headless session, with your credentials in its environment.
+    A small, fixed set of catastrophic command shapes — credential-file reads, `rm -rf /`, a
+    disk-format command, a force-push onto a protected branch, and a handful of others — is
+    refused outright, in code, and there is nothing here to configure for that: no allowlist, no
+    unattended-execution mode. Everything else runs, headless included, with no prompt.
 
-    Relaxing it is a real decision with a real consequence. [`guard.json`](../configuration/guard.md)
-    spells out what each value costs.
+    The only thing this section asks is which branches count as "protected."
+    [`guard.json`](../configuration/guard.md) spells out exactly what still blocks and what does not.
 
 ### Section 7 also asks where your skills go
 

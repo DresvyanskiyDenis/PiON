@@ -2,17 +2,21 @@
 //
 // What these tests are actually protecting: the three rules —
 // no substitution, no truncation, non-zero exit in print mode — plus the classification table
-// that turns a provider failure into one of the five classes the routing table fixes.
+// that turns a provider failure into one of the classes the routing table fixes.
 import { shippedConfig } from "./lib/repo-config.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
+  buildEmptyCompletionFailure,
   buildProviderFailure,
   classifyProviderError,
   formatDiagnostics,
   formatProviderFailure,
+  isEmptyCompletion,
+  pickGatewayHeaders,
+  PROVIDER_FAILURE_MARKER,
   summariseProviderFailure,
   surfaceProviderFailure,
   type ProviderErrorClass,
@@ -276,6 +280,179 @@ describe("the mid-stream 200 — the path after_provider_response cannot see", (
   });
 });
 
+describe("the empty 200 — a well-formed response that carried no completion", () => {
+  // The live failure, 2026-08-14, against an OpenAI-compatible LiteLLM gateway serving
+  // `gpt-5.6-luna`. Nine subagent runs died with "Subagent produced no output (possible model
+  // cold-start or empty response)" while the transcripts recorded this, verbatim, as the run's
+  // last assistant message:
+  //
+  //   .pi-subagents/artifacts/<runId>_<agent>_transcript.jsonl
+  //
+  // Reproduced against a stub gateway that answers 200 with a stream carrying a role delta, a
+  // `finish_reason: "stop"` delta and nothing else: PI hands up exactly this message, `pi -p
+  // --mode json` exits 0, and every guard in the stack reads it as "the model had nothing to
+  // say". A 400 from the same stub is NOT this shape — it arrives as `stopReason: "error"` with
+  // the upstream body in `errorMessage` — which is what rules the gateway's `reasoning_effort`
+  // vocabulary out as the cause, and what this fixture pins.
+  const recorded = {
+    role: "assistant",
+    content: [] as { type: string }[],
+    api: "openai-completions",
+    provider: "openai",
+    model: "gpt-5.6-luna",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    stopReason: "stop",
+    rawStopReason: "stop",
+    responseId: "chatcmpl-2e6c1517-8984-4434-9673-a0fb231c5e3f",
+  };
+
+  it("recognises the recorded failure", () => {
+    assert.equal(isEmptyCompletion(recorded), true);
+  });
+
+  it("does not fire on the healthy turn from the same transcript — a tool call is content", () => {
+    // Turn 1 of the same run: `stopReason: "toolUse"`, 83 output tokens of which 43 reasoning,
+    // and a `read` call that executed. A run that gets this far has reached the model.
+    assert.equal(
+      isEmptyCompletion({
+        content: [{ type: "toolCall" }],
+        stopReason: "toolUse",
+        usage: { input: 5101, output: 83 },
+      }),
+      false,
+    );
+  });
+
+  it("does not fire on a thinking-only turn — a reasoning block is content too", () => {
+    assert.equal(isEmptyCompletion({ content: [{ type: "thinking" }], stopReason: "stop" }), false);
+  });
+
+  it("does not fire on text", () => {
+    assert.equal(isEmptyCompletion({ content: [{ type: "text" }], stopReason: "stop" }), false);
+  });
+
+  it("leaves the states where empty content is legitimate alone", () => {
+    // `error` belongs to the branch above it, `aborted` is Esc, `pending` has not finished, and
+    // `deferred` is a batch handle whose content arrives later by design.
+    for (const stopReason of ["error", "aborted", "pending", "deferred"]) {
+      assert.equal(isEmptyCompletion({ content: [], stopReason }), false, stopReason);
+    }
+  });
+
+  it("fires on a length stop with no content — a turn that spent its budget on nothing", () => {
+    assert.equal(isEmptyCompletion({ content: [], stopReason: "length" }), true);
+  });
+
+  it("cannot be tricked by a message with no content array at all", () => {
+    assert.equal(isEmptyCompletion({ stopReason: "stop" }), false);
+  });
+
+  it("reports the observation, never a guessed cause", () => {
+    const failure = buildEmptyCompletionFailure({
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      status: 200,
+      stopReason: recorded.stopReason,
+      rawStopReason: recorded.rawStopReason,
+      responseId: recorded.responseId,
+      thinkingLevel: "high",
+      usage: recorded.usage,
+    });
+    const text = formatProviderFailure(failure);
+    assert.equal(failure.klass, "empty-response");
+    assert.match(text, /provider : openai/);
+    assert.match(text, /model {4}: gpt-5\.6-luna/);
+    assert.match(text, /0 content parts/);
+    assert.match(text, /finish_reason=stop/);
+    // The run's metadata said `openai/gpt-5.6-luna:max`; the level that reached the wire was
+    // `high`. Printing it is what makes that visible without a live probe.
+    assert.match(text, /reasoning effort=high/);
+    assert.match(text, /responseId=chatcmpl-2e6c1517-8984-4434-9673-a0fb231c5e3f/);
+    assert.match(text, /usage 0 prompt \/ 0 completion token\(s\)/);
+    assert.match(text, /not evidence/);
+    // These claims were refuted by a live probe on 2026-08-14 — zero prompt tokens is what
+    // `pi-ai` pre-initialises usage to, not a measurement, and it does not mean the request was
+    // never billed or never reached the model behind the gateway. None of them may reappear.
+    assert.doesNotMatch(text, /did not reach/i);
+    assert.doesNotMatch(text, /billed/i);
+    assert.doesNotMatch(text, /never reached/i);
+    // The string this whole investigation was lost to. It must never come back.
+    assert.doesNotMatch(text, /cold[- ]start/i);
+  });
+
+  it("never reports a bare http 200 for a turn that produced nothing", () => {
+    const failure = buildEmptyCompletionFailure({
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      status: 200,
+      stopReason: "stop",
+    });
+    assert.match(formatProviderFailure(failure), /200 \(a complete, well-formed response whose body/);
+    assert.match(summariseProviderFailure(failure), /empty-response \(http 200, empty body\)$/);
+  });
+
+  it("says so plainly when no status reached the hook", () => {
+    const failure = buildEmptyCompletionFailure({ provider: "openai", model: "gpt-5.6-luna", stopReason: "stop" });
+    assert.match(summariseProviderFailure(failure), /\(http 2xx, empty body\)$/);
+  });
+
+  it("is not reachable from the text classifier — it is a shape, not a message", () => {
+    assert.notEqual(classifyProviderError({ message: "the provider returned an empty completion" }), "empty-response");
+    assert.notEqual(classifyProviderError({ status: 200, message: "" }), "empty-response");
+  });
+});
+
+describe("pickGatewayHeaders — the correlation-header allow-list", () => {
+  it("keeps only the four named headers, lower-cased, in fixed order", () => {
+    const picked = pickGatewayHeaders({
+      "X-LiteLLM-Call-Id": "abc123",
+      "x-litellm-version": "1.89.7",
+      "x-litellm-key-hash": "should-never-appear",
+      "content-type": "application/json",
+    });
+    assert.deepEqual(picked, [
+      ["x-litellm-call-id", "abc123"],
+      ["x-litellm-version", "1.89.7"],
+    ]);
+  });
+
+  it("returns undefined, not an empty array, when nothing matched", () => {
+    assert.equal(pickGatewayHeaders({ "content-type": "application/json" }), undefined);
+    assert.equal(pickGatewayHeaders(undefined), undefined);
+  });
+
+  it("never lets a key/spend header through, even by prefix", () => {
+    const picked = pickGatewayHeaders({ "x-litellm-key-spend": "42.10" });
+    assert.equal(picked, undefined);
+  });
+
+  it("formatProviderFailure renders the gateway line only when headers were captured", () => {
+    const withHeaders = buildEmptyCompletionFailure({
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      status: 200,
+      stopReason: "stop",
+      headers: { "x-litellm-call-id": "req-42" },
+    });
+    assert.match(formatProviderFailure(withHeaders), /gateway {2}: x-litellm-call-id=req-42/);
+
+    const without = buildEmptyCompletionFailure({
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      status: 200,
+      stopReason: "stop",
+    });
+    assert.doesNotMatch(formatProviderFailure(without), /gateway {2}:/);
+  });
+});
+
+describe("PROVIDER_FAILURE_MARKER", () => {
+  it("is the exact prefix summariseProviderFailure emits — the two must never drift apart", () => {
+    const failure = buildProviderFailure({ provider: "openai", model: "gpt-5.6-luna", message: "boom" });
+    assert.ok(summariseProviderFailure(failure).startsWith(PROVIDER_FAILURE_MARKER));
+  });
+});
+
 describe("surfaceProviderFailure", () => {
   it("writes the whole block to the log sink and never throws", () => {
     const lines: string[] = [];
@@ -393,9 +570,16 @@ describe("the shipped routing table — the no-substitution contract this module
     ]);
   });
 
-  it("declares the five classes this module can produce, and no others", () => {
+  it("declares the six classes this module can produce, and no others", () => {
     const declared = [...(routing.onProviderError?.errorClasses ?? [])].sort();
-    assert.deepEqual(declared, ["auth", "model-not-found", "network", "policy", "quota"]);
+    assert.deepEqual(declared, [
+      "auth",
+      "empty-response",
+      "model-not-found",
+      "network",
+      "policy",
+      "quota",
+    ]);
   });
 
   it("never makes the local tier a hard requirement — someone with no local model server must still start", () => {

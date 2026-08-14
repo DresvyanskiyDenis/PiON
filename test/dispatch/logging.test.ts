@@ -19,7 +19,17 @@ import { loadAgentRegistry, type AgentRegistry } from "../../extensions/dispatch
 import { resetWorktreeProvider } from "../../extensions/dispatch/isolation.ts";
 import type { GuardRule } from "../../extensions/lib/guarded-handler.ts";
 import { openIndexDb, resetIndexDbCache } from "../../extensions/session-index/db.ts";
-import { ALL_MODELS, CATALOGUE, CONFIG, GOOD_SCOUT, ROUTING, scratch, writeAgents, type AgentFile } from "./helpers.ts";
+import {
+  ALL_MODELS,
+  CATALOGUE,
+  CONFIG,
+  CONFIGURED_PROVIDERS,
+  GOOD_SCOUT,
+  ROUTING,
+  scratch,
+  writeAgents,
+  type AgentFile,
+} from "./helpers.ts";
 
 const SURGEON: AgentFile = {
   name: "surgeon",
@@ -37,6 +47,7 @@ function stateOf(): State {
     settings: {
       dispatch: CONFIG,
       routing: ROUTING,
+      configuredProviders: CONFIGURED_PROVIDERS,
       problems: [],
       sources: { dispatch: "<test>/dispatch.json", routing: "<test>/routing.json" },
     },

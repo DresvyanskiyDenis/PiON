@@ -139,13 +139,16 @@ one-liner asked for in place.
 
 ## Work
 
-- Blocked by the guard headless? Read the refusal — it names the way out. `PI_GUARD_APPROVE=1`
-  pre-grants **only** the approval a human would have given at the prompt, for **one** invocation,
-  and it belongs to whoever is running the session, never to you: do not export it, do not write it
-  into a config file, do not put it in a script you ask to be run. It does not touch `SEC-*`
-  (credential paths — no override, ever), it does not touch `DB-*`, it does not un-refuse `cd`, and
-  `GIT-*` / `PRV-*` / `RTE-*` still want their written `# PI-JUSTIFY(GATE-ID): reason` line. If a
-  task genuinely needs it, say so and let the operator decide.
+- Blocked by the guard? It is one of four things, and nothing else blocks any more: `SEC-*`
+  (credential paths — no override, ever, so change the approach rather than retrying), `DB-*` (eight
+  catastrophic shapes — `rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect onto a raw disk,
+  `chmod -R 777 /`, `curl … | sh`, shutdown), `GIT-REWRITE` (`filter-repo`/`filter-branch`), or
+  `GIT-FORCE-PROTECTED` (force-push onto `main`/`master`). Everything else runs — `sudo`, `ssh`,
+  `curl`, `make`, `terraform`, `python3 -c`, a write anywhere on disk, any binary on `PATH` — with no
+  prompt and no approval, headless included. For the two `GIT-*` rules and two of the `DB-*` ones,
+  re-issue the identical command with a `# PI-JUSTIFY(<gate-id>): <one sentence>` line prepended; the
+  comment is stripped before the command runs. There is no `PI_GUARD_APPROVE` and no session
+  allowlist any more — if you see either name anywhere, it is stale and does nothing.
 - "Fix the bug" → "write the test that reproduces it, then make it pass".
 - Multi-step work → a three-line plan, and one verification per step.
 - Two readings of the prompt → ask, don't pick silently.

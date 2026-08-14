@@ -40,6 +40,13 @@ that mattered most.
 The abort names the provider, the model, the error class, the message and the cause chain. Five
 error classes are distinguished: `auth`, `quota`, `network`, `model-not-found`, `policy`.
 
+!!! note "Amended 2026-08-14 — a sixth class, `empty-response`"
+    A well-formed HTTP 200 that carries no completion is a provider failure that no error text
+    describes, so it was not caught by a vocabulary built out of error messages. It is now a class
+    of its own, recognised by shape rather than by wording. The decision above is unchanged: it is
+    still an abort, still no substitution.
+    [Reference](../configuration/routing.md#onprovidererror).
+
 The decision is enforced mechanically, not by convention: `bin/pi-check`'s `PC-03` fails the
 repository if a `fallback`, `failover` or `egressOrder` key appears anywhere in the configuration
 tree, and `PC-05` fails it if a sub-agent definition carries `fallbackModels`.

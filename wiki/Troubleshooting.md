@@ -26,7 +26,7 @@ disguise.
 | A 400 naming a field you did not set | A `compat` flag on the provider fragment does not match what that endpoint accepts |
 | Compaction fires far too late, then the request is rejected | The declared `contextWindow` is bigger than what your endpoint serves. `providers.<p>.modelOverrides.<id>.contextWindow` |
 | Compaction fires constantly | `reserveTokens` is a **global** scalar; it is probably sized for a much larger model |
-| A command is refused unattended | `config/guard.json` → `nonInteractive: "allowlist-only"`. Add the command to `allowlist`, do not switch to `allow-all` |
+| A command is refused unattended | Since 2026-08-14 only four things refuse a bash command at all: `SEC-*`, `DB-*`, `GIT-REWRITE`, `GIT-FORCE-PROTECTED`. There is no allowlist to add a command to — read the refusal's rule id |
 | A hook blocks everything | Hooks fail **closed**. A `run` rule whose script is missing, throws or times out blocks every matching call |
 | A skill never runs | Its root is not in `config/settings.json` → `skills`. `/doctor` `D-02` lists the roots actually discovered |
 | A skill silently fails to load | Unquoted colon in `description` → the YAML parser rejects the file. Quote it |

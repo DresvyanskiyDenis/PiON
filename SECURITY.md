@@ -27,9 +27,10 @@ one.
 
 The controls this project claims, and therefore the things worth reporting when they fail:
 
-- **The guard's gates** — a way to make a tool call that the six ordered gates should have refused, in
-  particular anything that reaches a path `SEC-*` protects, or that writes to a protected branch
-  without the escalation.
+- **The guard's blocking gates** — a way to make a tool call that `SEC-*`, `DB-*`, `GIT-REWRITE` or
+  `GIT-FORCE-PROTECTED` should have refused, in particular anything that reaches a path `SEC-*`
+  protects (which has no override at all), or that writes to a protected branch without a written
+  justification.
 - **The trust boundary** — an untrusted directory whose `.pi/` contents take effect anyway: project
   hooks, project settings, project sub-agents, project MCP servers.
 - **MCP default-deny** — a project-declared MCP server that starts without an approval record, or an
@@ -57,10 +58,11 @@ will not be treated as advisories, because the documentation already says they d
   bypass of a control that does not exist.
 - **The guard does not contain a process that already started.** It gates tool calls. A program the
   agent legitimately started can do whatever your user account can do, for as long as it runs.
-- **An allowlisted program that runs other programs is equivalent to allow-all.** If your allowlist
-  contains an interpreter, a build tool or anything with a `-e`/`--exec` flag, that is your allowlist
-  saying yes. Report a *default* allowlist entry with that property; a custom one is a configuration
-  finding for you, not for us.
+- **`PRV-*`, `FS-*` and `RTE-*` do not refuse anything.** Since the 2026-08-14 deny-list inversion
+  these three gates are documented as audit-only: they record a privileged command, an out-of-tree
+  write or a generic-agent dispatch, and permit it regardless. That every program — not just an
+  allowlisted one — runs with no per-command decision at all is the shipped design, not a bypass of
+  one.
 - **A trusted project is trusted.** Once a root is in `trusted-roots.json`, its `.pi/` directory is
   configuration you have accepted. The gate is the trust decision, not what comes after it.
 - **The model can be talked into things.** Prompt injection that makes the agent *attempt* a
@@ -81,7 +83,9 @@ is no backport channel. Run a recent checkout.
 
 The defaults assume a single-user workstation. If your threat model is stronger:
 
-- review `config/guard.json`'s `allowlist` before enabling `nonInteractive` runs;
+- if you need `PRV-*`/`FS-*`/`RTE-*` to actually refuse rather than only record, write your own
+  `block` rule in [`config/hooks.yaml`](docs/configuration/tools.md#hooksyaml) — the guard itself
+  will not do it for you;
 - set `onInternalError` to `closed` if you would rather a broken gate stop work than permit a call —
   see [ADR 0002](docs/adr/0002-fail-open-guard-fail-closed-hooks.md) for why the default is the other
   way;

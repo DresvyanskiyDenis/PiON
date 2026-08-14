@@ -137,48 +137,53 @@ request instead. See
 
 ## Safety and permissions
 
-### 7. Stop it asking before every shell command (and what that costs)
+### 7. What still asks, and what runs with no prompt at all
 
-**File:** `config/guard.json` → `nonInteractive`
+**As of the 2026-08-14 deny-list inversion, nothing in the guard prompts you, ever — interactively
+or headless.** There is no allowlist and no unattended-execution mode to set. Every program runs
+unattended unless the specific *command shape* it is used for is one of:
 
-| Value | Unattended behaviour |
-|---|---|
-| `allowlist-only` (ships) | only commands in `allowlist` run; anything else is refused |
-| `allow-all` | **any** shell command runs with no prompt, headless, with your credentials in its environment |
+- `SEC-*` — a credential path. Never overridable.
+- `DB-*` — one of eight catastrophic shapes (`rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect
+  onto a raw disk, `chmod -R 777 /`, `curl … | sh`, shutdown). Mostly not overridable.
+- `GIT-REWRITE` (`filter-repo` / `filter-branch`) and `GIT-FORCE-PROTECTED` (a force-push onto a
+  protected branch). Overridable with a written justification.
 
-**Do not set `allow-all` because a prompt annoyed you.** Add the specific command to the allowlist
-instead — recipe 8. If you are being prompted interactively rather than headlessly, the fix is
-usually the allowlist too.
+If you are being refused and it is not one of those four, the guard is not the cause — check
+`config/hooks.yaml` for a rule your team added.
 
-### 8. Allow one more command without opening the gate
+### 8. Record — but do not block — a privileged command, an out-of-tree write, or a generic dispatch
 
-**File:** `config/guard.json` → `allowlist` (20 entries ship: `git`, `npm`, `npx`, `node`, `uv`,
-`uvx`, `python`, `pytest`, …).
+**Nothing to configure; this is what the guard does by default.** `PRV-*` (`sudo`, `chmod 777`,
+`pkill -9`, `killall`), `FS-*` (a bash write whose target resolves outside the project) and `RTE-*`
+(a generic agent dispatched where a specialist matched) are all **audit-only**: permitted, and
+written to the session's audit log as a `guard.observed` entry, with nothing returned to the model.
 
-```json
-"allowlist": ["git", "npm", "…", "cargo"]
-```
-
-**What breaks:** adding `sh`, `bash`, `env`, `xargs`, `ssh` or anything else that can execute another
-program is functionally `allow-all` with extra steps. The allowlist is only meaningful while every
-entry on it does one thing.
+**If you need one of these to actually refuse for your own workflow**, the guard will not do it —
+write a `block` rule for the shape you care about in `config/hooks.yaml`. Hooks stack on
+the guard and can only add denial, never remove it.
 
 ### 9. Protect more branches from destructive git
 
 **File:** `config/guard.json` → `protectedBranches` (`["main", "master"]` ships).
 
-Destructive git against a protected branch needs a **written justification**, not a flag. That is
+`GIT-FORCE-PROTECTED` against one of these needs a **written justification**, not a flag. That is
 deliberate: the hatch is a sentence a human wrote, so it survives review.
 
-### 10. Approve one dangerous action, once
+### 10. Override a blocked git rewrite or force-push, with a written justification
+
+There is no environment variable that pre-approves a run — `PI_GUARD_APPROVE` was removed outright
+in the same change, along with `PI_GUARD_SESSION_ALLOWLIST`. What is left is the per-command hatch,
+and only for the two `GIT-*` rules and two of the eight `DB-*` ones:
 
 ```bash
-PI_GUARD_APPROVE=1 pi
+# PI-JUSTIFY(GIT-REWRITE): throwaway clone made for this rewrite, not the checkout
+git filter-repo --mailmap mailmap.txt --force
 ```
 
-`config/guard.json` → `escalation` names the variable. It never applies to the `SEC-*` family —
-secret-path rules have no escape hatch, no config key and no justification path, because a strongest
-rule with an exception is not the strongest rule.
+The comment is stripped before the command runs and the justification is written to the audit log.
+It never applies to the `SEC-*` family — secret-path rules have no escape hatch, no config key and
+no justification path, because a strongest rule with an exception is not the strongest rule.
 
 ### 11. Let a project contribute its own extensions and hooks
 
@@ -385,9 +390,11 @@ Full table: [Exit codes](https://dresvyanskiydenis.github.io/PiON/reference/exit
 
 ### 23. Make a headless run refuse to guess
 
-`config/guard.json` → `nonInteractive: "allowlist-only"` already does this: a command that would have
-needed a confirmation **fails closed** rather than running unattended. Keep it that way for anything
-on a timer.
+Nothing to set — the guard never guesses. `SEC-*`, `DB-*`, `GIT-REWRITE` and `GIT-FORCE-PROTECTED`
+refuse the same way headless as interactively, with a named reason; everything else runs unattended
+either way, because none of it ever asked for confirmation in the first place. If a scheduled run
+needs to refuse rather than proceed on an *ambiguous* signal — a missing credential, an unresolved
+model — that is `bin/pi-run`'s job (recipe 22), not the guard's.
 
 ---
 
