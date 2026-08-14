@@ -1,0 +1,7 @@
+{
+  "globalConcurrencyLimit": 4,
+  "parallel": {
+    "maxTasks": 8,
+    "concurrency": 4
+  }
+}

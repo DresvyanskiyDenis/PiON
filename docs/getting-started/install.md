@@ -128,12 +128,13 @@ Adding servers later is a hand-edit of `config/mcp.json` (copy an entry from
 
 ### Generated config
 
-Ten config files are **generated**: produced from a tracked `*.default.json` template plus, where
+Eleven config files are **generated**: produced from a tracked `*.default.json` template plus, where
 relevant, `config/providers/*.json` and your answers.
 
 ```text
 models.json  routing.json  mcp.json  settings.json  guard.json
 trusted-roots.json  path-defaults.json  web.json  web-search.json  quota.json
+subagent.json
 ```
 
 The template is read, never written. The generated file is yours — including any hand edit, because

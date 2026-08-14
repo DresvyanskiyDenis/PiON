@@ -30,7 +30,7 @@ Changes take effect on the **next `pi` start**. Nothing is watched or hot-reload
 
 ## Fact 2 — generated vs tracked
 
-Ten files come in pairs. `config/<name>.default.json` is **tracked** — the shipped template, read by
+Eleven files come in pairs. `config/<name>.default.json` is **tracked** — the shipped template, read by
 the installer and never written by it. `config/<name>.json` is **generated** — yours, produced from
 that template plus your answers, and git-ignored.
 
@@ -45,6 +45,7 @@ that template plus your answers, and git-ignored.
 | `config/path-defaults.json` | `path-defaults.default.json`, rewritten around your first trusted root |
 | `config/web.json`, `config/web-search.json` | their templates + your search-backend answer |
 | `config/quota.json` | `quota.default.json` + whether you want the meter |
+| `config/subagent.json` | `subagent.default.json` — no interview question; raise it by hand if your provider allows more |
 
 !!! warning "Hand-editing a generated file is supported. It is the *template* a fresh clone reads"
     Editing `config/models.json` directly is a normal, expected thing to do — several pages here tell
@@ -94,6 +95,7 @@ Fact 2.
 | add your own skill | `skills` in `config/settings.json` | [Adding a skill](../extending/skills.md) |
 | add your own sub-agent | `agents/` + `config/dispatch.json` | [dispatch.json](dispatch.md) |
 | limit how deep sub-agents may nest | `maxDepth` in `config/dispatch.json` | [dispatch.json](dispatch.md#maxdepth) |
+| raise (or lower) how many sub-agent tasks may run at once | `globalConcurrencyLimit` in `config/subagent.json` | [Sub-agents](../extending/subagents.md#fan-out-ceiling-the-packages-own-cap) |
 | turn off session digests | `config/digest.json` | [Session lifecycle](sessions.md#digestjson) |
 | auto-trust a directory root | `config/trusted-roots.json` | [Paths and trust](paths-and-trust.md) |
 | set a per-project default model | `<project>/.pi/settings.json` | [Paths and trust](paths-and-trust.md#per-project-settings) |
@@ -121,6 +123,7 @@ Task-shaped versions of these, with the commands, live in the
 | [`trusted-roots.json`](paths-and-trust.md), [`path-defaults.json`](paths-and-trust.md) | **yes** | which filesystem roots are auto-trusted, and per-root tier/egress defaults |
 | [`web.json`](tools.md#web), [`web-search.json`](tools.md#web) | **yes** | search backend, SSRF policy, cookie policy, tool names |
 | [`quota.json`](sessions.md#quotajson) | **yes** | quota metering for metered providers |
+| [`subagent.json`](../extending/subagents.md#fan-out-ceiling-the-packages-own-cap) | **yes** | `pi-subagents`' own global fan-out ceiling and legacy top-level `parallel` caps |
 | [`pi-lsp.json`](tools.md#pi-lspjson) | no | language servers |
 | [`shell/pi-env.sh`](environment.md) | no | environment, secret *references*, proxy, CA bundle |
 

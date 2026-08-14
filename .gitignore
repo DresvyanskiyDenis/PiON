@@ -34,6 +34,7 @@ config/path-defaults.json
 config/web.json
 config/web-search.json
 config/quota.json
+config/subagent.json
 
 # --- Identity -----------------------------------------------------------------
 # The operator-identity extension refuses to READ a personal identity file from a
@@ -56,6 +57,14 @@ agents-private/
 # dispatched a sub-agent. Both noise and a leak surface — it holds task text and
 # model spend.
 .pi-subagents/
+
+# --- Leak-check patterns (PC-23) ------------------------------------------------
+# The optional local source of PC-23's forbidden-pattern list — an internal hostname,
+# an employer name, whatever a private-to-public port must never carry across. One
+# pattern per line. Ignored here so the file that names the secrets cannot itself
+# become the leak; PI_LEAK_CHECK_PATTERNS (an env var) is the other, equally valid
+# source. See bin/rules/pc-23-no-configured-leak-patterns.mjs.
+config/leak-patterns.local.txt
 
 # --- Documentation build -------------------------------------------------------
 site/

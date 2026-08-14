@@ -4,8 +4,8 @@ A sub-agent is **one Markdown file with YAML frontmatter**. It runs in its own c
 model you choose by tier, with a tool set you choose, and returns a report to the session that
 dispatched it.
 
-Twelve ship in `agents/`. Yours go in `agents-private/` (git-ignored) or in a project's
-`.pi/agents/`.
+Thirteen ship in `agents/` — twelve specialists plus the `general-purpose` catch-all. Yours go in
+`agents-private/` (git-ignored) or in a project's `.pi/agents/`.
 
 ---
 
@@ -168,12 +168,14 @@ Use the default `text` when a human reads it.
 
 | Directory | For |
 |---|---|
-| `<repo>/agents` | the twelve that ship |
+| `<repo>/agents` | the thirteen that ship |
 | `<repo>/agents-private` | **yours** — git-ignored |
 | `<agentDir>/agents` | the PI agent directory |
 | `<cwd>/.pi/agents` | project-specific agents, travelling with the repository |
 
-A missing directory is a no-op. Full key reference:
+A missing directory is a no-op — but only a *missing* one. A directory that exists and cannot be
+read, or a file sitting where a directory belongs, is named at session start rather than quietly
+contributing nothing. Full key reference:
 [`config/dispatch.json`](../configuration/dispatch.md).
 
 ---
@@ -186,6 +188,46 @@ recursive agent burns a quota in minutes and the transcript stops being readable
 `concurrencyDefault: 3` bounds how many run at once. Raise it only if your provider's
 [per-provider concurrency](../configuration/routing.md#concurrency) can absorb it; a local model
 server on `concurrency: 1` cannot.
+
+---
+
+## Fan-out ceiling — the package's own cap
+
+`config/dispatch.json`'s `concurrencyDefault` is this repository's own dial. `pi-subagents` (the
+runtime underneath it) carries a second, independent one: `globalConcurrencyLimit`, a cap on how
+many sub-agent tasks may run **simultaneously within a single run**, on the `workflowScript` +
+`runs.all` fan-out path. Left unset it defaults to the package's own built-in ceiling of 20 — wide
+enough that a broad fan-out can open 20 concurrent provider calls at once, regardless of anything
+`routing.json` or `dispatch.json` say.
+
+This repository ships that cap explicitly, in `config/subagent.json` (generated at install time
+from `config/subagent.default.json`, git-ignored like the rest of the personal config — see
+[Generated vs tracked](../configuration/index.md#fact-2-generated-vs-tracked)):
+
+```json
+{
+  "globalConcurrencyLimit": 4,
+  "parallel": {
+    "maxTasks": 8,
+    "concurrency": 4
+  }
+}
+```
+
+`4` mirrors the `concurrency` this repository's own `routing.default.json` ships for its one
+bundled provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
+measurement of any particular provider's real budget. **Raise it if your provider allows more**,
+and keep it no higher than the tightest `concurrency` entry in
+[`routing.json`](../configuration/routing.md#concurrency) that your fan-out could actually hit —
+otherwise the sub-agent runtime opens more concurrent calls than the provider was told to expect,
+which is how a fan-out turns into 429s.
+
+`parallel.concurrency` is the same cap for the package's legacy top-level `tasks: [...]` dispatch
+path; `parallel.maxTasks` bounds how many tasks a single call may *carry*, not how many run at
+once, and is left at the package's own default. Installed at
+`~/.pi/agent/extensions/subagent/config.json` — the one path `pi-subagents` reads its own config
+from, and the one nested symlink the installer makes; see
+[Configuration layout](../getting-started/config-layout.md).
 
 ---
 

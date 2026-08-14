@@ -408,7 +408,7 @@ backup_file() { # backup_file <path> — move aside, record where, never overwri
 # home directory, a chosen default model — became the next commit in anyone's fork. Measured, not
 # theorised: a --prefix test run wrote a scratch directory into config/trusted-roots.json, and it
 # survived into the working copy.
-GENERATED_CONFIGS="settings guard trusted-roots path-defaults web web-search quota"
+GENERATED_CONFIGS="settings guard trusted-roots path-defaults web web-search quota subagent"
 
 cfg_seed() { # cfg_seed <name> — a path that exists NOW, so the interview can read current values
   local live="$REPO_DIR/config/$1.json"
@@ -1732,6 +1732,14 @@ link_one optional config/path-defaults.json path-defaults.json
 link_one optional config/trusted-roots.json trusted-roots.json
 link_one optional config/pi-statusline.json pi-statusline.json
 link_one optional config/pi-lsp.json        pi-lsp.json
+
+# pi-subagents reads exactly one path — getAgentDir()/extensions/subagent/config.json (its
+# extension/config.ts getConfigPath()) — so this is the only row whose destination is nested. The
+# directory is PI runtime state and PI does not create it, hence the mkdir. Only the single file is
+# linked: linking $AGENT_DIR/extensions itself would hand PI our extension SOURCE tree, which the
+# NOTE above the "Linking the config" step explains at length.
+run "mkdir -p '$AGENT_DIR/extensions/subagent'"
+link_one optional config/subagent.json      extensions/subagent/config.json
 
 if [ -d "$REPO_DIR/config/bin" ]; then
   for helper in "$REPO_DIR"/config/bin/*; do
