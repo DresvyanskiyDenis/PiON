@@ -40,8 +40,17 @@ const DENY: ReadonlyArray<[string, RegExp]> = [
   ["SEC-QUOTA-TOKEN", /quota-token\.json$/],
   ["SEC-SESSION", /\.session$/],
   // Directory-scoped, evaluated last so a more precise id above always wins.
-  ["SEC-SSH", /(^|\/)\.ssh\//],
-  ["SEC-AWS", /(^|\/)\.aws\//],
+  //
+  // `(\/|$)` and not `\/`: the directory itself is a target, not only the paths under it. A bare
+  // `~/.aws` reaches this table whenever it is an argument — `cd ~/.aws`, `ls ~/.ssh`,
+  // `tar -cf x ~/.aws` — and with a trailing-slash-only anchor none of those matched. That was
+  // survivable while the bash allowlist refused every unknown program headless; it stops being
+  // survivable the moment a headless run can be escalated (see `../escalation.ts`), so the
+  // directory rules are anchored here rather than left resting on a different gate.
+  // Deliberately NOT applied to `SEC-SECRETSDIR` below: `secrets?` is an ordinary English word
+  // and `(\/|$)` there would deny every command whose last argument happens to be `secret`.
+  ["SEC-SSH", /(^|\/)\.ssh(\/|$)/],
+  ["SEC-AWS", /(^|\/)\.aws(\/|$)/],
   ["SEC-SECRETSDIR", /(^|\/)secrets?\//],
   ["SEC-PI-STATE", /(^|\/)\.pi\/agent\//],
 ];

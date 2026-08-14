@@ -90,6 +90,41 @@ describe("secret-paths — REQ-PRV-15, REQ-PRV-37", () => {
     assert.equal(result.gateId, "SEC-SECRETSDIR");
   });
 
+  it("REGRESSION: the credential DIRECTORY is a target too, not only the files inside it", async () => {
+    // `ls ~/.aws` is an allowlisted program taking a bare directory. While the directory rules were
+    // anchored on a trailing slash, nothing in this gate matched it and the only thing standing in
+    // the way was the allowlist — which `ls` passes. Listing a credential directory is where an
+    // attempt to read one starts, and it must be refused by name here.
+    for (const [command, gateId] of [
+      ["ls ~/.aws", "SEC-AWS"],
+      ["ls ~/.ssh", "SEC-SSH"],
+      ["tar -cf backup.tar ~/.ssh", "SEC-SSH"],
+    ] as const) {
+      const rec = recorder();
+      const result = await runRules(
+        safetyRules(testPolicy(), rec.services),
+        bashEvent(command),
+        fakeCtx({}, rec),
+        rec.services,
+      );
+      assert.equal(result.gateId, gateId, command);
+      assert.match(result.reason ?? "", /no override/, command);
+    }
+  });
+
+  it("keeps SEC-SECRETSDIR anchored on the slash — `secret` is an ordinary English word", async () => {
+    // The counterpart of the rule above, and the reason it was not applied across the table: a bare
+    // trailing `secret`/`secrets` argument is prose far more often than it is a path.
+    const rec = recorder();
+    const result = await runRules(
+      safetyRules(testPolicy(), rec.services),
+      bashEvent("echo keep this secret"),
+      fakeCtx({}, rec),
+      rec.services,
+    );
+    assert.equal(result.blocked, false);
+  });
+
   it("harvests paths from an unknown tool's file_path / files[] arguments", () => {
     const targets = collectTargets(
       customEvent("mystery_tool", { file_path: "a.txt", files: ["b.txt", { path: "c.txt" }] }),
@@ -199,6 +234,25 @@ describe("destructive-git — REQ-PRV-42", () => {
     assert.equal(result.gateId, "GIT-RESET");
   });
 
+  // A history rewrite run in a working checkout removes the `origin` remote and its
+  // `refs/remotes/*`, and truncates every reflog in the shared git dir to zero bytes — `logs/HEAD`,
+  // each branch reflog, and every linked worktree's own `worktrees/<name>/logs/HEAD`. Commits
+  // survive; the undo path does not, and it happens even when the rewrite changes nothing.
+  it("blocks a history rewrite in place — git filter-repo expires every reflog", async () => {
+    const { result } = await check("git filter-repo --mailmap mailmap.txt --force");
+    assert.equal(result.gateId, "GIT-REWRITE");
+  });
+
+  it("blocks git filter-branch for the same reason", async () => {
+    const { result } = await check("git filter-branch --env-filter 'true' -- --all");
+    assert.equal(result.gateId, "GIT-REWRITE");
+  });
+
+  it("sees a rewrite through git's global options", async () => {
+    const { result } = await check("git -C /workspace/project filter-repo --force");
+    assert.equal(result.gateId, "GIT-REWRITE");
+  });
+
   it("every git rule offers the written-justification hatch", async () => {
     for (const command of [
       "git push --force origin main",
@@ -206,6 +260,7 @@ describe("destructive-git — REQ-PRV-42", () => {
       "git branch -D dead",
       "git clean -fd",
       "git checkout -- .",
+      "git filter-repo --force",
     ]) {
       const { result } = await check(command);
       assert.match(result.reason ?? "", /PI-JUSTIFY/, command);
@@ -301,6 +356,67 @@ describe("bash-allowlist — REQ-PRV-38", () => {
     assert.match(result.reason ?? "", /approval cannot be requested/);
     assert.match(result.reason ?? "", /some-unallowlisted-binary/);
     assert.match(result.reason ?? "", /mode=json/);
+  });
+
+  it("the headless refusal names the allowlist, so 'use an equivalent' is actionable", async () => {
+    // A headless child cannot go and look the allowlist up, so a refusal that does not name it
+    // leaves the model guessing and re-running variants of the same rejected command.
+    const { rec, rules: r } = rules();
+    const result = await runRules(
+      r,
+      bashEvent("some-unallowlisted-binary --help"),
+      fakeCtx({ hasUI: false, mode: "json" }, rec),
+      rec.services,
+    );
+    assert.equal(result.blocked, true);
+    assert.match(result.reason ?? "", /Allowlisted programs: .*\bnpm\b/);
+    assert.match(result.reason ?? "", /\bgit\b/);
+  });
+
+  it("a refused 'cd' is told to use the program's own directory flag", async () => {
+    // The failure this addresses: `cd sub && npm run build` in mode=json. `npm` clears the
+    // allowlist and only the `cd` segment misses, so the remedy is a different command shape,
+    // not a different program — and the message has to say which shape.
+    const { rec, rules: r } = rules();
+    const result = await runRules(
+      r,
+      bashEvent("cd packages/frontend && npm run build"),
+      fakeCtx({ hasUI: false, mode: "json" }, rec),
+      rec.services,
+    );
+    assert.equal(result.blocked, true);
+    assert.match(result.reason ?? "", /cd/);
+    assert.match(result.reason ?? "", /no cwd parameter/);
+    assert.match(result.reason ?? "", /--prefix/);
+    assert.match(result.reason ?? "", /-C DIR/);
+  });
+
+  it("the cd remedy is only attached when cd is what was blocked", async () => {
+    const { rec, rules: r } = rules();
+    const result = await runRules(
+      r,
+      bashEvent("perl -e 'print 1'"),
+      fakeCtx({ hasUI: false, mode: "json" }, rec),
+      rec.services,
+    );
+    assert.equal(result.blocked, true);
+    assert.doesNotMatch(result.reason ?? "", /no cwd parameter/);
+  });
+
+  it("cd stays OFF the allowlist because secret-paths resolves against the session cwd", async () => {
+    // This is why the fix is the message and not the allowlist. `secret-paths.ts` resolves
+    // relative arguments against `ctx.cwd`, never against a directory an earlier segment already
+    // moved to, so allowlisting `cd` would let `cd ~/.aws && cat credentials` through: `cat` is
+    // allowlisted and the bare `credentials` resolves under the session cwd. Two things stop it —
+    // the ALW gate refusing `cd`, and SEC-AWS matching the directory argument itself.
+    const { rec, rules: r } = rules();
+    const result = await runRules(
+      r,
+      bashEvent("cd ~/.aws && cat credentials"),
+      fakeCtx({ hasUI: false, mode: "json" }, rec),
+      rec.services,
+    );
+    assert.equal(result.blocked, true, "cd must remain non-allowlisted for this to stay blocked");
   });
 
   it("the documented per-invocation escalation opens it, and only then", async () => {

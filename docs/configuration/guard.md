@@ -209,10 +209,20 @@ The gates run in policy order and only the last one is data-driven:
 |---|---|---|
 | `SEC-*` secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-PI-AUTH`, `SEC-PI-SECRETS`, `SEC-QUOTA-TOKEN`, `SEC-AWS-CRED` | **Never.** No config key, no escalation, no written justification |
 | `DB-*` dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | No |
-| `GIT-*` destructive git | `GIT-FORCE`, `GIT-FORCE-PROTECTED`, `GIT-RESET`, `GIT-CLEAN`, `GIT-CHECKOUT-DOT`, `GIT-BRANCH-D`, `GIT-REMOTE` | Yes — with a written justification |
+| `GIT-*` destructive git | `GIT-FORCE`, `GIT-FORCE-PROTECTED`, `GIT-RESET`, `GIT-CLEAN`, `GIT-CHECKOUT-DOT`, `GIT-BRANCH-D`, `GIT-REMOTE`, `GIT-REWRITE` | Yes — with a written justification |
 | `PRV-*` privileged | `PRV-SUDO`, `PRV-KILLALL`, `PRV-PKILL-9`, `PRV-CHMOD-777` | No |
 | `RTE-*` agent routing | `DV-SPECIALIST` — a generic agent dispatched where a specialist matches the prompt. Fires only on a real match; an unmatched generic dispatch is not challenged at all | Yes — `# PI-JUSTIFY(DV-SPECIALIST): <reason>` prepended to the prompt |
 | `ALW-*` allowlist | the miss | Confirm in the TUI; fail closed headless |
+
+!!! warning "`GIT-REWRITE` blocks `filter-repo` and `filter-branch`, and a no-op rewrite is not safe"
+    `git filter-repo` ends every run with the same post-pass, whether or not it changed a single
+    commit: it deletes the `origin` remote, runs `reflog expire --expire=now --all` and
+    `gc --prune=now`. Every reflog in the shared git dir goes to zero bytes — `logs/HEAD`, each
+    branch reflog, and every linked worktree's own — so the commits survive and the way back does
+    not. `--force` only suppresses the "this is not a fresh clone" refusal that would otherwise
+    have stopped it. Rewrite a throwaway clone and push the result; if you really mean to do it in
+    place, the written justification is there, and you are stating on the record that you accept
+    losing the reflogs.
 
 If you want a *new* rule, do not edit a gate — write it in
 [`config/hooks.yaml`](tools.md#hooksyaml). Hooks stack on the guard and may only **add** denial,

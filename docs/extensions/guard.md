@@ -14,7 +14,7 @@ The order is itself the policy: cheap and absolute first, the one that can block
 |---|---|---|---|
 | 1 | secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-KEY`, `SEC-AWS`, `SEC-AWS-CRED`, `SEC-CREDJSON`, `SEC-SECRETSDIR`, `SEC-SESSION`, `SEC-TOKENCACHE`, `SEC-PI-AUTH`, `SEC-PI-SECRETS`, `SEC-PI-STATE`, `SEC-QUOTA-TOKEN`, `SEC-QUOTA-PAT` | **never** |
 | 2 | dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | mostly none |
-| 3 | destructive git | `GIT-FORCE`, `GIT-FORCE-PROTECTED`, `GIT-RESET`, `GIT-CLEAN`, `GIT-CHECKOUT-DOT`, `GIT-BRANCH-D`, `GIT-REMOTE` | with a written justification |
+| 3 | destructive git | `GIT-FORCE`, `GIT-FORCE-PROTECTED`, `GIT-RESET`, `GIT-CLEAN`, `GIT-CHECKOUT-DOT`, `GIT-BRANCH-D`, `GIT-REMOTE`, `GIT-REWRITE` | with a written justification |
 | 4 | privileged commands | `PRV-SUDO`, `PRV-CHMOD-777`, `PRV-PKILL-9`, `PRV-KILLALL` | none |
 | 5 | agent routing | `RTE-*` — the specialist-match veto on dispatch | a SHOULD-level veto, overridable |
 | 6 | bash allowlist | `ALW-*` | confirm in the TUI; **fail closed** headless |

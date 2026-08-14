@@ -125,6 +125,21 @@ function inspect(segment: Segment, policy: Policy): GitHit | null {
     };
   }
 
+  // A history rewrite is not just a rewrite. `git filter-repo` finishes by deleting the `origin`
+  // remote, running `git reflog expire --expire=now --all` and `git gc --prune=now`, so every
+  // reflog in the shared git dir — including each linked worktree's own — is truncated to zero and
+  // the undo path is gone. That post-pass runs unconditionally: a rewrite that changes nothing at
+  // all, where the ref-map and commit-map come out as the identity, still expires the reflogs.
+  // `--force` suppresses filter-repo's "this is not a fresh clone" refusal, which is the only
+  // thing that would otherwise stop it running against a working checkout.
+  if (sub === "filter-repo" || sub === "filter-branch") {
+    return {
+      id: "GIT-REWRITE",
+      what: `git ${sub} (rewrites history, drops the origin remote and expires every reflog in the shared git dir)`,
+      legitimateUse: "Rewrite a throwaway clone and push the result; in place there is no reflog left to undo it.",
+    };
+  }
+
   if (sub === "checkout" && rest.includes("--") && operands.includes(".")) {
     return {
       id: "GIT-CHECKOUT-DOT",

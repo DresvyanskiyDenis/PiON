@@ -13,6 +13,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { guardedHandler, type GuardRule } from "./lib/guarded-handler.ts";
 import { loadPolicy, type Policy } from "./guard/policy.ts";
+import { undeclaredGates, undeclaredLine } from "./guard/escalation.ts";
 import { defaultServices, type GuardServices } from "./guard/services.ts";
 import { secretPathsGate } from "./guard/gates/secret-paths.ts";
 import { dangerousBashGate } from "./guard/gates/dangerous-bash.ts";
@@ -59,6 +60,14 @@ export function register(pi: ExtensionAPI): void {
   }
 
   const rules = buildRules(policy, services);
+
+  // "No gate silently ignoring the escalation" has to be checked, not promised. A gate absent from
+  // `GATE_ESCALATION` is treated as non-escalatable — the safe direction — but silently defaulting
+  // is exactly how a half-wired escalation stays invisible, so it is reported at registration,
+  // before any tool call can depend on it.
+  for (const gateId of undeclaredGates(rules.map((r) => r.id))) {
+    services.log(undeclaredLine(gateId));
+  }
 
   pi.on(
     "tool_call",
