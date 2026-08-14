@@ -295,3 +295,13 @@ Copy the closest fragment, change `id` to match the new filename, and answer the
 4. **Which `compat` flags did you measure?** Start with everything off and `maxTokensField:
    "max_tokens"`, get one successful turn, then enable one at a time — and write what you measured
    into `notes`, because the next person cannot re-derive it from the config alone.
+5. **What does a call cost, and did you probe it or copy it?** `cost` is optional here and required
+   on PI's runtime model type, so the provider composer fills the gap with
+   `{input:0,output:0,cacheRead:0,cacheWrite:0}` and every session on your provider shows a flat
+   `0.000` spend, silently. Units are **dollars per million tokens** — PI divides each rate by
+   1000000 before multiplying by the usage counter, so a per-token figure pasted straight in is
+   wrong by six orders of magnitude and still renders. Do not copy a vendor price page for anything
+   behind a gateway: the id you call is not the vendor's direct model, and its price is whatever
+   that deployment's operator configured. Probe it, or leave `cost` out and say in `notes` why the
+   zero is what it is — unmetered (local weights), unpriced (billed by something other than tokens),
+   or simply not established.
