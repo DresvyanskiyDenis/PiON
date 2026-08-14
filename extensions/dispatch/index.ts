@@ -55,6 +55,7 @@ import { denyWithEscapeHatch } from "../lib/escape-hatch.ts";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import type { EgressClass } from "../lib/dispatch-veto.ts";
+import { logEvent } from "../session-index/index.ts";
 import {
   describeRegistryDirs,
   loadDispatchSettings,
@@ -450,6 +451,11 @@ export function rules(state: State): GuardRule[] {
         const def = agentOf(state, event);
 
         const applied: Record<string, unknown> = {};
+        // Set whenever `spec` resolves, independently of whether `applied.model` gets written —
+        // "the call already named exactly the model we resolved to" is still a resolution the
+        // event log must carry, not only the cases where a rewrite happened. This is what the
+        // `logEvent` call below reports as "what did this delegation actually run on, and why".
+        let resolvedModel: Record<string, unknown> | undefined;
 
         // 4. tier -> provider/id. The package would otherwise try to resolve the literal string
         //    "strong" against its own heuristics, which is routing by accident.
@@ -482,17 +488,18 @@ export function rules(state: State): GuardRule[] {
           try {
             const target = resolveModelSpec(routing, spec, state.settings.dispatch.defaultTier, state.catalogue);
             provider = target.provider;
+            resolvedModel = {
+              from: spec,
+              to: target.model,
+              tier: target.tier,
+              // Which kind of write this was. A reader of the bookkeeping cannot tell "we
+              // resolved what the call asked for" from "we set a floor the children may still
+              // override" without it, and only one of the two is overridable downstream.
+              ...(tierScope !== undefined ? { defaultedScope: tierScope } : {}),
+            };
             if (input.model !== target.model) {
               input.model = target.model;
-              applied.model = {
-                from: spec,
-                to: target.model,
-                tier: target.tier,
-                // Which kind of write this was. A reader of the bookkeeping cannot tell "we
-                // resolved what the call asked for" from "we set a floor the children may still
-                // override" without it, and only one of the two is overridable downstream.
-                ...(tierScope !== undefined ? { defaultedScope: tierScope } : {}),
-              };
+              applied.model = resolvedModel;
             }
             if (tierScope === "workflow-floor") {
               report(
@@ -570,6 +577,26 @@ export function rules(state: State): GuardRule[] {
             // Only creates the bookkeeping entry `/agents` shows; never load-bearing.
           }
         }
+
+        // REQ-CTX-22 / `/index`: persist what this delegation actually resolved to, so that
+        // "what model did it run on, and why" has an answer beyond the transcript — `/agents`
+        // only describes what CAN be dispatched. Only meaningful once a model was resolved: a
+        // control action (`action: "status"` and friends) launches nothing and has no model to
+        // report. `logEvent` never throws (session-index's own contract) and the session id is
+        // fetched defensively, so this can never become a reason a dispatch fails or changes
+        // shape. A call refused above never reaches here — that block is already carried by
+        // `guardedHandler`'s own audit entry.
+        if (resolvedModel !== undefined) {
+          const agent = agentLabel(input, def);
+          logEvent(dispatchSessionId(ctx), "dispatch", `dispatch.resolve:${agent}`, true, undefined, {
+            tool: event.toolName,
+            agent,
+            provider,
+            model: resolvedModel,
+            ...(applied.concurrency !== undefined ? { concurrency: applied.concurrency } : {}),
+            ...(applied.isolation !== undefined ? { isolation: applied.isolation } : {}),
+          });
+        }
         return { block: false };
       },
     },
@@ -591,6 +618,18 @@ export function rules(state: State): GuardRule[] {
       },
     },
   ];
+}
+
+/**
+ * Mirrors `teammates/index.ts`'s `sessionId()`: a missing or unreachable session id degrades the
+ * event log, never the dispatch it is describing.
+ */
+function dispatchSessionId(ctx: ExtensionContext): string {
+  try {
+    return ctx.sessionManager.getSessionId() ?? "";
+  } catch {
+    return "";
+  }
 }
 
 /** What the call asked for, falling back to what we matched — a refusal has to name the subagent. */

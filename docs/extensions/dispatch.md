@@ -106,6 +106,34 @@ asserts that source's shape directly, so an upgrade that drops `model` from the 
 the spread order, fails the suite instead of quietly changing what a fan-out runs on. Re-check it
 whenever the package is upgraded.
 
+## What a resolution leaves behind
+
+`/agents` describes what **can** be dispatched. It cannot answer *what did this delegation actually
+run on, and why* — so every resolution is written to the [session index](session-index.md) as one
+row, under kind `dispatch` and name `dispatch.resolve:<agent>`. That is the same
+`<domain>.<action>:<subject>` shape [teammates](teammates.md) writes into the same bucket, so
+`/index` and `bin/pi-log events` read one stream rather than two incompatible ones.
+
+The payload carries identifiers only: the `subagent` tool the call came in on, the agent named, the
+resolved provider, and the model record — where the spec came from (`from`), what it resolved to
+(`to`), the tier if it came from one, and `defaultedScope` when the value was the
+[`defaultTier`](../configuration/dispatch.md#defaulttier-and-defaultegress) rather than something
+asked for. The clamped concurrency and the isolation appear too, when either was applied.
+
+Two properties are deliberate, and a consumer of `/index` has to know both:
+
+- **The row is written on resolution, not on rewrite.** "The call already named exactly the model we
+  resolved to" is still a resolution worth recording; keying the row off the rewrite would silently
+  under-report a real share of delegations.
+- **A refused call writes no `dispatch.resolve` row.** The block is already carried by the guarded
+  handler's own audit entry, and a call that resolved no model has nothing to say about what it ran
+  on. Reading only this kind therefore counts delegations that proceeded — the refusals are in the
+  other place.
+
+Logging cannot fail a dispatch. The write swallows its own failures by contract, and the session-id
+lookup that precedes it is wrapped, so an unwritable index degrades the event log and leaves the
+verdict and the arguments exactly as they were.
+
 ## Where the semaphore cannot reach
 
 Documented honestly in `extensions/dispatch/concurrency.ts`: there is no extension-visible hook

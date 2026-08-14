@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,7 +10,22 @@ import { loadAgentRegistry, type AgentRegistry } from "../../extensions/dispatch
 import { resetWorktreeProvider } from "../../extensions/dispatch/isolation.ts";
 import type { EgressClass } from "../../extensions/lib/dispatch-veto.ts";
 import type { GuardRule } from "../../extensions/lib/guarded-handler.ts";
+import { resetIndexDbCache } from "../../extensions/session-index/db.ts";
 import { ALL_MODELS, CATALOGUE, CONFIG, GOOD_SCOUT, ROUTING, scratch, writeAgents, type AgentFile } from "./helpers.ts";
+
+// DSP-RESOLVE writes a `dispatch.resolve:*` event, and `logEvent` opens whatever database
+// `PI_INDEX_DB` names — by default the operator's real `index.db`. Point this whole file at a
+// throwaway one, so running the suite never appends rows to the index a human reads.
+const PREV_INDEX_DB = process.env.PI_INDEX_DB;
+before(() => {
+  process.env.PI_INDEX_DB = join(scratch("ext05-index-"), "index.db");
+  resetIndexDbCache();
+});
+after(() => {
+  if (PREV_INDEX_DB === undefined) delete process.env.PI_INDEX_DB;
+  else process.env.PI_INDEX_DB = PREV_INDEX_DB;
+  resetIndexDbCache();
+});
 
 const AGENTS: readonly AgentFile[] = [
   GOOD_SCOUT,
