@@ -46,9 +46,11 @@ shell and are exercised on macOS.
 
 - **Sub-agents, teammates, jobs and worktrees**
 
-    Depth-limited dispatch with per-provider concurrency, long-lived named teammates with a
-    delivery obligation welded into the spawn path, a cross-session background job directory, and
-    `isolation: worktree` that never nests and never `rm -rf`s a dirty tree.
+    Depth-limited dispatch with per-provider concurrency, a cross-session background job directory,
+    and `isolation: worktree` that never nests and never `rm -rf`s a dirty tree. Long-lived named
+    teammates carry a delivery obligation welded into the spawn path, but `spawn` refuses out of the
+    box until the host supplies a model-resolving spawner — see
+    [Teammates](extensions/teammates.md).
     → [Orchestration](extensions/dispatch.md)
 
 - **Honest context accounting**

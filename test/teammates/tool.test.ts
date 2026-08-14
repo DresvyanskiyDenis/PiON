@@ -97,7 +97,11 @@ before(async () => {
   process.env.PI_CONFIG_REPO = sandboxRepo;
 });
 
-function harness(scripts: Record<string, Turn[]>): Harness {
+/**
+ * `useDefaultSpawner` drops the injected spawner, so the extension falls back to the one it ships
+ * with — which refuses. Every other test supplies a spawner and therefore never reaches that path.
+ */
+function harness(scripts: Record<string, Turn[]>, useDefaultSpawner = false): Harness {
   const handlers = new Map<string, Handler>();
   const tools = new Map<string, ToolDefinition>();
   const sent: SentMessage[] = [];
@@ -145,7 +149,7 @@ function harness(scripts: Record<string, Turn[]>): Harness {
   } as unknown as ExtensionContext;
 
   resetSurfaced();
-  register(pi, { spawner });
+  register(pi, useDefaultSpawner ? {} : { spawner });
   const tool = tools.get("teammate");
   assert.ok(tool, "the tool must be called `teammate`, not `dispatch_agent`");
 
@@ -174,6 +178,26 @@ async function call(h: Harness, params: Record<string, unknown>): Promise<ToolRe
 const textOf = (r: ToolResult): string => r.content.map((c) => c.text ?? "").join("");
 
 describe("teammate tool", () => {
+  it("refuses to spawn with the shipped spawner, naming dispatch and the way to wire it up", async () => {
+    const h = harness({}, true);
+    await h.start();
+    await assert.rejects(
+      () => call(h, { action: "spawn", name: "reviewer", agent: "code-reviewer" }),
+      (err: Error) => {
+        // The refusal is only worth anything if it says what to do instead: an agent that reaches
+        // for `teammate` must leave knowing the supported path, and whoever installed this tree
+        // must leave knowing the one line that turns spawning on.
+        assert.match(err.message, /not wired up in this installation/);
+        assert.match(err.message, /nothing was started/);
+        assert.match(err.message, /`subagent` tool/);
+        assert.match(err.message, /workflowScript/);
+        assert.match(err.message, /runs\.all/);
+        assert.match(err.message, /createSdkSpawner\(\{ resolveModel \}\)/);
+        return true;
+      },
+    );
+  });
+
   it("spawns a named teammate and welds the delivery contract onto the child", async () => {
     const h = harness({});
     await h.start();

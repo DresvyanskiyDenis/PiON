@@ -41,7 +41,7 @@ import { logEvent } from "../session-index/index.ts";
 import { REPLY_TOOL } from "./contract.ts";
 import { runExchange } from "./exchange.ts";
 import { describeOutcome } from "./obligation.ts";
-import { createReplyTool, createSdkSpawner, type TeammateSpawner } from "./runtime.ts";
+import { createReplyTool, type TeammateSpawner } from "./runtime.ts";
 import { buildSpawnRequest } from "./spawn.ts";
 import { spillReport } from "./spill.ts";
 import { TeamRegistry, TeammateError } from "./team.ts";
@@ -60,14 +60,47 @@ export interface State {
 }
 
 export interface RegisterOptions {
-  /** Test seam. Defaults to the real `createAgentSession`-backed spawner. */
+  /**
+   * The spawner that opens a teammate's session. Defaults to the refusing spawner below; pass
+   * `createSdkSpawner({ resolveModel })` from `./runtime.ts` to make `spawn` actually start a
+   * session. Also the seam the tests inject a scripted spawner through.
+   */
   readonly spawner?: TeammateSpawner;
+}
+
+/**
+ * The spawner this extension falls back to when nobody supplied one, and the reason `teammate`
+ * refuses out of the box.
+ *
+ * `createSdkSpawner` (in `./runtime.ts`) needs a `resolveModel` callback to turn an agent's
+ * `provider/id` into the model object the SDK session wants, and there is no way to build that
+ * callback from inside an extension: it comes from the host's model registry. Constructed without
+ * one, it throws *after* the tool call has been accepted, from inside the SDK, with a message that
+ * blames the agent file or the provider config — neither of which is at fault.
+ *
+ * So the refusal is moved to the boundary, where it can say something useful. It names the two
+ * supported ways to delegate, and it names the single line that turns spawning back on for anyone
+ * embedding this tree in a host that *can* resolve models. Wiring a `resolveModel` in here by
+ * guessing is the one thing not done: that trades a hard failure for a teammate silently running on
+ * a model its agent file never asked for.
+ */
+function refusingSpawner(): TeammateSpawner {
+  return () => {
+    throw new TeammateError(
+      `teammate(action="spawn") is not wired up in this installation — nothing was started. ` +
+        `Delegate with the \`subagent\` tool instead: one call per agent, or a \`workflowScript\` ` +
+        `using \`runs.all([...])\` to fan out, each child naming its own fully-qualified \`model\` ` +
+        `(an id from config/routing.json), never a bare tier word. To enable spawning, register ` +
+        `this extension with a spawner that can resolve models: ` +
+        `register(pi, { spawner: createSdkSpawner({ resolveModel }) }).`,
+    );
+  };
 }
 
 export function register(pi: ExtensionAPI, options: RegisterOptions = {}): void {
   const state: State = {
     settings: loadDispatchSettings(),
-    spawner: options.spawner ?? createSdkSpawner(),
+    spawner: options.spawner ?? refusingSpawner(),
     problems: [],
     announced: new Set(),
   };

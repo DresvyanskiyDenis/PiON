@@ -35,5 +35,30 @@ cheaper and returns its result the ordinary way.
 Reach for a teammate when the children need to talk to each other, or when you will send them
 follow-up messages by hand. For "do this, give it back", use `subagent`.
 
+## Spawning is off until a spawner is wired in
+
+Out of the box, `teammate(action="spawn")` **refuses**, names the `subagent` tool (one call per
+agent, or a `workflowScript` with `runs.all([...])` to fan out) and stops. Nothing is started.
+
+The reason is a missing piece, not a missing feature. Opening a real child session needs a callback
+that turns an agent's `provider/id` into the model object the SDK session wants, and that callback
+comes from the host's model registry — an extension cannot build one. Constructed without it, the
+session spawner used to fail *after* the tool call was accepted, from inside the SDK, with a message
+blaming the agent file or the provider configuration; neither was at fault. Refusing at the tool
+boundary is the same outcome one layer earlier, where the message can be useful.
+
+Guessing a model instead was rejected on purpose: it trades a loud failure for a teammate quietly
+running on a model its agent file never asked for.
+
+To turn spawning on, register the extension with a spawner that can resolve models:
+
+```ts
+register(pi, { spawner: createSdkSpawner({ resolveModel }) });
+```
+
+`createSdkSpawner` is exported from `extensions/teammates/runtime.ts` and is otherwise unchanged.
+Everything else the module does — `send`, `list`, `close`, the delivery obligation, the stranded-work
+notices — works against whatever spawner is supplied, which is also how the tests drive it.
+
 ## Related
 [dispatch](dispatch.md) · [jobs](jobs.md) · [Adding a sub-agent](../extending/subagents.md)
