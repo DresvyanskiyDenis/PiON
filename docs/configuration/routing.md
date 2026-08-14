@@ -89,6 +89,12 @@ suffix-attaching is the job of whatever emits a model string — dispatch, the d
 [`pi-tier`](../operations/cli.md#pi-tier) each do it, and each refuses a `thinkingLevel` that is not
 one of the seven levels rather than passing it on.
 
+[`path-defaults`](../extensions/path-defaults.md) is the one consumer that neither emits nor
+forwards a model string: it splits the suffix off before asking the registry, then applies the
+resolved level to the session directly through `pi.setThinkingLevel`. So a suffix written into a
+tier's `model` is tolerated there and obeys the same precedence — but it is still the wrong place
+to write it, for every other consumer's sake.
+
 **What breaks:** a `model` naming an id that is not in `config/models.json` fails at **load**, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
 `model "<id>" (from "fast") is not in the model registry`. That is the design working. A typo in
