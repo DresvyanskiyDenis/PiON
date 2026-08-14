@@ -58,7 +58,14 @@ export interface DispatchConfig {
   readonly defaultTimeoutMs: number;
   /** Cap for a provider with no entry in `routing.json`'s `concurrency` map. */
   readonly concurrencyDefault: number;
-  /** `pi-subagents`' own default for a fanout with no `concurrency` argument. */
+  /**
+   * `pi-subagents`' own default for a fanout with no `concurrency` argument. Must mirror the
+   * *widest* default the package can pick, because `clampConcurrency` only writes an explicit
+   * width when the provider cap is below it: mirroring a smaller number silently stops the cap
+   * biting. That widest default is `config/subagent.json`'s `parallel.concurrency` for the
+   * top-level `tasks` fanout — raise this key with that one, never separately. A chain step still
+   * defaults to the package's own built-in 4.
+   */
   readonly packageDefaultConcurrency: number;
   /** Tokens `<repo>`, `<agentDir>`, `<cwd>` are expanded at load time. */
   readonly registryDirs: readonly string[];

@@ -68,6 +68,7 @@ import { applyIsolation } from "./isolation.ts";
 import { loadAgentRegistry, renderRegistry, type AgentDef, type AgentRegistry } from "./registry.ts";
 import { installCeiling, installVetoes } from "./ceiling.ts";
 import { assertDispatchShape } from "./contract.ts";
+import { describeRelaxation, relaxDispatchOutputSchemas } from "./output-schema.ts";
 import { DispatchError, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
 import {
   injectMenuOnce,
@@ -439,8 +440,12 @@ export function rules(state: State): GuardRule[] {
       async evaluate(event, ctx): Promise<GuardVerdict> {
         if (!isDispatch(event)) return { block: false };
         const routing = state.settings.routing;
-        const registry = state.registry;
-        if (!routing || !registry) return { block: false };
+        // Only `routing` is load-bearing here. This used to bail when the registry was missing too,
+        // which meant a session whose registry failed to load dispatched with NO model resolution at
+        // all — the same silent fall-through this rule exists to close, reached by a different door.
+        // `agentOf` already returns `undefined` without a registry, so a call-time `model` is still
+        // resolved and checked for existence, and a `workflowScript` still gets its floor.
+        if (!routing) return { block: false };
         const input = event.input as Record<string, unknown>;
         const def = agentOf(state, event);
 
@@ -531,7 +536,10 @@ export function rules(state: State): GuardRule[] {
               block: true,
               reason:
                 `cannot route this dispatch: ${err.kind}: ${err.message} ` +
-                `(the value "${spec}" came from ${origin}). ` +
+                // Naming the target as well as the value: a refusal that quotes only a tier word
+                // does not say which delegation died, and a fan-out produces several of these.
+                `(dispatch target: agent "${agentLabel(input, def)}"; the value "${spec}" came ` +
+                `from ${origin}). ` +
                 `Nothing was substituted; re-issue the call with a value that resolves.`,
             };
           }
@@ -565,7 +573,29 @@ export function rules(state: State): GuardRule[] {
         return { block: false };
       },
     },
+    {
+      // A model-authored `outputSchema` that closes itself with `additionalProperties: false`
+      // discards a finished run whenever the child answers with MORE than it was asked for, and
+      // `pi-subagents` cannot recover from that even when the child immediately retries correctly.
+      // `output-schema.ts` carries the transcript this came from and the argument for opening the
+      // object rather than tightening the prompt. Never blocks; runs last, after every refusal.
+      id: "DSP-SCHEMA",
+      evaluate(event, ctx): GuardVerdict {
+        if (!isDispatch(event)) return { block: false };
+        const input = event.input as Record<string, unknown>;
+        const applied = relaxDispatchOutputSchemas(input);
+        if (applied.length === 0) return { block: false };
+        const agent = firstString(input, AGENT_KEYS) ?? "?";
+        report(ctx, `[pi-config] ${describeRelaxation(agent, applied)}`, "info");
+        return { block: false };
+      },
+    },
   ];
+}
+
+/** What the call asked for, falling back to what we matched — a refusal has to name the subagent. */
+function agentLabel(input: Record<string, unknown>, def: AgentDef | undefined): string {
+  return firstString(input, AGENT_KEYS) ?? def?.name ?? "(unnamed)";
 }
 
 function agentOf(state: State, event: ToolCallEvent): AgentDef | undefined {

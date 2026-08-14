@@ -119,7 +119,9 @@ describe("rule set shape", () => {
       // DSP-EGRESS sat between DSP-DEPTH and DSP-CONTRACT until 2026-08-13; it refused a call-time
       // `model` override whose provider was classed looser than the session, which is exactly the
       // switch a session has to be able to make. Withdrawn whole.
-      ["DSP-READY", "DSP-DEPTH", "DSP-CONTRACT", "DSP-AGENT", "DSP-RESOLVE"],
+      // DSP-SCHEMA is last on purpose: it only ever rewrites, so nothing that can refuse the call
+      // runs after it.
+      ["DSP-READY", "DSP-DEPTH", "DSP-CONTRACT", "DSP-AGENT", "DSP-RESOLVE", "DSP-SCHEMA"],
     );
   });
 
@@ -379,6 +381,42 @@ describe("DSP-CONTRACT (teammate vs subagent)", () => {
   });
 });
 
+describe("DSP-SCHEMA", () => {
+  /**
+   * The failure: a model-authored `outputSchema` closed with `additionalProperties: false` discards
+   * a finished run the moment the child answers with more keys than it was asked for, and
+   * `pi-subagents` cannot recover from it even when the child retries correctly. The unit-level
+   * cover is in `output-schema.test.ts`; this asserts the rule is wired and never blocks.
+   */
+  it("REGRESSION: opens a closed outputSchema on the way through, without blocking", async () => {
+    const input: Record<string, unknown> = {
+      agent: "scout",
+      prompt: "x",
+      outputSchema: {
+        type: "object",
+        properties: { summary: { type: "string" } },
+        required: ["summary"],
+        additionalProperties: false,
+      },
+    };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.deepEqual(input.outputSchema, {
+      type: "object",
+      properties: { summary: { type: "string" } },
+      required: ["summary"],
+    });
+  });
+
+  it("leaves a non-dispatch tool's outputSchema alone", async () => {
+    const input: Record<string, unknown> = {
+      command: "ls",
+      outputSchema: { type: "object", additionalProperties: false },
+    };
+    assert.equal(await run(rules(stateOf()), eventOf("bash", input)), undefined);
+    assert.deepEqual(input.outputSchema, { type: "object", additionalProperties: false });
+  });
+});
+
 describe("DSP-AGENT", () => {
   it("ACCEPTANCE: a typo'd agent file is refused by name at dispatch, not at minute 40", async () => {
     const blocked = await run(rules(stateOf()), eventOf("subagent", { agent: "typo", prompt: "x" }));
@@ -429,6 +467,29 @@ describe("DSP-RESOLVE", () => {
     // 2026-08-13: `cheap` declares thinkingLevel: "low", which now rides along on resolution.
     // Used to assert the bare id.
     assert.equal(input.model, "databricks/databricks-claude-haiku-4-5:low");
+  });
+
+  it("still resolves a call-time model when the registry could not be built at all", async () => {
+    // This rule used to bail whenever the registry was missing, which left a session whose agent
+    // files failed to load dispatching with NO model resolution: an unresolvable tier word went
+    // out unchecked and was substring-matched downstream. Only `routing` is load-bearing here.
+    const input: Record<string, unknown> = { model: "tier:strong", prompt: "x" };
+    assert.equal(await run(rules(stateOf({ withRegistry: false })), eventOf("subagent", input)), undefined);
+    assert.equal(input.model, "github-copilot/claude-opus-5:high");
+  });
+
+  it("names the dispatch target in a routing refusal, not just the value that failed", async () => {
+    // A fan-out produces one of these per child. "unknown_model: github-copilot/gpt-5.1" without a
+    // subagent name does not say which delegation died.
+    const state = stateOf();
+    state.settings = {
+      ...state.settings,
+      routing: { ...ROUTING, tiers: { ...ROUTING.tiers, cheap: { model: "github-copilot/gpt-5.1" } } },
+    };
+    const blocked = await run(rules(state), eventOf("subagent", { agent: "scout", prompt: "x" }));
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    assert.match(blocked?.reason ?? "", /dispatch target: agent "scout"/);
+    assert.match(blocked?.reason ?? "", /Nothing was substituted/);
   });
 
   it("does NOT write routing.json's thinkingLevel onto the call", async () => {
