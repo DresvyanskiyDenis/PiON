@@ -444,12 +444,12 @@ test("resolves no credential: a canary env var is never read, and a git-only PAT
   assert.match(out, new RegExp(`^0 finding\\(s\\) in ${DEFAULT_RULE_COUNT} rules$`, "m"));
 });
 
-test("static scan: no rule, lib or CLI file imports child_process/network modules or calls a spawn API, except the three declared exceptions", () => {
+test("static scan: no rule, lib or CLI file imports child_process/network modules or calls a spawn API, except the declared exceptions", () => {
   // Precise on purpose: a bare "exec(" would false-positive on RegExp.prototype.exec(), which
   // pc-09 and the frontmatter reader both use legitimately. This only matches an actual
   // import/require of a spawning or network module, or a child_process-specific call name.
   const FORBIDDEN = /(?:from\s+|require\()["'](?:node:)?(?:child_process|net|http|https|dns|tls)["']|execSync\(|spawnSync\(|execFileSync\(|\bspawn\(|\bfetch\(/;
-  // Three declared, deliberate exceptions, for different reasons:
+  // Four declared, deliberate exceptions, for different reasons:
   //   - PC-19 (VP-10) spawns npm and touches the network — see the companion test below, which
   //     asserts it is exactly this one file and that it never runs without --live.
   //   - PC-12 (F8, adversarial security review) spawns `git` — local, read-only, no network —
@@ -459,10 +459,14 @@ test("static scan: no rule, lib or CLI file imports child_process/network module
   //   - PC-06 (F7, security review residual) spawns `git ls-files` — local, read-only, no
   //     network — for the same reason PC-12 does: git is the only source of truth for "what
   //     actually reaches GitHub". Also not --live-gated; it is the rule's entire scan surface.
+  //   - PC-23 spawns `git ls-files`, and `git log` behind PI_LEAK_CHECK_HISTORY, for the third
+  //     time for that same reason: a pattern that has already been committed is still published,
+  //     and only git can say so. Local, read-only, no network.
   const SPAWN_EXCEPTIONS = [
     "pc-19-npm-registry-version-agreement.mjs",
     "pc-12-private-files-not-tracked.mjs",
     "pc-06-no-committed-secrets.mjs",
+    "pc-23-no-configured-leak-patterns.mjs",
   ];
   const targets = [
     join(REPO_ROOT, "bin", "pi-check"),

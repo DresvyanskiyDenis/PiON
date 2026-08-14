@@ -138,7 +138,7 @@ test("SEC stays enforced end to end while escalation is active", async (t) => {
     await withEscalation(async () => {
       const rec = recorder();
       const rules = buildRules(testPolicy(), rec.services);
-      const verdict = await runRules(rules, readEvent("/home/u/.aws/credentials"), headless(), rec.services);
+      const verdict = await runRules(rules, readEvent("/home/user/.aws/credentials"), headless(), rec.services);
       assert.equal(verdict.blocked, true);
       assert.match(String(verdict.gateId), /^SEC/);
     });
@@ -152,7 +152,7 @@ test("SEC stays enforced end to end while escalation is active", async (t) => {
     await withEscalation(async () => {
       const rec = recorder();
       const rules = buildRules(testPolicy(), rec.services);
-      for (const dir of ["/home/u/.aws", "/home/u/.ssh"]) {
+      for (const dir of ["/home/user/.aws", "/home/user/.ssh"]) {
         const verdict = await runRules(rules, bashEvent(`ls ${dir}`), headless(), rec.services);
         assert.equal(verdict.blocked, true, `${dir} must stay refused`);
         assert.match(String(verdict.gateId), /^SEC/);
@@ -169,7 +169,7 @@ test("NEVER_RELAXED_PROGRAMS — escalation pre-grants approval, not a directory
       const rules = buildRules(testPolicy(), rec.services);
       const verdict = await runRules(
         rules,
-        bashEvent("cd /home/u/.aws && cat credentials"),
+        bashEvent("cd /home/user/.aws && cat credentials"),
         headless(),
         rec.services,
       );
