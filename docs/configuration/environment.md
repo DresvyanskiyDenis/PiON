@@ -184,6 +184,11 @@ Two shortcuts, and a demonstration of the intended pattern: a shell command name
 `pi-tier` resolves it. Nothing in your shell history hard-codes a model id, so rebinding a tier in
 [`routing.json`](routing.md) changes what these do.
 
+The resolved string carries the tier's `thinkingLevel` as a `:<level>` suffix
+(`pi --model github-copilot/claude-opus-5:high`), so these aliases run at the effort the tier
+declares rather than at the provider's default. If you compare `pi-tier`'s output against a bare id
+somewhere, strip the suffix on your side — `--thinking <tier>` gives you the level separately.
+
 ---
 
 ## Related

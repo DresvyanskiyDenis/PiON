@@ -60,4 +60,28 @@ if [ -z "$MODEL" ]; then
   fi
   exit 2
 fi
+
+# The tier's `thinkingLevel` is appended as a `:level` suffix, because the model string is the only
+# place PI reads reasoning effort from, and `pi --model` parses that suffix. Printing the bare id
+# ran every `pi-tier`-driven call at the provider's default effort while routing.json declared
+# otherwise — a silent downgrade, and this harness does not do silent substitution.
+#
+# `.tiers[t].model` is contractually a BARE `provider/id`; the level lives in its own field. Writing
+# `provider/id:high` into `model` instead looks equivalent and is not: PI keys its model registry on
+# bare ids, so every consumer that does not strip the suffix reads it as part of the id.
+#
+# A level already pinned in the model string is the more specific statement and wins. An unknown one
+# is refused here rather than sent to a provider that has never heard of it.
+LEVEL="$(jq -r --arg t "$1" '.tiers[$t].thinkingLevel // empty' "$ROUTING")"
+if [ -n "$LEVEL" ]; then
+  case "$LEVEL" in
+    off|minimal|low|medium|high|xhigh|max) ;;
+    *) echo "pi-tier: tier '$1' declares thinkingLevel '$LEVEL', which is not off|minimal|low|medium|high|xhigh|max — fix routing.json" >&2; exit 2 ;;
+  esac
+  case "$MODEL" in
+    *:off|*:minimal|*:low|*:medium|*:high|*:xhigh|*:max) ;;
+    *) MODEL="$MODEL:$LEVEL" ;;
+  esac
+fi
+
 printf '%s\n' "$MODEL"

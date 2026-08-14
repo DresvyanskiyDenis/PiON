@@ -253,6 +253,34 @@ describe("D-04 checkModels", () => {
     );
     assert.deepEqual(findings, []);
   });
+
+  /**
+   * A tier's reasoning effort rides inside the model string (`provider/id:high`) and the registry
+   * is keyed by the bare id, so the suffix has to come off before the lookup. Without that, a
+   * perfectly bound tier is reported as `unresolved` — the one tool whose job is to say whether the
+   * configuration is sound inventing a fault in it. Only a KNOWN level splits, so a typo in the
+   * level stays part of the id and is still reported, which is the wanted loud failure.
+   */
+  it("strips a thinking-level suffix before asking the registry, and only a known level", () => {
+    const available = [{ provider: "github-copilot", id: "claude-opus-5", credentialed: true }];
+    assert.deepEqual(
+      checkModels(
+        baseInputs({
+          routingTiers: [{ tier: "strong", modelRef: "github-copilot/claude-opus-5:high", optional: false }],
+          availableModels: available,
+        }),
+      ),
+      [],
+    );
+    const typo = checkModels(
+      baseInputs({
+        routingTiers: [{ tier: "strong", modelRef: "github-copilot/claude-opus-5:hihg", optional: false }],
+        availableModels: available,
+      }),
+    );
+    assert.equal(typo.length, 1, "a misspelled level is not silently read as an effort");
+    assert.equal(typo[0]?.severity, "error");
+  });
 });
 
 describe("D-05 checkModuleLoad", () => {

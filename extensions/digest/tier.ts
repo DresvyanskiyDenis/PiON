@@ -25,13 +25,19 @@ export class UnknownTierError extends Error {
 }
 
 interface RoutingFile {
-  tiers?: Record<string, { model?: unknown }>;
+  tiers?: Record<string, { model?: unknown; thinkingLevel?: unknown }>;
 }
 
 /**
  * @throws UnknownTierError when the tier is absent — never falls back to a different tier or
  *   a hardcoded model (REQ-PRV-32: a misconfigured digest must fail loud, not summarise on the
  *   wrong model silently).
+ *
+ * The returned string carries the tier's `thinkingLevel` as a `:level` suffix, because that is the
+ * only channel PI reads reasoning effort from (`extensions/dispatch/thinking.ts`) and this string
+ * goes straight to `pi -p --model`. Returning `model` alone summarised at the provider's default
+ * effort while `routing.json` declared a level — the same silent downgrade
+ * `extensions/dispatch/tiers.ts` closed on the dispatch side.
  */
 export async function resolveTier(tier: string, routingPath: string = routingConfigPath()): Promise<string> {
   let raw: string;
@@ -54,9 +60,31 @@ export async function resolveTier(tier: string, routingPath: string = routingCon
     throw new Error(`${routingPath} is not valid JSON: ${(err as Error).message}`, { cause: err });
   }
 
-  const model = parsed.tiers?.[tier]?.model;
+  const row = parsed.tiers?.[tier];
+  const model = row?.model;
   if (typeof model !== "string" || model.length === 0) {
     throw new UnknownTierError(tier, routingPath);
   }
-  return model;
+  const level = row?.thinkingLevel;
+  if (typeof level !== "string" || level.length === 0) return model;
+  if (!THINKING_LEVELS.includes(level)) {
+    // Loud, not ignored: an unknown level would ride into the model id and the summariser would
+    // die on a model nothing serves, several steps away from the typo that caused it.
+    throw new Error(
+      `tier "${tier}" in ${routingPath} declares thinkingLevel "${level}", which is not one of ` +
+        `${THINKING_LEVELS.join("|")} — fix routing.json`,
+    );
+  }
+  // A level already pinned in the model string is the more specific statement and wins, exactly as
+  // in `extensions/dispatch/tiers.ts`.
+  return hasThinkingSuffix(model) ? model : `${model}:${level}`;
+}
+
+/** A MIRROR of `extensions/dispatch/thinking.ts`, kept local for the reason in this file's header:
+ *  the digest does not import the dispatch runtime's modules. Keep the two lists in step. */
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+function hasThinkingSuffix(model: string): boolean {
+  const colon = model.lastIndexOf(":");
+  return colon !== -1 && THINKING_LEVELS.includes(model.slice(colon + 1));
 }

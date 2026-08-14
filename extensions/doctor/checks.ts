@@ -7,6 +7,7 @@
  * Every check returns `Finding[]`, empty when clean — there is no separate "ok" check, `ok` is
  * derived (`reportIsOk` in `types.ts`) from the absence of an `"error"`-severity finding.
  */
+import { splitThinkingSuffix } from "../dispatch/thinking.ts";
 import { authoredInstructionText, extractReferences, type ExtractedReferences } from "./extract.ts";
 import { reportIsOk, type DoctorReport, type Finding, type Severity } from "./types.ts";
 
@@ -192,8 +193,14 @@ export function checkModels(inputs: DoctorInputs): Finding[] {
   const findings: Finding[] = [];
   const available = inputs.availableModels;
 
+  // A tier's reasoning effort travels inside the model string — `provider/id:high` — and
+  // `dispatch/tiers.ts` puts it there itself from `thinkingLevel`. The model registry is keyed by
+  // the BARE `provider/id`, so the suffix comes off before the lookup, exactly as
+  // `dispatch/tiers.ts` and `dispatch/registry.ts` already do it. Asking the registry about the
+  // suffixed string reports a well-configured tier as unresolved — an invented error in the one
+  // tool whose job is to say whether the configuration is sound.
   const resolve = (ref: string): ModelRef | undefined => {
-    const { provider, id } = splitModelRef(ref);
+    const { provider, id } = splitModelRef(splitThinkingSuffix(ref).baseModel);
     return available.find((m) => m.provider === provider && m.id === id);
   };
 

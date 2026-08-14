@@ -93,12 +93,24 @@ Resolves a semantic tier to a concrete model, from the shell. Useful in scripts 
 
 ```bash
 config/bin/pi-tier --list              # every tier and what it resolves to
-config/bin/pi-tier strong              # -> github-copilot/claude-opus-5
+config/bin/pi-tier strong              # -> github-copilot/claude-opus-5:high
+config/bin/pi-tier --thinking strong   # -> high
 config/bin/pi-tier --egress databricks # -> confidential
 ```
 
-Exit `2` means the lookup failed — an unknown tier, or a provider with no egress class. That is the
-cheapest possible answer to *"is this tier actually bound on this machine?"*.
+**The tier's `thinkingLevel` is part of the answer**, appended as a `:<level>` suffix, because the
+model string is the only channel PI reads reasoning effort from — see
+[How `thinkingLevel` reaches the child](../configuration/routing.md#how-thinkinglevel-reaches-the-child).
+Printing the bare id would run every `pi-tier`-driven call at the provider's default effort while
+`routing.json` declared otherwise, which is the silent substitution this harness refuses to make.
+A level already written into the tier's `model` wins and is not doubled; a level the harness does
+not recognise exits `2` rather than travelling to the provider. `--thinking` still reports the
+field on its own, for scripts that want the two halves separately.
+
+Exit `2` means the lookup failed — an unknown tier, a tier this install left
+[unbound](../configuration/routing.md#tiersunbound), an unusable `thinkingLevel`, or a provider with
+no egress class. That is the cheapest possible answer to *"is this tier actually bound on this
+machine?"*.
 
 Requires `jq`.
 

@@ -80,6 +80,15 @@ You can write the suffix yourself on any concrete `provider/id` at dispatch time
 is never silently read as an effort: `:maxx` stays part of the id and the dispatch aborts as an
 unknown model, which is the loud failure rather than a quiet downgrade.
 
+**`model` is a bare `provider/id`; the level goes in `thinkingLevel` and nowhere else.** Writing
+`"model": "github-copilot/claude-opus-5:high"` and leaving `thinkingLevel` off looks equivalent and
+is not: PI keys its model registry on the bare id, so every consumer that does not strip the suffix
+reads `:high` as part of the id. `/doctor`'s `D-04` then reports a perfectly healthy tier as
+`unresolved`, and anything that checks a tier's model against the registry refuses it. The
+suffix-attaching is the job of whatever emits a model string — dispatch, the digest and
+[`pi-tier`](../operations/cli.md#pi-tier) each do it, and each refuses a `thinkingLevel` that is not
+one of the seven levels rather than passing it on.
+
 **What breaks:** a `model` naming an id that is not in `config/models.json` fails at **load**, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
 `model "<id>" (from "fast") is not in the model registry`. That is the design working. A typo in

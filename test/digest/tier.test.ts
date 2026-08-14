@@ -24,6 +24,47 @@ describe("tier — resolveTier", () => {
     assert.equal(await resolveTier("strong", path), "github-copilot/claude-opus-5");
   });
 
+  /**
+   * The resolved string goes straight to `pi -p --model`, and the model string is the only channel
+   * PI reads reasoning effort from. Returning `model` alone summarised at the provider's default
+   * while `routing.json` declared a level. The tempting alternative — writing `provider/id:low`
+   * into the tier's `model` field — is worse: that field is contractually a bare `provider/id`, and
+   * a suffix in it reads as part of the id to every consumer that does not strip one.
+   */
+  it("appends the tier's thinkingLevel, since the model string is where PI reads effort", async () => {
+    const path = join(sandbox, "routing-thinking.json");
+    await writeFile(
+      path,
+      JSON.stringify({
+        tiers: {
+          cheap: { model: "databricks/databricks-claude-haiku-4-5", thinkingLevel: "low" },
+          pinned: { model: "databricks/databricks-claude-haiku-4-5:max", thinkingLevel: "low" },
+          plain: { model: "databricks/databricks-claude-haiku-4-5" },
+        },
+      }),
+    );
+    assert.equal(await resolveTier("cheap", path), "databricks/databricks-claude-haiku-4-5:low");
+    assert.equal(
+      await resolveTier("pinned", path),
+      "databricks/databricks-claude-haiku-4-5:max",
+      "a pinned suffix is the more specific statement",
+    );
+    assert.equal(
+      await resolveTier("plain", path),
+      "databricks/databricks-claude-haiku-4-5",
+      "no level declared, no suffix invented",
+    );
+  });
+
+  it("refuses a thinkingLevel PI does not know rather than sending it to the provider", async () => {
+    const path = join(sandbox, "routing-bad-level.json");
+    await writeFile(
+      path,
+      JSON.stringify({ tiers: { cheap: { model: "databricks/databricks-claude-haiku-4-5", thinkingLevel: "supreme" } } }),
+    );
+    await assert.rejects(() => resolveTier("cheap", path), /thinkingLevel "supreme"/);
+  });
+
   it("REQ-PRV-32: an unknown tier throws UnknownTierError rather than guessing or falling back", async () => {
     const path = join(sandbox, "routing2.json");
     await writeFile(path, JSON.stringify({ tiers: { cheap: { model: "databricks/databricks-claude-haiku-4-5" } } }));
