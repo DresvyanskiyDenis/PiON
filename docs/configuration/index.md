@@ -42,7 +42,7 @@ that template plus your answers, and git-ignored.
 | `config/settings.json` | `settings.default.json` + default provider, model, thinking level, theme, editor, TUI mode |
 | `config/guard.json` | `guard.default.json` + your protected branches |
 | `config/trusted-roots.json` | `trusted-roots.default.json` + the roots you named, plus `~/pi-config` |
-| `config/path-defaults.json` | `path-defaults.default.json`, rewritten around your first trusted root |
+| `config/path-defaults.json` | `path-defaults.default.json` — a single default tier and egress policy, not per-root |
 | `config/web.json`, `config/web-search.json` | their templates + your search-backend answer |
 | `config/quota.json` | `quota.default.json` + whether you want the meter |
 | `config/subagent.json` | `subagent.default.json` — no interview question; raise it by hand if your provider allows more |
@@ -119,7 +119,7 @@ Task-shaped versions of these, with the commands, live in the
 | [`mcp.json`](mcp.md) | **yes** | MCP servers, `hostConfigDiscovery`, `directTools` |
 | [`settings.json`](settings.md) | **yes** | PI's own behaviour: default model, thinking, trust, compaction, retry, resource paths |
 | [`guard.json`](guard.md) | **yes** | shell-execution safety: protected branches, dispatch-tool names for the routing observer |
-| [`trusted-roots.json`](paths-and-trust.md), [`path-defaults.json`](paths-and-trust.md) | **yes** | which filesystem roots are auto-trusted, and per-root tier/egress defaults |
+| [`trusted-roots.json`](paths-and-trust.md), [`path-defaults.json`](paths-and-trust.md) | **yes** | which filesystem roots are auto-trusted, and the single default tier/egress policy |
 | [`web.json`](tools.md#web), [`web-search.json`](tools.md#web) | **yes** | search backend, SSRF policy, cookie policy, tool names |
 | [`quota.json`](sessions.md#quotajson) | **yes** | quota metering for metered providers |
 | [`subagent.json`](../extending/subagents.md#fan-out-ceiling-the-packages-own-cap) | **yes** | `pi-subagents`' own global fan-out ceiling and legacy top-level `parallel` caps |

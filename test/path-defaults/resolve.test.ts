@@ -1,63 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { RootDef } from "../../extensions/path-defaults/config.ts";
-import { explicitModelRequested, rootFor, statusFlag } from "../../extensions/path-defaults/resolve.ts";
-
-const EGRESS = { web: "allow" as const, mcp: "allow" as const, publicModels: "allow" as const };
-
-function root(path: string, tier: string): RootDef {
-  return { path, tier, egress: EGRESS };
-}
-
-const HOME = "/home/user";
-
-describe("rootFor — longest-prefix matching", () => {
-  it("matches an exact-prefix root", () => {
-    const roots = [root("~/work/acme", "confidential"), root("*", "fast")];
-    const r = rootFor("/home/user/work/acme/some-repo", roots, HOME);
-    assert.equal(r?.tier, "confidential");
-  });
-
-  it("falls back to the wildcard when nothing else matches", () => {
-    const roots = [root("~/work/acme", "confidential"), root("*", "fast")];
-    const r = rootFor("/home/user/Downloads", roots, HOME);
-    assert.equal(r?.tier, "fast");
-  });
-
-  it("prefers the longer of two matching prefixes, not the first listed", () => {
-    const roots = [root("~/work", "fast"), root("~/work/acme", "confidential"), root("*", "cheap")];
-    const r = rootFor("/home/user/work/acme/repo", roots, HOME);
-    assert.equal(r?.tier, "confidential", "the more specific root must win regardless of list order");
-  });
-
-  it("prefers the longer prefix even when the shorter one is listed second", () => {
-    const roots = [root("~/work/acme", "confidential"), root("~/work", "fast"), root("*", "cheap")];
-    const r = rootFor("/home/user/work/acme/repo", roots, HOME);
-    assert.equal(r?.tier, "confidential");
-  });
-
-  it("is boundary-safe: a sibling directory with a matching prefix string does not match", () => {
-    const roots = [root("~/work/acme", "confidential"), root("*", "fast")];
-    const r = rootFor("/home/user/work/acme-other-client", roots, HOME);
-    assert.equal(r?.tier, "fast", "must fall through to the wildcard, not the acme root");
-  });
-
-  it("matches the root directory itself, not only its children", () => {
-    const roots = [root("~/work/acme", "confidential"), root("*", "fast")];
-    const r = rootFor("/home/user/work/acme", roots, HOME);
-    assert.equal(r?.tier, "confidential");
-  });
-
-  it("returns undefined when nothing matches and there is no wildcard", () => {
-    const roots = [root("~/work/acme", "confidential")];
-    const r = rootFor("/home/user/Downloads", roots, HOME);
-    assert.equal(r, undefined);
-  });
-
-  it("returns undefined for an empty root list", () => {
-    assert.equal(rootFor("/home/user/anything", [], HOME), undefined);
-  });
-});
+import { explicitModelRequested, statusFlag } from "../../extensions/path-defaults/resolve.ts";
 
 describe("explicitModelRequested", () => {
   it("is true for --model", () => {

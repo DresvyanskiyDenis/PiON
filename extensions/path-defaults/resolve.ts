@@ -1,40 +1,15 @@
 /**
  * Pure resolution logic — no PI import, no I/O, no clock — so the whole rule set is
  * unit-testable, the same split `extensions/compaction/loop-guard.ts` uses.
- */
-import { sep } from "node:path";
-import { expandHome, type RootDef } from "./config.ts";
-import type { SessionEgressClass } from "./routing.ts";
-
-/**
- * Longest-prefix match against `cwd`. `"*"` (validated to be last, if present) is the fallback.
- * Boundary-safe: `~/work/client-other` never matches a `~/work/client` root, because both the
- * candidate root and `cwd` are compared with a trailing separator appended.
  *
- * Returns `undefined` when nothing matches — an unclassified directory with no wildcard root is a
- * normal, valid outcome (`index.ts` treats it as "do nothing", not as a misconfiguration).
+ * `rootFor` (longest-prefix `cwd` matching) and `config.ts`'s `expandHome` are both gone: there is
+ * no longer a per-directory root to match against `cwd`, so a `cwd`-shaped matcher has nothing
+ * left to compute. `explicitModelRequested` and `statusFlag` below are untouched — neither one was
+ * ever about *which* directory gets a default, only about whether this session already has an
+ * explicit model choice, and how to render whatever egress class the (now single) configured tier
+ * resolves to.
  */
-export function rootFor(cwd: string, roots: readonly RootDef[], home?: string): RootDef | undefined {
-  const cwdWithSep = withTrailingSep(cwd);
-  let best: RootDef | undefined;
-  let bestLen = -1;
-  for (const root of roots) {
-    if (root.path === "*") {
-      if (best === undefined) best = root; // lowest priority; anything longer already won
-      continue;
-    }
-    const expanded = withTrailingSep(expandHome(root.path, home));
-    if (cwdWithSep.startsWith(expanded) && expanded.length > bestLen) {
-      best = root;
-      bestLen = expanded.length;
-    }
-  }
-  return best;
-}
-
-function withTrailingSep(p: string): string {
-  return p.endsWith(sep) ? p : p + sep;
-}
+import type { SessionEgressClass } from "./routing.ts";
 
 /**
  * True when this invocation's `argv` names an explicit model choice — `--model`, `--models`, or
@@ -49,7 +24,7 @@ export function explicitModelRequested(argv: readonly string[] = process.argv): 
   return argv.some((a) => a === "--model" || a === "--models" || a === "--provider");
 }
 
-/** Footer/status-bar flag (`ctx.ui.setStatus`). `undefined` clears the status for a public root. */
+/** Footer/status-bar flag (`ctx.ui.setStatus`). `undefined` clears the status for a public session. */
 export function statusFlag(egress: SessionEgressClass): string | undefined {
   return egress === "public" ? undefined : `⚑ ${egress}`;
 }

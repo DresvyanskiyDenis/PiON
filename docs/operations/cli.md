@@ -219,7 +219,7 @@ Registered by the extensions, available inside a session.
 | `/context` | where the context window has actually gone |
 | `/agents` | the sub-agent registry, including invalid and restricted entries |
 | `/compaction-status` | compaction thresholds and what the last pass did |
-| `/path-defaults-status` | the tier and per-channel policy resolved for this `cwd` |
+| `/path-defaults-status` | the configured default tier and per-channel policy |
 | `/quota` | remaining provider quota |
 | `/teammates` | live teammates |
 | `/index` | build or refresh the session index `pi-log` reads |

@@ -1,17 +1,19 @@
 /** @typedef {import("../types.mjs").Finding} Finding */
 /** @typedef {import("../types.mjs").RuleContext} RuleContext */
 
-// The acceptance criterion for the path-defaults extension: "pi-check asserts the file: '*' last,
-// every provider/model resolvable, every root path absolute-able." This is the offline, plain-JS
-// restatement of the checks `extensions/path-defaults/config.ts`'s `validatePathDefaults()`
-// already enforces at runtime — that file cannot be imported from here (pi-check has zero
-// dependencies, including on this repo's own TypeScript, per REQ-PRV-12a), so the rules are
-// duplicated deliberately, the same way PC-02 duplicates routing.json's own tier-resolution shape.
-// A root's `tier` is checked for EXISTENCE in config/routing.json's `tiers` map only — whether
-// that tier's model resolves to a known provider is PC-02's job, not re-duplicated here.
+// The acceptance criterion for the path-defaults extension: "pi-check asserts the file names a
+// resolvable tier and a well-formed egress policy." This is the offline, plain-JS restatement of
+// the checks `extensions/path-defaults/config.ts`'s `validatePathDefaults()` already enforces at
+// runtime — that file cannot be imported from here (pi-check has zero dependencies, including on
+// this repo's own TypeScript, per REQ-PRV-12a), so the rules are duplicated deliberately, the
+// same way PC-02 duplicates routing.json's own tier-resolution shape.
+//
+// There used to be a `roots` array here (longest-prefix `cwd` matching, wildcard-last, duplicate-
+// path detection). All of that is gone along with the array it validated — `config/
+// path-defaults.json` now names exactly one `tier` and one `egress` policy for the whole install.
 
 export const id = "PC-20";
-export const title = "config/path-defaults.json (if present) is shape-valid, wildcard-last, and every root's tier resolves";
+export const title = "config/path-defaults.json (if present) is shape-valid and its tier resolves";
 export const closes = ["REQ-PRV-90"];
 
 const CHANNEL_KEYS = ["web", "mcp", "publicModels"];
@@ -46,10 +48,6 @@ export function run(ctx) {
   if (parsed.version !== 1) {
     fail(`"version" must be 1, got ${JSON.stringify(parsed.version)}`);
   }
-  if (!Array.isArray(parsed.roots)) {
-    fail('"roots" must be an array');
-    return findings;
-  }
 
   const fileLines = ctx.lines(FILE);
   const lineFor = (needle) => fileLines.find((l) => l.text.includes(needle))?.line;
@@ -66,58 +64,22 @@ export function run(ctx) {
     }
   }
 
-  let sawWildcard = false;
-  const seenPaths = new Set();
-  parsed.roots.forEach((raw, i) => {
-    const where = `roots[${i}]`;
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-      fail(`${where} must be an object`);
-      return;
-    }
+  if (typeof parsed.tier !== "string" || parsed.tier.length === 0) {
+    fail('"tier" must be a non-empty string naming a config/routing.json tier');
+  } else if (routingTiers !== null && !(parsed.tier in routingTiers)) {
+    fail(`"tier" "${parsed.tier}" is not defined in config/routing.json's "tiers"`, lineFor(parsed.tier));
+  }
 
-    if (typeof raw.path !== "string" || raw.path.length === 0) {
-      fail(`${where}.path must be a non-empty string`);
-    } else {
-      if (raw.path !== "*" && !raw.path.startsWith("~") && !raw.path.startsWith("/")) {
-        fail(`${where}.path "${raw.path}" is neither "*" nor absolute-able (must start with "~" or "/")`, lineFor(raw.path));
-      }
-      if (seenPaths.has(raw.path)) {
-        fail(`${where}.path "${raw.path}" is a duplicate of an earlier root`, lineFor(raw.path));
-      }
-      seenPaths.add(raw.path);
-
-      if (raw.path === "*") {
-        if (sawWildcard) fail(`more than one wildcard ("*") root`);
-        sawWildcard = true;
-        if (i !== parsed.roots.length - 1) {
-          fail(`the wildcard ("*") root must be last — found at index ${i} of ${parsed.roots.length}`);
-        }
-      } else if (sawWildcard) {
-        fail(`${where} follows the wildcard ("*") root and can never be reached (longest-prefix matching depends on "*" being last)`);
+  if (parsed.egress === null || typeof parsed.egress !== "object" || Array.isArray(parsed.egress)) {
+    fail('"egress" must be an object with web/mcp/publicModels keys');
+  } else {
+    for (const key of CHANNEL_KEYS) {
+      const v = parsed.egress[key];
+      if (v !== "allow" && v !== "deny") {
+        fail(`egress.${key} must be "allow" or "deny", got ${JSON.stringify(v)}`);
       }
     }
-
-    if (typeof raw.tier !== "string" || raw.tier.length === 0) {
-      fail(`${where}.tier must be a non-empty string naming a config/routing.json tier`);
-    } else if (routingTiers !== null && !(raw.tier in routingTiers)) {
-      fail(`${where}.tier "${raw.tier}" is not defined in config/routing.json's "tiers"`, lineFor(raw.tier));
-    }
-
-    if (raw.egress === null || typeof raw.egress !== "object" || Array.isArray(raw.egress)) {
-      fail(`${where}.egress must be an object with web/mcp/publicModels keys`);
-    } else {
-      for (const key of CHANNEL_KEYS) {
-        const v = raw.egress[key];
-        if (v !== "allow" && v !== "deny") {
-          fail(`${where}.egress.${key} must be "allow" or "deny", got ${JSON.stringify(v)}`);
-        }
-      }
-    }
-
-    if (raw.reason !== undefined && typeof raw.reason !== "string") {
-      fail(`${where}.reason must be a string when present`);
-    }
-  });
+  }
 
   return findings;
 }

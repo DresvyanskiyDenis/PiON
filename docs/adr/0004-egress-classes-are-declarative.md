@@ -18,9 +18,11 @@
     What survives, unchanged: the class is still resolved, still carried on every resolved model, and
     still **reported** — on the startup line, in `/agents`, in the sub-agent model-selection block and
     in the `dispatch_registry` audit entry. A provider the config does not classify now reads as
-    `unlabelled` rather than being refused. Separately, the **per-root** posture in
-    `config/path-defaults.json` (`egress: {web, mcp, publicModels}`) is a different mechanism and is
-    not affected by this amendment.
+    `unlabelled` rather than being refused. Separately, the posture in `config/path-defaults.json`
+    (`egress: {web, mcp, publicModels}`) is a different mechanism and is not affected by this
+    amendment — though as of 2026-08-15 it is a single install-wide policy rather than a per-root one
+    (the per-directory `roots` array it used to match against is gone; see [Paths and
+    trust](../configuration/paths-and-trust.md#path-defaultsjson)).
 
     Read the sections below with that substitution in mind: where they say the dispatch ceiling
     *refuses*, it now *labels*.
@@ -29,15 +31,15 @@
 
 Every provider in this harness carries an **egress class**: `public`, `internal` or `confidential`.
 The dispatch ceiling uses it to refuse a sub-agent dispatch whose class exceeds its parent's, and
-`config/path-defaults.json` uses a related `egress` block to decide, per directory root, whether a
-session may use web tools, MCP tools, or a public-class model at all.
+`config/path-defaults.json` uses a related `egress` block to decide whether a session may use web
+tools, MCP tools, or a public-class model at all.
 
 The words invite a stronger reading than the mechanism supports. "Confidential" sounds like a
 guarantee about where bytes go. It is not one. Nothing in this repository inspects, proxies or blocks
 a socket. The controls are:
 
 - a check at dispatch time, before a sub-agent is created;
-- a check at load time, when a session's posture is resolved from its directory;
+- a check at load time, when a session's posture is resolved from the configured default tier;
 - and configuration that decides which endpoint a request is *addressed* to.
 
 Everything after that is the operating system's business. A `bash` command the agent runs can open any
@@ -109,5 +111,5 @@ classes were enforced at the network layer gets rejected at the design stage rat
 
 - [Safety model](../concepts/safety-model.md)
 - [Known limitations](../limitations.md)
-- [Paths and trust](../configuration/paths-and-trust.md) — the per-root `egress` block
+- [Paths and trust](../configuration/paths-and-trust.md) — the install-wide `egress` block
 - [ADR 0001](0001-no-provider-failover.md) — why a confidential request is never re-addressed

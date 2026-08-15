@@ -60,8 +60,34 @@
  * the matching `ExtensionAPI.on` overload. Any other module that needs to construct or narrow
  * one of these two types explicitly will hit the same wall — worth a name for integration to
  * decide once, not per module (see this file's manifest entry).
+ *
+ * **Extension-contributed skills never got their variable — fixed here.**
+ * `AgentSession.extendResourcesFromExtensions` (`dist/core/agent-session.js:1764-1777`) calls
+ * `this._extensionRunner.emitResourcesDiscover(...)` — which is what fires every
+ * `resources_discover` handler, this module's included — and only AFTER every handler has
+ * returned does it call `this._resourceLoader.extendResources(extensionPaths)` with their
+ * combined contributions. So inside a `resources_discover` handler, `pi.getCommands()` can
+ * never see a skill contributed by ANOTHER `resources_discover` handler in the same firing
+ * (`extensions/skill-mask.ts`, concretely) — that skill is added to the roster strictly after
+ * this handler already ran. Measured directly against the pinned 0.84.0 source, not inferred.
+ *
+ * **The fix: a second, later pass on `agent_start`, not a hook that does not exist.** PI 0.84.0
+ * exposes no event that fires strictly after `extendResources` and before `resources_discover`
+ * fires again (checked every `type: "..."` in `dist/core/extensions/types.d.ts` — there is no
+ * `resources_extended` or equivalent). `agent_start` is the nearest correct substitute: it is
+ * only emitted from inside a turn (`agent-session.js:441-443`), and every caller of
+ * `bindExtensions()` — `interactive-mode.js:1364`, `print-mode.js:53`, `rpc-mode.js:230` — awaits
+ * it (which awaits `extendResourcesFromExtensions`) before the mode can start a turn at all; the
+ * same is true of `reload()` (`agent-session.js:2072-2073`), awaited by its own command handler
+ * before another turn can run. So by the time `agent_start` fires, for every mode and after every
+ * reload, `extendResources` has already committed. Skill scripts only ever run from a tool call
+ * inside a turn, which happens after `agent_start`, so this closes the gap before it can matter —
+ * this is a genuine correctness argument from the source, not a timer or a retry.
+ * `pendingPostExtendRefresh` below gates the re-run to once per `resources_discover` firing
+ * (startup or reload) rather than every turn, since the roster cannot change mid-session outside
+ * those two triggers.
  */
-import type { ExtensionAPI, ExtensionContext, SlashCommandInfo } from "@earendil-works/pi-coding-agent";
+import type { AgentStartEvent, ExtensionAPI, ExtensionContext, SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import { emitNotice } from "./lib/announce.ts";
@@ -194,11 +220,26 @@ export function applyEnv(skills: readonly DiscoveredSkill[]): void {
   if (root !== undefined) process.env[ROOT_VAR] = root;
 }
 
+/**
+ * Set every time `resources_discover` fires (startup or reload) and cleared by the next
+ * `agent_start`, which then re-runs `discoverAndApplySkillEnv` once the extension-contributed
+ * skills that `resources_discover` handlers race against have actually landed. See the fix note
+ * in this file's header for why `agent_start` — not a fictitious "post-extend" event — is the
+ * correct hook.
+ */
+let pendingPostExtendRefresh = false;
+
 /** Test-only. */
 export function __resetForTests(): void {
   for (const key of managed) delete process.env[key];
   managed.clear();
   managed.add(ROOT_VAR);
+  pendingPostExtendRefresh = false;
+}
+
+/** Test-only: lets a test observe/reset the catch-up gate without waiting on real timing. */
+export function __setPendingPostExtendRefreshForTests(value: boolean): void {
+  pendingPostExtendRefresh = value;
 }
 
 function skillNameFromCommand(command: SlashCommandInfo): string {
@@ -206,44 +247,62 @@ function skillNameFromCommand(command: SlashCommandInfo): string {
   return command.name.startsWith("skill:") ? command.name.slice("skill:".length) : command.name;
 }
 
+/**
+ * Reads the current skill roster from `pi.getCommands()` and (re)applies every
+ * `PI_SKILL_DIR_<NAME>`. Shared by both the `resources_discover` pass (fast, but may run before
+ * `extendResources` has applied an extension-contributed skill — see this file's header) and the
+ * `agent_start` catch-up pass (slower to arrive, but guaranteed to run after it).
+ */
+function discoverAndApplySkillEnv(pi: ExtensionAPI, ctx: ExtensionContext | undefined): void {
+  try {
+    const skills: DiscoveredSkill[] = [];
+    for (const command of pi.getCommands()) {
+      if (command.source !== "skill") continue;
+      const name = skillNameFromCommand(command);
+      const rawBaseDir = skillDirFromPath(command.sourceInfo.path);
+      if (rawBaseDir === undefined) {
+        surfaceOnce(ctx, `skills-env:no-skill-dir:${name}`, () =>
+          emitNotice(
+            ctx,
+            `[pi-config] skills-env: skill "${name}" has no usable sourceInfo.path ` +
+              `(${JSON.stringify(command.sourceInfo.path)}) — its ${envVarName(name)} will not be ` +
+              `set; every disk-loaded skill is supposed to carry its SKILL.md path here, so ` +
+              `report it`,
+            "warning",
+          ),
+        );
+        continue;
+      }
+      const baseDir = resolveSkillDir(rawBaseDir, name, ctx);
+      skills.push({ name, baseDir });
+    }
+    applyEnv(skills);
+  } catch (err) {
+    // Fail open: a bug here must cost skill scripts their env vars, not the session its
+    // resource discovery. PI already wraps the `resources_discover` handler
+    // (`emitResourcesDiscover` in `dist/core/extensions/runner.js`) and reports the throw via
+    // `emitError`, but that channel is not something every other module observes — surface it
+    // here too so it is not lost. The `agent_start` pass is wrapped the same way for the same
+    // reason, even though PI does not itself guard that event.
+    surfaceOnce(ctx, "skills-env:handler-error", () =>
+      emitNotice(ctx, `[pi-config] skills-env: skill discovery failed — ${describeError(err)}`, "error"),
+    );
+  }
+}
+
 export function register(pi: ExtensionAPI): void {
   // `event`/`ctx` are contextually typed from the `ExtensionAPI.on("resources_discover", ...)`
   // overload — see the file header for why neither type is imported by name.
   pi.on("resources_discover", (_event, ctx) => {
-    try {
-      const skills: DiscoveredSkill[] = [];
-      for (const command of pi.getCommands()) {
-        if (command.source !== "skill") continue;
-        const name = skillNameFromCommand(command);
-        const rawBaseDir = skillDirFromPath(command.sourceInfo.path);
-        if (rawBaseDir === undefined) {
-          surfaceOnce(ctx, `skills-env:no-skill-dir:${name}`, () =>
-            emitNotice(
-              ctx,
-              `[pi-config] skills-env: skill "${name}" has no usable sourceInfo.path ` +
-                `(${JSON.stringify(command.sourceInfo.path)}) — its ${envVarName(name)} will not be ` +
-                `set; every disk-loaded skill is supposed to carry its SKILL.md path here, so ` +
-                `report it`,
-              "warning",
-            ),
-          );
-          continue;
-        }
-        const baseDir = resolveSkillDir(rawBaseDir, name, ctx);
-        skills.push({ name, baseDir });
-      }
-      applyEnv(skills);
-    } catch (err) {
-      // Fail open: a bug here must cost skill scripts their env vars, not the session its
-      // resource discovery. PI already wraps this handler (`emitResourcesDiscover` in
-      // `dist/core/extensions/runner.js`) and reports the throw via `emitError`, but that
-      // channel is not something every other module observes — surface it here too so it is
-      // not lost.
-      surfaceOnce(ctx, "skills-env:handler-error", () =>
-        emitNotice(ctx, `[pi-config] skills-env: resources_discover handler failed — ${describeError(err)}`, "error"),
-      );
-    }
+    discoverAndApplySkillEnv(pi, ctx);
+    pendingPostExtendRefresh = true;
     // Never contributes skillPaths/promptPaths/themePaths — this module only reads what was
     // already discovered and exports it as environment, so returning nothing is correct.
+  });
+
+  pi.on("agent_start", (_event: AgentStartEvent, ctx) => {
+    if (!pendingPostExtendRefresh) return;
+    pendingPostExtendRefresh = false;
+    discoverAndApplySkillEnv(pi, ctx);
   });
 }

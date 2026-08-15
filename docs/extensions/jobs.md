@@ -25,8 +25,10 @@ duration and loses everything if the session ends.
 
 ## Cost
 
-One directory per job, on disk, until pruned. `job prune` is a real command and worth running
-occasionally.
+One directory per job, on disk, until pruned. `session_start` auto-prunes finished jobs older than
+`PI_JOBS_PRUNE_HOURS` (default 168, i.e. 7 days) on every session, so a store nobody remembers to
+clean up does not grow without bound. `job prune` is still a real command for pruning by hand
+sooner than that.
 
 ## Related
 [bash](bash.md) · [big-results](big-results.md) · [teammates](teammates.md) ·

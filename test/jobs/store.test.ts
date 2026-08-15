@@ -9,6 +9,9 @@ import { promisify } from "node:util";
 
 import {
   assertDepthAllowed,
+  AUTO_PRUNE_HOURS_ENV,
+  autoPruneRetentionHours,
+  DEFAULT_PRUNE_HOURS,
   ensureJobsRoot,
   isProcessAlive,
   jobDir,
@@ -280,6 +283,14 @@ describe("jobs store (EXT-24)", () => {
     assert.deepEqual(result.removed, [finished.id]);
     assert.equal((await readState(root, running.id))?.status, "running");
     await killJob(root, running, { graceMs: 50 });
+  });
+
+  it("autoPruneRetentionHours: defaults to DEFAULT_PRUNE_HOURS, is overridable, and fails loud on garbage", () => {
+    assert.equal(autoPruneRetentionHours({}), DEFAULT_PRUNE_HOURS);
+    assert.equal(autoPruneRetentionHours({ [AUTO_PRUNE_HOURS_ENV]: "1" }), 1);
+    assert.equal(autoPruneRetentionHours({ [AUTO_PRUNE_HOURS_ENV]: "0" }), 0);
+    assert.throws(() => autoPruneRetentionHours({ [AUTO_PRUNE_HOURS_ENV]: "not-a-number" }), /not a non-negative number/);
+    assert.throws(() => autoPruneRetentionHours({ [AUTO_PRUNE_HOURS_ENV]: "-3" }), /not a non-negative number/);
   });
 
   it("D1: the job outlives the process that started it", async () => {

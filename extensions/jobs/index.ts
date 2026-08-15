@@ -15,6 +15,14 @@
  * Auto-discovered as a standalone extension via the `extensions/<dir>/index.ts` subdirectory
  * pattern (same as `extensions/big-results/index.ts` and `extensions/tasks/index.ts`), so
  * `settings.json`'s `"extensions"` array needs no entry.
+ *
+ * `session_start` also auto-prunes finished jobs past `store.ts`'s retention window
+ * (`PI_JOBS_PRUNE_HOURS`, default 7 days) — a cross-session store has no session responsible for
+ * its own cleanup, so the sweep runs on every session rather than waiting for someone to run
+ * `job(action="prune")` by hand. Kill authority is intentionally not scoped to the session that
+ * started a job: `killJob` takes any job's state and signals its process group unconditionally,
+ * because a job that outlives its parent session is exactly the case where a *different* session
+ * is the one that needs to stop it.
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -26,6 +34,8 @@ import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { registerJobProviders } from "./registry.ts";
 import {
+  AUTO_PRUNE_HOURS_ENV,
+  autoPruneRetentionHours,
   ensureJobsRoot,
   jobDir,
   jobsRoot,
@@ -293,6 +303,21 @@ export function register(pi: ExtensionAPI): void {
 
   pi.on("session_start", async (_event, ctx) => {
     try {
+      // A store no session owns is a store nothing else cleans up (store.ts's own header
+      // comment) — so `session_start` sweeps terminal jobs older than the retention window
+      // before this session gets to look at the list, the same way `job(action="prune")` does
+      // it by hand.
+      const root = jobsRoot();
+      const hours = autoPruneRetentionHours();
+      const pruned = await pruneJobs(root, { olderThanMs: hours * 3_600_000 });
+      if (pruned.removed.length > 0) {
+        emitNotice(
+          ctx,
+          `[pi-config] jobs: auto-pruned ${pruned.removed.length} finished job(s) older than ` +
+            `${hours}h (set ${AUTO_PRUNE_HOURS_ENV} to change)`,
+          "info",
+        );
+      }
       // Everything already terminal is history for this session, not news.
       const { jobs } = await listJobs(jobsRoot());
       for (const job of jobs) if (job.status !== "running") announced.add(job.id);

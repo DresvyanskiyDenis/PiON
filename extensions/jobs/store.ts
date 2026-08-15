@@ -44,6 +44,29 @@ export const JOB_DEPTH_ENV = "PI_JOB_DEPTH";
 /** Grace between SIGTERM and SIGKILL when killing a job's process group. */
 export const KILL_GRACE_MS = 2_000;
 
+/** Default retention window for `pruneJobs`, both the manual `job(action="prune")` call and the
+ *  automatic sweep `index.ts` runs at every `session_start` — a store nothing owns needs a
+ *  default nothing has to configure. */
+export const DEFAULT_PRUNE_HOURS = 7 * 24;
+export const AUTO_PRUNE_HOURS_ENV = "PI_JOBS_PRUNE_HOURS";
+
+/**
+ * The retention window `session_start`'s automatic prune uses, in hours. `PI_JOBS_PRUNE_HOURS`
+ * overrides `DEFAULT_PRUNE_HOURS`; `0` prunes every terminal job on every session start
+ * (a valid, if aggressive, choice) rather than being read as "unset". Throws rather than
+ * silently falling back on a non-numeric or negative value — a typo'd env var should not
+ * quietly disable or shorten retention.
+ */
+export function autoPruneRetentionHours(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env[AUTO_PRUNE_HOURS_ENV];
+  if (raw === undefined) return DEFAULT_PRUNE_HOURS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${AUTO_PRUNE_HOURS_ENV} is ${JSON.stringify(raw)}, which is not a non-negative number`);
+  }
+  return parsed;
+}
+
 export type JobKind = "bash" | "agent";
 export type JobStatus = "running" | "done" | "failed" | "killed";
 
@@ -492,7 +515,7 @@ export interface PruneResult {
  * ever cleans up.
  */
 export async function pruneJobs(root: string, options: PruneOptions = {}): Promise<PruneResult> {
-  const cutoff = (options.now ?? Date.now()) - (options.olderThanMs ?? 7 * 24 * 60 * 60_000);
+  const cutoff = (options.now ?? Date.now()) - (options.olderThanMs ?? DEFAULT_PRUNE_HOURS * 60 * 60_000);
   const { jobs, problems } = await listJobs(root);
   const removed: string[] = [];
   for (const job of jobs) {

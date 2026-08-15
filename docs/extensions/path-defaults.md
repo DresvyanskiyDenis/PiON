@@ -1,7 +1,10 @@
-# `path-defaults` — per-directory defaults
+# `path-defaults` — default tier and egress policy
 
-Per-`cwd` defaults for tier, plus a declarative per-channel policy. Configured by
-[`config/path-defaults.json`](../configuration/paths-and-trust.md#path-defaultsjson).
+A single default tier for every session, plus a declarative per-channel policy. Configured by
+[`config/path-defaults.json`](../configuration/paths-and-trust.md#path-defaultsjson). There used to
+be a `roots` array here, matched by longest `cwd` prefix, so different directories could start on
+different tiers or postures — that per-directory split is gone; one tier and one policy apply
+everywhere, regardless of where a session starts.
 
 Registers `/path-defaults-status`.
 
@@ -11,25 +14,25 @@ This trips everyone once, so it is worth being explicit.
 
 ### 1. Session egress class — a reported label
 
-One scalar per matched root (`public` / `internal` / `confidential`), derived from the root's
+One scalar per session (`public` / `internal` / `confidential`), derived from the configured
 **tier**'s provider via `routing.json`'s `egress` map. It is exported into the environment, where
 [`dispatch`](dispatch.md) reads it to print on the startup line, in `/agents` and in the sub-agent
 model-selection block.
 
-Until 2026-08-13 it also *decided* something: it made "a confidential root's session may not
-dispatch a child onto a public provider" true. That containment rule is withdrawn — it made most
-agents undispatchable rather than making anything safer — so this scalar now describes the session
-and refuses nothing. See [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
+Until 2026-08-13 it also *decided* something: it made "a confidential session may not dispatch a
+child onto a public provider" true. That containment rule is withdrawn — it made most agents
+undispatchable rather than making anything safer — so this scalar now describes the session and
+refuses nothing. See [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
 ### 2. Per-channel policy — declarative only
 
-`{web, mcp, publicModels}`, each `"allow"` or `"deny"`, per root. A different fact: whether this
-directory's session *should* reach the open web, use MCP tools, or fall back to a public model.
+`{web, mcp, publicModels}`, each `"allow"` or `"deny"`, install-wide. A different fact: whether a
+session *should* reach the open web, use MCP tools, or fall back to a public model.
 
 !!! warning "This module does not intercept anything to enforce channel policy"
     It computes and exports the value for [`web`](web.md) and the MCP layer to read at their own
-    call sites. A directory tree with no such wiring in place enforces **nothing** from this
-    channel. The notice the module prints says so.
+    call sites. An install with no such wiring in place enforces **nothing** from this channel. The
+    notice the module prints says so.
 
     Nobody should read the presence of a `"deny"` entry here as proof that traffic is blocked. It
     is a declaration, not a network boundary.
@@ -42,8 +45,8 @@ handler.
 
 ## Reasoning effort
 
-A root names a tier, and a tier may declare how hard to think — `"thinkingLevel": "high"` on the
-row, one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. That level is now **applied,
+The configured tier may declare how hard to think — `"thinkingLevel": "high"` on the tier's
+`routing.json` row, one of `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. That level is now **applied,
 not merely parsed**: this module runs inside `session_start` holding the extension API, so it calls
 `setThinkingLevel()` (which PI clamps to what the model actually supports) immediately after a
 successful `setModel()`, and on no other path. If an explicit model selection is already in effect,

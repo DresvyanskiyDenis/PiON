@@ -1,0 +1,4 @@
+{
+  "_comment": "pi-lean-ctx configuration. `enableMcp` is false here because the package's MCP bridge spawns the `lean-ctx` binary at every session start, and that binary is not a dependency of this repository — it is installed separately with `cargo install lean-ctx`. With the package default of true and no binary on PATH, every startup costs a failed spawn plus three backoff retries and seven stderr lines. False forces the CLI tool-registration path instead, which fails lazily — only if a ctx_* tool is actually invoked. Set this to true once the binary is installed.",
+  "enableMcp": false
+}

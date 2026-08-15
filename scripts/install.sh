@@ -1551,20 +1551,18 @@ cfg_set "$SETTINGS_FILE" \
 _pb="$(ans_get guard.protectedBranches)"
 [ -z "$_pb" ] || cfg_set "$GUARD_FILE" "protectedBranches=[$_pb]"
 
-# trusted-roots.json and path-defaults.json — machine-specific filesystem roots, derived from
-# this machine, never inherited from whoever built the repo.
+# trusted-roots.json — machine-specific filesystem roots, derived from this machine, never
+# inherited from whoever built the repo.
 _roots="$(ans_get trust.roots)"
-_first_root="$(printf '%s' "$_roots" | cut -d, -f1)"
 # shellcheck disable=SC2088  # the literal ~ is written into JSON on purpose; PI expands it at read time
 cfg_set "$TRUST_FILE" "roots=[$_roots,$( [ "$PREFIX" = "$HOME" ] && printf '~/pi-config' || printf '%s' "$STABLE_LINK" )]"
-# The whole array is rewritten rather than patched element-by-element: the "*" fallback entry has
-# to survive, and it has to stay LAST, because path-defaults matches in order and a "*" in front
-# of the specific root would swallow every session.
-_PATH_ROOTS="$(node "$LIB_JSON" string "$_first_root")"
-cfg_set "$PATHS_FILE" "roots=json:[
-  {\"path\": $_PATH_ROOTS, \"tier\": \"strong\", \"egress\": {\"web\": \"allow\", \"mcp\": \"allow\", \"publicModels\": \"allow\"}},
-  {\"path\": \"*\", \"tier\": \"fast\", \"egress\": {\"web\": \"allow\", \"mcp\": \"allow\", \"publicModels\": \"allow\"}}
-]"
+# path-defaults.json — no per-directory routing any more: one configured tier and one egress
+# policy for every session, so there is nothing here to derive from trust.roots. The installer
+# still writes the file (rather than leaving the template as the active config) so a fresh install
+# ends up with a real config/path-defaults.json, not just its .default.json twin.
+cfg_set "$PATHS_FILE" \
+  "tier=strong" \
+  "egress=json:{\"web\": \"allow\", \"mcp\": \"allow\", \"publicModels\": \"allow\"}"
 
 # web.json / web-search.json — the two must agree, and extensions/web asserts it at every start.
 if [ "$(ans_get web.backend)" = "searxng" ]; then
@@ -1701,12 +1699,20 @@ link_one optional config/pi-statusline.json pi-statusline.json
 link_one optional config/pi-lsp.json        pi-lsp.json
 
 # pi-subagents reads exactly one path — getAgentDir()/extensions/subagent/config.json (its
-# extension/config.ts getConfigPath()) — so this is the only row whose destination is nested. The
-# directory is PI runtime state and PI does not create it, hence the mkdir. Only the single file is
-# linked: linking $AGENT_DIR/extensions itself would hand PI our extension SOURCE tree, which the
-# NOTE above the "Linking the config" step explains at length.
+# extension/config.ts getConfigPath()) — so its destination is nested. The directory is PI runtime
+# state and PI does not create it, hence the mkdir. Only the single file is linked: linking
+# $AGENT_DIR/extensions itself would hand PI our extension SOURCE tree, which the NOTE above the
+# "Linking the config" step explains at length. pi-lean-ctx below follows the identical pattern.
 run "mkdir -p '$AGENT_DIR/extensions/subagent'"
 link_one optional config/subagent.json      extensions/subagent/config.json
+
+# pi-lean-ctx reads getAgentDir()/extensions/pi-lean-ctx/config.json. Shipping the file matters even
+# though every key in it is optional: with enableMcp at the package default of true, pi-lean-ctx
+# spawns the `lean-ctx` binary as an MCP server at every session start, and on a machine that has
+# not run `cargo install lean-ctx` that is a failed spawn plus three backoff retries — seven stderr
+# lines on every startup, for a feature that cannot work yet.
+run "mkdir -p '$AGENT_DIR/extensions/pi-lean-ctx'"
+link_one optional config/lean-ctx-config.json extensions/pi-lean-ctx/config.json
 
 if [ -d "$REPO_DIR/config/bin" ]; then
   for helper in "$REPO_DIR"/config/bin/*; do

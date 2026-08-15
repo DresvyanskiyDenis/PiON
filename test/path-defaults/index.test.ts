@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
-import { register as pathDefaults, declareSessionEgress, egressClassFor, id, resolveForCwd, type Resolution } from "../../extensions/path-defaults/index.ts";
+import { register as pathDefaults, declareSessionEgress, id, resolvePathDefaults, type Resolution } from "../../extensions/path-defaults/index.ts";
 
 let sandbox: string;
 let routingFile: string;
@@ -56,122 +56,56 @@ describe("id", () => {
   });
 });
 
-describe("resolveForCwd", () => {
+describe("resolvePathDefaults", () => {
   it("is \"disabled\" when config/path-defaults.json does not exist", () => {
-    const res = resolveForCwd("/home/user/anywhere", join(sandbox, "does-not-exist.json"));
+    const res = resolvePathDefaults(join(sandbox, "does-not-exist.json"));
     assert.equal(res.kind, "disabled");
   });
 
   it("is \"config-error\" on malformed JSON, never throws", async () => {
     await writeFile(pathDefaultsFile, "{ not json");
-    const res = resolveForCwd("/home/user/anywhere", pathDefaultsFile);
+    const res = resolvePathDefaults(pathDefaultsFile);
     assert.equal(res.kind, "config-error");
     if (res.kind === "config-error") assert.match(res.message, /not valid JSON/);
   });
 
-  it("is \"unmatched\" when no root (and no wildcard) covers cwd", async () => {
+  it("is \"configured\" and resolves the tier through routing.json", async () => {
     await writeFile(
       pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [{ path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } }],
-      }),
+      JSON.stringify({ version: 1, tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } }),
     );
-    const res = resolveForCwd("/home/user/Downloads", pathDefaultsFile);
-    assert.equal(res.kind, "unmatched");
-  });
-
-  it("is \"matched\" and resolves the root's tier through routing.json", async () => {
-    await writeFile(
-      pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [
-          { path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" }, reason: "confidential source" },
-          { path: "*", tier: "fast", egress: { web: "allow", mcp: "allow", publicModels: "allow" } },
-        ],
-      }),
-    );
-    const res = resolveForCwd("/home/user/work/acme/some-repo", pathDefaultsFile);
-    assert.equal(res.kind, "matched");
-    if (res.kind === "matched") {
-      assert.equal(res.root.tier, "confidential");
+    const res = resolvePathDefaults(pathDefaultsFile);
+    assert.equal(res.kind, "configured");
+    if (res.kind === "configured") {
+      assert.equal(res.file.tier, "confidential");
       assert.equal(res.target.provider, "databricks");
       assert.equal(res.target.egress, "confidential");
     }
   });
 
-  it("is \"config-error\" when a root names a tier routing.json does not define", async () => {
+  it("is \"config-error\" when the file names a tier routing.json does not define", async () => {
     await writeFile(
       pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [{ path: "*", tier: "nonexistent-tier", egress: { web: "allow", mcp: "allow", publicModels: "allow" } }],
-      }),
+      JSON.stringify({ version: 1, tier: "nonexistent-tier", egress: { web: "allow", mcp: "allow", publicModels: "allow" } }),
     );
-    const res = resolveForCwd("/home/user/anywhere", pathDefaultsFile);
+    const res = resolvePathDefaults(pathDefaultsFile);
     assert.equal(res.kind, "config-error");
     if (res.kind === "config-error") assert.match(res.message, /nonexistent-tier/);
   });
 
   it("never throws even for a totally garbage path-defaults value", async () => {
-    await writeFile(pathDefaultsFile, JSON.stringify({ version: 1, roots: "nope" }));
-    assert.doesNotThrow(() => resolveForCwd("/home/user/anywhere", pathDefaultsFile));
-    const res = resolveForCwd("/home/user/anywhere", pathDefaultsFile);
+    await writeFile(pathDefaultsFile, JSON.stringify({ version: 1, tier: 5 }));
+    assert.doesNotThrow(() => resolvePathDefaults(pathDefaultsFile));
+    const res = resolvePathDefaults(pathDefaultsFile);
     assert.equal(res.kind, "config-error");
   });
 });
 
-describe("egressClassFor", () => {
-  it("returns the matched root's declarative policy", async () => {
-    await writeFile(
-      pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [
-          { path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } },
-          { path: "*", tier: "fast", egress: { web: "allow", mcp: "allow", publicModels: "allow" } },
-        ],
-      }),
-    );
-    const policy = egressClassFor("/home/user/work/acme/repo", pathDefaultsFile);
-    assert.deepEqual(policy, { sessionEgress: "confidential", web: "deny", mcp: "allow", publicModels: "deny" });
-  });
-
-  it("fails open (fully allowed, public) when the file is missing — never a surprise lockout", () => {
-    const policy = egressClassFor("/home/user/anywhere", join(sandbox, "does-not-exist.json"));
-    assert.deepEqual(policy, { sessionEgress: "public", web: "allow", mcp: "allow", publicModels: "allow" });
-  });
-
-  it("fails open when the cwd is unmatched", async () => {
-    await writeFile(
-      pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [{ path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } }],
-      }),
-    );
-    const policy = egressClassFor("/home/user/Downloads", pathDefaultsFile);
-    assert.deepEqual(policy, { sessionEgress: "public", web: "allow", mcp: "allow", publicModels: "allow" });
-  });
-
-  it("fails open, never throws, on malformed config", async () => {
-    await writeFile(pathDefaultsFile, "{ not json");
-    assert.doesNotThrow(() => egressClassFor("/home/user/anywhere", pathDefaultsFile));
-    assert.deepEqual(egressClassFor("/home/user/anywhere", pathDefaultsFile), {
-      sessionEgress: "public",
-      web: "allow",
-      mcp: "allow",
-      publicModels: "allow",
-    });
-  });
-});
-
 describe("declareSessionEgress", () => {
-  it("sets PI_ROUTING_EGRESS from a matched resolution", () => {
+  it("sets PI_ROUTING_EGRESS from a configured resolution", () => {
     const res: Resolution = {
-      kind: "matched",
-      root: { path: "*", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } },
+      kind: "configured",
+      file: { version: 1, tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } },
       target: { tier: "confidential", model: "databricks/databricks-claude-sonnet-4-5", provider: "databricks", modelId: "databricks-claude-sonnet-4-5", egress: "confidential" },
     };
     declareSessionEgress(res);
@@ -181,16 +115,16 @@ describe("declareSessionEgress", () => {
   it("never clobbers an existing declaration", () => {
     process.env.PI_ROUTING_EGRESS = "public";
     const res: Resolution = {
-      kind: "matched",
-      root: { path: "*", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } },
+      kind: "configured",
+      file: { version: 1, tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } },
       target: { tier: "confidential", model: "databricks/databricks-claude-sonnet-4-5", provider: "databricks", modelId: "databricks-claude-sonnet-4-5", egress: "confidential" },
     };
     declareSessionEgress(res);
     assert.equal(process.env.PI_ROUTING_EGRESS, "public");
   });
 
-  it("is a no-op for disabled/unmatched/config-error resolutions", () => {
-    for (const res of [{ kind: "disabled" }, { kind: "unmatched" }, { kind: "config-error", message: "x" }] as Resolution[]) {
+  it("is a no-op for disabled/config-error resolutions", () => {
+    for (const res of [{ kind: "disabled" }, { kind: "config-error", message: "x" }] as Resolution[]) {
       delete process.env.PI_ROUTING_EGRESS;
       declareSessionEgress(res);
       assert.equal(process.env.PI_ROUTING_EGRESS, undefined);
@@ -207,7 +141,6 @@ interface Notice {
 }
 
 function makeHarness(opts: {
-  cwd: string;
   scopedModels?: unknown[];
   currentModel?: { provider: string; id: string };
   knownModels?: Set<string>; // "provider/id" strings the fake registry can `find`
@@ -240,11 +173,11 @@ function makeHarness(opts: {
   const ctx = {
     // A real session_start context always has a UI (TUI or RPC) here — the
     // `-p`/`--mode json` no-UI case is exercised separately by `path-defaults`'s own module tests
-    // via `resolveForCwd`/`egressClassFor`, not through this harness. `lib/announce.ts` routes on
+    // via `resolvePathDefaults`, not through this harness. `lib/announce.ts` routes on
     // `ctx.hasUI`, so this fake must declare it or every `ui.notify` assertion below silently sees
     // the stderr fallback instead.
     hasUI: true,
-    cwd: opts.cwd,
+    cwd: process.cwd(),
     scopedModels: opts.scopedModels ?? [],
     model: opts.currentModel,
     modelRegistry: {
@@ -275,15 +208,12 @@ function makeHarness(opts: {
   };
 }
 
-/** A wildcard-only `path-defaults.json` naming `tier`, so a test can aim any cwd at any tier
- *  without restating the whole roots array. */
-async function writeWildcardRoot(tier: string): Promise<void> {
+/** A `path-defaults.json` naming `tier`, so a test can aim at any tier without restating the
+ *  whole file. */
+async function writeConfiguredTier(tier: string): Promise<void> {
   await writeFile(
     pathDefaultsFile,
-    JSON.stringify({
-      version: 1,
-      roots: [{ path: "*", tier, egress: { web: "allow", mcp: "allow", publicModels: "allow" } }],
-    }),
+    JSON.stringify({ version: 1, tier, egress: { web: "allow", mcp: "allow", publicModels: "allow" } }),
   );
 }
 
@@ -291,16 +221,7 @@ describe("default export — session_start behaviour", () => {
   let savedArgv: string[];
   beforeEach(async () => {
     savedArgv = process.argv;
-    await writeFile(
-      pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [
-          { path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" }, reason: "confidential source" },
-          { path: "*", tier: "strong", egress: { web: "allow", mcp: "allow", publicModels: "allow" } },
-        ],
-      }),
-    );
+    await writeConfiguredTier("confidential");
     process.env.PI_PATH_DEFAULTS_JSON = pathDefaultsFile;
   });
   afterEach(() => {
@@ -308,21 +229,16 @@ describe("default export — session_start behaviour", () => {
     delete process.env.PI_PATH_DEFAULTS_JSON;
   });
 
-  it("calls setModel with the resolved model and flags the status bar for a matched enterprise root", async () => {
-    const h = makeHarness({
-      cwd: "/home/user/work/acme/some-repo",
-      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
-    });
+  it("calls setModel with the resolved model and flags the status bar", async () => {
+    const h = makeHarness({ knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]) });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 1);
     assert.deepEqual(h.setModelCalls[0], { provider: "databricks", id: "databricks-claude-sonnet-4-5" });
     assert.deepEqual(h.statusCalls.at(-1), { key: "scope", text: "⚑ confidential" });
-    assert.ok(h.notices.some((n) => n.level === "info" && n.message.includes("confidential source")));
   });
 
   it("does not call setModel when scopedModels is already populated", async () => {
     const h = makeHarness({
-      cwd: "/home/user/work/acme/some-repo",
       scopedModels: [{ provider: "databricks", id: "databricks-claude-sonnet-4-5" }],
       knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
     });
@@ -333,16 +249,13 @@ describe("default export — session_start behaviour", () => {
 
   it("does not call setModel when --model was passed on argv", async () => {
     process.argv = ["node", "pi", "--model", "databricks/databricks-claude-sonnet-4-5"];
-    const h = makeHarness({
-      cwd: "/home/user/work/acme/some-repo",
-      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
-    });
+    const h = makeHarness({ knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]) });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 0);
   });
 
   it("announces an error and does not call setModel when the target model is not configured", async () => {
-    const h = makeHarness({ cwd: "/home/user/work/acme/some-repo", knownModels: new Set() });
+    const h = makeHarness({ knownModels: new Set() });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 0);
     assert.ok(h.notices.some((n) => n.level === "error" && n.message.includes("no such model is")));
@@ -350,7 +263,6 @@ describe("default export — session_start behaviour", () => {
 
   it("announces an error naming the missing credential when setModel returns false, and does not silently stay switched", async () => {
     const h = makeHarness({
-      cwd: "/home/user/work/acme/some-repo",
       knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
       currentModel: { provider: "github-copilot", id: "claude-opus-5" },
       setModelResult: false,
@@ -364,34 +276,31 @@ describe("default export — session_start behaviour", () => {
   });
 
   it("applies the tier's declared thinkingLevel through setThinkingLevel once setModel succeeded", async () => {
-    await writeWildcardRoot("reasoning");
-    const h = makeHarness({
-      cwd: "/home/user/anywhere",
-      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
-    });
+    await writeConfiguredTier("reasoning");
+    const h = makeHarness({ knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]) });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 1);
     assert.deepEqual(h.setThinkingLevelCalls, ["high"]);
   });
 
   it("resolves a tier whose model carries a thinking suffix, and applies that suffix's level", async () => {
-    await writeWildcardRoot("suffixed");
-    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set(["github-copilot/claude-opus-5"]) });
+    await writeConfiguredTier("suffixed");
+    const h = makeHarness({ knownModels: new Set(["github-copilot/claude-opus-5"]) });
     await h.fireSessionStart();
     assert.deepEqual(h.setModelCalls[0], { provider: "github-copilot", id: "claude-opus-5" });
     assert.deepEqual(h.setThinkingLevelCalls, ["max"]);
   });
 
   it("lets the model string's suffix outrank the tier's declared thinkingLevel", async () => {
-    await writeWildcardRoot("suffix-wins");
-    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set(["github-copilot/claude-opus-5"]) });
+    await writeConfiguredTier("suffix-wins");
+    const h = makeHarness({ knownModels: new Set(["github-copilot/claude-opus-5"]) });
     await h.fireSessionStart();
     assert.deepEqual(h.setThinkingLevelCalls, ["low"]);
   });
 
   it("refuses a bogus thinking suffix rather than reading it as a level", async () => {
-    await writeWildcardRoot("bogus-suffix");
-    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set(["github-copilot/claude-opus-5"]) });
+    await writeConfiguredTier("bogus-suffix");
+    const h = makeHarness({ knownModels: new Set(["github-copilot/claude-opus-5"]) });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 0);
     assert.equal(h.setThinkingLevelCalls.length, 0);
@@ -399,19 +308,15 @@ describe("default export — session_start behaviour", () => {
   });
 
   it("does not call setThinkingLevel when the tier declares no level and the model carries none", async () => {
-    const h = makeHarness({
-      cwd: "/home/user/work/acme/some-repo",
-      knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
-    });
+    const h = makeHarness({ knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]) });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 1);
     assert.equal(h.setThinkingLevelCalls.length, 0);
   });
 
   it("does not call setThinkingLevel when an explicit model selection is already in effect", async () => {
-    await writeWildcardRoot("reasoning");
+    await writeConfiguredTier("reasoning");
     const h = makeHarness({
-      cwd: "/home/user/anywhere",
       scopedModels: [{ provider: "databricks", id: "databricks-claude-sonnet-4-5" }],
       knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
     });
@@ -421,17 +326,16 @@ describe("default export — session_start behaviour", () => {
   });
 
   it("does not call setThinkingLevel when the target model is not in the registry", async () => {
-    await writeWildcardRoot("reasoning");
-    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set() });
+    await writeConfiguredTier("reasoning");
+    const h = makeHarness({ knownModels: new Set() });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 0);
     assert.equal(h.setThinkingLevelCalls.length, 0);
   });
 
   it("does not call setThinkingLevel when setModel fails for want of a credential", async () => {
-    await writeWildcardRoot("reasoning");
+    await writeConfiguredTier("reasoning");
     const h = makeHarness({
-      cwd: "/home/user/anywhere",
       knownModels: new Set(["databricks/databricks-claude-sonnet-4-5"]),
       currentModel: { provider: "github-copilot", id: "claude-opus-5" },
       setModelResult: false,
@@ -441,24 +345,16 @@ describe("default export — session_start behaviour", () => {
     assert.equal(h.setThinkingLevelCalls.length, 0);
   });
 
-  it("clears the status flag for a public (wildcard) root", async () => {
-    const h = makeHarness({
-      cwd: "/home/user/Downloads",
-      knownModels: new Set(["github-copilot/claude-opus-5"]),
-    });
+  it("clears the status flag for a public tier", async () => {
+    await writeConfiguredTier("strong");
+    const h = makeHarness({ knownModels: new Set(["github-copilot/claude-opus-5"]) });
     await h.fireSessionStart();
     assert.deepEqual(h.statusCalls.at(-1), { key: "scope", text: undefined });
   });
 
-  it("does nothing when the root is unmatched and there is no wildcard", async () => {
-    await writeFile(
-      pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [{ path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } }],
-      }),
-    );
-    const h = makeHarness({ cwd: "/home/user/Downloads", knownModels: new Set() });
+  it("does nothing when path-defaults.json does not exist", async () => {
+    await rm(pathDefaultsFile, { force: true });
+    const h = makeHarness({ knownModels: new Set() });
     await h.fireSessionStart();
     assert.equal(h.setModelCalls.length, 0);
     assert.equal(h.notices.length, 0);
@@ -467,7 +363,7 @@ describe("default export — session_start behaviour", () => {
 
   it("does not throw and announces the failure when config/path-defaults.json is malformed", async () => {
     await writeFile(pathDefaultsFile, "{ not json");
-    const h = makeHarness({ cwd: "/home/user/anywhere", knownModels: new Set() });
+    const h = makeHarness({ knownModels: new Set() });
     await assert.doesNotReject(h.fireSessionStart());
     assert.ok(h.notices.some((n) => n.level === "error" && n.message.includes("not applied")));
   });
@@ -477,13 +373,7 @@ describe("registerCommand(\"path-defaults-status\")", () => {
   let savedArgv: string[];
   beforeEach(async () => {
     savedArgv = process.argv;
-    await writeFile(
-      pathDefaultsFile,
-      JSON.stringify({
-        version: 1,
-        roots: [{ path: "/home/user/work/acme", tier: "confidential", egress: { web: "deny", mcp: "allow", publicModels: "deny" } }],
-      }),
-    );
+    await writeConfiguredTier("confidential");
     process.env.PI_PATH_DEFAULTS_JSON = pathDefaultsFile;
   });
   afterEach(() => {
@@ -491,10 +381,10 @@ describe("registerCommand(\"path-defaults-status\")", () => {
     delete process.env.PI_PATH_DEFAULTS_JSON;
   });
 
-  it("reports the resolution for the current directory without mutating the model", async () => {
-    const h = makeHarness({ cwd: "/home/user/work/acme/repo", knownModels: new Set() });
+  it("reports the configured resolution without mutating the model", async () => {
+    const h = makeHarness({ knownModels: new Set() });
     await h.runCommand("path-defaults-status");
     assert.equal(h.setModelCalls.length, 0);
-    assert.ok(h.notices.some((n) => n.message.includes("matches root")));
+    assert.ok(h.notices.some((n) => n.message.includes("configured default tier")));
   });
 });

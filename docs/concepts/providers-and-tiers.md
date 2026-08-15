@@ -147,8 +147,9 @@ provider with no class dispatches normally and reads as `unlabelled`.
     If you need an actual network boundary, build one at the network layer. See
     [ADR 0004](../adr/0004-egress-classes-are-declarative.md).
 
-[`path-defaults`](../extensions/path-defaults.md) extends the same vocabulary per directory root,
-with the same honesty caveat attached to its per-channel `{web, mcp, publicModels}` policy.
+[`path-defaults`](../extensions/path-defaults.md) extends the same vocabulary — one configured tier
+and one install-wide policy, not a per-directory one — with the same honesty caveat attached to its
+per-channel `{web, mcp, publicModels}` policy.
 
 ## Concurrency
 

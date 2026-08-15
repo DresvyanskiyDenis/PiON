@@ -116,7 +116,7 @@ knows it exists.
 | `config/digest.json` | [`digest`](../extensions/digest.md) | Whether digests run, the summariser tier, output directory |
 | `config/quota.json` | [`quota`](../extensions/quota.md) | Token file path, TTL, pre-flight threshold |
 | `config/tasks.json` | [`tasks`](../extensions/tasks.md) | Nudge cadence and staleness horizon |
-| `config/path-defaults.json` | [`path-defaults`](../extensions/path-defaults.md) | Per-directory-root tier and per-channel egress policy |
+| `config/path-defaults.json` | [`path-defaults`](../extensions/path-defaults.md) | Single default tier and per-channel egress policy, applied to every session |
 | `config/bash-timeouts.json` | [`bash`](../extensions/bash.md) | Default timeout, ceiling, truncation limits |
 | `config/hooks.yaml` | [`hooks`](../extensions/hooks.md) | Declarative tool-call and input rules |
 | `config/mcp.json` | the vendored MCP adapter | MCP servers. **Ships empty** — see [Adding an MCP server](../extending/mcp-servers.md) |

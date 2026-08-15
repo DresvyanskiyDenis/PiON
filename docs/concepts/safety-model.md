@@ -277,7 +277,7 @@ Stated plainly, because implied enforcement is worse than none.
 | Not covered | Why |
 |---|---|
 | **Egress classes are not a network boundary — and since 2026-08-13 they are not a refusal either** | Nothing intercepts a socket, and nothing refuses a dispatch on account of a class any more. `egress` is a word from `routing.json` printed beside every model and agent. If you need a real boundary, build one at the network layer |
-| **`path-defaults`' per-channel policy is declarative** | It computes and exports a value for other modules to honour at their own call sites. A tree with no such wiring enforces nothing from that channel |
+| **`path-defaults`' per-channel policy is declarative** | It computes and exports one, install-wide value for other modules to honour at their own call sites. An install with no such wiring enforces nothing from that channel |
 | **A process that already started** | The guard gates tool calls. It does not contain a running process, its children, or what it does to the filesystem |
 | **Any program, by name, at all** | There is no allowlist and no denylist keyed on program name any more. `sh`, `env`, `xargs`, `ssh`, `sudo`, `curl` — everything runs headless, with no prompt, unless the *command shape* it is used for matches `DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` |
 | **A credential reaching the model's context** | Since 2026-08-15 `SEC-*` records a credential-path read and permits it. Nothing at runtime stops the file's contents from being sent to the provider — see [above](#credential-reads-are-no-longer-refused) |

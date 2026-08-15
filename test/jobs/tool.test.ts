@@ -7,7 +7,7 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-w
 
 import { register as registerJobs, __resetForTests } from "../../extensions/jobs/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
-import { ensureJobsRoot, isProcessAlive, listJobs, type JobState } from "../../extensions/jobs/store.ts";
+import { ensureJobsRoot, isProcessAlive, listJobs, readState, writeState, type JobState } from "../../extensions/jobs/store.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => Promise<void> | void;
 
@@ -266,5 +266,39 @@ describe("job tool (EXT-24)", () => {
 
     const killed = await call({ action: "kill", id }, ctx);
     await until(() => !isProcessAlive((killed.details as JobState).pid));
+  });
+
+  it("session_start auto-prunes terminal jobs older than the retention window", async () => {
+    const prevPrune: string | undefined = process.env.PI_JOBS_PRUNE_HOURS;
+    process.env.PI_JOBS_PRUNE_HOURS = "1";
+    try {
+      const ctx = fakeCtx("sess-1", { hasUI: true, status: new Map() });
+      const started = await call({ action: "start", command: "exit 0" }, ctx);
+      const id = (started.details as { id: string }).id;
+      await until(async () => (await listJobs(root)).jobs.find((job) => job.id === id)?.status === "done");
+
+      const state = (await readState(root, id))!;
+      await writeState(root, { ...state, finishedAt: Date.now() - 2 * 3_600_000 });
+
+      await harness.handlers.get("session_start")!({}, ctx);
+      assert.deepEqual((await listJobs(root)).jobs, [], "the backdated job is pruned before the rest of session_start runs");
+    } finally {
+      if (prevPrune === undefined) delete process.env.PI_JOBS_PRUNE_HOURS;
+      else process.env.PI_JOBS_PRUNE_HOURS = prevPrune;
+    }
+  });
+
+  it("session_start does not prune a job inside the retention window", async () => {
+    const ctx = fakeCtx("sess-1", { hasUI: true, status: new Map() });
+    const started = await call({ action: "start", command: "exit 0" }, ctx);
+    const id = (started.details as { id: string }).id;
+    await until(async () => (await listJobs(root)).jobs.find((job) => job.id === id)?.status === "done");
+
+    await harness.handlers.get("session_start")!({}, ctx);
+    assert.deepEqual(
+      (await listJobs(root)).jobs.map((job) => job.id),
+      [id],
+      "a job that finished moments ago is well inside the default 7-day window",
+    );
   });
 });

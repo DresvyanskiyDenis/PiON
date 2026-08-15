@@ -78,7 +78,12 @@
     "~/pi-config/node_modules/@mrclrchtr/supi-bash-timeout",
     "~/pi-config/node_modules/@narumitw/pi-statusline",
     "~/pi-config/node_modules/@narumitw/pi-worktree",
-    "~/pi-config/node_modules/@narumitw/pi-lsp"
+    "~/pi-config/node_modules/@narumitw/pi-lsp",
+    "~/pi-config/node_modules/@narumitw/pi-usage",
+    "~/pi-config/node_modules/@narumitw/pi-retry",
+    "~/pi-config/node_modules/pi-lean-ctx",
+    "~/pi-config/node_modules/pi-hermes-memory",
+    "~/pi-config/node_modules/pi-sandbox"
   ],
   "enableSkillCommands": true,
   "lastChangelogVersion": "0.84.0"

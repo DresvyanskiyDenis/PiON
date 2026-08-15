@@ -32,5 +32,22 @@ resolved from", which is a different thing and is optional.
 The module therefore derives the directory itself rather than trusting the field. This is the kind
 of finding that is cheap to write down and expensive to rediscover.
 
+## A skill contributed by an extension needs a second pass
+
+`resources_discover` fires once per session for *this* module too, and PI collects every handler's
+return value before it applies any of them: a skill root contributed by another `resources_discover`
+handler — [`skill-mask`](skill-mask.md), concretely — is only added to the resolved skill list
+*after* every `resources_discover` handler, this one included, has already returned. So on the very
+first pass, `pi.getCommands()` cannot see a skill that reached the roster this way, and its
+`PI_SKILL_DIR_<NAME>` would silently never be set.
+
+PI exposes no event that fires strictly after that resolution step, so this module registers a
+second handler on `agent_start` — the first point in the session, on every mode and after every
+`/reload`, that is guaranteed to run after the resolved skill list is final. It re-reads
+`pi.getCommands()` and reapplies every variable, gated so the re-run happens once per
+`resources_discover` firing (a startup or a reload) rather than on every turn. Skill scripts only
+ever run from a tool call inside a turn, which is after `agent_start`, so the variable is always
+correct by the time it could matter.
+
 ## Related
 [Adding a skill](../extending/skills.md) · [skill-mask](skill-mask.md) · [skills-lint](skills-lint.md)

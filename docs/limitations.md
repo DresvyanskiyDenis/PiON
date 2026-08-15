@@ -67,6 +67,33 @@ implemented directly in [`web`](extensions/web.md) instead.
 A listener attached after an `emit()` receives nothing, ever. Anything ordering-sensitive must gate
 on recorded state, not on an event. See [`doctor`](extensions/doctor.md)'s `D-06`.
 
+### The `pi` binary is a compiled Bun executable, not Node — some declared packages fail to load under it
+
+`pi` (`file` reports Mach-O with a `__BUN` section, `bun --version` on this machine is 1.3.11) uses
+Bun's own module resolver for every entry in `settings.packages`, not the system `node` these packages
+were written against. [Third-party components](reference/third-party.md) lists all of the following as
+*adopted* — reviewed, pinned, present in `node_modules` — but wiring them into `settings.packages` and
+starting a real session (`pi -p '...'`, not `pi --list-models`, which does not exercise extension
+registration) throws and **aborts startup entirely**, one failed extension being enough to abort all of
+them:
+
+| Package | Failure, verbatim | Category |
+|---|---|---|
+| `pi-hashline-edit-pro`, `@nklisch/pi-plugins` | `ResolveMessage: No such built-in module: node:sqlite` | Bun does not implement Node's `node:sqlite` (it ships `bun:sqlite` instead); both packages assume Node ≥22.5's built-in. |
+| `@99percentpeople/pi-background-tasks` | `ResolveMessage: Cannot find module '@xterm/headless'` | The dependency is physically present in `node_modules`; Bun's resolver still cannot find it — unexplained, not chased further. |
+| `pi-smart-compact` | `ResolveMessage: NameTooLong while resolving package 'data:text/javascript;base64,...'` | A jiti-style in-memory TS transpile handed to Bun's resolver as a `data:` URL; Bun appears to cap resolvable module specifier length below what a bundled file encodes to. |
+| `pi-opa-net` | `Failed to load extension: undefined is not an object (evaluating '_index.default')` | The package's `src/pi/index.ts` calls its registration function eagerly at module scope but does not `export default` it — a packaging bug, not a config problem. |
+| `pi-web-search` | `Tool "web_search" conflicts with .../pi-web-access/index.ts` | `pi-web-search` and the already-adopted `pi-web-access` both default to a tool named `web_search`; PI's loader rejects the duplicate registration outright. Wiring both together is not possible without one of them renaming its tool. |
+
+None of this is visible from `pi --list-models` — that command loads packages but does not appear to
+exercise the same registration path a real session does, so it is not a substitute for a real
+`pi -p '...'` smoke call when validating a newly wired package. `settings.default.json` in this
+repository therefore ships only the five packages from this review that load cleanly under a real
+session start (`@narumitw/pi-usage`, `@narumitw/pi-retry`, `pi-lean-ctx`, `pi-hermes-memory`,
+`pi-sandbox`, alongside the packages already adopted before this review) — the five above are reviewed
+and pinned but **not** in `settings.default.json`'s `packages[]`, precisely because wiring any one of
+them breaks every session.
+
 ---
 
 ## Design limits — deliberate non-goals
@@ -84,8 +111,9 @@ often than it prevented anything, and it never made the network claim true.
 
 ### `path-defaults`' per-channel policy is declarative only
 
-It computes and exports `{web, mcp, publicModels}` for other modules to honour at their own call
-sites. A tree with no such wiring enforces nothing from that channel.
+It computes and exports `{web, mcp, publicModels}` — one policy for the whole install, since
+2026-08-15 — for other modules to honour at their own call sites. An install with no such wiring
+enforces nothing from that channel.
 
 ### There is no provider failover, and there will not be
 

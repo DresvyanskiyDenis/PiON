@@ -101,7 +101,10 @@ Two rules for skills that ship code:
   `${SKILL_DIR}`; [`skills-env`](../extensions/skills-env.md) supplies one on every
   `resources_discover`. The name is derived from the skill name — `coverage-report` becomes
   `PI_SKILL_DIR_COVERAGE_REPORT` (uppercased, hyphens to underscores). `PI_SKILLS_ROOT` also holds
-  the directory that contains the most discovered skills, for a skill that needs its siblings.
+  the directory that contains the most discovered skills, for a skill that needs its siblings. A
+  skill contributed by a `resources_discover` handler rather than `config/settings.json` — see the
+  precedence table below — needs a second pass to get its variable at all; `skills-env` covers that
+  case too, on `agent_start` (see [`skills-env`](../extensions/skills-env.md)).
 - **Keep the script small and boring.** A skill that shells out to four hundred lines of Python is a
   program with a Markdown wrapper; give it a repository and let the skill call its CLI.
 

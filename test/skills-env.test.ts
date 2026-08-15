@@ -7,6 +7,7 @@ import type { ExtensionAPI, SlashCommandInfo } from "@earendil-works/pi-coding-a
 
 import {
   __resetForTests,
+  __setPendingPostExtendRefreshForTests,
   applyEnv,
   computeSkillsRoot,
   envVarName,
@@ -15,23 +16,41 @@ import {
 } from "../extensions/skills-env.ts";
 import { resetSurfaced } from "../extensions/lib/once.ts";
 
-/** Captures the `resources_discover` handler the module registers, and fakes `getCommands()`. */
-function fakePi(commands: SlashCommandInfo[]): {
+/**
+ * Captures both handlers the module registers and fakes `getCommands()`. `getCommands` is a
+ * mutable function reference (not a snapshot) so a test can swap in a longer roster between
+ * `fireResourcesDiscover()` and `fireAgentStart()` to simulate `extendResources` landing an
+ * extension-contributed skill in between — exactly the ordering `agent-session.js:1764-1777`
+ * guarantees.
+ */
+function fakePi(initialCommands: SlashCommandInfo[]): {
   pi: ExtensionAPI;
-  fire: () => unknown;
+  setCommands: (commands: SlashCommandInfo[]) => void;
+  fireResourcesDiscover: () => unknown;
+  fireAgentStart: () => unknown;
 } {
-  let handler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  let commands = initialCommands;
+  let resourcesDiscoverHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
+  let agentStartHandler: ((event: unknown, ctx: unknown) => unknown) | undefined;
   const pi = {
     on: (event: string, h: (event: unknown, ctx: unknown) => unknown) => {
-      if (event === "resources_discover") handler = h;
+      if (event === "resources_discover") resourcesDiscoverHandler = h;
+      else if (event === "agent_start") agentStartHandler = h;
     },
     getCommands: () => commands,
   } as unknown as ExtensionAPI;
   return {
     pi,
-    fire: () => {
-      if (!handler) throw new Error("resources_discover handler was never registered");
-      return handler({ type: "resources_discover", cwd: "/repo", reason: "startup" }, { hasUI: false });
+    setCommands: (next) => {
+      commands = next;
+    },
+    fireResourcesDiscover: () => {
+      if (!resourcesDiscoverHandler) throw new Error("resources_discover handler was never registered");
+      return resourcesDiscoverHandler({ type: "resources_discover", cwd: "/repo", reason: "startup" }, { hasUI: false });
+    },
+    fireAgentStart: () => {
+      if (!agentStartHandler) throw new Error("agent_start handler was never registered");
+      return agentStartHandler({ type: "agent_start" }, { hasUI: false });
     },
   };
 }
@@ -193,7 +212,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
   });
 
   it("filters out non-skill commands and exports env for the rest", async () => {
-    const { pi, fire } = fakePi([
+    const { pi, fireResourcesDiscover: fire } = fakePi([
       extensionCommand("ctx-dump"),
       skillCommand("sofa", "/repo/skills/sofa"),
       skillCommand("roadmap-artifact", "/repo/skills/roadmap-artifact"),
@@ -222,7 +241,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
     mkdirSync(sofaDir, { recursive: true });
     mkdirSync(councilDir, { recursive: true });
 
-    const { pi, fire } = fakePi([skillCommand("sofa", sofaDir), skillCommand("council", councilDir)]);
+    const { pi, fireResourcesDiscover: fire } = fakePi([skillCommand("sofa", sofaDir), skillCommand("council", councilDir)]);
     register(pi);
 
     const { lines } = await captureStderr(() => fire());
@@ -248,7 +267,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
     mkdirSync(wikiDir, { recursive: true });
     mkdirSync(pkgSkillDir, { recursive: true });
 
-    const { pi, fire } = fakePi([
+    const { pi, fireResourcesDiscover: fire } = fakePi([
       skillCommand("tickets", ticketsDir, agentsSkillsDir),
       skillCommand("wiki", wikiDir, agentsSkillsDir),
       skillCommand("pi-subagents", pkgSkillDir, pkgRoot),
@@ -265,7 +284,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
   });
 
   it("skips a skill with no usable sourceInfo.path, reports it once, and still sets the rest", async () => {
-    const { pi, fire } = fakePi([
+    const { pi, fireResourcesDiscover: fire } = fakePi([
       skillCommand("sofa", "/repo/skills/sofa"),
       skillCommand("broken", undefined),
     ]);
@@ -299,7 +318,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
     symlinkSync(realSkillsDir, join(linkedAgentDir, "skills"));
 
     const symlinkedFooDir = join(linkedAgentDir, "skills", "foo");
-    const { pi, fire } = fakePi([skillCommand("foo", symlinkedFooDir)]);
+    const { pi, fireResourcesDiscover: fire } = fakePi([skillCommand("foo", symlinkedFooDir)]);
     register(pi);
 
     const { lines } = await captureStderr(() => fire());
@@ -319,7 +338,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
     const ghostDir = join(root, "ghost", "skill");
     // Deliberately never created — `mkdirSync` is skipped so realpathSync(ghostDir) throws ENOENT.
 
-    const { pi, fire } = fakePi([skillCommand("ghost", ghostDir)]);
+    const { pi, fireResourcesDiscover: fire } = fakePi([skillCommand("ghost", ghostDir)]);
     register(pi);
 
     const { lines } = await captureStderr(() => fire());
@@ -338,23 +357,78 @@ describe("skills-env: register + resources_discover end-to-end", () => {
   });
 
   it("fails open when pi.getCommands() itself throws — no crash, error surfaced once", async () => {
-    const pi = {
-      on: (event: string, h: (event: unknown, ctx: unknown) => unknown) => {
-        (pi as unknown as { _h?: typeof h })._h = h;
-      },
-      getCommands: () => {
-        throw new Error("boom");
-      },
-    } as unknown as ExtensionAPI & { _h?: (event: unknown, ctx: unknown) => unknown };
+    const { pi, fireResourcesDiscover } = fakePi([]);
+    (pi as unknown as { getCommands: () => never }).getCommands = () => {
+      throw new Error("boom");
+    };
     register(pi);
 
-    const { lines } = await captureStderr(() =>
-      (pi as unknown as { _h: (event: unknown, ctx: unknown) => unknown })._h(
-        { type: "resources_discover", cwd: "/repo", reason: "startup" },
-        { hasUI: false },
-      ),
-    );
-    assert.ok(lines.some((l) => l.includes("skills-env: resources_discover handler failed") && l.includes("boom")));
+    const { lines } = await captureStderr(() => fireResourcesDiscover());
+    assert.ok(lines.some((l) => l.includes("skills-env: skill discovery failed") && l.includes("boom")));
     assert.equal(process.env.PI_SKILLS_ROOT, undefined);
+  });
+});
+
+describe("skills-env: extension-contributed skills reach the roster after resources_discover", () => {
+  before(() => resetSurfaced());
+  afterEach(() => {
+    __resetForTests();
+    resetSurfaced();
+  });
+
+  // REGRESSION. `AgentSession.extendResourcesFromExtensions` (`agent-session.js:1764-1777`)
+  // collects every `resources_discover` handler's return value and only calls `extendResources`
+  // AFTER all of them have returned — so a skill contributed by one `resources_discover` handler
+  // (e.g. `extensions/skill-mask.ts`) is invisible to `pi.getCommands()` inside another
+  // `resources_discover` handler firing in the same pass (this module). Modelled here by a
+  // `getCommands()` that returns a short roster during `resources_discover` and a longer one — the
+  // same list, plus the extension-contributed skill — once `extendResources` would have landed it,
+  // by the time `agent_start` fires.
+  it("picks up a skill that only appears after resources_discover, on the next agent_start", async () => {
+    const early = [skillCommand("sofa", "/repo/skills/sofa")];
+    const late = [...early, skillCommand("roadmap-artifact", "/repo/skills-private/roadmap-artifact")];
+    const { pi, setCommands, fireResourcesDiscover, fireAgentStart } = fakePi(early);
+    register(pi);
+
+    await fireResourcesDiscover();
+    // Old behaviour: this is where the module stopped. The extension-contributed skill's var is
+    // not set, and — because from this module's point of view the skill did not exist yet — no
+    // warning fires either. That silence is exactly what made the defect invisible for weeks.
+    assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
+    assert.equal(process.env.PI_SKILL_DIR_ROADMAP_ARTIFACT, undefined);
+
+    // `extendResources` has now landed the extension-contributed skill (agent-session.js:1777),
+    // and the mode is about to start the first turn.
+    setCommands(late);
+    await fireAgentStart();
+
+    assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
+    assert.equal(process.env.PI_SKILL_DIR_ROADMAP_ARTIFACT, "/repo/skills-private/roadmap-artifact");
+  });
+
+  it("does not redo the discovery pass on a second agent_start with no prior resources_discover", async () => {
+    const { pi, setCommands, fireResourcesDiscover, fireAgentStart } = fakePi([
+      skillCommand("sofa", "/repo/skills/sofa"),
+    ]);
+    register(pi);
+
+    await fireResourcesDiscover();
+    await fireAgentStart(); // consumes the pending catch-up
+    assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
+
+    // A skill disappearing here must NOT be picked up — the catch-up gate only opens again on
+    // the next `resources_discover` (a fresh startup or reload), not on every turn.
+    setCommands([]);
+    await fireAgentStart();
+    assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
+  });
+
+  it("agent_start is a no-op when it fires with no prior resources_discover in the session", async () => {
+    const { pi, fireAgentStart } = fakePi([skillCommand("sofa", "/repo/skills/sofa")]);
+    register(pi);
+
+    __setPendingPostExtendRefreshForTests(false);
+    await fireAgentStart();
+    assert.equal(process.env.PI_SKILL_DIR_SOFA, undefined);
   });
 });
