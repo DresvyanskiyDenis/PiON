@@ -1819,7 +1819,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3664,7 +3664,7 @@
 <h1 id="pion">PiON<a class="headerlink" href="#pion" title="Permanent link">&para;</a></h1>
 <p><strong>PiON — a hardened, portable harness for the <a href="https://github.com/earendil-works/pi">PI coding agent</a>.</strong></p>
 <p>PI ships a good agent loop, a tool set, a TUI and a provider layer. It does not ship a permission
-system, a way to say "run this sub-agent on the cheap model", a compaction loop guard, a background
+system, a way to say "run this sub-agent on the delegation model", a compaction loop guard, a background
 job directory that survives the process, or a headless wrapper that actually exits non-zero when a
 turn fails. This repository is the layer that adds those, as one composed extension plus a
 configuration tree that is symlinked into <code>~/.pi/agent/</code>.</p>
@@ -3677,8 +3677,8 @@ shell and are exercised on macOS.</p>
 <ul>
 <li>
 <p><strong>Multi-provider routing by semantic tier</strong></p>
-<p>Agents, scripts and cron jobs name a <em>tier</em> — <code>strong</code>, <code>fast</code>, <code>cheap</code>, <code>confidential</code>,
-<code>local</code> — never a model id. Repointing a tier is a one-line edit in
+<p>Agents, scripts and cron jobs name a <em>tier</em> — <code>strong</code>, <code>light</code>, <code>confidential</code> — never a
+model id. Repointing a tier is a one-line edit in
 <a href="configuration/routing/"><code>config/routing.json</code></a>.
 → <a href="concepts/providers-and-tiers/">Providers and tiers</a></p>
 </li>

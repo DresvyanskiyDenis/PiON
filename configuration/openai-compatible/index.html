@@ -2017,7 +2017,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3963,39 +3963,24 @@ supplies everything else.</p>
 generated and gitignored.</p>
 <hr />
 <h2 id="is-this-the-one-you-want">Is this the one you want?<a class="headerlink" href="#is-this-the-one-you-want" title="Permanent link">&para;</a></h2>
-<p>There are two different things behind the words "route OpenAI somewhere else", and picking the
-wrong one produces an error that reads like a broken install.</p>
-<table>
-<thead>
-<tr>
-<th>Your endpoint</th>
-<th>Use</th>
-<th>Why</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>A <strong>transparent proxy</strong> in front of <code>api.openai.com</code> — still answers to <code>gpt-…</code> names</td>
-<td>the <code>openai</code> fragment, answering <strong>yes</strong> to "route through a proxy"</td>
-<td>Overriding <code>baseUrl</code> on a built-in provider keeps OpenAI's catalogue <em>and</em> its auth, which is exactly right here</td>
-</tr>
-<tr>
-<td>A <strong>gateway</strong> publishing its own catalogue — LiteLLM, vLLM, OpenRouter, an in-house router</td>
-<td><strong>this fragment</strong></td>
-<td>The gateway has never heard of <code>gpt-5.4</code>; keeping OpenAI's catalogue means every request names a model that does not exist there</td>
-</tr>
-</tbody>
-</table>
+<p>Almost certainly yes. <code>openai</code> in this fragment's name is the <strong>wire protocol</strong> — the
+<code>/v1/chat/completions</code> request shape — and not a vendor. Anything speaking it under <strong>its own model
+names</strong> is this fragment, answered differently: a gateway (LiteLLM, vLLM, OpenRouter, an in-house
+router), a first-party vendor API, or a model server on your own loopback.</p>
+<p>It is the only fragment that fits an endpoint publishing its own catalogue, which is what most of
+them do.</p>
 <div class="admonition warning">
 <p class="admonition-title">The trap this fragment exists to close</p>
-<p>Overriding <code>baseUrl</code> on the built-in <code>openai</code> provider <strong>keeps OpenAI's model list</strong>. Point that
-at a gateway and <code>config/models.json</code> still says <code>gpt-5.4</code>, so the first request comes back as an
-unknown-model error from an endpoint you just configured correctly. Nothing is misconfigured
-except the catalogue.</p>
+<p>PI ships built-in providers whose <strong>catalogue comes with them</strong>. Overriding only the <code>baseUrl</code> on
+one of those keeps the vendor's model list, so pointing it at a gateway leaves
+<code>config/models.json</code> naming models the gateway has never heard of — and the first request comes
+back as an unknown-model error from an endpoint you just configured correctly. Nothing is
+misconfigured except the catalogue. Declaring the endpoint whole, which is what this fragment
+does, is the fix.</p>
 </div>
 <hr />
 <h2 id="the-interview">The interview<a class="headerlink" href="#the-interview" title="Permanent link">&para;</a></h2>
-<p>Seven questions, plus three more if you configure more than one model. In order:</p>
+<p>Seven questions, plus two more if you configure a second model. In order:</p>
 <table>
 <thead>
 <tr>
@@ -4038,21 +4023,11 @@ except the catalogue.</p>
 <tr>
 <td>7</td>
 <td>A second model id, or blank if you only want one</td>
-<td>Suggested for the <code>fast</code> tier</td>
+<td>Suggested for the <code>light</code> tier</td>
 </tr>
 <tr>
 <td>8</td>
 <td>Context window for the second model</td>
-<td>Only asked if you gave one</td>
-</tr>
-<tr>
-<td>9</td>
-<td>A third model id, or blank</td>
-<td>Only offered if you gave a second. Suggested for the <code>cheap</code> tier</td>
-</tr>
-<tr>
-<td>10</td>
-<td>Context window for the third model</td>
 <td>Only asked if you gave one</td>
 </tr>
 </tbody>
@@ -4148,7 +4123,8 @@ endpoint. What you give up until you test:</p>
 needed costs a feature; a flag turned on that is unsupported costs a 400 on every request.</p>
 <hr />
 <h2 id="adding-more-models-later">Adding more models later<a class="headerlink" href="#adding-more-models-later" title="Permanent link">&para;</a></h2>
-<p>The installer asks for at most three, because a longer prompt list stops being an interview.
+<p>The installer asks for at most two — one per bindable tier, <code>strong</code> and <code>light</code> — because a longer
+prompt list stops being an interview.
 Afterwards the file is yours:</p>
 <ol>
 <li>Append an object to <code>providers.openai-compatible.models</code> in <code>config/models.json</code> — copy one of

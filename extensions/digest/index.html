@@ -1824,7 +1824,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3752,7 +3752,7 @@
 <h1 id="digest-end-of-session-summaries"><code>digest</code> — end-of-session summaries<a class="headerlink" href="#digest-end-of-session-summaries" title="Permanent link">&para;</a></h1>
 <p>Binds the session-teardown and pre-compaction events. On either, it spools one job file and asks a
 detached helper to drain it — so summarisation never delays your exit.</p>
-<p>Configured by <a href="../../configuration/sessions/#digestjson"><code>config/digest.json</code></a>. One <code>cheap</code>-tier call
+<p>Configured by <a href="../../configuration/sessions/#digestjson"><code>config/digest.json</code></a>. One <code>light</code>-tier call
 per qualifying session; output is plain Markdown in <code>~/.pi/agent/digests/</code>.</p>
 <h2 id="three-overlapping-recursion-guards">Three overlapping recursion guards<a class="headerlink" href="#three-overlapping-recursion-guards" title="Permanent link">&para;</a></h2>
 <p>The summariser is itself a <code>pi</code> invocation, which loads this same extension. Without guards it would
@@ -3782,7 +3782,7 @@ summarise its own summarisation, forever.</p>
 <p>Three independent guards for one failure, because the failure is a runaway loop that spends money.</p>
 <h2 id="turning-it-off">Turning it off<a class="headerlink" href="#turning-it-off" title="Permanent link">&para;</a></h2>
 <p><code>"enabled": false</code>. One key.</p>
-<p>If the cost is the concern rather than the files, rebind the <code>cheap</code> tier in
+<p>If the cost is the concern rather than the files, rebind the <code>light</code> tier in
 <a href="../../configuration/routing/"><code>routing.json</code></a> first — a digest on an appropriately cheap model is
 close to free, and the summaries are the cheapest institutional memory this harness produces.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>

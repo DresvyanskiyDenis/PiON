@@ -2017,7 +2017,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3987,16 +3987,19 @@ expected; re-running the installer regenerates the file, so an edit that must su
 <tbody>
 <tr>
 <td><strong>Built-in</strong> — PI already ships the provider and its catalogue</td>
-<td><code>github-copilot</code>, <code>anthropic</code>, <code>openai</code></td>
+<td><code>github-copilot</code></td>
 <td>Override the <em>minimum</em>. Re-declaring fields you did not mean to change is how OAuth blocks get destroyed. Use <code>modelOverrides</code>, not <code>models</code>.</td>
 </tr>
 <tr>
 <td><strong>Custom</strong> — PI has never heard of it</td>
-<td>a self-hosted gateway, a local server</td>
+<td>a self-hosted gateway, a server on loopback</td>
 <td>Declare it whole: <code>baseUrl</code>, <code>api</code>, <code>apiKey</code>, <code>compat</code>, and an explicit <code>models</code> array.</td>
 </tr>
 </tbody>
 </table>
+<p>PI's own catalogue knows more built-in providers than this harness ships a fragment for. That is not
+an invitation: a provider with no fragment has no prompts, no credential plan and no egress class, so
+it cannot be selected by the installer and nothing routes to it.</p>
 <hr />
 <h2 id="keys">Keys<a class="headerlink" href="#keys" title="Permanent link">&para;</a></h2>
 <h3 id="baseurl"><code>baseUrl</code><a class="headerlink" href="#baseurl" title="Permanent link">&para;</a></h3>
@@ -4013,11 +4016,11 @@ reason the provider fragments have prompts.</p>
 never typed. Omitting <code>baseUrl</code> on a <strong>built-in</strong> provider is correct and normal; omitting it on a
 custom one leaves PI with no endpoint at all.</p>
 <div class="admonition note">
-<p class="admonition-title">For the <code>local</code> provider, <code>models.json</code>'s <code>baseUrl</code> does not win</p>
-<p><code>extensions/credentials.ts</code> re-registers <code>local</code> with
-<code>process.env.PI_LOCAL_BASE_URL ?? "http://127.0.0.1:8888/v1"</code>, and PI's provider composer
-resolves <code>extension?.baseUrl ?? config?.baseUrl</code>. On any port other than 8888 you <strong>must</strong>
-also export <code>PI_LOCAL_BASE_URL</code> — see <a href="../environment/#pi_local_base_url">Environment</a>.</p>
+<p class="admonition-title"><code>models.json</code>'s <code>baseUrl</code> is now the only one</p>
+<p>An extension used to re-register a loopback provider at runtime, and PI's provider composer
+resolves <code>extension?.baseUrl ?? config?.baseUrl</code> — so that extension's URL outranked this file.
+It was deleted with the local lane (owner decision, 2026-08-15), and nothing in <code>extensions/</code>
+declares a <code>baseUrl</code> any more. What this file says is what is used.</p>
 </div>
 <h3 id="api"><code>api</code><a class="headerlink" href="#api" title="Permanent link">&para;</a></h3>
 <p>The wire protocol. Set it only for a <strong>custom</strong> provider.</p>
@@ -4083,8 +4086,9 @@ unconfigured, and PI drops that provider's <strong>entire catalogue</strong> fro
 rather than a missing credential.</p>
 <p>A present-but-unresolvable reference (<code>$VAR</code> for an unset variable) is a weaker failure: the
 models stay listed and the first request fails loudly. Still wrong, easier to diagnose.</p>
-<p>For a loopback server that authenticates nothing, ship a literal inert string. The <code>local</code>
-fragment uses <code>"not-required"</code> for exactly this reason.</p>
+<p>For a loopback server that authenticates nothing, ship a literal inert string —
+<code>"not-required"</code> — rather than omitting the key. PI treats a provider with no resolvable
+credential as unavailable, so an endpoint that genuinely needs none still has to say so.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title"><code>!command</code> has no TTL</p>
@@ -4237,16 +4241,16 @@ whole argument. The full reasoning, the measurement recipe and the <code>/contex
 <p>On a self-hosted serving platform they are your own endpoint names. On llama.cpp they are
 usually the model filename; on a swapping router, its alias; on Ollama, <code>name:tag</code>. Ask the
 server:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PI_LOCAL_BASE_URL</span><span class="k">:-</span><span class="nv">http</span><span class="p">://127.0.0.1:</span><span class="nv">8888</span><span class="p">/v1</span><span class="si">}</span><span class="s2">/models&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.data[].id&#39;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;&lt;your-base-url&gt;/models&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.data[].id&#39;</span>
 </span></code></pre></div>
 <p>Do not copy ids out of anyone else's configuration — including the examples shipped in
-<code>config/providers/local.json</code>, which are labelled <code>example-…</code> precisely because they do not
-exist anywhere.</p>
+<code>config/providers/openai-compatible.json</code>, which are labelled <code>example-…</code> precisely because they
+do not exist anywhere.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Dashes here, dots there</p>
 <p>The same model can carry two id conventions on two providers —
-<code>anthropic/claude-haiku-4-5</code> and <code>github-copilot/claude-haiku-4.5</code>. Getting it wrong produces
+<code>databricks/databricks-claude-haiku-4-5</code> and <code>github-copilot/claude-haiku-4.5</code>. Getting it wrong produces
 <code>model not in the registry</code> at dispatch, which is loud but confusing the first time.</p>
 </div>
 <div class="admonition tip">
@@ -4293,28 +4297,10 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 <td>Never run <code>/login</code> on this path — the OAuth resolver silently overrides your <code>baseUrl</code></td>
 </tr>
 <tr>
-<td><code>anthropic.json</code></td>
-<td>yes</td>
-<td><code>public</code></td>
-<td>Nothing is required for it to work; the block only corrects context windows</td>
-</tr>
-<tr>
-<td><code>openai.json</code></td>
-<td>yes</td>
-<td><code>public</code></td>
-<td>The 200 000 cap is a deliberate downgrade from PI's 272 000 — that number is a <em>pricing</em> boundary</td>
-</tr>
-<tr>
 <td><code>databricks.json</code></td>
 <td>no</td>
 <td><code>confidential</code></td>
 <td>Model ids are your own serving-endpoint names; the <code>compat</code> block is measured</td>
-</tr>
-<tr>
-<td><code>local.json</code></td>
-<td>no</td>
-<td><code>confidential</code></td>
-<td><code>apiKey</code> must be non-empty; <code>PI_LOCAL_BASE_URL</code> wins over <code>baseUrl</code></td>
 </tr>
 <tr>
 <td><a href="../openai-compatible/"><code>openai-compatible.json</code></a></td>
@@ -4326,7 +4312,7 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 </table>
 <p>The fragment schema, the substitution rules and the merge algorithm are documented in
 <code>config/providers/README.md</code>, which is the contract between the fragments and the installer. To
-add a seventh provider, see <a href="../../extending/providers/">Adding a provider</a> — but check first
+add a fourth provider, see <a href="../../extending/providers/">Adding a provider</a> — but check first
 whether <a href="../openai-compatible/"><code>openai-compatible</code></a> already covers your endpoint.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>

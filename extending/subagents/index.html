@@ -1816,7 +1816,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3981,7 +3981,7 @@ dispatched it.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>write
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>model: fast
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>model: light
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="gu">returns: object</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gu">---</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
@@ -4024,7 +4024,7 @@ the report — it is never silently skipped.</p>
 <tr>
 <td><code>model</code></td>
 <td>no</td>
-<td>a tier name (<code>strong</code>, <code>fast</code>, <code>cheap</code>, …) or an explicit <code>provider/model</code>. Defaults to <code>dispatch.json</code>'s <code>defaultTier</code></td>
+<td>a tier name (<code>strong</code>, <code>light</code>, <code>confidential</code>) or an explicit <code>provider/model</code>. Defaults to <code>dispatch.json</code>'s <code>defaultTier</code></td>
 </tr>
 <tr>
 <td><code>tools</code></td>
@@ -4111,12 +4111,12 @@ falling back to a generic agent.</p>
 <td>review, architecture, hard debugging — anything where being wrong is expensive</td>
 </tr>
 <tr>
-<td><code>fast</code></td>
-<td>docs, mechanical multi-file edits, scaffolding</td>
+<td><code>light</code></td>
+<td>everything else: docs, mechanical multi-file edits, scaffolding, classification, summarising, grep-and-report. The default</td>
 </tr>
 <tr>
-<td><code>cheap</code></td>
-<td>classification, summarising, grep-and-report</td>
+<td><code>confidential</code></td>
+<td>anything that must not leave your boundary. Ships unbound, so naming it fails loudly until you bind it</td>
 </tr>
 </tbody>
 </table>

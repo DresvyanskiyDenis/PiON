@@ -2056,7 +2056,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -4325,7 +4325,7 @@ key-shaped strings and fails the build on one.</p>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./scripts/install.sh<span class="w"> </span>--express<span class="w">                    </span><span class="c1"># providers + safety only, defaults for the rest</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>./scripts/install.sh<span class="w"> </span>--answers<span class="w"> </span>my.conf<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># from a saved answer file</span>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>./scripts/install.sh<span class="w"> </span>--providers<span class="w"> </span>a,b<span class="w">              </span><span class="c1"># preselect providers, skip the picker</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>./scripts/install.sh<span class="w"> </span>--tier<span class="w"> </span><span class="nv">fast</span><span class="o">=</span>acme/model-1<span class="w">     </span><span class="c1"># preset one tier binding (repeatable)</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>./scripts/install.sh<span class="w"> </span>--tier<span class="w"> </span><span class="nv">light</span><span class="o">=</span>acme/model-1<span class="w">    </span><span class="c1"># preset one tier binding (repeatable)</span>
 </span></code></pre></div>
 <p>Each run saves its answers, so <strong>a second machine can be made identical</strong> by copying that file and
 passing <code>--answers</code>. The path is printed in the final summary.</p>

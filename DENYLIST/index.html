@@ -1814,7 +1814,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3609,6 +3609,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dropped-when-the-lane-they-served-was-deleted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dropped when the lane they served was deleted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#refused-and-not-on-npm-under-a-name-worth-recording" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3688,6 +3699,17 @@
     <span class="md-ellipsis">
       
         Refused
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dropped-when-the-lane-they-served-was-deleted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dropped when the lane they served was deleted
       
     </span>
   </a>
@@ -3783,6 +3805,18 @@ person re-does the review, reaches the same conclusion, and pays for it twice.</
 </tr>
 </tbody>
 </table>
+<h2 id="dropped-when-the-lane-they-served-was-deleted">Dropped when the lane they served was deleted<a class="headerlink" href="#dropped-when-the-lane-they-served-was-deleted" title="Permanent link">&para;</a></h2>
+<p>Not a refusal, and deliberately not a row above: <code>pi-llama-cpp</code> 0.9.1 (MIT) passed review on
+2026-08-06 and was pinned for a local-model-server provider lane. Owner decision, 2026-08-15: the
+provider set is exactly <code>github-copilot</code>, an OpenAI-compatible gateway and <code>databricks</code>, and that
+lane was deleted from the harness. The package served nothing else — it never registered the
+provider id <code>local</code> (its own prefix is <code>llama-server</code>), and nothing under <code>extensions/</code> ever
+imported it — so it was uninstalled rather than left pinned and dead. It is recorded in
+<code>config/packages.lock.json</code>'s <code>not_installed[]</code>, which <code>test/bootstrap.test.ts</code> enforces, so its
+absence is a test rather than a note. A model server on loopback is still perfectly reachable
+through <a href="../configuration/openai-compatible/"><code>openai-compatible</code></a> with a <code>127.0.0.1</code> base URL,
+which needs no package at all. Re-adopting it would need a fresh review <em>and</em> a provider to adopt
+it for.</p>
 <h2 id="refused-and-not-on-npm-under-a-name-worth-recording">Refused, and not on npm under a name worth recording<a class="headerlink" href="#refused-and-not-on-npm-under-a-name-worth-recording" title="Permanent link">&para;</a></h2>
 <p>One well-regarded context-optimiser package was reviewed and not adopted, on two independent
 grounds:</p>

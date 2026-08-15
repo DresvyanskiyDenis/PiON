@@ -1923,7 +1923,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3854,8 +3854,8 @@ stops a process the agent already started from reaching the network. If you need
 boundary, build one at the network layer.</p>
 </div>
 <p><strong>What breaks:</strong> a <code>tier</code> naming an unbound tier makes every session fail at load. Since
-<code>confidential</code> and <code>local</code> ship unbound in <a href="../routing/#tiersunbound"><code>routing.default.json</code></a>, bind
-the tier before pointing <code>path-defaults.json</code> at it.</p>
+<code>confidential</code> ships unbound in <a href="../routing/#tiersunbound"><code>routing.default.json</code></a>, bind the tier
+before pointing <code>path-defaults.json</code> at it.</p>
 <hr />
 <h2 id="per-project-settings">Per-project settings<a class="headerlink" href="#per-project-settings" title="Permanent link">&para;</a></h2>
 <p>A project may carry its own <code>.pi/settings.json</code>, deep-merged <strong>over</strong> the global

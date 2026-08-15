@@ -1934,7 +1934,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3843,17 +3843,15 @@ starting PI. It runs 22 rules (21 without <code>--live</code>, which PC-19 needs
 <h2 id="2-the-tier-table-needs-jq-no-network">2. The tier table (needs <code>jq</code>, no network)<a class="headerlink" href="#2-the-tier-table-needs-jq-no-network" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pi-tier<span class="w"> </span>--list
 </span></code></pre></div>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>strong    github-copilot/claude-opus-5     main loop, architecture, hard debugging
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>fast      github-copilot/claude-sonnet-5   reviews, docs, mechanical multi-file edits
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>cheap     …                                summaries, digests, classification
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>confidential …                             anything that must not leave the tenant
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>local     …                                local lane; requires a server on 127.0.0.1:8888
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>strong       github-copilot/claude-opus-5     main loop, architecture, hard debugging
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>light        github-copilot/claude-sonnet-5   everything the main loop delegates
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>confidential …                               anything that must not leave your boundary (unbound until you bind it)
 </span></code></pre></div>
 <p>An unknown tier exits <strong>2</strong>. That is deliberate: a typo in a cron job must fail, never fall back to
 a default model you did not choose.</p>
 <h2 id="3-one-real-turn-per-provider">3. One real turn per provider<a class="headerlink" href="#3-one-real-turn-per-provider" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;reply OK&quot;</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>pi-tier<span class="w"> </span>strong<span class="k">)</span><span class="s2">&quot;</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;reply OK&quot;</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>pi-tier<span class="w"> </span>cheap<span class="k">)</span><span class="s2">&quot;</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;reply OK&quot;</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>pi-tier<span class="w"> </span>light<span class="k">)</span><span class="s2">&quot;</span>
 </span></code></pre></div>
 <p><code>OK</code>, exit 0. A provider whose credential is missing produces a block like this — it is the
 <a href="../../concepts/providers-and-tiers/#fail-loud-no-failover">fail-loud renderer</a> working, not a bug:</p>
@@ -3933,7 +3931,7 @@ agent to run something the guard must refuse:</p>
 execution. If you get anything else, stop and read <a href="../../extensions/doctor/"><code>/doctor</code>'s <code>D-06</code></a>
 before using this harness for real work.</p>
 <p>Then the headless half:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;reply OK&quot;</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>pi-tier<span class="w"> </span>cheap<span class="k">)</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;exit=</span><span class="nv">$?</span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;reply OK&quot;</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>pi-tier<span class="w"> </span>light<span class="k">)</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;exit=</span><span class="nv">$?</span><span class="s2">&quot;</span>
 </span></code></pre></div>
 <p><code>exit=0</code>. Now point it at a deliberately broken credential and confirm it exits <strong>20</strong> rather than
 0 — that is the entire reason <a href="../../operations/cli/#pi-run"><code>pi-run</code></a> exists.</p>

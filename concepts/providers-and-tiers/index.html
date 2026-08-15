@@ -2023,7 +2023,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3979,13 +3979,13 @@
 <h1 id="providers-and-tiers">Providers and tiers<a class="headerlink" href="#providers-and-tiers" title="Permanent link">&para;</a></h1>
 <h2 id="pi-has-no-tier-concept">PI has no tier concept<a class="headerlink" href="#pi-has-no-tier-concept" title="Permanent link">&para;</a></h2>
 <p><code>config/settings.json</code> binds one default model. <code>--model</code> and <code>/model</code> take a <code>provider/id</code>. That
-is the whole of what PI offers. Everything below — "give this sub-agent the cheap model", "this
-directory's sessions must not reach a public provider", "never run more than one local model at a
-time" — is built here, and lives in exactly one file: <strong><code>config/routing.json</code></strong>.</p>
+is the whole of what PI offers. Everything below — "give this sub-agent the delegation model", "this
+directory's sessions must not reach a public provider", "never run more than one request against
+that endpoint at a time" — is built here, and lives in exactly one file: <strong><code>config/routing.json</code></strong>.</p>
 <p><code>routing.json</code> is not read by PI. It is read by this repository's extensions and by
 <a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a>.</p>
 <h2 id="the-tier-vocabulary">The tier vocabulary<a class="headerlink" href="#the-tier-vocabulary" title="Permanent link">&para;</a></h2>
-<p>Five names, each a <em>semantic</em> claim about the job rather than about the vendor:</p>
+<p>Three names, each a <em>semantic</em> claim about the job rather than about the vendor:</p>
 <table>
 <thead>
 <tr>
@@ -4001,34 +4001,27 @@ time" — is built here, and lives in exactly one file: <strong><code>config/rou
 <td><code>high</code></td>
 </tr>
 <tr>
-<td><code>fast</code></td>
-<td>Reviews, docs, mechanical multi-file edits</td>
+<td><code>light</code></td>
+<td>Everything the main loop delegates: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default</td>
 <td><code>medium</code></td>
-</tr>
-<tr>
-<td><code>cheap</code></td>
-<td>Summaries, digests, classification, grep-and-report</td>
-<td><code>low</code></td>
 </tr>
 <tr>
 <td><code>confidential</code></td>
-<td>Anything that must not leave the tenant</td>
-<td><code>medium</code></td>
-</tr>
-<tr>
-<td><code>local</code></td>
-<td>The local lane; marked <code>optional: true</code> so its absence is a warning, not a failure</td>
+<td>Anything that must not leave your boundary. Ships unbound</td>
 <td><code>medium</code></td>
 </tr>
 </tbody>
 </table>
+<p>Two of the three are a <em>role</em>, not a price point: the main loop, and everything it delegates. The
+third is a boundary claim. Anything finer than that belongs on the individual call as a pinned
+<code>provider/id</code>, not in a vocabulary every agent, skill and script has to learn.</p>
 <div class="language-json highlight"><span class="filename">config/routing.json (shape)</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;tiers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">&quot;strong&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;provider&gt;/&lt;id&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">                </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;main loop, architecture, hard debugging&quot;</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;provider&gt;/&lt;id&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">                </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;local lane&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;optional&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">&quot;light&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;provider&gt;/&lt;id&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">                </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;everything that is not the main loop&quot;</span><span class="w"> </span><span class="p">}</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="p">},</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">&quot;egress&quot;</span><span class="p">:</span><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;public&quot;</span><span class="w"> </span><span class="p">},</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="p">},</span>
@@ -4038,7 +4031,7 @@ time" — is built here, and lives in exactly one file: <strong><code>config/rou
 <h3 id="why-tiers-concretely">Why tiers, concretely<a class="headerlink" href="#why-tiers-concretely" title="Permanent link">&para;</a></h3>
 <p>The predecessor harness this one replaces hard-coded one model id into all fourteen agent
 definition files. Trying a different model for a week meant editing and reverting fourteen files.</p>
-<p>The acceptance test for this design is the inverse: <strong>repointing <code>cheap</code> from one provider to
+<p>The acceptance test for this design is the inverse: <strong>repointing <code>light</code> from one provider to
 another is a one-line edit in one file; no agent <code>.md</code> is touched, and the next dispatch uses the
 new model.</strong></p>
 <h2 id="the-four-ways-a-tier-gets-selected">The four ways a tier gets selected<a class="headerlink" href="#the-four-ways-a-tier-gets-selected" title="Permanent link">&para;</a></h2>
@@ -4048,7 +4041,7 @@ new model.</strong></p>
 <div class="language-markdown highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>---
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>name: code-reviewer
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>description: Reviews a diff and returns findings
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>model: fast              # a TIER name — or provider/id for a deliberate pin
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>model: light             # a TIER name — or provider/id for a deliberate pin
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>egress: internal         # a reported label; nothing is refused on account of it
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="gu">tools: [read, grep, glob, bash]</span>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="gu">---</span>
@@ -4057,12 +4050,12 @@ new model.</strong></p>
 <li>
 <p><strong>Dispatch-time override</strong> — wins over frontmatter. The orchestrating model can spend
    deliberately: a mechanical sweep on a small model, a hard decision on a large one.</p>
-<div class="language-js highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">subagent</span><span class="p">({</span><span class="w"> </span><span class="nx">agent</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;code-reviewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">prompt</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;…&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">model</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;cheap&quot;</span><span class="w"> </span><span class="p">})</span><span class="w">                 </span><span class="c1">// tier</span>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">subagent</span><span class="p">({</span><span class="w"> </span><span class="nx">agent</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;code-reviewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">prompt</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;…&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">model</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;light&quot;</span><span class="w"> </span><span class="p">})</span><span class="w">                 </span><span class="c1">// tier</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nx">subagent</span><span class="p">({</span><span class="w"> </span><span class="nx">agent</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;code-reviewer&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">prompt</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;…&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">model</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;&lt;provider&gt;/&lt;small-id&gt;&quot;</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="c1">// pinned id</span>
 </span></code></pre></div>
 </li>
 <li>
-<p><strong>Shell, cron, <code>pi -p</code></strong> — <code>pi-run -p "summarise" --model "$(pi-tier cheap)"</code>. This is how a
+<p><strong>Shell, cron, <code>pi -p</code></strong> — <code>pi-run -p "summarise" --model "$(pi-tier light)"</code>. This is how a
    script stays provider-configurable without hard-coding an id.</p>
 </li>
 <li>
@@ -4095,9 +4088,9 @@ sat between those two until 2026-08-13. It is withdrawn; see <a href="#egress-cl
 below.</p>
 <p><strong>Failing at load, not at dispatch, is the point.</strong> A typo in one of a dozen agent files must be a
 startup error, not a surprise forty minutes into a long run.</p>
-<p>This was measured, not theorised. When <code>routing.json</code>'s <code>fast</code> tier once named a model id that did
+<p>This was measured, not theorised. When <code>routing.json</code>'s delegation tier once named a model id that did
 not exist in the provider's catalogue, eight agent definitions refused to dispatch at session start,
-each with <code>model "&lt;id&gt;" (from "fast") is not in the model registry</code>. That is the design working.</p>
+each with <code>model "&lt;id&gt;" (from "light") is not in the model registry</code>. That is the design working.</p>
 <h3 id="discoverability">Discoverability<a class="headerlink" href="#discoverability" title="Permanent link">&para;</a></h3>
 <p>A model cannot choose an id it does not know exists, so <a href="../../extensions/dispatch/"><code>dispatch</code></a>
 injects a <strong>Sub-agent model selection</strong> block into the system prompt at <code>before_agent_start</code>: the
@@ -4133,11 +4126,11 @@ impossible. A control whose failure mode is "the tool refuses the normal thing" 
 and one install-wide policy, not a per-directory one — with the same honesty caveat attached to its
 per-channel <code>{web, mcp, publicModels}</code> policy.</p>
 <h2 id="concurrency">Concurrency<a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;cloud-provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;cloud-provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;&lt;single-machine-endpoint&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>A semaphore keyed on the <strong>resolved</strong> provider id, which <strong>queues rather than errors</strong>. The
-<code>local: 1</code> entry encodes a physical fact rather than a preference: a machine holds one large local
-model at a time and a model-swapping server unloads on switch, so two concurrent local dispatches
+<p>A semaphore keyed on the <strong>resolved</strong> provider id, which <strong>queues rather than errors</strong>. A cap of
+<code>1</code> encodes a physical fact rather than a preference: a single machine serving models holds one
+large one at a time and a swapping server unloads on switch, so two concurrent dispatches there
 thrash instead of parallelising.</p>
 <p>Where the semaphore cannot reach is documented honestly in
 <code>extensions/dispatch/concurrency.ts</code> — there is no extension-visible hook inside PI's own
@@ -4221,9 +4214,10 @@ one that is not costs you a debugging session.</p>
 </div>
 <h2 id="missing-credentials-do-not-stop-the-agent">Missing credentials do not stop the agent<a class="headerlink" href="#missing-credentials-do-not-stop-the-agent" title="Permanent link">&para;</a></h2>
 <p>A provider whose credential is absent must not prevent <code>pi</code> from starting. It fails only when that
-provider is <em>selected</em>. The local lane goes further: no local server running is one warning line
-at <code>session_start</code>, never a fatal, because the whole point of a portable harness is that a machine
-without your local setup still gets a working agent.</p>
+provider is <em>selected</em>. A tier goes further: one whose endpoint may legitimately be down rather
+than misconfigured is marked <code>optional: true</code>, which makes its absence one warning line at
+<code>session_start</code> and never a fatal — because the whole point of a portable harness is that a machine
+without your particular endpoint still gets a working agent.</p>
 <h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The one rule that matters most: <a href="../context-windows/">Context windows</a></li>

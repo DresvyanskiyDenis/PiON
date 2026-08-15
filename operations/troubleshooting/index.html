@@ -1816,7 +1816,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -4805,7 +4805,7 @@ that is a provider answering HTTP 200 with a well-formed body carrying no comple
 the provider, model, finish reason, effective reasoning effort, zero usage and <code>responseId</code>. Nothing
 else in the stack treats it as a failure, which is why it is detected explicitly. See
 <a href="../../configuration/routing/#onprovidererror"><code>onProviderError</code></a> and, for a worked investigation of
-one gateway's empty-200 behaviour, <a href="../../extensions/credentials/#d-field-notes-an-empty-200-investigation-2026-08-14">the field notes</a>.</p>
+one gateway's empty-200 behaviour, <a href="../../extensions/credentials/#field-notes-an-empty-200-investigation-2026-08-14">the field notes</a>.</p>
 <h3 id="an-async-run-is-still-reported-as-running-long-after-it-should-have-finished">An async run is still reported as "running" long after it should have finished<a class="headerlink" href="#an-async-run-is-still-reported-as-running-long-after-it-should-have-finished" title="Permanent link">&para;</a></h3>
 <p>It probably is not. The dispatcher's own completion notification can fail to deliver, and the
 acknowledgement is then the only thing in context. The harness re-reads each async run's status file

@@ -1816,7 +1816,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3857,7 +3857,7 @@ turns a two-second diagnosis into a two-minute one.</p>
 <li><strong>Failover only for <code>network</code> errors.</strong> Narrower, and defensible. Rejected because the
   classification is unreliable — gateways return network-shaped errors for quota and policy refusals —
   so the narrow rule would widen itself in practice.</li>
-<li><strong>Per-tier opt-in.</strong> A <code>failover: true</code> key on the <code>cheap</code> tier only. Rejected on cost: it doubles
+<li><strong>Per-tier opt-in.</strong> A <code>failover: true</code> key on the <code>light</code> tier only. Rejected on cost: it doubles
   the number of states every downstream module has to reason about, to serve the tier where a failure
   matters least.</li>
 </ul>

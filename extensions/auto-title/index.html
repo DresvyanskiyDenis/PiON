@@ -1824,7 +1824,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3767,8 +3767,9 @@ listener.</p>
 <p>Titling is a throwaway one-liner that wants the cheapest model that exists. Reading the tier map here
 would mean adding a config loader to this module and putting a <strong>file read on the <code>turn_end</code> path</strong> —
 for a cosmetic feature.</p>
-<p>So the default mirrors <code>config/routing.default.json</code>'s <code>cheap</code> binding as a constant, and
-<code>PI_TITLE_MODEL</code> is how a different install corrects it.</p>
+<p>So the default is a standalone constant — the cheapest Copilot model, not whatever <code>light</code>
+currently points at — and <code>PI_TITLE_MODEL</code> is how a different install corrects it. It is deliberately
+not kept in step with any tier: a tier is a promise about a <em>role</em>, and titling is not one of them.</p>
 <div class="admonition note">
 <p class="admonition-title">A wrong id here costs an untitled session and nothing else</p>
 <p>Every failure of the sub-invocation is swallowed by design. This is the one place in the tree

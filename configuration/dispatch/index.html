@@ -2011,7 +2011,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3950,7 +3950,7 @@ Markdown files with YAML frontmatter, one per agent, in <code>agents/</code>.</p
 <h2 id="shipped-file">Shipped file<a class="headerlink" href="#shipped-file" title="Permanent link">&para;</a></h2>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;maxDepth&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;defaultTier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fast&quot;</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;defaultTier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;light&quot;</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;defaultEgress&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal&quot;</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;defaultTimeoutMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1800000</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;concurrencyDefault&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
@@ -3986,7 +3986,7 @@ shallow enough to notice.</p>
 <tbody>
 <tr>
 <td><code>defaultTier</code></td>
-<td><code>"fast"</code></td>
+<td><code>"light"</code></td>
 <td>The tier an agent gets when its frontmatter declares no <code>model:</code></td>
 </tr>
 <tr>
@@ -4006,7 +4006,7 @@ more honestly as the middle class than as either extreme. See
 <p><code>defaultTier</code> has a second job: it is the <strong>floor for a <code>workflowScript</code> fan-out</strong>. A workflow's
 children are built inside the package, past the point where a tier word is turned into a
 <code>provider/model</code>, so a child that names no model would otherwise fall through to PI's own substring
-matcher — which happily resolves a word like <code>fast</code> onto some provider your <code>models.json</code> never
+matcher — which happily resolves a word like <code>light</code> onto some provider your <code>models.json</code> never
 declared, and then fails with a credentials error that is really a silent substitution. When a
 <code>workflowScript</code> call names no <code>model</code>, the resolved <code>defaultTier</code> is pinned onto the call, the
 package spreads it <em>underneath</em> each child's own parameters, and the outcome is: children that name
@@ -4015,7 +4015,7 @@ happens, so it is never a routing decision made behind your back — set <code>m
 child, to choose something else.</p>
 <p><strong>What breaks:</strong> <code>defaultTier</code> naming a tier that is unbound in <code>routing.json</code> means every
 undeclared agent fails at load, and every <code>workflowScript</code> that names no model is refused rather
-than floored. Since <code>confidential</code> and <code>local</code> ship unbound, do not default to either.</p>
+than floored. Since <code>confidential</code> ships unbound, do not default to it.</p>
 <hr />
 <h2 id="defaulttimeoutms"><code>defaultTimeoutMs</code><a class="headerlink" href="#defaulttimeoutms" title="Permanent link">&para;</a></h2>
 <p>Ships <code>1800000</code> — thirty minutes. The wall-clock budget for one sub-agent run.</p>
@@ -4046,8 +4046,9 @@ work.</p>
 </tr>
 </tbody>
 </table>
-<p>Per-provider caps in <a href="../routing/#concurrency"><code>routing.json</code></a> win over both. That is where
-<code>local: 1</code> lives, and that is the entry that encodes a physical fact rather than a preference.</p>
+<p>Per-provider caps in <a href="../routing/#concurrency"><code>routing.json</code></a> win over both. That is where a cap of
+<code>1</code> would live for an endpoint that can only serve one request at a time — the one kind of entry that
+encodes a physical fact rather than a preference.</p>
 <hr />
 <h2 id="registrydirs"><code>registryDirs</code><a class="headerlink" href="#registrydirs" title="Permanent link">&para;</a></h2>
 <p>Where agent definitions are discovered, in order:</p>

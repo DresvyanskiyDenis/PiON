@@ -1225,17 +1225,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pi_local_base_url" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PI_LOCAL_BASE_URL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#tls-and-proxy" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2029,7 +2018,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3870,17 +3859,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pi_local_base_url" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PI_LOCAL_BASE_URL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#tls-and-proxy" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4058,20 +4036,12 @@ installed:</p>
 <td>the GitHub Copilot provider</td>
 </tr>
 <tr>
-<td><code>ANTHROPIC_API_KEY</code></td>
-<td>Anthropic — or use <code>/login anthropic</code> for a subscription instead</td>
-</tr>
-<tr>
-<td><code>OPENAI_API_KEY</code></td>
-<td>OpenAI</td>
-</tr>
-<tr>
 <td><code>DATABRICKS_TOKEN</code></td>
 <td>a workspace PAT, instead of the OAuth/CLI path</td>
 </tr>
 <tr>
-<td><code>LOCAL_API_KEY</code></td>
-<td>only if your local model server checks a bearer token</td>
+<td><em>(your own name)</em></td>
+<td>whatever you answered when you configured <a href="../models/"><code>openai-compatible</code></a> — the fragment asks for the variable name, so an endpoint that checks no bearer token needs none</td>
 </tr>
 <tr>
 <td><code>PI_COPILOT_QUOTA_TOKEN</code></td>
@@ -4111,26 +4081,12 @@ every call and has no TTL of its own.</p>
 <code>models.json</code> is not variable-expanded, so the hostname is set independently in two places and the
 two must agree. The installer writes both from one answer; if you change one by hand, change both.</p>
 <hr />
-<h2 id="pi_local_base_url"><code>PI_LOCAL_BASE_URL</code><a class="headerlink" href="#pi_local_base_url" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># export PI_LOCAL_BASE_URL=&quot;http://127.0.0.1:&lt;port&gt;/v1&quot;</span>
-</span></code></pre></div>
-<p><strong>Only needed if you installed the <code>local</code> provider on a port other than 8888 — and then it is
-mandatory.</strong></p>
-<p><code>extensions/credentials.ts</code> re-registers the <code>local</code> provider with
-<code>process.env.PI_LOCAL_BASE_URL ?? "http://127.0.0.1:8888/v1"</code>, and PI's provider composer resolves
-<code>extension?.baseUrl ?? config?.baseUrl</code>. <strong>The extension wins.</strong> So on any other port, requests go
-to 8888 while <code>models.json</code> innocently says otherwise.</p>
-<p><strong>Symptom when you get this wrong:</strong> connection refused against a port you never configured, or —
-worse, if something else is listening on 8888 — a confusing response from the wrong service. Keep
-the two in agreement; the <code>baseUrl</code> in <code>models.json</code> is what a human reads and what the provider
-falls back to if the extension is ever removed.</p>
-<hr />
 <h2 id="tls-and-proxy">TLS and proxy<a class="headerlink" href="#tls-and-proxy" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># export NODE_EXTRA_CA_CERTS=&quot;$HOME/.ssl/&lt;your-ca-bundle&gt;.pem&quot;</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># export HTTPS_PROXY=&quot;http://&lt;your-proxy-host&gt;:&lt;port&gt;&quot;</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># export HTTP_PROXY=&quot;$HTTPS_PROXY&quot;</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NO_PROXY</span><span class="o">=</span><span class="s2">&quot;127.0.0.1,localhost,::1,.local&quot;</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">no_proxy</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$NO_PROXY</span><span class="s2">&quot;</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># export NODE_EXTRA_CA_CERTS=&quot;$HOME/.ssl/&lt;your-ca-bundle&gt;.pem&quot;</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># export HTTPS_PROXY=&quot;http://&lt;your-proxy-host&gt;:&lt;port&gt;&quot;</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># export HTTP_PROXY=&quot;$HTTPS_PROXY&quot;</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NO_PROXY</span><span class="o">=</span><span class="s2">&quot;127.0.0.1,localhost,::1,.local&quot;</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">no_proxy</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$NO_PROXY</span><span class="s2">&quot;</span>
 </span></code></pre></div>
 <h3 id="node_extra_ca_certs"><code>NODE_EXTRA_CA_CERTS</code><a class="headerlink" href="#node_extra_ca_certs" title="Permanent link">&para;</a></h3>
 <p>Behind a TLS-intercepting proxy, Node needs the interceptor's CA bundle or every HTTPS call fails
@@ -4146,20 +4102,22 @@ its own <code>EnvHttpProxyAgent</code> and installs it as the global fetch dispa
 actually makes <code>web_search</code> and <code>web_fetch</code> honour the proxy — not this file by itself.</p>
 </div>
 <h3 id="no_proxy-is-set-unconditionally-and-should-stay-that-way"><code>NO_PROXY</code> is set unconditionally, and should stay that way<a class="headerlink" href="#no_proxy-is-set-unconditionally-and-should-stay-that-way" title="Permanent link">&para;</a></h3>
-<p>It is harmless with no proxy configured, and without loopback in it a local model server is proxied
-into a black hole. That failure looks like the local server being down.</p>
+<p>It is harmless with no proxy configured, and without loopback in it any endpoint you run on
+<code>127.0.0.1</code> — a model server, an MCP server, SearXNG — is proxied into a black hole. That failure
+looks like the endpoint being down.</p>
 <div class="admonition tip">
 <p class="admonition-title">A per-provider proxy, without a global one</p>
 <p>An <code>auth.json</code> credential can carry its own <code>env</code> object, applied for that provider only:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;openai&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;api&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$OPENAI_API_KEY&quot;</span><span class="p">,</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">              </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;HTTPS_PROXY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://proxy.example.com:8080&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;provider-id&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;api&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;$YOUR_API_KEY_VAR&quot;</span><span class="p">,</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">                     </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;HTTPS_PROXY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://proxy.example.com:8080&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>Prefer that over exporting <code>HTTPS_PROXY</code> globally, which would also capture the local provider.</p>
+<p>Prefer that over exporting <code>HTTPS_PROXY</code> globally, which would also capture anything you run on
+loopback.</p>
 </div>
 <hr />
 <h2 id="convenience-aliases">Convenience aliases<a class="headerlink" href="#convenience-aliases" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pic</span><span class="o">=</span><span class="s1">&#39;pi --model &quot;$(pi-tier cheap)&quot;&#39;</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pis</span><span class="o">=</span><span class="s1">&#39;pi --model &quot;$(pi-tier strong)&quot;&#39;</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pil</span><span class="o">=</span><span class="s1">&#39;pi --model &quot;$(pi-tier light)&quot;&#39;</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pis</span><span class="o">=</span><span class="s1">&#39;pi --model &quot;$(pi-tier strong)&quot;&#39;</span>
 </span></code></pre></div>
 <p>Two shortcuts, and a demonstration of the intended pattern: a shell command names a <strong>tier</strong>, and
 <code>pi-tier</code> resolves it. Nothing in your shell history hard-codes a model id, so rebinding a tier in

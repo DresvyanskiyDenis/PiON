@@ -2194,7 +2194,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -4353,8 +4353,11 @@ substituted at install time. See <a href="../configuration/models/#baseurl"><cod
 <h3 id="command-credentials-have-no-ttl"><code>!command</code> credentials have no TTL<a class="headerlink" href="#command-credentials-have-no-ttl" title="Permanent link">&para;</a></h3>
 <p>Re-executed on <strong>every</strong> request. Wrap anything expensive in a TTL cache.</p>
 <h3 id="there-are-no-timeout-fields-in-pis-provider-schema">There are no timeout fields in PI's provider schema<a class="headerlink" href="#there-are-no-timeout-fields-in-pis-provider-schema" title="Permanent link">&para;</a></h3>
-<p>A local model cold start that pages tens of GB can exceed the default HTTP timeout. Worked around in
-<a href="../extensions/credentials/"><code>credentials</code></a> with its own abort budget.</p>
+<p>A cold start that pages tens of GB of weights — a model server on your own hardware, typically — can
+exceed the default HTTP timeout, and there is no field to raise it. An extension used to work around
+this for a dedicated local lane with its own abort budget; that lane was deleted on 2026-08-15, so
+the limitation is now unmitigated and shows up as a timeout on the first request after a cold
+start.</p>
 <h3 id="the-standalone-pi-binary-ignores-node_options">The standalone <code>pi</code> binary ignores <code>NODE_OPTIONS</code><a class="headerlink" href="#the-standalone-pi-binary-ignores-node_options" title="Permanent link">&para;</a></h3>
 <p>An invalid value is silently ignored where a real <code>node</code> CLI refuses to start. Proxy support is
 implemented directly in <a href="../extensions/web/"><code>web</code></a> instead.</p>

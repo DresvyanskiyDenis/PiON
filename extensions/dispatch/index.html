@@ -1824,7 +1824,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -4060,7 +4060,7 @@ do the same thing, one of them unguarded.</p>
 <p>A <code>workflowScript</code> call launches children <em>inside</em> the package, past the point where this module
 turns a tier word into a <code>provider/model</code>. A child that names no model therefore arrives at PI's own
 substring matcher carrying its agent file's tier word, and that matcher will resolve a word like
-<code>fast</code> onto whatever provider id happens to contain it — routing by accident, onto a provider
+<code>light</code> onto whatever provider id happens to contain it — routing by accident, onto a provider
 <code>models.json</code> never declared, surfacing as a credentials error rather than as the substitution it
 is.</p>
 <p>So when a <code>workflowScript</code> names no <code>model</code>, the resolved

@@ -1069,10 +1069,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#the-five-tier-names" class="md-nav__link">
+  <a href="#the-three-tier-names" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The five tier names
+        The three tier names
       
     </span>
   </a>
@@ -1995,7 +1995,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3792,10 +3792,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#the-five-tier-names" class="md-nav__link">
+  <a href="#the-three-tier-names" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The five tier names
+        The three tier names
       
     </span>
   </a>
@@ -3923,16 +3923,14 @@ key-by-key reference.</p>
 <p>Ships <code>2</code>. A schema marker, not a knob. Leave it.</p>
 <hr />
 <h2 id="tiers"><code>tiers</code><a class="headerlink" href="#tiers" title="Permanent link">&para;</a></h2>
-<p>The whole point of the file. Five names are the fixed vocabulary; every agent, skill and script in
+<p>The whole point of the file. Three names are the fixed vocabulary; every agent, skill and script in
 this harness dispatches on them.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">&quot;tiers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;strong&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github-copilot/claude-opus-5&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;strong&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github-copilot/claude-opus-5&quot;</span><span class="p">,</span><span class="w">   </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">              </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;main loop, architecture, hard debugging&quot;</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;fast&quot;</span><span class="p">:</span><span class="w">   </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github-copilot/claude-sonnet-5&quot;</span><span class="p">,</span><span class="w">  </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">              </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;reviews, docs, mechanical multi-file edits&quot;</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;cheap&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github-copilot/claude-haiku-4.5&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;low&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">              </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;summaries, digests, classification, grep-and-report&quot;</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">}</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;light&quot;</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github-copilot/claude-sonnet-5&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;thinkingLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">              </span><span class="nt">&quot;purpose&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;everything that is not the main loop: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report&quot;</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -3956,14 +3954,14 @@ this harness dispatches on them.</p>
 </tr>
 <tr>
 <td><code>optional</code></td>
-<td><code>true</code> means "absence is a warning, not a failure". Used for <code>local</code></td>
+<td><code>true</code> means "absence is a warning, not a failure". For a tier whose target may legitimately be down — an endpoint on your own hardware, say — rather than misconfigured</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Changing which model a tier uses is a one-line edit here.</strong> No agent file is touched; the next
 dispatch uses the new model. That inversion is the acceptance test the design was built against —
 the predecessor harness hard-coded one model id into fourteen agent files.</p>
-<h3 id="the-five-tier-names">The five tier names<a class="headerlink" href="#the-five-tier-names" title="Permanent link">&para;</a></h3>
+<h3 id="the-three-tier-names">The three tier names<a class="headerlink" href="#the-three-tier-names" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -3979,29 +3977,28 @@ the predecessor harness hard-coded one model id into fourteen agent files.</p>
 <td><code>high</code></td>
 </tr>
 <tr>
-<td><code>fast</code></td>
-<td>reviews, docs, mechanical multi-file edits</td>
+<td><code>light</code></td>
+<td>everything else: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default</td>
 <td><code>medium</code></td>
-</tr>
-<tr>
-<td><code>cheap</code></td>
-<td>summaries, digests, classification, grep-and-report</td>
-<td><code>low</code></td>
 </tr>
 <tr>
 <td><code>confidential</code></td>
-<td>anything that must not leave your boundary</td>
-<td><code>medium</code></td>
-</tr>
-<tr>
-<td><code>local</code></td>
-<td>the loopback lane; <code>optional: true</code></td>
-<td><code>medium</code></td>
+<td>anything that must not leave your boundary. Ships unbound</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
-<p>Do not invent a sixth. Everything that resolves a tier fails loud on an unknown name, and adding
+<p>Do not invent a fourth. Everything that resolves a tier fails loud on an unknown name, and adding
 one means every consumer has to learn it.</p>
+<div class="admonition note">
+<p class="admonition-title">Two tiers, not one per price point</p>
+<p>A tier is a <em>role</em>, and the harness has exactly two roles a bound tier can play: the main loop,
+and everything the main loop delegates. Splitting the second one by price produced tiers that
+differed only in which model they happened to point at, and agents choosing between them on
+vibes. <code>light</code> is the single delegation tier; when one particular call genuinely needs a
+different model, pin <code>provider/id</code> on that call rather than adding a vocabulary word every
+consumer then has to learn.</p>
+</div>
 <h3 id="how-thinkinglevel-reaches-the-child">How <code>thinkingLevel</code> reaches the child<a class="headerlink" href="#how-thinkinglevel-reaches-the-child" title="Permanent link">&para;</a></h3>
 <p>PI carries a child's reasoning effort <strong>inside the model string</strong>, as a <code>:&lt;level&gt;</code> suffix
 (<code>github-copilot/claude-opus-5:high</code>) — that is the only channel it reads effort from, and it
@@ -4035,20 +4032,20 @@ tier's <code>model</code> is tolerated there and obeys the same precedence — b
 to write it, for every other consumer's sake.</p>
 <p><strong>What breaks:</strong> a <code>model</code> naming an id that is not in <code>config/models.json</code> fails at <strong>load</strong>, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
-<code>model "&lt;id&gt;" (from "fast") is not in the model registry</code>. That is the design working. A typo in
+<code>model "&lt;id&gt;" (from "light") is not in the model registry</code>. That is the design working. A typo in
 one of a dozen agent files must be a startup error, not a surprise forty minutes into a long run.</p>
 <hr />
 <h2 id="tiersunbound"><code>tiersUnbound</code><a class="headerlink" href="#tiersunbound" title="Permanent link">&para;</a></h2>
 <p>Documentation, not configuration. A tier that no installed provider can satisfy is <strong>removed from
 <code>tiers</code> and listed here with a one-line reason</strong>:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">&quot;tiersUnbound&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;confidential&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;No provider with egress class \&quot;confidential\&quot; is installed. …&quot;</span><span class="p">,</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;No local model server is configured. …&quot;</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">}</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;confidential&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;No provider with egress class \&quot;confidential\&quot; is installed. …&quot;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>Two tiers ship unbound because binding them to whatever happened to be available would make the
-words meaningless. <code>confidential</code> bound to a public provider is worse than <code>confidential</code> being
-absent: naming it then fails loudly instead of quietly sending material to a third party.</p>
+<p><code>confidential</code> ships unbound because binding it to whatever happened to be available would make the
+word meaningless. <code>confidential</code> bound to a public provider is worse than <code>confidential</code> being
+absent: naming it then fails loudly instead of quietly sending material to a third party. Run the
+installer and select an endpoint inside your own boundary to bind it.</p>
 <p><strong>Do not</strong> leave a tier in <code>tiers</code> pointing at a provider that is not in <code>models.json</code>.
 <code>bin/pi-check</code> rule <code>PC-02</code> fails on that, and at runtime the dispatcher refuses it with a less
 useful message than the check gives you.</p>
@@ -4079,12 +4076,13 @@ layer. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>
 lane in the model menu is a lane nobody can reason about.</p>
 <hr />
 <h2 id="concurrency"><code>concurrency</code><a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;github-copilot&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;github-copilot&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>A semaphore keyed on the <strong>resolved</strong> provider id. It <strong>queues</strong> rather than erroring.</p>
-<p><code>local: 1</code> encodes a physical fact, not a preference: a machine holds one large model at a time and
-a swapping router unloads on switch, so two concurrent local dispatches thrash instead of
-parallelising.</p>
+<p>A cap can encode a physical fact rather than a preference. A single machine serving models on
+loopback holds one large model at a time and a swapping router unloads on switch, so two concurrent
+dispatches there thrash instead of parallelising — configure that endpoint through
+<a href="../openai-compatible/"><code>openai-compatible</code></a> and answer its concurrency prompt with <code>1</code>.</p>
 <p>Raise a cloud provider's number if you dispatch wide fan-outs and the provider tolerates it; lower
 it if you are hitting rate limits. <code>config/dispatch.json</code>'s <code>concurrencyDefault</code> (3) applies when a
 provider has no row here.</p>
@@ -4147,7 +4145,7 @@ does. Neither is printed as a cause; both are printed as what they are, an obser
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pi-tier<span class="w"> </span>fast<span class="w">              </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pi-tier<span class="w"> </span>light<span class="w">             </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
 </span></code></pre></div>
 <p><code>pi-tier</code> exiting <strong>2</strong> on an unknown tier is deliberate: a typo in a cron job must fail, never

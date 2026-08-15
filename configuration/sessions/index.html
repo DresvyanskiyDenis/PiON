@@ -1973,7 +1973,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3995,7 +3995,7 @@ must never again be printed as a measurement.</p>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">&quot;minTurns&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">&quot;maxTranscriptBytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">&quot;outputDir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/.pi/agent/digests&quot;</span><span class="p">,</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">&quot;summarizer&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pi&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cheap&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeoutMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">&quot;summarizer&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pi&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;light&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timeoutMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="w"> </span><span class="p">}</span>
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">}</span>
 </span></code></pre></div>
@@ -4035,8 +4035,8 @@ must never again be printed as a measurement.</p>
 </tr>
 <tr>
 <td><code>summarizer.model</code></td>
-<td><code>"cheap"</code></td>
-<td>A <strong>tier name</strong>. This is the single most common consumer of the <code>cheap</code> tier</td>
+<td><code>"light"</code></td>
+<td>A <strong>tier name</strong>. This is the single most common consumer of the <code>light</code> tier</td>
 </tr>
 <tr>
 <td><code>summarizer.timeoutMs</code></td>
@@ -4045,8 +4045,8 @@ must never again be printed as a measurement.</p>
 </tr>
 </tbody>
 </table>
-<p><strong>What it costs:</strong> one <code>cheap</code>-tier call per session that passed <code>minTurns</code>. If your <code>cheap</code> tier is
-bound to an expensive model, this is where you will notice. Rebinding <code>cheap</code> in
+<p><strong>What it costs:</strong> one <code>light</code>-tier call per session that passed <code>minTurns</code>. If your <code>light</code> tier is
+bound to an expensive model, this is where you will notice. Rebinding <code>light</code> in
 <a href="../routing/"><code>routing.json</code></a> is a better fix than turning digests off.</p>
 <hr />
 <h2 id="tasksjson"><code>tasks.json</code><a class="headerlink" href="#tasksjson" title="Permanent link">&para;</a></h2>

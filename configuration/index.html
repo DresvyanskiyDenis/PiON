@@ -1830,7 +1830,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3837,7 +3837,7 @@ Fact 2.</p>
 <td><a href="models/#modeloverrides">models.json</a></td>
 </tr>
 <tr>
-<td>change which model <code>fast</code> (or any tier) uses</td>
+<td>change which model <code>light</code> (or any tier) uses</td>
 <td><code>config/routing.json</code></td>
 <td><a href="routing/">routing.json</a></td>
 </tr>
@@ -3847,7 +3847,7 @@ Fact 2.</p>
 <td><a href="routing/#egress">routing.json</a></td>
 </tr>
 <tr>
-<td>stop two local dispatches thrashing one GPU</td>
+<td>stop two dispatches thrashing one endpoint</td>
 <td><code>concurrency</code> in <code>config/routing.json</code></td>
 <td><a href="routing/#concurrency">routing.json</a></td>
 </tr>
@@ -3927,9 +3927,9 @@ Fact 2.</p>
 <td><a href="environment/">Environment</a></td>
 </tr>
 <tr>
-<td>point the local provider at a different port</td>
-<td><code>config/models.json</code> <strong>and</strong> <code>PI_LOCAL_BASE_URL</code></td>
-<td><a href="environment/#pi_local_base_url">Environment</a></td>
+<td>point a gateway or loopback endpoint at a different port</td>
+<td><code>config/models.json</code></td>
+<td><a href="models/"><code>models.json</code></a></td>
 </tr>
 <tr>
 <td>add a language server</td>
@@ -3965,7 +3965,7 @@ Fact 2.</p>
 <tr>
 <td><a href="routing/"><code>routing.json</code></a></td>
 <td><strong>yes</strong></td>
-<td>the five tiers, <code>egress</code> classes, per-provider <code>concurrency</code>, <code>onProviderError</code></td>
+<td>the three tiers, <code>egress</code> classes, per-provider <code>concurrency</code>, <code>onProviderError</code></td>
 </tr>
 <tr>
 <td><a href="mcp/"><code>mcp.json</code></a></td>

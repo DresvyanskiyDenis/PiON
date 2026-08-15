@@ -1816,7 +1816,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -3870,7 +3870,8 @@ classes were enforced at the network layer gets rejected at the design stage rat
   an OS-level sandbox package was reviewed and deliberately not relied on.</li>
 <li><strong>Route everything through a mandatory egress proxy.</strong> Real enforcement for HTTP, and a large piece
   of infrastructure for every user to run. Rejected as a default; nothing stops an operator doing it,
-  and <code>config/providers/openai.json</code> already carries the shape for a proxied provider.</li>
+  and <a href="../../configuration/openai-compatible/"><code>openai-compatible</code></a> already carries the shape for it —
+  a base URL you choose is a base URL you can point at a proxy.</li>
 <li><strong>Drop the classes entirely, since they do not enforce.</strong> Rejected: the dispatch ceiling is a real
   check that catches a real mistake — a confidential-tier agent delegating to a public-tier one — and
   removing the vocabulary would remove the only place that mistake is currently caught.</li>

@@ -1984,7 +1984,7 @@
   <span class="md-ellipsis">
     
   
-    credentials — the local lane, token caching, and provider errors
+    credentials — token caching and provider errors
   
 
     
@@ -4110,11 +4110,11 @@ of this flag is every private page you happen to be logged into. It ships <code>
 stay <code>false</code> unless you have a specific, bounded reason.</p>
 </div>
 <div class="admonition note">
-<p class="admonition-title">Two loopback ports, and they must differ</p>
-<p><code>searxngBaseUrl</code> ships on <code>127.0.0.1:8080</code>; the <code>local</code> model provider defaults to <strong>8888</strong>.
-They are deliberately different, but both are popular ports. If something else on your machine
-already owns one of them, move it here — and if you move the model port, move
-<code>PI_LOCAL_BASE_URL</code> with it (see <a href="../environment/#pi_local_base_url">Environment</a>).</p>
+<p class="admonition-title">Loopback ports collide</p>
+<p><code>searxngBaseUrl</code> ships on <code>127.0.0.1:8080</code>, which is a popular port. If something else on your
+machine already owns it, move it here. The same applies to any model endpoint you configure on
+loopback through <a href="../openai-compatible/"><code>openai-compatible</code></a>: its port lives in
+<code>config/models.json</code> and nowhere else, so moving it is a one-place edit.</p>
 </div>
 <p>One backend is pinned, rather than a list with fallbacks, for the same reason there is no provider
 failover: a search that silently came from somewhere else is a result you cannot attribute.</p>
