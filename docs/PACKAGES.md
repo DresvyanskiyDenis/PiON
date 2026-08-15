@@ -36,11 +36,10 @@ every session. The rest are reviewed and pinned but not loaded.
 | `pi-hashline-edit-pro` | 1.1.0 | MIT | adopted-trial | — | hash-line edit, on trial (not wired) |
 | `@narumitw/pi-worktree` | 0.49.3 | MIT | adopted | yes | worktrees |
 | `@narumitw/pi-lsp` | 0.49.3 | MIT | adopted | yes | language-server diagnostics |
-| `@narumitw/pi-retry` | 0.31.0 | MIT | adopted | — | transient retry (reviewed, not wired) |
 | `@nklisch/pi-plugins` | 0.3.3 | MIT | adopted-hardened | — | package lifecycle (not the install path) |
 | `pi-smart-compact` | 7.22.0 | MIT | adopted-optional | — | compaction summary quality |
 | `pi-hermes-memory` | 0.9.3 | MIT | adopted-separate | — | session search (FTS5) |
-| `pi-lean-ctx` | 3.9.17 | Apache-2.0 | adopted-optional | — | tool-output shrinking |
+| `pi-lean-ctx` | 3.9.17 | Apache-2.0 | adopted | needs the `lean-ctx` binary at 3.9.13 | tool-output shrinking |
 | `pi-opa-net` | 0.6.0 | MIT | adopted-conditional | — | OPA policy engine |
 
 Verification of the hashes themselves:
@@ -232,18 +231,6 @@ checks it against `config/packages.lock.json` on every run.
 | **Role** | language-server diagnostics |
 | **Tarball sha256** | `56f7f49c715f67ff1ea009a77cf5ccf4589f7504d1155cfcfe835c387fa8909c` |
 
-## `@narumitw/pi-retry` 0.31.0
-
-| | |
-|---|---|
-| **Pinned version** | 0.31.0 |
-| **Licence** | MIT |
-| **Upstream** | <https://github.com/narumiruna/pi-extensions> |
-| **Reviewed** | 2026-08-06 |
-| **Status** | `adopted` — wired and in use |
-| **Role** | transient retry (reviewed, not wired) |
-| **Tarball sha256** | `94c359a4c19fd5ad75b938e83102d8529e5a0caf265b48017cf40981eb053ec6` |
-
 ## `@nklisch/pi-plugins` 0.3.3
 
 | | |
@@ -287,10 +274,31 @@ checks it against `config/packages.lock.json` on every run.
 | **Pinned version** | 3.9.17 |
 | **Licence** | Apache-2.0 |
 | **Upstream** | <https://github.com/yvgude/lean-ctx> |
-| **Reviewed** | 2026-08-06 |
-| **Status** | `adopted-optional` — reviewed and pinned; not wired by default |
+| **Reviewed** | 2026-08-06; measured and wired 2026-08-15 |
+| **Status** | `adopted` — wired in `config/settings.default.json`; requires an external binary |
 | **Role** | tool-output shrinking |
 | **Tarball sha256** | `53dfd362d503679d3d07f85cb8f698057b44f064eab860c19013a8dc5470de1e` |
+
+Two operational caveats, both measured on 2026-08-15 against binary 3.9.13.
+
+**Install the binary at 3.9.13, not latest.** The npm package shells out to a Rust binary of the same
+name. Versions 3.9.14 through 3.9.18 fail to compile — they declare `lean-ctx-ocla = "^1.0.0"` and the
+only published version of that crate lacks fields the code references, so the build ends in 17 errors
+regardless of `--locked`. `cargo install lean-ctx --version 3.9.13` is the last release that builds.
+The npm side at 3.9.17 was checked call-by-call against 3.9.13's surface and passes no flag the older
+binary rejects.
+
+**Leave `enableMcp` true.** lean-ctx collapses a repeat full read of an unchanged file to a ~13-token
+stub, by design and by documentation. With `enableMcp` false, ctx_read is served by a disk-backed cache
+that outlives the process, so a later session can receive that stub for content it never saw — reported
+as an ordinary `-99%` compression line, with nothing marking it as empty. The MCP bridge's cache is
+per-session, which is the scope the design assumes. The full reasoning is recorded in the repository's
+`config/lean-ctx-config.json`.
+
+Note that `ctx_read`'s automatic mode returns signatures rather than bodies for code files above 8 KB.
+That is disclosed in the tool description and is the package's purpose, but it means an exact-match edit
+needs either `mode=full`, an explicit line range, or the native `read` builtin — which stays available,
+since the package runs in `additive` mode.
 
 ## `pi-opa-net` 0.6.0
 

@@ -149,7 +149,6 @@ installed.
 | `@narumitw/pi-statusline` | 0.49.5 | MIT | narumiruna | the statusline |
 | `@narumitw/pi-lsp` | 0.49.3 | MIT | narumiruna | language-server diagnostics |
 | `@narumitw/pi-usage` | 0.49.3 | MIT | narumiruna | the quota read path |
-| `@narumitw/pi-retry` | 0.31.0 | MIT | narumiruna | transient-failure retry |
 | `pi-llama-cpp` | 0.9.1 | MIT | gsanhueza | local-provider support |
 | `@99percentpeople/pi-background-tasks` | 2.0.0 | MIT | 99percentpeople | the bash face of background work |
 | `@nklisch/pi-plugins` | 0.3.3 | MIT | nklisch | package lifecycle |

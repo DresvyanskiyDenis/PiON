@@ -190,19 +190,6 @@
       "pinNote": "Adoption notes carried a 1.4.2 pin for this package. That version does not exist \u2014 `npm view @narumitw/pi-lsp versions` tops out at 0.49.4 (checked 2026-08-07). Pinned to 0.49.3 instead, matching the sibling pins for @narumitw/pi-usage and @narumitw/pi-worktree."
     },
     {
-      "name": "@narumitw/pi-retry",
-      "version": "0.31.0",
-      "tarball": "https://registry.npmjs.org/@narumitw/pi-retry/-/pi-retry-0.31.0.tgz",
-      "sha256": "94c359a4c19fd5ad75b938e83102d8529e5a0caf265b48017cf40981eb053ec6",
-      "npm_dist_shasum_sha1": "fe803a78209e332bb32f59ef6cc9dd82a5a6b3b5",
-      "license": "MIT",
-      "repository": "https://github.com/narumiruna/pi-extensions",
-      "reviewed": "2026-08-06",
-      "status": "adopted",
-      "role": "EXT-08 transient retry",
-      "vendor": false
-    },
-    {
       "name": "@nklisch/pi-plugins",
       "version": "0.3.3",
       "tarball": "https://registry.npmjs.org/@nklisch/pi-plugins/-/pi-plugins-0.3.3.tgz",

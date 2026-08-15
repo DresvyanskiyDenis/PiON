@@ -15,8 +15,10 @@ git-ignored so a fork can never publish your endpoints. The contract that descri
 | `providers/README.md` | *not installed* | — | **The installer contract.** Fragment schema, substitution rules, merge algorithm |
 | `models.default.json` | *not installed* | — | Generic working default: public GitHub Copilot only, zero configuration |
 | `routing.default.json` | *not installed* | — | Generic tier bindings referencing only what `models.default.json` provides |
+| `path-defaults.default.json` | *not installed* | — | The unconfigured default: tier `strong`, every channel `allow` |
 | `models.json` *(generated)* | `~/.pi/agent/models.json` | global | The active providers, their wire APIs, credential *references*, `compat` blocks, honest context windows |
 | `routing.json` *(generated)* | `~/.pi/agent/routing.json` | global | **Semantic tiers** (`strong`/`fast`/`cheap`/`confidential`/`local`), per-provider egress class and concurrency cap. Not a pi file — read by our extensions and by `bin/pi-tier` |
+| `path-defaults.json` *(generated)* | `~/.pi/agent/path-defaults.json` | global | One default tier and one declarative per-channel egress policy (`web`/`mcp`/`publicModels`), applied at every `session_start`. Optional — a missing file is an unconfigured install, not an error. See `bin/pi-check` rule PC-20 for its shape assertion |
 | `settings.json` | `~/.pi/agent/settings.json` | global | Default model, thinking, trust posture, retry, compaction, skills/prompts/packages paths |
 | `keybindings.json` | `~/.pi/agent/keybindings.json` | global | Key remaps. Ships empty on purpose |
 | `web.json` | `~/.pi/agent/web.json` | global | Our own declared-intent file: the one pinned `search.backend`, for humans and `jq`-based tooling. Not read by `pi-web-access` itself — see `web-search.json` |

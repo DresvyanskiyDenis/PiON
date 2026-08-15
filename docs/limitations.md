@@ -88,11 +88,10 @@ them:
 None of this is visible from `pi --list-models` — that command loads packages but does not appear to
 exercise the same registration path a real session does, so it is not a substitute for a real
 `pi -p '...'` smoke call when validating a newly wired package. `settings.default.json` in this
-repository therefore ships only the five packages from this review that load cleanly under a real
-session start (`@narumitw/pi-usage`, `@narumitw/pi-retry`, `pi-lean-ctx`, `pi-hermes-memory`,
-`pi-sandbox`, alongside the packages already adopted before this review) — the five above are reviewed
-and pinned but **not** in `settings.default.json`'s `packages[]`, precisely because wiring any one of
-them breaks every session.
+repository therefore ships only the four packages from this review that load cleanly under a real
+session start (`@narumitw/pi-usage`, `pi-lean-ctx`, `pi-hermes-memory`, `pi-sandbox`, alongside the
+packages already adopted before this review) — the five above are reviewed and pinned but **not** in
+`settings.default.json`'s `packages[]`, precisely because wiring any one of them breaks every session.
 
 ---
 
@@ -120,6 +119,12 @@ enforces nothing from that channel.
 `onProviderError` is `{"policy": "abort", "substituteProvider": false}`. A failover extension was
 specified, scheduled and **cancelled**. See
 [the reasoning](configuration/routing.md#onprovidererror).
+
+`@narumitw/pi-retry` was removed from this ledger 2026-08-15 for the same reason: its actual job —
+widening PI's built-in transient-retry classifier and a stall-watchdog abort — never substitutes a
+provider or a model, but a retry package sitting in a harness whose standing rule is "abort loud on
+the first real failure" is exactly the kind of surface that can end up papering over the failure this
+project exists to surface. Removed rather than kept-but-unwired.
 
 ### `reserveTokens` is global
 
