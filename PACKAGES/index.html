@@ -3759,17 +3759,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#narumitwpi-retry-0310" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        @narumitw/pi-retry 0.31.0
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#nklischpi-plugins-033" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4093,17 +4082,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#narumitwpi-retry-0310" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        @narumitw/pi-retry 0.31.0
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#nklischpi-plugins-033" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4335,14 +4313,6 @@ every session. The rest are reviewed and pinned but not loaded.</p>
 <td>language-server diagnostics</td>
 </tr>
 <tr>
-<td><code>@narumitw/pi-retry</code></td>
-<td>0.31.0</td>
-<td>MIT</td>
-<td>adopted</td>
-<td>—</td>
-<td>transient retry (reviewed, not wired)</td>
-</tr>
-<tr>
 <td><code>@nklisch/pi-plugins</code></td>
 <td>0.3.3</td>
 <td>MIT</td>
@@ -4370,8 +4340,8 @@ every session. The rest are reviewed and pinned but not loaded.</p>
 <td><code>pi-lean-ctx</code></td>
 <td>3.9.17</td>
 <td>Apache-2.0</td>
-<td>adopted-optional</td>
-<td>—</td>
+<td>adopted</td>
+<td>needs the <code>lean-ctx</code> binary at 3.9.13</td>
 <td>tool-output shrinking</td>
 </tr>
 <tr>
@@ -4963,45 +4933,6 @@ checks it against <code>config/packages.lock.json</code> on every run.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="narumitwpi-retry-0310"><code>@narumitw/pi-retry</code> 0.31.0<a class="headerlink" href="#narumitwpi-retry-0310" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th></th>
-<th></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Pinned version</strong></td>
-<td>0.31.0</td>
-</tr>
-<tr>
-<td><strong>Licence</strong></td>
-<td>MIT</td>
-</tr>
-<tr>
-<td><strong>Upstream</strong></td>
-<td><a href="https://github.com/narumiruna/pi-extensions">https://github.com/narumiruna/pi-extensions</a></td>
-</tr>
-<tr>
-<td><strong>Reviewed</strong></td>
-<td>2026-08-06</td>
-</tr>
-<tr>
-<td><strong>Status</strong></td>
-<td><code>adopted</code> — wired and in use</td>
-</tr>
-<tr>
-<td><strong>Role</strong></td>
-<td>transient retry (reviewed, not wired)</td>
-</tr>
-<tr>
-<td><strong>Tarball sha256</strong></td>
-<td><code>94c359a4c19fd5ad75b938e83102d8529e5a0caf265b48017cf40981eb053ec6</code></td>
-</tr>
-</tbody>
-</table>
 <h2 id="nklischpi-plugins-033"><code>@nklisch/pi-plugins</code> 0.3.3<a class="headerlink" href="#nklischpi-plugins-033" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5142,11 +5073,11 @@ checks it against <code>config/packages.lock.json</code> on every run.</p>
 </tr>
 <tr>
 <td><strong>Reviewed</strong></td>
-<td>2026-08-06</td>
+<td>2026-08-06; measured and wired 2026-08-15</td>
 </tr>
 <tr>
 <td><strong>Status</strong></td>
-<td><code>adopted-optional</code> — reviewed and pinned; not wired by default</td>
+<td><code>adopted</code> — wired in <code>config/settings.default.json</code>; requires an external binary</td>
 </tr>
 <tr>
 <td><strong>Role</strong></td>
@@ -5158,6 +5089,23 @@ checks it against <code>config/packages.lock.json</code> on every run.</p>
 </tr>
 </tbody>
 </table>
+<p>Two operational caveats, both measured on 2026-08-15 against binary 3.9.13.</p>
+<p><strong>Install the binary at 3.9.13, not latest.</strong> The npm package shells out to a Rust binary of the same
+name. Versions 3.9.14 through 3.9.18 fail to compile — they declare <code>lean-ctx-ocla = "^1.0.0"</code> and the
+only published version of that crate lacks fields the code references, so the build ends in 17 errors
+regardless of <code>--locked</code>. <code>cargo install lean-ctx --version 3.9.13</code> is the last release that builds.
+The npm side at 3.9.17 was checked call-by-call against 3.9.13's surface and passes no flag the older
+binary rejects.</p>
+<p><strong>Leave <code>enableMcp</code> true.</strong> lean-ctx collapses a repeat full read of an unchanged file to a ~13-token
+stub, by design and by documentation. With <code>enableMcp</code> false, ctx_read is served by a disk-backed cache
+that outlives the process, so a later session can receive that stub for content it never saw — reported
+as an ordinary <code>-99%</code> compression line, with nothing marking it as empty. The MCP bridge's cache is
+per-session, which is the scope the design assumes. The full reasoning is recorded in the repository's
+<code>config/lean-ctx-config.json</code>.</p>
+<p>Note that <code>ctx_read</code>'s automatic mode returns signatures rather than bodies for code files above 8 KB.
+That is disclosed in the tool description and is the package's purpose, but it means an exact-match edit
+needs either <code>mode=full</code>, an explicit line range, or the native <code>read</code> builtin — which stays available,
+since the package runs in <code>additive</code> mode.</p>
 <h2 id="pi-opa-net-060"><code>pi-opa-net</code> 0.6.0<a class="headerlink" href="#pi-opa-net-060" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

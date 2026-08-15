@@ -4408,11 +4408,10 @@ them:</p>
 <p>None of this is visible from <code>pi --list-models</code> — that command loads packages but does not appear to
 exercise the same registration path a real session does, so it is not a substitute for a real
 <code>pi -p '...'</code> smoke call when validating a newly wired package. <code>settings.default.json</code> in this
-repository therefore ships only the five packages from this review that load cleanly under a real
-session start (<code>@narumitw/pi-usage</code>, <code>@narumitw/pi-retry</code>, <code>pi-lean-ctx</code>, <code>pi-hermes-memory</code>,
-<code>pi-sandbox</code>, alongside the packages already adopted before this review) — the five above are reviewed
-and pinned but <strong>not</strong> in <code>settings.default.json</code>'s <code>packages[]</code>, precisely because wiring any one of
-them breaks every session.</p>
+repository therefore ships only the four packages from this review that load cleanly under a real
+session start (<code>@narumitw/pi-usage</code>, <code>pi-lean-ctx</code>, <code>pi-hermes-memory</code>, <code>pi-sandbox</code>, alongside the
+packages already adopted before this review) — the five above are reviewed and pinned but <strong>not</strong> in
+<code>settings.default.json</code>'s <code>packages[]</code>, precisely because wiring any one of them breaks every session.</p>
 <hr />
 <h2 id="design-limits-deliberate-non-goals">Design limits — deliberate non-goals<a class="headerlink" href="#design-limits-deliberate-non-goals" title="Permanent link">&para;</a></h2>
 <h3 id="egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything">Egress classes are not a network boundary, and no longer refuse anything<a class="headerlink" href="#egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything" title="Permanent link">&para;</a></h3>
@@ -4431,6 +4430,11 @@ enforces nothing from that channel.</p>
 <p><code>onProviderError</code> is <code>{"policy": "abort", "substituteProvider": false}</code>. A failover extension was
 specified, scheduled and <strong>cancelled</strong>. See
 <a href="../configuration/routing/#onprovidererror">the reasoning</a>.</p>
+<p><code>@narumitw/pi-retry</code> was removed from this ledger 2026-08-15 for the same reason: its actual job —
+widening PI's built-in transient-retry classifier and a stall-watchdog abort — never substitutes a
+provider or a model, but a retry package sitting in a harness whose standing rule is "abort loud on
+the first real failure" is exactly the kind of surface that can end up papering over the failure this
+project exists to surface. Removed rather than kept-but-unwired.</p>
 <h3 id="reservetokens-is-global"><code>reserveTokens</code> is global<a class="headerlink" href="#reservetokens-is-global" title="Permanent link">&para;</a></h3>
 <p>One number for every model in the tree. It cannot be used as a per-model compaction threshold, and
 attempting it breaks providers. The per-model lever is <code>modelOverrides.&lt;id&gt;.contextWindow</code>. See
