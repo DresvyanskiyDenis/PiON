@@ -1,6 +1,6 @@
 {
   "maxDepth": 2,
-  "defaultTier": "fast",
+  "defaultTier": "light",
   "defaultEgress": "internal",
   "defaultTimeoutMs": 1800000,
   "concurrencyDefault": 3,

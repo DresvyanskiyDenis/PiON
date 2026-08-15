@@ -244,7 +244,7 @@ that is a provider answering HTTP 200 with a well-formed body carrying no comple
 the provider, model, finish reason, effective reasoning effort, zero usage and `responseId`. Nothing
 else in the stack treats it as a failure, which is why it is detected explicitly. See
 [`onProviderError`](../configuration/routing.md#onprovidererror) and, for a worked investigation of
-one gateway's empty-200 behaviour, [the field notes](../extensions/credentials.md#d-field-notes-an-empty-200-investigation-2026-08-14).
+one gateway's empty-200 behaviour, [the field notes](../extensions/credentials.md#field-notes-an-empty-200-investigation-2026-08-14).
 
 ### An async run is still reported as "running" long after it should have finished
 

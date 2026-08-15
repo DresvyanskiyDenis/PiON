@@ -3,24 +3,26 @@
 ## PI has no tier concept
 
 `config/settings.json` binds one default model. `--model` and `/model` take a `provider/id`. That
-is the whole of what PI offers. Everything below — "give this sub-agent the cheap model", "this
-directory's sessions must not reach a public provider", "never run more than one local model at a
-time" — is built here, and lives in exactly one file: **`config/routing.json`**.
+is the whole of what PI offers. Everything below — "give this sub-agent the delegation model", "this
+directory's sessions must not reach a public provider", "never run more than one request against
+that endpoint at a time" — is built here, and lives in exactly one file: **`config/routing.json`**.
 
 `routing.json` is not read by PI. It is read by this repository's extensions and by
 [`pi-tier`](../operations/cli.md#pi-tier).
 
 ## The tier vocabulary
 
-Five names, each a *semantic* claim about the job rather than about the vendor:
+Three names, each a *semantic* claim about the job rather than about the vendor:
 
 | Tier | Purpose | Typical thinking level |
 |---|---|---|
 | `strong` | Main loop, architecture, hard debugging | `high` |
-| `fast` | Reviews, docs, mechanical multi-file edits | `medium` |
-| `cheap` | Summaries, digests, classification, grep-and-report | `low` |
-| `confidential` | Anything that must not leave the tenant | `medium` |
-| `local` | The local lane; marked `optional: true` so its absence is a warning, not a failure | `medium` |
+| `light` | Everything the main loop delegates: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default | `medium` |
+| `confidential` | Anything that must not leave your boundary. Ships unbound | `medium` |
+
+Two of the three are a *role*, not a price point: the main loop, and everything it delegates. The
+third is a boundary claim. Anything finer than that belongs on the individual call as a pinned
+`provider/id`, not in a vocabulary every agent, skill and script has to learn.
 
 ```json title="config/routing.json (shape)"
 {
@@ -28,8 +30,8 @@ Five names, each a *semantic* claim about the job rather than about the vendor:
   "tiers": {
     "strong": { "model": "<provider>/<id>", "thinkingLevel": "high",
                 "purpose": "main loop, architecture, hard debugging" },
-    "local":  { "model": "<provider>/<id>", "thinkingLevel": "medium",
-                "purpose": "local lane", "optional": true }
+    "light":  { "model": "<provider>/<id>", "thinkingLevel": "medium",
+                "purpose": "everything that is not the main loop" }
   },
   "egress":      { "<provider>": "public" },
   "concurrency": { "<provider>": 4 },
@@ -42,7 +44,7 @@ Five names, each a *semantic* claim about the job rather than about the vendor:
 The predecessor harness this one replaces hard-coded one model id into all fourteen agent
 definition files. Trying a different model for a week meant editing and reverting fourteen files.
 
-The acceptance test for this design is the inverse: **repointing `cheap` from one provider to
+The acceptance test for this design is the inverse: **repointing `light` from one provider to
 another is a one-line edit in one file; no agent `.md` is touched, and the next dispatch uses the
 new model.**
 
@@ -54,7 +56,7 @@ new model.**
     ---
     name: code-reviewer
     description: Reviews a diff and returns findings
-    model: fast              # a TIER name — or provider/id for a deliberate pin
+    model: light             # a TIER name — or provider/id for a deliberate pin
     egress: internal         # a reported label; nothing is refused on account of it
     tools: [read, grep, glob, bash]
     ---
@@ -64,11 +66,11 @@ new model.**
    deliberately: a mechanical sweep on a small model, a hard decision on a large one.
 
     ```js
-    subagent({ agent: "code-reviewer", prompt: "…", model: "cheap" })                 // tier
+    subagent({ agent: "code-reviewer", prompt: "…", model: "light" })                 // tier
     subagent({ agent: "code-reviewer", prompt: "…", model: "<provider>/<small-id>" }) // pinned id
     ```
 
-3. **Shell, cron, `pi -p`** — `pi-run -p "summarise" --model "$(pi-tier cheap)"`. This is how a
+3. **Shell, cron, `pi -p`** — `pi-run -p "summarise" --model "$(pi-tier light)"`. This is how a
    script stays provider-configurable without hard-coding an id.
 
 4. **Interactive** — `/model` and ++ctrl+p++. Tiers are not exposed in the TUI picker; the main
@@ -106,9 +108,9 @@ below.
 **Failing at load, not at dispatch, is the point.** A typo in one of a dozen agent files must be a
 startup error, not a surprise forty minutes into a long run.
 
-This was measured, not theorised. When `routing.json`'s `fast` tier once named a model id that did
+This was measured, not theorised. When `routing.json`'s delegation tier once named a model id that did
 not exist in the provider's catalogue, eight agent definitions refused to dispatch at session start,
-each with `model "<id>" (from "fast") is not in the model registry`. That is the design working.
+each with `model "<id>" (from "light") is not in the model registry`. That is the design working.
 
 ### Discoverability
 
@@ -154,12 +156,12 @@ per-channel `{web, mcp, publicModels}` policy.
 ## Concurrency
 
 ```json
-"concurrency": { "<cloud-provider>": 4, "local": 1 }
+"concurrency": { "<cloud-provider>": 4, "<single-machine-endpoint>": 1 }
 ```
 
-A semaphore keyed on the **resolved** provider id, which **queues rather than errors**. The
-`local: 1` entry encodes a physical fact rather than a preference: a machine holds one large local
-model at a time and a model-swapping server unloads on switch, so two concurrent local dispatches
+A semaphore keyed on the **resolved** provider id, which **queues rather than errors**. A cap of
+`1` encodes a physical fact rather than a preference: a single machine serving models holds one
+large one at a time and a swapping server unloads on switch, so two concurrent dispatches there
 thrash instead of parallelising.
 
 Where the semaphore cannot reach is documented honestly in
@@ -241,9 +243,10 @@ sourced by `config/shell/pi-env.sh`.
 ## Missing credentials do not stop the agent
 
 A provider whose credential is absent must not prevent `pi` from starting. It fails only when that
-provider is *selected*. The local lane goes further: no local server running is one warning line
-at `session_start`, never a fatal, because the whole point of a portable harness is that a machine
-without your local setup still gets a working agent.
+provider is *selected*. A tier goes further: one whose endpoint may legitimately be down rather
+than misconfigured is marked `optional: true`, which makes its absence one warning line at
+`session_start` and never a fatal — because the whole point of a portable harness is that a machine
+without your particular endpoint still gets a working agent.
 
 ## Next
 

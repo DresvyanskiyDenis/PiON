@@ -101,7 +101,7 @@ Read by [`extensions/digest`](../extensions/digest.md). Writes an end-of-session
     "minTurns": 2,
     "maxTranscriptBytes": 200000,
     "outputDir": "~/.pi/agent/digests",
-    "summarizer": { "kind": "pi", "model": "cheap", "timeoutMs": 120000 }
+    "summarizer": { "kind": "pi", "model": "light", "timeoutMs": 120000 }
   }
 }
 ```
@@ -113,11 +113,11 @@ Read by [`extensions/digest`](../extensions/digest.md). Writes an end-of-session
 | `maxTranscriptBytes` | `200000` | Larger transcripts are truncated before summarising |
 | `outputDir` | `~/.pi/agent/digests` | Plain Markdown, one file per session |
 | `summarizer.kind` | `"pi"` | Summarise by calling the agent itself |
-| `summarizer.model` | `"cheap"` | A **tier name**. This is the single most common consumer of the `cheap` tier |
+| `summarizer.model` | `"light"` | A **tier name**. This is the single most common consumer of the `light` tier |
 | `summarizer.timeoutMs` | `120000` | |
 
-**What it costs:** one `cheap`-tier call per session that passed `minTurns`. If your `cheap` tier is
-bound to an expensive model, this is where you will notice. Rebinding `cheap` in
+**What it costs:** one `light`-tier call per session that passed `minTurns`. If your `light` tier is
+bound to an expensive model, this is where you will notice. Rebinding `light` in
 [`routing.json`](routing.md) is a better fix than turning digests off.
 
 ---

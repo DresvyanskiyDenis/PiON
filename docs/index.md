@@ -3,7 +3,7 @@
 **PiON — a hardened, portable harness for the [PI coding agent](https://github.com/earendil-works/pi).**
 
 PI ships a good agent loop, a tool set, a TUI and a provider layer. It does not ship a permission
-system, a way to say "run this sub-agent on the cheap model", a compaction loop guard, a background
+system, a way to say "run this sub-agent on the delegation model", a compaction loop guard, a background
 job directory that survives the process, or a headless wrapper that actually exits non-zero when a
 turn fails. This repository is the layer that adds those, as one composed extension plus a
 configuration tree that is symlinked into `~/.pi/agent/`.
@@ -20,8 +20,8 @@ shell and are exercised on macOS.
 
 - **Multi-provider routing by semantic tier**
 
-    Agents, scripts and cron jobs name a *tier* — `strong`, `fast`, `cheap`, `confidential`,
-    `local` — never a model id. Repointing a tier is a one-line edit in
+    Agents, scripts and cron jobs name a *tier* — `strong`, `light`, `confidential` — never a
+    model id. Repointing a tier is a one-line edit in
     [`config/routing.json`](configuration/routing.md).
     → [Providers and tiers](concepts/providers-and-tiers.md)
 

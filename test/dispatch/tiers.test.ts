@@ -146,7 +146,11 @@ describe("resolveModelSpec against the model registry", () => {
   it("still refuses a bare word with no lookalike, without inventing a suggestion", () => {
     const err = grab(() => resolveModelSpec(ROUTING, "galaxy", "fast", CATALOGUE)) as DispatchError;
     assert.equal(err.kind, "unknown_tier");
-    assert.match(err.message, /neither a known tier \(strong, fast, cheap, confidential, local\)/);
+    // Derived from the fixture rather than spelled out: the assertion is "the refusal names every
+    // tier it knows about", and a hardcoded list turns that into "the fixture has these five tiers",
+    // which then fails for the wrong reason every time the vocabulary moves — as it did on
+    // 2026-08-15 when `light` was added.
+    assert.match(err.message, new RegExp(`neither a known tier \\(${Object.keys(ROUTING.tiers).join(", ")}\\)`));
     assert.doesNotMatch(err.message, /Did you mean/);
   });
 });

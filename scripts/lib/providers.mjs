@@ -37,7 +37,7 @@ process.stdout.on("error", (err) => {
 });
 
 const SCHEMA_VERSION = 1;
-const TIER_NAMES = ["strong", "fast", "cheap", "confidential", "local"];
+const TIER_NAMES = ["strong", "light", "confidential"];
 // A fragment carrying a key that is not here is rejected outright. README §2: "a typo'd key that
 // is silently ignored is how a prompt stops being asked without anyone noticing."
 const TOP_LEVEL_KEYS = new Set([
@@ -316,8 +316,9 @@ function substitute(frag, node, tokens) {
       const id = whole[1];
       if (!tokens.has(id)) fatal(`${frag.id}: the template references {{${id}}}, which is not a prompt or derived value`);
       const v = tokens.get(id);
-      // Rule 3: a token resolving to null deletes the key holding it. `openai` relies on this —
-      // "no proxy" must mean baseUrl is ABSENT, which is not the same as null or "".
+      // Rule 3: a token resolving to null deletes the key holding it. A fragment whose endpoint is
+      // the vendor's own default relies on this — "no proxy in front of it" must mean baseUrl is
+      // ABSENT, which is not the same as null or "".
       return v === null ? DELETE_ME : v;
     }
     return substituteString(frag, node, tokens);
@@ -524,9 +525,11 @@ switch (cmd) {
     for (const name of TIER_NAMES) {
       const t = tiers[name];
       if (!t) continue;
-      // `local` and `confidential` are the two a given machine may legitimately be unable to back
-      // at all; the other three are what every agent and skill dispatches on.
-      const optional = name === "local" || name === "confidential" ? "1" : "0";
+      // `confidential` is the one a given machine may legitimately be unable to back at all — it
+      // needs an endpoint inside the operator's own boundary, and the shipped table leaves it in
+      // `tiersUnbound` for exactly that reason. `strong` and `light` are what every agent and skill
+      // dispatches on, so leaving either unbound is a broken install rather than a choice.
+      const optional = name === "confidential" ? "1" : "0";
       process.stdout.write(`${tsv(name, optional, t.purpose ?? "", t.model ?? "", t.thinkingLevel ?? "")}\n`);
     }
     break;
@@ -624,7 +627,7 @@ switch (cmd) {
       };
     }
     // A tier the answers bind that the routing template does not mention: a fragment may suggest
-    // one the generic default left out (`local` is the usual case).
+    // one the generic default left unbound (`confidential` is the usual case).
     for (const [k, v] of answers) {
       if (!k.startsWith("tier.")) continue;
       const name = k.slice(5);

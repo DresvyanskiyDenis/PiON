@@ -9,8 +9,8 @@
  * Resolving a waiter's promise does not run the waiter — that happens a microtask later. In the
  * window between the release and the waiter's `active++`, a brand-new `run()` observes
  * `active === limit - 1`, passes the check synchronously, and increments. The woken waiter then
- * increments again: `limit + 1` tasks in flight. With `local: 1` — a lane that is serialised
- * because the hardware is — that is two llama.cpp children on one GPU.
+ * increments again: `limit + 1` tasks in flight. On a lane capped at 1 — a gateway whose operator
+ * allows exactly one request in flight — that is two children where one was permitted.
  *
  * The fix is to **transfer the permit** rather than to release it and let the next caller re-test:
  * the count is decremented only when there is nobody waiting, and a woken waiter inherits the

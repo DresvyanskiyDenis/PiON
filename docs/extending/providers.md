@@ -1,8 +1,7 @@
 # Adding a provider
 
-Six provider fragments ship: `github-copilot`, `anthropic`, `openai`, `databricks`, `local` and
-`openai-compatible`. Adding a seventh is a JSON file, and the installer picks it up with no code
-change.
+Three provider fragments ship: `github-copilot`, `databricks` and `openai-compatible`. Adding a
+fourth is a JSON file, and the installer picks it up with no code change.
 
 !!! tip "Check `openai-compatible` first"
 
@@ -107,7 +106,7 @@ credentials it needs, its egress class, its concurrency cap, and the reasoning J
     }
   ],
 
-  "tiers": { "fast": "my-endpoint/my-model-v1" },
+  "tiers": { "light": "my-endpoint/my-model-v1" },
 
   "provider": {
     "name": "My endpoint",

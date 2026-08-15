@@ -1,7 +1,7 @@
 import { shippedConfig } from "../lib/repo-config.ts";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   DEFAULT_DISPATCH_CONFIG,
@@ -47,11 +47,16 @@ describe("the repo's own config files", () => {
     const { routing, dispatch } = loadDispatchSettings({ routingPath: SHIPPED_ROUTING });
     assert.ok(routing);
     // A tier is either BOUND to a model whose provider has an egress class, or explicitly UNBOUND
-    // with a reason. The shipped template binds strong/fast/cheap to public GitHub Copilot and leaves
-    // confidential/local unbound, because no public default can assume a workspace or a local model
-    // server exists; an install binds whatever the operator selected. Silence — a tier that is
+    // with a reason. The shipped template binds strong/light to public GitHub Copilot and leaves
+    // confidential unbound, because no public default can assume an endpoint inside the operator's
+    // boundary exists; an install binds whatever the operator selected. Silence — a tier that is
     // neither bound nor explained — is the failure, because that is what turns into "unknown tier".
-    for (const tier of ["strong", "fast", "cheap", "confidential", "local"]) {
+    //
+    // The list below IS the tier vocabulary, not a sample of it. Owner decision, 2026-08-15: three
+    // tiers, `strong`, `light` and `confidential`. `light` carries the role the former `cheap` tier
+    // had; `fast` and `local` were deleted outright. Adding a tier to `routing.default.json` without
+    // adding it here would leave it untested, so this loop is also the vocabulary's own gate.
+    for (const tier of ["strong", "light", "confidential"]) {
       const bound = routing.tiers[tier];
       if (bound) {
         const provider = bound.model.split("/")[0]!;
@@ -67,19 +72,36 @@ describe("the repo's own config files", () => {
     assert.ok(routing.tiers[dispatch.defaultTier], "the configured default tier must be bound");
   });
 
-  it("a provider's concurrency cap comes from its own fragment — the local lane is serialised to 1", () => {
+  it("a provider's concurrency cap comes from its own fragment, and the shipped table agrees", () => {
     // The cap used to be asserted against `routing.json`'s concurrency map, which only exists once an
     // install has selected the provider. The fact itself lives in the fragment the installer copies
-    // it from, so that is where it is pinned now: a local model server on one machine's GPU is one
-    // request at a time, whatever the routing table of any particular install ends up saying.
-    const fragment = JSON.parse(readFileSync(join(REPO_CONFIG, "providers", "local.json"), "utf8")) as {
-      concurrency?: number;
-    };
-    assert.equal(fragment.concurrency, 1);
+    // it from, so that is where it is pinned. This used to name `local.json` and its cap of 1 — a
+    // model server on one machine's GPU being one request at a time. That fragment was deleted with
+    // the lane (owner decision, 2026-08-15), so the assertion is now the general invariant it was
+    // always a special case of, over whichever fragments ship.
+    const fragments = readdirSync(join(REPO_CONFIG, "providers"))
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => [f.replace(/\.json$/, ""), JSON.parse(readFileSync(join(REPO_CONFIG, "providers", f), "utf8"))]) as [
+      string,
+      { concurrency?: number | string },
+    ][];
+    assert.ok(fragments.length > 0, "at least one provider fragment must ship");
 
-    // And when an install HAS bound the local lane, the generated table must agree with the fragment.
     const { routing } = loadDispatchSettings({ routingPath: SHIPPED_ROUTING });
-    if (routing?.concurrency.local !== undefined) assert.equal(routing.concurrency.local, 1);
+    for (const [name, fragment] of fragments) {
+      // A `{{mustache}}` cap is one the operator answers at install time — there is no fixed number
+      // to pin, and pinning the placeholder would assert the template, not the contract.
+      if (typeof fragment.concurrency === "string") {
+        assert.match(fragment.concurrency, /^\{\{[a-zA-Z]+\}\}$/, `${name}: an unresolved cap must be a placeholder`);
+        continue;
+      }
+      assert.ok(
+        Number.isInteger(fragment.concurrency) && (fragment.concurrency as number) >= 1,
+        `${name}: concurrency must be a positive integer, got ${String(fragment.concurrency)}`,
+      );
+      const shipped = routing?.concurrency[name];
+      if (shipped !== undefined) assert.equal(shipped, fragment.concurrency, `${name}: table disagrees with fragment`);
+    }
   });
 
   it("dispatch.json's dispatchTools cover the guard's dispatch tool list", () => {

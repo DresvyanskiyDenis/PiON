@@ -31,8 +31,12 @@ Two kinds of provider block, and the difference matters:
 
 | Kind | Example | Rule |
 |---|---|---|
-| **Built-in** — PI already ships the provider and its catalogue | `github-copilot`, `anthropic`, `openai` | Override the *minimum*. Re-declaring fields you did not mean to change is how OAuth blocks get destroyed. Use `modelOverrides`, not `models`. |
-| **Custom** — PI has never heard of it | a self-hosted gateway, a local server | Declare it whole: `baseUrl`, `api`, `apiKey`, `compat`, and an explicit `models` array. |
+| **Built-in** — PI already ships the provider and its catalogue | `github-copilot` | Override the *minimum*. Re-declaring fields you did not mean to change is how OAuth blocks get destroyed. Use `modelOverrides`, not `models`. |
+| **Custom** — PI has never heard of it | a self-hosted gateway, a server on loopback | Declare it whole: `baseUrl`, `api`, `apiKey`, `compat`, and an explicit `models` array. |
+
+PI's own catalogue knows more built-in providers than this harness ships a fragment for. That is not
+an invitation: a provider with no fragment has no prompts, no credential plan and no egress class, so
+it cannot be selected by the installer and nothing routes to it.
 
 ---
 
@@ -53,11 +57,11 @@ Chat-Completions surface exposed at a custom path, whatever that path is.
 never typed. Omitting `baseUrl` on a **built-in** provider is correct and normal; omitting it on a
 custom one leaves PI with no endpoint at all.
 
-!!! note "For the `local` provider, `models.json`'s `baseUrl` does not win"
-    `extensions/credentials.ts` re-registers `local` with
-    `process.env.PI_LOCAL_BASE_URL ?? "http://127.0.0.1:8888/v1"`, and PI's provider composer
-    resolves `extension?.baseUrl ?? config?.baseUrl`. On any port other than 8888 you **must**
-    also export `PI_LOCAL_BASE_URL` — see [Environment](environment.md#pi_local_base_url).
+!!! note "`models.json`'s `baseUrl` is now the only one"
+    An extension used to re-register a loopback provider at runtime, and PI's provider composer
+    resolves `extension?.baseUrl ?? config?.baseUrl` — so that extension's URL outranked this file.
+    It was deleted with the local lane (owner decision, 2026-08-15), and nothing in `extensions/`
+    declares a `baseUrl` any more. What this file says is what is used.
 
 ### `api`
 
@@ -94,8 +98,9 @@ is committed.
     A present-but-unresolvable reference (`$VAR` for an unset variable) is a weaker failure: the
     models stay listed and the first request fails loudly. Still wrong, easier to diagnose.
 
-    For a loopback server that authenticates nothing, ship a literal inert string. The `local`
-    fragment uses `"not-required"` for exactly this reason.
+    For a loopback server that authenticates nothing, ship a literal inert string —
+    `"not-required"` — rather than omitting the key. PI treats a provider with no resolvable
+    credential as unavailable, so an endpoint that genuinely needs none still has to say so.
 
 !!! warning "`!command` has no TTL"
     PI re-executes a command credential on **every** LLM call. An unwrapped
@@ -185,16 +190,16 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     server:
 
     ```bash
-    curl -s "${PI_LOCAL_BASE_URL:-http://127.0.0.1:8888/v1}/models" | jq -r '.data[].id'
+    curl -s "<your-base-url>/models" | jq -r '.data[].id'
     ```
 
     Do not copy ids out of anyone else's configuration — including the examples shipped in
-    `config/providers/local.json`, which are labelled `example-…` precisely because they do not
-    exist anywhere.
+    `config/providers/openai-compatible.json`, which are labelled `example-…` precisely because they
+    do not exist anywhere.
 
 !!! note "Dashes here, dots there"
     The same model can carry two id conventions on two providers —
-    `anthropic/claude-haiku-4-5` and `github-copilot/claude-haiku-4.5`. Getting it wrong produces
+    `databricks/databricks-claude-haiku-4-5` and `github-copilot/claude-haiku-4.5`. Getting it wrong produces
     `model not in the registry` at dispatch, which is loud but confusing the first time.
 
 !!! tip "A thinking model at the wrong temperature looks like a harness bug"
@@ -231,15 +236,12 @@ Six ship:
 | Fragment | Built-in to PI? | Egress | Notes worth reading before you touch it |
 |---|---|---|---|
 | `github-copilot.json` | yes | `public` | Never run `/login` on this path — the OAuth resolver silently overrides your `baseUrl` |
-| `anthropic.json` | yes | `public` | Nothing is required for it to work; the block only corrects context windows |
-| `openai.json` | yes | `public` | The 200 000 cap is a deliberate downgrade from PI's 272 000 — that number is a *pricing* boundary |
 | `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured |
-| `local.json` | no | `confidential` | `apiKey` must be non-empty; `PI_LOCAL_BASE_URL` wins over `baseUrl` |
 | [`openai-compatible.json`](openai-compatible.md) | no | **you choose** | Any gateway serving its own model names. The context window and the egress class are *answers*, not facts about the URL |
 
 The fragment schema, the substitution rules and the merge algorithm are documented in
 `config/providers/README.md`, which is the contract between the fragments and the installer. To
-add a seventh provider, see [Adding a provider](../extending/providers.md) — but check first
+add a fourth provider, see [Adding a provider](../extending/providers.md) — but check first
 whether [`openai-compatible`](openai-compatible.md) already covers your endpoint.
 
 ---

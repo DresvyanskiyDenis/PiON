@@ -17,8 +17,10 @@
  *     not have, an incoherent return contract, a `fallbackModels` key). Dispatch is refused by
  *     name. Fixing it is an edit to the file.
  *   - **restricted** — the file is fine but its model is not being served right now: an `optional`
- *     tier (the local lane) whose backend is down. Dispatch is refused by name because there is
- *     nothing to dispatch onto; start the backend and the same file is `ok`.
+ *     tier whose backend is down. Dispatch is refused by name because there is nothing to dispatch
+ *     onto; start the backend and the same file is `ok`. No shipped tier is `optional` since the
+ *     `local` lane was deleted on 2026-08-15, so this status is reachable only from a hand-edited
+ *     `routing.json`.
  *
  * `restricted` used to have a second producer — egress containment, "this session's class may not
  * reach that provider's class". That rule was withdrawn on 2026-08-13 (`lib/dispatch-veto.ts`), so
@@ -364,9 +366,9 @@ function loadOne(
     const baseModel = target ? splitThinkingSuffix(target.model).baseModel : undefined;
     if (target && baseModel && opts.availableModels && !opts.availableModels.has(baseModel)) {
       if (target.optional) {
-        // An `optional: true` tier (the local lane) is allowed to be absent: a local model server is not
-        // always running. It is still refused at dispatch, but as "not available now", not as a
-        // broken file.
+        // An `optional: true` tier is allowed to be absent: its backend may legitimately not be
+        // answering. It is still refused at dispatch, but as "not available now", not as a broken
+        // file.
         restricted = `model ${target.model} (from "${spec}") is not in the model registry; the "${target.tier}" tier is optional, so this is a runtime condition, not a file error`;
       } else {
         local.push(`model "${target.model}" (from "${spec}") is not in the model registry`);

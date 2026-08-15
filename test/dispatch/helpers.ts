@@ -38,6 +38,25 @@ export function grab(fn: () => unknown): Error {
 // `confidential` egress class — there is no `internal`-class provider left in the shipped config at
 // all. Tests that specifically exercise the `internal` egress class declare their own synthetic
 // ROUTING fixture rather than relying on this shared one (see catalogue.test.ts, registry.test.ts).
+//
+// DELIBERATELY WIDER THAN THE SHIPPED TABLE. Owner decision, 2026-08-15: the shipped tier
+// vocabulary is exactly `strong`, `light` and `confidential`, and the shipped provider set is
+// exactly `github-copilot`, an OpenAI-compatible gateway and `databricks`. `light` was added below
+// — appended last, so the "known tiers: ..." strings the refusal paths render keep their existing
+// prefix and the tests asserting on them keep asserting the same thing. The rest (`fast`, `cheap`,
+// `local`, and the `openai`/`local` provider rows) were NOT removed, because this object is a
+// synthetic table whose job is to exercise routing code, not to mirror `config/routing.json`:
+//   - `local` is the only `optional: true` tier anywhere. `optional` is live code
+//     (config.ts:32/277, tiers.ts:245) that no shipped tier uses, so deleting this row would delete
+//     the only coverage of the "target may legitimately be absent" branch.
+//   - four providers across three concurrency caps and two egress classes are what make the
+//     per-provider semaphore, the egress classifier and the cap clamp testable at all; the shipped
+//     table has one provider and one cap.
+//   - a tier list longer than the bound one is what the unknown-tier and unbound-tier refusals are
+//     measured against.
+// Anything that asserts about the REAL `config/routing.json` reads that file instead of this
+// fixture — see config.test.ts's "the repo's own config files" and
+// ext-13-provider-error.test.ts's "the shipped routing table".
 export const ROUTING: RoutingConfig = {
   tiers: {
     strong: { model: "github-copilot/claude-opus-5", thinkingLevel: "high" },
@@ -45,6 +64,7 @@ export const ROUTING: RoutingConfig = {
     cheap: { model: "databricks/databricks-claude-haiku-4-5", thinkingLevel: "low" },
     confidential: { model: "databricks/databricks-claude-sonnet-4-5", thinkingLevel: "medium" },
     local: { model: "local/unsloth/Qwen3.6-35B-A3B-MTP-GGUF", thinkingLevel: "medium", optional: true },
+    light: { model: "github-copilot/claude-sonnet-5", thinkingLevel: "medium" },
   },
   egress: {
     "github-copilot": "public",

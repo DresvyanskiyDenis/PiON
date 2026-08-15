@@ -129,7 +129,7 @@ do the same thing, one of them unguarded.
 A `workflowScript` call launches children *inside* the package, past the point where this module
 turns a tier word into a `provider/model`. A child that names no model therefore arrives at PI's own
 substring matcher carrying its agent file's tier word, and that matcher will resolve a word like
-`fast` onto whatever provider id happens to contain it — routing by accident, onto a provider
+`light` onto whatever provider id happens to contain it — routing by accident, onto a provider
 `models.json` never declared, surfacing as a credentials error rather than as the substitution it
 is.
 

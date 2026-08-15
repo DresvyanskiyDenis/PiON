@@ -45,10 +45,10 @@ neither. See recipes 17 and 18 in the [[Cookbook]].
 
 ## Does it work with my provider?
 
-Six fragments ship (`github-copilot`, `anthropic`, `openai`, `databricks`, `local`,
-`openai-compatible`) and adding another is a fragment file plus one installer re-run. Anything
-speaking an OpenAI-compatible Chat Completions surface is already covered by `openai-compatible`:
-you give it the base URL, the model ids and their real context windows. See
+Three fragments ship (`github-copilot`, `databricks`, `openai-compatible`) and adding another is a
+fragment file plus one installer re-run. Anything speaking an OpenAI-compatible Chat Completions
+surface — a gateway, a vendor API, a server on your own loopback — is already covered by
+`openai-compatible`: you give it the base URL, the model ids and their real context windows. See
 [[Provider Cheat Sheet]].
 
 ## Why is there no failover to a second provider?
@@ -79,7 +79,7 @@ call time inside this harness. Nothing here inspects network traffic.
 
 Only to the provider you configured, by making the request you asked for. Telemetry and analytics
 ship off (`enableInstallTelemetry: false`, `enableAnalytics: false`). If you want a lane where the
-endpoint is inside your own boundary, that is what the `confidential` and `local` tiers are for.
+endpoint is inside your own boundary, that is what the `confidential` tier is for.
 
 ## Can I use it without the installer?
 

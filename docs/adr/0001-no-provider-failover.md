@@ -91,7 +91,7 @@ turns a two-second diagnosis into a two-minute one.
 - **Failover only for `network` errors.** Narrower, and defensible. Rejected because the
   classification is unreliable — gateways return network-shaped errors for quota and policy refusals —
   so the narrow rule would widen itself in practice.
-- **Per-tier opt-in.** A `failover: true` key on the `cheap` tier only. Rejected on cost: it doubles
+- **Per-tier opt-in.** A `failover: true` key on the `light` tier only. Rejected on cost: it doubles
   the number of states every downstream module has to reason about, to serve the tier where a failure
   matters least.
 

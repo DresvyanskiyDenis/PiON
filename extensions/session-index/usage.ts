@@ -50,9 +50,15 @@ const EMPTY_STATS: SessionStats = {
 
 /** REQ-PRV-74: providers that report no price. Not derived from `Model.cost` because that
  * requires a live `ctx.modelRegistry` lookup and is unavailable during offline backfill; a
- * provider-id denylist works identically for both call sites and matches the requirement's own
- * wording ("Copilot, local") exactly. */
-export const UNPRICED_PROVIDERS: ReadonlySet<string> = new Set(["github-copilot", "local"]);
+ * provider-id denylist works identically for both call sites.
+ *
+ * The requirement's wording is "Copilot, local", but `local` was dropped here on 2026-08-15:
+ * owner decision, the provider set is exactly `github-copilot`, an OpenAI-compatible gateway and
+ * `databricks`, so a `local` member could only ever match a provider id that no longer resolves.
+ * A gateway with no `cost` block is a different case and is deliberately not added here — it
+ * reports a real, configured price of zero, and inventing an "unpriced" label for it would hide
+ * that its operator set no price rather than that no price exists. */
+export const UNPRICED_PROVIDERS: ReadonlySet<string> = new Set(["github-copilot"]);
 
 export function isUnpricedProvider(provider: string | null): boolean {
   return provider === null || UNPRICED_PROVIDERS.has(provider);

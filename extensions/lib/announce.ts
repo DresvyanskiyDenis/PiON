@@ -26,8 +26,10 @@
  * (`dist/core/extensions/runner.js:274`) is true exactly when a real UI context is installed —
  * TUI and RPC — and false for `print` / `json`, where the context is `noOpUIContext`. PI uses this
  * discriminator for precisely this purpose in `getShortcuts`: `if (!this.hasUI()) console.warn(...)`
- * (`:325`). `extensions/credentials.ts`'s `warmUp` already had it right; this module makes it the
- * one implementation instead of the one exception.
+ * (`:325`). One module in this tree — `extensions/credentials.ts`'s local-lane warm-up — already
+ * had it right before this module existed; this module makes it the one implementation instead of
+ * the one exception. That warm-up itself was deleted on 2026-08-15 with the rest of the local lane,
+ * so the precedent it set survives only here.
  *
  * So: UI present -> `ctx.ui.notify` only. No UI -> the log sink only. Never both, never neither.
  */

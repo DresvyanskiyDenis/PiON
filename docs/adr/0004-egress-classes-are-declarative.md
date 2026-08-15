@@ -102,7 +102,8 @@ classes were enforced at the network layer gets rejected at the design stage rat
   an OS-level sandbox package was reviewed and deliberately not relied on.
 - **Route everything through a mandatory egress proxy.** Real enforcement for HTTP, and a large piece
   of infrastructure for every user to run. Rejected as a default; nothing stops an operator doing it,
-  and `config/providers/openai.json` already carries the shape for a proxied provider.
+  and [`openai-compatible`](../configuration/openai-compatible.md) already carries the shape for it —
+  a base URL you choose is a base URL you can point at a proxy.
 - **Drop the classes entirely, since they do not enforce.** Rejected: the dispatch ceiling is a real
   check that catches a real mistake — a confidential-tier agent delegating to a public-tier one — and
   removing the vocabulary would remove the only place that mistake is currently caught.

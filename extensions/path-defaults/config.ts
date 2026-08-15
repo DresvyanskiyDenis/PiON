@@ -10,8 +10,9 @@
  *
  * What survives from the roots-based design, unchanged:
  *
- *  1. The single `tier` field names a `config/routing.json` tier (`strong`/`fast`/`cheap`/
- *     `confidential`/`local`), not a literal `provider`+`model` pair. `config/README.md` rule 3:
+ *  1. The single `tier` field names a `config/routing.json` tier (`strong`/`light`/
+ *     `confidential` — the 2026-08-15 owner decision deleted `fast` and `local` and renamed
+ *     `cheap` to `light`), not a literal `provider`+`model` pair. `config/README.md` rule 3:
  *     "no bare model id outside `routing.json` and `models.json` — agents, skills and scripts
  *     reference a tier." The provider/model/session-egress-class all come from `./routing.ts`
  *     resolving that tier, so `config/routing.json` stays the single source of truth for what a

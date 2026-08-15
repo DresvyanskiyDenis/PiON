@@ -21,17 +21,15 @@ Ships `2`. A schema marker, not a knob. Leave it.
 
 ## `tiers`
 
-The whole point of the file. Five names are the fixed vocabulary; every agent, skill and script in
+The whole point of the file. Three names are the fixed vocabulary; every agent, skill and script in
 this harness dispatches on them.
 
 ```json
 "tiers": {
-  "strong": { "model": "github-copilot/claude-opus-5",    "thinkingLevel": "high",
+  "strong": { "model": "github-copilot/claude-opus-5",   "thinkingLevel": "high",
               "purpose": "main loop, architecture, hard debugging" },
-  "fast":   { "model": "github-copilot/claude-sonnet-5",  "thinkingLevel": "medium",
-              "purpose": "reviews, docs, mechanical multi-file edits" },
-  "cheap":  { "model": "github-copilot/claude-haiku-4.5", "thinkingLevel": "low",
-              "purpose": "summaries, digests, classification, grep-and-report" }
+  "light":  { "model": "github-copilot/claude-sonnet-5", "thinkingLevel": "medium",
+              "purpose": "everything that is not the main loop: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report" }
 }
 ```
 
@@ -40,24 +38,30 @@ this harness dispatches on them.
 | `model` | a **provider-qualified** id: `<provider>/<model-id>`. A bare id is rejected |
 | `thinkingLevel` | `off` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` — the reasoning effort every child dispatched on this tier runs at. Maps to `thinkingBudgets` in [`settings.json`](settings.md#thinkingbudgets). An unknown value aborts at load, naming the tier |
 | `purpose` | prose. Shown by `pi-tier --list` and injected into the sub-agent model-selection block, so a model can pick sensibly |
-| `optional` | `true` means "absence is a warning, not a failure". Used for `local` |
+| `optional` | `true` means "absence is a warning, not a failure". For a tier whose target may legitimately be down — an endpoint on your own hardware, say — rather than misconfigured |
 
 **Changing which model a tier uses is a one-line edit here.** No agent file is touched; the next
 dispatch uses the new model. That inversion is the acceptance test the design was built against —
 the predecessor harness hard-coded one model id into fourteen agent files.
 
-### The five tier names
+### The three tier names
 
 | Tier | For | Shipped `thinkingLevel` |
 |---|---|---|
 | `strong` | main loop, architecture, hard debugging | `high` |
-| `fast` | reviews, docs, mechanical multi-file edits | `medium` |
-| `cheap` | summaries, digests, classification, grep-and-report | `low` |
-| `confidential` | anything that must not leave your boundary | `medium` |
-| `local` | the loopback lane; `optional: true` | `medium` |
+| `light` | everything else: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default | `medium` |
+| `confidential` | anything that must not leave your boundary. Ships unbound | — |
 
-Do not invent a sixth. Everything that resolves a tier fails loud on an unknown name, and adding
+Do not invent a fourth. Everything that resolves a tier fails loud on an unknown name, and adding
 one means every consumer has to learn it.
+
+!!! note "Two tiers, not one per price point"
+    A tier is a *role*, and the harness has exactly two roles a bound tier can play: the main loop,
+    and everything the main loop delegates. Splitting the second one by price produced tiers that
+    differed only in which model they happened to point at, and agents choosing between them on
+    vibes. `light` is the single delegation tier; when one particular call genuinely needs a
+    different model, pin `provider/id` on that call rather than adding a vocabulary word every
+    consumer then has to learn.
 
 ### How `thinkingLevel` reaches the child
 
@@ -97,7 +101,7 @@ to write it, for every other consumer's sake.
 
 **What breaks:** a `model` naming an id that is not in `config/models.json` fails at **load**, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
-`model "<id>" (from "fast") is not in the model registry`. That is the design working. A typo in
+`model "<id>" (from "light") is not in the model registry`. That is the design working. A typo in
 one of a dozen agent files must be a startup error, not a surprise forty minutes into a long run.
 
 ---
@@ -109,14 +113,14 @@ Documentation, not configuration. A tier that no installed provider can satisfy 
 
 ```json
 "tiersUnbound": {
-  "confidential": "No provider with egress class \"confidential\" is installed. …",
-  "local": "No local model server is configured. …"
+  "confidential": "No provider with egress class \"confidential\" is installed. …"
 }
 ```
 
-Two tiers ship unbound because binding them to whatever happened to be available would make the
-words meaningless. `confidential` bound to a public provider is worse than `confidential` being
-absent: naming it then fails loudly instead of quietly sending material to a third party.
+`confidential` ships unbound because binding it to whatever happened to be available would make the
+word meaningless. `confidential` bound to a public provider is worse than `confidential` being
+absent: naming it then fails loudly instead of quietly sending material to a third party. Run the
+installer and select an endpoint inside your own boundary to bind it.
 
 **Do not** leave a tier in `tiers` pointing at a provider that is not in `models.json`.
 `bin/pi-check` rule `PC-02` fails on that, and at runtime the dispatcher refuses it with a less
@@ -160,14 +164,15 @@ lane in the model menu is a lane nobody can reason about.
 ## `concurrency`
 
 ```json
-"concurrency": { "github-copilot": 4, "local": 1 }
+"concurrency": { "github-copilot": 4 }
 ```
 
 A semaphore keyed on the **resolved** provider id. It **queues** rather than erroring.
 
-`local: 1` encodes a physical fact, not a preference: a machine holds one large model at a time and
-a swapping router unloads on switch, so two concurrent local dispatches thrash instead of
-parallelising.
+A cap can encode a physical fact rather than a preference. A single machine serving models on
+loopback holds one large model at a time and a swapping router unloads on switch, so two concurrent
+dispatches there thrash instead of parallelising — configure that endpoint through
+[`openai-compatible`](openai-compatible.md) and answer its concurrency prompt with `1`.
 
 Raise a cloud provider's number if you dispatch wide fan-outs and the provider tolerates it; lower
 it if you are hitting rate limits. `config/dispatch.json`'s `concurrencyDefault` (3) applies when a
@@ -245,7 +250,7 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
 
 ```bash
 pi-tier --list            # the whole table, resolved
-pi-tier fast              # one tier -> provider/model-id ; exit 2 on an unknown name
+pi-tier light             # one tier -> provider/model-id ; exit 2 on an unknown name
 bin/pi-check --all        # PC-01, PC-02, PC-04, PC-08
 ```
 

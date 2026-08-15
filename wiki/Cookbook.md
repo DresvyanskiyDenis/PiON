@@ -29,7 +29,7 @@ clone.
 
 ```json
 "tiers": {
-  "fast": { "model": "github-copilot/claude-sonnet-5", "thinkingLevel": "medium", "purpose": "…" }
+  "light": { "model": "github-copilot/claude-sonnet-5", "thinkingLevel": "medium", "purpose": "…" }
 }
 ```
 
@@ -38,8 +38,8 @@ The model id is **provider-qualified**: `<provider>/<model>`. Change the value, 
 **Check:**
 
 ```bash
-pi-tier fast              # the resolved id, with the tier's thinkingLevel as a :<level> suffix
-pi-tier --thinking fast   # just the level
+pi-tier light              # the resolved id, with the tier's thinkingLevel as a :<level> suffix
+pi-tier --thinking light   # just the level
 ```
 
 **What breaks:** an unqualified id (`claude-sonnet-5`) fails `bin/pi-check`'s `PC-01`. A provider
@@ -48,9 +48,9 @@ resolving. Putting the effort level in the `model` value (`<provider>/<model>:hi
 `thinkingLevel` breaks it differently and more quietly: the registry is keyed on the bare id, so
 `/doctor`'s `D-04` reports the tier as unresolved even though it works.
 
-### 2. Bind the `confidential` or `local` tier
+### 2. Bind the `confidential` tier
 
-They ship **unbound** on purpose, with an explanation in `routing.json`'s `tiersUnbound`. Asking for
+It ships **unbound** on purpose, with an explanation in `routing.json`'s `tiersUnbound`. Asking for
 an unbound tier fails loudly instead of quietly sending your material to a public endpoint.
 
 ```bash
@@ -69,9 +69,9 @@ egress ceiling that refuses a public dispatch from a confidential agent will the
 ./scripts/install.sh --section providers
 ```
 
-Six fragments ship: `anthropic`, `openai`, `github-copilot`, `databricks`, `local`, and
-`openai-compatible` for a gateway that serves its own model names. For anything
-else, add a fragment to `config/providers/` — see
+Three fragments ship: `github-copilot`, `databricks`, and `openai-compatible` for anything serving
+its own model names over an OpenAI-compatible Chat Completions surface — a gateway, a vendor API, or
+a server on your own loopback. For anything else, add a fragment to `config/providers/` — see
 [Adding a provider](https://dresvyanskiydenis.github.io/PiON/extending/providers/) and
 [[Provider Cheat Sheet]].
 
@@ -266,7 +266,7 @@ give a read-only agent read-only tools.
 **File:** `config/dispatch.json`
 
 ```json
-{ "maxDepth": 2, "concurrencyDefault": 3, "defaultTier": "fast", "defaultTimeoutMs": 1800000 }
+{ "maxDepth": 2, "concurrencyDefault": 3, "defaultTier": "light", "defaultTimeoutMs": 1800000 }
 ```
 
 `maxDepth: 2` is **not overridable** — a written justification cannot make a fourth level of nesting

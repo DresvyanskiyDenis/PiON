@@ -33,10 +33,10 @@ case ":$PATH:" in *":$HOME/bin:"*) ;; *) export PATH="$HOME/bin:$PATH" ;; esac
 #                                      #   models.json's baseUrl override intact at request time.
 #                                      #   Do NOT run `/login github-copilot` on a data-residency
 #                                      #   tenant — see config/providers/github-copilot.json.
-#   ANTHROPIC_API_KEY=sk-ant-...       # anthropic (or use `/login anthropic` for Pro/Max instead)
-#   OPENAI_API_KEY=sk-...              # openai
 #   DATABRICKS_TOKEN=dapi...           # databricks: PAT instead of the OAuth/CLI path
-#   LOCAL_API_KEY=...                  # only if your local model server checks a bearer token
+#   <your own name>=...                # openai-compatible: the fragment asks you for the VARIABLE
+#                                      #   name, so this line is whatever you answered. An endpoint
+#                                      #   that checks no bearer token needs no line at all.
 #   PI_COPILOT_QUOTA_TOKEN=ghp_...     # optional: classic PAT for the Copilot quota meter
 if [ -r "$HOME/.pi/secrets.env" ]; then
   set -a
@@ -59,13 +59,6 @@ fi
 # export DATABRICKS_HOST="https://<your-workspace-host>"
 # export DATABRICKS_CONFIG_PROFILE=DEFAULT
 
-# --- Local model server -------------------------------------------------------
-# Only needed if you installed the `local` provider on a port other than 8888.
-# extensions/credentials.ts re-registers the provider with this URL, and PI's provider
-# composer resolves `extension?.baseUrl ?? config?.baseUrl` — so THIS wins over
-# config/models.json. If they disagree, requests follow this one.
-# export PI_LOCAL_BASE_URL="http://127.0.0.1:<port>/v1"
-
 # --- TLS and proxy ------------------------------------------------------------
 # Behind a TLS-intercepting proxy, Node needs the interceptor's CA bundle. This is a
 # Node variable; confirm your pi build honours it before relying on it.
@@ -85,5 +78,5 @@ export NO_PROXY="127.0.0.1,localhost,::1,.local"
 export no_proxy="$NO_PROXY"
 
 # --- Convenience --------------------------------------------------------------
-alias pic='pi --model "$(pi-tier cheap)"'
+alias pil='pi --model "$(pi-tier light)"'
 alias pis='pi --model "$(pi-tier strong)"'

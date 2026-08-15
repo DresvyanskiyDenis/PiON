@@ -3,7 +3,7 @@
 **PiON — a hardened, portable harness for the [PI coding agent](https://github.com/earendil-works/pi).**
 
 PI ships a good agent loop, a tool set, a TUI and a provider layer. It does not ship a permission
-system, a way to say *"run this sub-agent on the cheap model"*, a compaction loop guard, a background
+system, a way to say *"run this sub-agent on the delegation model"*, a compaction loop guard, a background
 job directory that survives the process, or a headless wrapper that exits non-zero when a turn
 actually failed.
 
@@ -51,7 +51,7 @@ Full detail: [Install](https://dresvyanskiydenis.github.io/PiON/getting-started/
 
 | | |
 |---|---|
-| **Routing by semantic tier** | Agents, scripts and scheduled jobs name a *tier* — `strong`, `fast`, `cheap`, `confidential`, `local` — never a model id. Repointing a tier is a one-line edit |
+| **Routing by semantic tier** | Agents, scripts and scheduled jobs name a *tier* — `strong`, `light`, `confidential` — never a model id. Repointing a tier is a one-line edit |
 | **Fail loud, no failover** | A provider error aborts the turn naming the provider, the model, the error class, the message and the cause chain. Nothing is silently retried onto a different provider or a cheaper model |
 | **A permission layer, deliberately narrow** | Six ordered gates over every tool call, of which **two refuse**: catastrophic bash (`rm -rf /`, `mkfs`, `dd` onto a disk) and history-destroying git. The other four — secret paths, privileged commands, the write surface, agent routing — **record and permit**. Nothing prompts. What that costs you is stated plainly rather than implied ([safety model](docs/concepts/safety-model.md)) |
 | **MCP behind a default-deny trust gate** | A project's `.mcp.json` is not read until that exact file has been approved by digest, and a project-sourced stdio server is spawned from an empty environment plus an allowlist instead of inheriting every API key you have exported |

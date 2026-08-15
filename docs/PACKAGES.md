@@ -29,7 +29,6 @@ every session. The rest are reviewed and pinned but not loaded.
 | `pi-web-search` | 1.3.1 | MIT | adopted-conditional | — | web search, alternate backend (not wired) |
 | `@99percentpeople/pi-background-tasks` | 2.0.0 | MIT | adopted-hardened | — | background bash tasks (reviewed, not wired) |
 | `@mrclrchtr/supi-bash-timeout` | 4.6.0 | MIT | adopted | yes | default timeout for bash |
-| `pi-llama-cpp` | 0.9.1 | MIT | adopted | — | local llama.cpp provider (reviewed, not wired) |
 | `@narumitw/pi-statusline` | 0.49.5 | MIT | adopted | yes | status line |
 | `@narumitw/pi-usage` | 0.49.3 | MIT | adopted | — | quota read path (reviewed, not wired) |
 | `@juicesharp/rpiv-todo` | 2.4.0 | MIT | adopted | yes | task list |
@@ -146,18 +145,6 @@ checks it against `config/packages.lock.json` on every run.
 | **Status** | `adopted` — wired and in use |
 | **Role** | default timeout for bash |
 | **Tarball sha256** | `fc9ca06db74173b6371add9be7fd6c27a054e7d160db1dac804d76690bae635f` |
-
-## `pi-llama-cpp` 0.9.1
-
-| | |
-|---|---|
-| **Pinned version** | 0.9.1 |
-| **Licence** | MIT |
-| **Upstream** | <https://github.com/gsanhueza/pi-llama-cpp> |
-| **Reviewed** | 2026-08-06 |
-| **Status** | `adopted` — wired and in use |
-| **Role** | local llama.cpp provider (reviewed, not wired) |
-| **Tarball sha256** | `b5e1b3d8088c58081159b5dd7782ce3e66161a39848121c16049d94dac9c927f` |
 
 ## `@narumitw/pi-statusline` 0.49.5
 

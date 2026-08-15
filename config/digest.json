@@ -6,7 +6,7 @@
     "outputDir": "~/.pi/agent/digests",
     "summarizer": {
       "kind": "pi",
-      "model": "cheap",
+      "model": "light",
       "timeoutMs": 120000
     }
   }

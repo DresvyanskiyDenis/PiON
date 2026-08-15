@@ -157,7 +157,7 @@ Requires the `sqlite3` CLI. Exits `1` if no index exists yet — run `/index` in
 
 ## `bin/pi-digest-drain`
 
-Drains the queued session digests, summarising each with the `cheap` tier. Intended for a scheduler.
+Drains the queued session digests, summarising each with the `light` tier. Intended for a scheduler.
 Exits `1` rather than silently dropping a session it could not process.
 
 See [`digest`](../extensions/digest.md).

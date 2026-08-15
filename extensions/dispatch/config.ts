@@ -88,7 +88,7 @@ export interface DispatchConfig {
 
 export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
   maxDepth: 2,
-  defaultTier: "fast",
+  defaultTier: "light",
   defaultEgress: "internal",
   defaultTimeoutMs: 1_800_000,
   concurrencyDefault: 3,

@@ -16,6 +16,20 @@ person re-does the review, reaches the same conclusion, and pays for it twice.
 | `picodesandbox` | 0.6.12 | The same extension as `pi-sandbox`, published under a second name, depending on its runtime at a floating `latest`. A pinned review means nothing if a transitive dependency can change under it. Install `pi-sandbox` instead. |
 | `pi-yaml-hooks` | 2026.7.19 | **Fail-open at every layer, and not configurable.** A hook rule that stops applying when its own evaluation throws is worse than no rule, because it reads as enforcement. This repository's [`hooks`](extensions/hooks.md) module exists because of this rejection, and it fails *closed*. |
 
+## Dropped when the lane they served was deleted
+
+Not a refusal, and deliberately not a row above: `pi-llama-cpp` 0.9.1 (MIT) passed review on
+2026-08-06 and was pinned for a local-model-server provider lane. Owner decision, 2026-08-15: the
+provider set is exactly `github-copilot`, an OpenAI-compatible gateway and `databricks`, and that
+lane was deleted from the harness. The package served nothing else — it never registered the
+provider id `local` (its own prefix is `llama-server`), and nothing under `extensions/` ever
+imported it — so it was uninstalled rather than left pinned and dead. It is recorded in
+`config/packages.lock.json`'s `not_installed[]`, which `test/bootstrap.test.ts` enforces, so its
+absence is a test rather than a note. A model server on loopback is still perfectly reachable
+through [`openai-compatible`](configuration/openai-compatible.md) with a `127.0.0.1` base URL,
+which needs no package at all. Re-adopting it would need a fresh review *and* a provider to adopt
+it for.
+
 ## Refused, and not on npm under a name worth recording
 
 One well-regarded context-optimiser package was reviewed and not adopted, on two independent

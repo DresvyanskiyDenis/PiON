@@ -869,7 +869,7 @@ fi
 
 # =========================================================================== SECTION 4: tiers ===
 section "Tier bindings" \
-  "Your agents and skills ask for a tier (strong, fast, cheap...), never for a model id. This is where a tier gets pointed at a real model."
+  "Your agents and skills ask for a tier (strong, light, confidential), never for a model id. This is where a tier gets pointed at a real model."
 
 ROUTING_DEFAULT=""
 for cand in "$REPO_DIR/config/routing.default.json" "$REPO_DIR/config/routing.json"; do
@@ -881,16 +881,16 @@ MODELS_DEFAULT=""
 TIER_LIST="$SCRATCH/tiers.tsv"; : > "$TIER_LIST"
 [ -z "$ROUTING_DEFAULT" ] || providers_tool tiers "$ROUTING_DEFAULT" > "$TIER_LIST" 2>/dev/null || : > "$TIER_LIST"
 
-# A fragment may offer a tier the shipped routing table does not define — `local` from a loopback
-# server, `confidential` from an endpoint inside your own boundary. Those are precisely the tiers
-# a user GAINS by selecting that provider, so they join the interview instead of being dropped
-# silently. They are marked optional: nothing in the repo breaks if they stay unbound.
+# A fragment may offer a tier the shipped routing table does not BIND — `confidential` from an
+# endpoint inside your own boundary is the shipped case, since routing.default.json leaves that one
+# in `tiersUnbound`. Those are precisely the tiers a user GAINS by selecting that provider, so they
+# join the interview instead of being dropped silently. They are marked optional: nothing in the
+# repo breaks if they stay unbound.
 if [ -s "$TIER_SUGGESTIONS" ]; then
   while IFS=$'\037' read -r s_tier s_model; do
     [ -n "$s_tier" ] || continue
     grep -q "^$s_tier$(printf '\037')" "$TIER_LIST" && continue
     case "$s_tier" in
-      local)        _purpose="cheap sub-agent work on a model that never leaves this machine" ;;
       confidential) _purpose="work that must not leave a boundary you control" ;;
       *)            _purpose="offered by a provider you selected" ;;
     esac

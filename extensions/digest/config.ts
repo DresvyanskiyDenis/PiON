@@ -28,7 +28,7 @@ export type SummarizerKind = "pi" | "command" | "off";
 
 export interface PiSummarizer {
   readonly kind: "pi";
-  /** A `config/routing.json` tier name (e.g. "cheap") — never a raw model id. */
+  /** A `config/routing.json` tier name (e.g. "light") — never a raw model id. */
   readonly model: string;
   readonly timeoutMs: number;
 }
@@ -62,7 +62,7 @@ export const DEFAULT_DIGEST_CONFIG: DigestConfig = {
   minTurns: 2,
   maxTranscriptBytes: 200_000,
   outputDir: "~/.pi/agent/digests",
-  summarizer: { kind: "pi", model: "cheap", timeoutMs: 120_000 },
+  summarizer: { kind: "pi", model: "light", timeoutMs: 120_000 },
 };
 
 export class DigestConfigError extends Error {

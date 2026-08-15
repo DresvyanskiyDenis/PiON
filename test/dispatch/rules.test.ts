@@ -933,7 +933,7 @@ describe("DSP-RESOLVE", () => {
  */
 describe("DSP-RESOLVE: a workflowScript with no model", () => {
   const WORKFLOW = "await runs.all([{key: 'a', agent: 'scout', task: 'x'}])";
-  /** `CONFIG.defaultTier` is `fast`, and `fast` declares `thinkingLevel: "medium"`. */
+  /** `CONFIG.defaultTier` is `light`, and `light` declares `thinkingLevel: "medium"`. */
   const DEFAULT_TIER_MODEL = "github-copilot/claude-sonnet-5:medium";
 
   it("pins the default tier as the fan-out's floor", async () => {
@@ -988,7 +988,12 @@ describe("DSP-RESOLVE: a workflowScript with no model", () => {
     const state = stateOf();
     state.settings = {
       ...state.settings,
-      routing: { ...ROUTING, tiers: { ...ROUTING.tiers, fast: { model: "github-copilot/gpt-5.1", thinkingLevel: "medium" } } },
+      // The tier broken here has to be `CONFIG.defaultTier` — breaking any other one leaves the
+      // floor resolving happily and the test asserts nothing.
+      routing: {
+        ...ROUTING,
+        tiers: { ...ROUTING.tiers, [CONFIG.defaultTier]: { model: "github-copilot/gpt-5.1", thinkingLevel: "medium" } },
+      },
     };
     const input: Record<string, unknown> = { workflowScript: WORKFLOW };
     const blocked = await run(rules(state), eventOf("subagent", input));

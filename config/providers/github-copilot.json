@@ -73,8 +73,7 @@
 
   "tiers": {
     "strong": "github-copilot/claude-opus-5",
-    "fast": "github-copilot/claude-sonnet-5",
-    "cheap": "github-copilot/claude-haiku-4.5"
+    "light": "github-copilot/claude-sonnet-5"
   },
 
   "provider": {

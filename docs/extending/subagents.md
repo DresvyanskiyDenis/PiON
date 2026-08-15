@@ -21,7 +21,7 @@ tools:
   - write
   - grep
   - find
-model: fast
+model: light
 returns: object
 ---
 
@@ -51,7 +51,7 @@ the report — it is never silently skipped.
 |---|---|---|
 | `name` | **yes** | `^[a-z][a-z0-9-]{1,63}$`, and it **must equal the filename** without `.md` |
 | `description` | **yes** | ≥ 10 characters. This is the routing signal — see below |
-| `model` | no | a tier name (`strong`, `fast`, `cheap`, …) or an explicit `provider/model`. Defaults to `dispatch.json`'s `defaultTier` |
+| `model` | no | a tier name (`strong`, `light`, `confidential`) or an explicit `provider/model`. Defaults to `dispatch.json`'s `defaultTier` |
 | `tools` | no | the tools this agent may use. **Honoured**, unlike a skill's `allowed-tools` |
 | `isolation` | no | `none` (default) or `worktree` |
 | `maxTurns` | no | integer 1–500 |
@@ -105,8 +105,8 @@ falling back to a generic agent.
 | Tier | Use for |
 |---|---|
 | `strong` | review, architecture, hard debugging — anything where being wrong is expensive |
-| `fast` | docs, mechanical multi-file edits, scaffolding |
-| `cheap` | classification, summarising, grep-and-report |
+| `light` | everything else: docs, mechanical multi-file edits, scaffolding, classification, summarising, grep-and-report. The default |
+| `confidential` | anything that must not leave your boundary. Ships unbound, so naming it fails loudly until you bind it |
 
 An unresolvable tier, or a tier whose model nothing is currently serving, makes the agent
 **restricted**: registered, visible, and refused **by name** when dispatched. Nothing degrades

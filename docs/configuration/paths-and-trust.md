@@ -85,8 +85,8 @@ trusted root (see `trusted-roots.json`, above) or its own project, not a stricte
     boundary, build one at the network layer.
 
 **What breaks:** a `tier` naming an unbound tier makes every session fail at load. Since
-`confidential` and `local` ship unbound in [`routing.default.json`](routing.md#tiersunbound), bind
-the tier before pointing `path-defaults.json` at it.
+`confidential` ships unbound in [`routing.default.json`](routing.md#tiersunbound), bind the tier
+before pointing `path-defaults.json` at it.
 
 ---
 

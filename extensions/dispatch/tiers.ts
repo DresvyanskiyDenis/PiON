@@ -13,8 +13,8 @@
  *     substitute a different provider and a different model** for the same tier. That is the exact
  *     behaviour `EXT-08` was cancelled for. Here, a tier resolves to one model, always the same one.
  *  2. The egress vocabulary is `EXT-01`'s three classes (`public` / `internal` / `confidential`),
- *     not the spec's four. `routing.json` maps a `local` provider to `confidential`, so a fourth
- *     class would be a second vocabulary for the same fact.
+ *     not the spec's four. `routing.json` maps each configured provider onto exactly one of them,
+ *     so a fourth class would be a second vocabulary for the same fact.
  *
  * The class is a **label**. Egress containment was withdrawn on 2026-08-13 (see
  * `lib/dispatch-veto.ts`), so nothing in this module refuses a target for its class, and a provider
@@ -76,7 +76,13 @@ export interface ModelTarget {
   /** Reporting label. `undefined` means `routing.json` gives this provider no class. */
   readonly egress?: EgressClass;
   readonly thinkingLevel?: string;
-  /** A tier flagged `optional` in `routing.json` (the `local` lane needs a local model server running). */
+  /**
+   * A tier flagged `optional` in `routing.json` — one whose target may legitimately be absent at
+   * runtime, so a missing model reads as a runtime condition rather than a misconfiguration. The
+   * deleted `local` lane was the only tier that ever carried the flag (owner decision, 2026-08-15:
+   * the tiers are exactly `strong`, `light` and `confidential`), so no shipped tier sets it today.
+   * The flag stays because it is a property of `routing.json`, not of that one lane.
+   */
   readonly optional: boolean;
 }
 
@@ -205,16 +211,16 @@ function didYouMean(spec: string, catalogue: ModelCatalogue): string {
  * is not there.
  *
  * This step runs even when `catalogue` is `undefined` — the registry being unreadable says nothing
- * about what the two config files declare — and even for an `optional` tier, because "the local
- * model server is not running right now" and "this provider was never configured" are different
- * facts.
+ * about what the two config files declare — and even for an `optional` tier, because "the target
+ * is not answering right now" and "this provider was never configured" are different facts.
  *
  * ## Step 2 — the model
  *
- * Unchanged, and still skipped for a tier flagged `optional` in `routing.json`: the local lane
- * requires a local model server to be running, and `registry.ts` already treats its absence as a
- * runtime condition rather than a misconfiguration. Everything else that resolves must exist,
- * whether the caller named it directly or a tier did.
+ * Unchanged, and still skipped for a tier flagged `optional` in `routing.json`: such a tier's
+ * target may legitimately not be answering, and `registry.ts` already treats its absence as a
+ * runtime condition rather than a misconfiguration. No shipped tier carries the flag since the
+ * `local` lane was deleted on 2026-08-15. Everything else that resolves must exist, whether the
+ * caller named it directly or a tier did.
  */
 function assertAvailable(
   target: ModelTarget,

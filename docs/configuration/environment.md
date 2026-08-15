@@ -60,10 +60,8 @@ installed:
 | Variable | For |
 |---|---|
 | `COPILOT_GITHUB_TOKEN` | the GitHub Copilot provider |
-| `ANTHROPIC_API_KEY` | Anthropic — or use `/login anthropic` for a subscription instead |
-| `OPENAI_API_KEY` | OpenAI |
 | `DATABRICKS_TOKEN` | a workspace PAT, instead of the OAuth/CLI path |
-| `LOCAL_API_KEY` | only if your local model server checks a bearer token |
+| *(your own name)* | whatever you answered when you configured [`openai-compatible`](models.md) — the fragment asks for the variable name, so an endpoint that checks no bearer token needs none |
 | `PI_COPILOT_QUOTA_TOKEN` | optional classic PAT for the quota meter. Never used for chat |
 
 !!! tip "Non-interactive shells do not read `~/.zshrc`"
@@ -109,27 +107,6 @@ two must agree. The installer writes both from one answer; if you change one by 
 
 ---
 
-## `PI_LOCAL_BASE_URL`
-
-```sh
-# export PI_LOCAL_BASE_URL="http://127.0.0.1:<port>/v1"
-```
-
-**Only needed if you installed the `local` provider on a port other than 8888 — and then it is
-mandatory.**
-
-`extensions/credentials.ts` re-registers the `local` provider with
-`process.env.PI_LOCAL_BASE_URL ?? "http://127.0.0.1:8888/v1"`, and PI's provider composer resolves
-`extension?.baseUrl ?? config?.baseUrl`. **The extension wins.** So on any other port, requests go
-to 8888 while `models.json` innocently says otherwise.
-
-**Symptom when you get this wrong:** connection refused against a port you never configured, or —
-worse, if something else is listening on 8888 — a confusing response from the wrong service. Keep
-the two in agreement; the `baseUrl` in `models.json` is what a human reads and what the provider
-falls back to if the extension is ever removed.
-
----
-
 ## TLS and proxy
 
 ```sh
@@ -158,25 +135,27 @@ relying on it.
 
 ### `NO_PROXY` is set unconditionally, and should stay that way
 
-It is harmless with no proxy configured, and without loopback in it a local model server is proxied
-into a black hole. That failure looks like the local server being down.
+It is harmless with no proxy configured, and without loopback in it any endpoint you run on
+`127.0.0.1` — a model server, an MCP server, SearXNG — is proxied into a black hole. That failure
+looks like the endpoint being down.
 
 !!! tip "A per-provider proxy, without a global one"
     An `auth.json` credential can carry its own `env` object, applied for that provider only:
 
     ```json
-    { "openai": { "type": "api", "key": "$OPENAI_API_KEY",
-                  "env": { "HTTPS_PROXY": "http://proxy.example.com:8080" } } }
+    { "<provider-id>": { "type": "api", "key": "$YOUR_API_KEY_VAR",
+                         "env": { "HTTPS_PROXY": "http://proxy.example.com:8080" } } }
     ```
 
-    Prefer that over exporting `HTTPS_PROXY` globally, which would also capture the local provider.
+    Prefer that over exporting `HTTPS_PROXY` globally, which would also capture anything you run on
+    loopback.
 
 ---
 
 ## Convenience aliases
 
 ```sh
-alias pic='pi --model "$(pi-tier cheap)"'
+alias pil='pi --model "$(pi-tier light)"'
 alias pis='pi --model "$(pi-tier strong)"'
 ```
 

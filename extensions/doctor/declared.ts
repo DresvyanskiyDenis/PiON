@@ -34,7 +34,8 @@ export interface DeclaredAgents {
 export interface RoutingTierDeclaration {
   readonly tier: string;
   /** `"provider/id"`, split on the FIRST `/` only — model ids can contain `/` themselves
-   *  (e.g. `local/vendor/Model-30B-A3B-GGUF`). */
+   *  (`<provider>/org/Model`, the shape aggregator gateways serve). The split rule is about the
+   *  id format, not about which providers are configured. */
   readonly modelRef: string;
   readonly fallbackRef?: string;
   readonly optional: boolean;

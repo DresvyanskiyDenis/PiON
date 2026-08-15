@@ -13,26 +13,28 @@ generated and gitignored.
 
 ## Is this the one you want?
 
-There are two different things behind the words "route OpenAI somewhere else", and picking the
-wrong one produces an error that reads like a broken install.
+Almost certainly yes. `openai` in this fragment's name is the **wire protocol** — the
+`/v1/chat/completions` request shape — and not a vendor. Anything speaking it under **its own model
+names** is this fragment, answered differently: a gateway (LiteLLM, vLLM, OpenRouter, an in-house
+router), a first-party vendor API, or a model server on your own loopback.
 
-| Your endpoint | Use | Why |
-|---|---|---|
-| A **transparent proxy** in front of `api.openai.com` — still answers to `gpt-…` names | the `openai` fragment, answering **yes** to "route through a proxy" | Overriding `baseUrl` on a built-in provider keeps OpenAI's catalogue *and* its auth, which is exactly right here |
-| A **gateway** publishing its own catalogue — LiteLLM, vLLM, OpenRouter, an in-house router | **this fragment** | The gateway has never heard of `gpt-5.4`; keeping OpenAI's catalogue means every request names a model that does not exist there |
+It is the only fragment that fits an endpoint publishing its own catalogue, which is what most of
+them do.
 
 !!! warning "The trap this fragment exists to close"
 
-    Overriding `baseUrl` on the built-in `openai` provider **keeps OpenAI's model list**. Point that
-    at a gateway and `config/models.json` still says `gpt-5.4`, so the first request comes back as an
-    unknown-model error from an endpoint you just configured correctly. Nothing is misconfigured
-    except the catalogue.
+    PI ships built-in providers whose **catalogue comes with them**. Overriding only the `baseUrl` on
+    one of those keeps the vendor's model list, so pointing it at a gateway leaves
+    `config/models.json` naming models the gateway has never heard of — and the first request comes
+    back as an unknown-model error from an endpoint you just configured correctly. Nothing is
+    misconfigured except the catalogue. Declaring the endpoint whole, which is what this fragment
+    does, is the fix.
 
 ---
 
 ## The interview
 
-Seven questions, plus three more if you configure more than one model. In order:
+Seven questions, plus two more if you configure a second model. In order:
 
 | # | Question | Notes |
 |---|---|---|
@@ -42,10 +44,8 @@ Seven questions, plus three more if you configure more than one model. In order:
 | 4 | How many requests may this harness have in flight at once? | Default `2` |
 | 5 | Model id, exactly as the gateway serves it | Suggested for the `strong` tier |
 | 6 | Context window for that model — `min(200000, what this endpoint actually serves)` | Default `32768` |
-| 7 | A second model id, or blank if you only want one | Suggested for the `fast` tier |
+| 7 | A second model id, or blank if you only want one | Suggested for the `light` tier |
 | 8 | Context window for the second model | Only asked if you gave one |
-| 9 | A third model id, or blank | Only offered if you gave a second. Suggested for the `cheap` tier |
-| 10 | Context window for the third model | Only asked if you gave one |
 
 The credential's **value** is asked for later, in the credentials step, and is written to
 `~/.pi/secrets.env` (chmod 0600) or the macOS Keychain. `config/models.json` gets the indirection
@@ -144,7 +144,8 @@ needed costs a feature; a flag turned on that is unsupported costs a 400 on ever
 
 ## Adding more models later
 
-The installer asks for at most three, because a longer prompt list stops being an interview.
+The installer asks for at most two — one per bindable tier, `strong` and `light` — because a longer
+prompt list stops being an interview.
 Afterwards the file is yours:
 
 1. Append an object to `providers.openai-compatible.models` in `config/models.json` — copy one of

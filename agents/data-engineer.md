@@ -84,5 +84,5 @@ Return:
 
 ## Model tier note
 
-This agent runs on the `strong` tier rather than the fast one — a silent data-pipeline or analysis
+This agent runs on the `strong` tier rather than the `light` one — a silent data-pipeline or analysis
 mistake is expensive and hard to detect after the fact, so it trades speed for judgment.

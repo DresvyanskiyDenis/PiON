@@ -54,8 +54,11 @@ Re-executed on **every** request. Wrap anything expensive in a TTL cache.
 
 ### There are no timeout fields in PI's provider schema
 
-A local model cold start that pages tens of GB can exceed the default HTTP timeout. Worked around in
-[`credentials`](extensions/credentials.md) with its own abort budget.
+A cold start that pages tens of GB of weights — a model server on your own hardware, typically — can
+exceed the default HTTP timeout, and there is no field to raise it. An extension used to work around
+this for a dedicated local lane with its own abort budget; that lane was deleted on 2026-08-15, so
+the limitation is now unmitigated and shows up as a timeout on the first request after a cold
+start.
 
 ### The standalone `pi` binary ignores `NODE_OPTIONS`
 

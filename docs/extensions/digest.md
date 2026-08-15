@@ -3,7 +3,7 @@
 Binds the session-teardown and pre-compaction events. On either, it spools one job file and asks a
 detached helper to drain it — so summarisation never delays your exit.
 
-Configured by [`config/digest.json`](../configuration/sessions.md#digestjson). One `cheap`-tier call
+Configured by [`config/digest.json`](../configuration/sessions.md#digestjson). One `light`-tier call
 per qualifying session; output is plain Markdown in `~/.pi/agent/digests/`.
 
 ## Three overlapping recursion guards
@@ -23,7 +23,7 @@ Three independent guards for one failure, because the failure is a runaway loop 
 
 `"enabled": false`. One key.
 
-If the cost is the concern rather than the files, rebind the `cheap` tier in
+If the cost is the concern rather than the files, rebind the `light` tier in
 [`routing.json`](../configuration/routing.md) first — a digest on an appropriately cheap model is
 close to free, and the summaries are the cheapest institutional memory this harness produces.
 

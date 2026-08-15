@@ -3,7 +3,7 @@
  *
  * `tiers.ts` answers "what does this string resolve to". This module answers the two questions
  * that only make sense once a **caller** — the orchestrating model, mid-turn — is allowed to pick
- * a concrete `provider/id` instead of one of the five tier names:
+ * a concrete `provider/id` instead of one of the three tier names:
  *
  *   1. **Does it exist?** `ctx.modelRegistry.getAvailable()` is the only authority. Without this
  *      check a typo reaches `pi-subagents`, whose `resolveModelCandidate()`
@@ -290,7 +290,11 @@ export function describeServing(serving: readonly ServingProvider[], level: stri
   );
 }
 
-/** Splits on the FIRST slash: `local/vendor/Model-30B-A3B-GGUF` is one provider, one id. */
+/**
+ * Splits on the FIRST slash, because a model id may itself contain slashes — `<provider>/org/Model`
+ * is one provider and one id, not three segments. Aggregator gateways serve exactly such ids. The
+ * rule is about the id format, not about who happens to be configured.
+ */
 export function splitModelId(full: string): { provider: string; id: string } {
   const slash = full.indexOf("/");
   if (slash <= 0) return { provider: "", id: full };
@@ -334,7 +338,7 @@ function commonPrefixLength(a: string, b: string): number {
  * Deliberately simple and deterministic — no dependency, no edit distance table. The three signals
  * that actually explain the mistakes this catalogue produces, in priority order:
  *
- *   - **the same model id under a different provider** (`anthropic/claude-sonnet-5` when the id
+ *  *   - **the same model id under a different provider** (`databricks/claude-sonnet-5` when the id
  *     only exists as `github-copilot/claude-sonnet-5`) — by far the most common miss in a config
  *     where one model family is reachable through three providers;
  *   - **shared id tokens** (`gpt-5.1` → `gpt-5.4`, `gpt-5.2`, `gpt-5-mini`);

@@ -29,11 +29,11 @@ What the first public release contains:
 
 - **26 extension modules** composed by a single root (`extensions/index.ts`) in a fixed order, with
   per-module error containment and a `/doctor` command that reports loads *and* absences.
-- **Routing by semantic tier** — `strong`, `fast`, `cheap`, `confidential`, `local` — with
-  `confidential` and `local` shipped deliberately unbound.
-- **Six provider fragments**: `github-copilot`, `anthropic`, `openai`, `databricks`, `local`, plus
-  `openai-compatible` for any gateway that serves its own model names (LiteLLM, vLLM, OpenRouter,
-  an in-house router).
+- **Routing by semantic tier** — `strong`, `light`, `confidential` — with `confidential` shipped
+  deliberately unbound.
+- **Three provider fragments**: `github-copilot`, `databricks`, and `openai-compatible` for anything
+  serving its own model names over an OpenAI-compatible Chat Completions surface (LiteLLM, vLLM,
+  OpenRouter, an in-house router, a first-party vendor API, a server on your own loopback).
 - **A six-gate permission layer** over every tool call, plus a deadman that blocks the dangerous
   tools when a guardrail module failed to load.
 - **MCP behind a default-deny project trust gate**, digest-keyed approvals, and an

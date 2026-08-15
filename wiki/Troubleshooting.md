@@ -42,8 +42,8 @@ disguise.
 
 ## Things that look broken and are not
 
-- **`confidential` and `local` tiers unbound.** Deliberate. Naming an unbound tier fails loudly
-  rather than quietly sending material to a public endpoint.
+- **The `confidential` tier unbound.** Deliberate. Naming an unbound tier fails loudly rather than
+  quietly sending material to a public endpoint.
 - **A missing provider credential does not stop `pi` from starting.** It reports which provider is
   unconfigured; tiers bound to configured providers keep working.
 - **A missing personal identity overlay is announced, not silent.** "No personal context configured"

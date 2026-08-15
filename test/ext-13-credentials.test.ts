@@ -1,9 +1,9 @@
 // EXT-13 — the wiring in `extensions/credentials.ts`, driven through a fake `ExtensionAPI`.
 //
-// `local-catalogue` and `provider-error` are tested as units elsewhere. What is left, and what
-// this file covers, is the part that only exists as event plumbing:
-//   * exactly one provider is registered, and it is `local` — never a built-in, whose OAuth block
-//     re-registration would destroy (`REQ-PRV-22`);
+// `provider-error` is tested as a unit elsewhere. What is left, and what this file covers, is the
+// part that only exists as event plumbing:
+//   * no provider is registered at all — the `local` lane is deleted (owner decision, 2026-08-15)
+//     and a built-in must never be re-registered, whose OAuth block that would destroy;
 //   * a failed turn is surfaced once, with provider/model/class/message, and a succeeded or
 //     user-aborted turn is not surfaced at all;
 //   * the observed HTTP status belongs to the request it came from, so a 401 seen on one turn is
@@ -11,18 +11,11 @@
 //   * the mid-stream 200 — the case `after_provider_response` structurally cannot see — is
 //     reported as a stream failure rather than as a healthy `http 200`.
 //
-// Nothing here reaches the network except a local `http.createServer` on port 0.
+// Nothing here reaches the network.
 import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { after, describe, it } from "node:test";
+import { describe, it } from "node:test";
 
-import { id, register, warmUp } from "../extensions/credentials.ts";
-
-const PI_LLAMA_CPP_CONSTANTS = fileURLToPath(
-  new URL("../node_modules/pi-llama-cpp/src/constants.ts", import.meta.url),
-);
+import { id, register } from "../extensions/credentials.ts";
 
 /* ------------------------------------------------------------------------------------------- *
  * A fake ExtensionAPI / ExtensionContext, structural and deliberately minimal
@@ -118,7 +111,7 @@ function emptyCompletion(overrides: Record<string, unknown> = {}) {
     message: {
       role: "assistant",
       content: [] as unknown[],
-      provider: "openai",
+      provider: "openai-compatible",
       model: "gpt-5.6-luna",
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       stopReason: "stop",
@@ -129,55 +122,39 @@ function emptyCompletion(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const servers: Server[] = [];
-after(() => {
-  for (const server of servers) server.close();
-});
-
-async function listen(handler: Parameters<typeof createServer>[1]): Promise<string> {
-  const server = createServer(handler);
-  servers.push(server);
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (address === null || typeof address === "string") throw new Error("no port");
-  return `http://127.0.0.1:${address.port}/v1`;
-}
-
 /* ------------------------------------------------------------------------------------------- */
 
 describe("register()", () => {
-  it("registers the `local` provider and nothing else", () => {
+  it("registers no provider at all — the local lane is gone", () => {
+    // Owner decision, 2026-08-15: the provider set is exactly `github-copilot`, an
+    // OpenAI-compatible gateway and `databricks`, all of them supplied by PI's own registry plus
+    // `models.json`. This module used to hand-register a `local` provider pointing at a model
+    // server on loopback. It no longer does, and the point of this assertion is that a later pass
+    // cannot quietly put one back.
     const pi = fakePi();
     register(pi as any);
-    assert.deepEqual([...pi.providers.keys()], ["local"]);
+    assert.deepEqual([...pi.providers.keys()], []);
   });
 
   it("never touches a built-in provider — re-registering one destroys its OAuth block", () => {
     // The Copilot lane in particular is already resolved (raw `gho_` token as an apiKey credential
     // plus a `baseUrl` override) and `/login github-copilot` must never run. Nothing in this
-    // module may put `github-copilot` or `openai` back through registerProvider.
+    // module may put `github-copilot` back through registerProvider.
     const pi = fakePi();
     register(pi as any);
-    for (const builtIn of ["github-copilot", "openai", "anthropic", "databricks"]) {
+    for (const builtIn of ["github-copilot", "openai-compatible", "databricks"]) {
       assert.equal(pi.providers.has(builtIn), false, `${builtIn} must not be re-registered`);
     }
   });
 
-  it("declares no apiKey — models.json owns the credential", () => {
-    // The key belongs to the BACKEND, and only the backend knows whether it needs one: a bare
-    // llama-swap front door usually leaves `GET /v1/models` open, while a hosted OpenAI-compatible
-    // endpoint serving the same GGUFs enforces a bearer token — measured against one such endpoint:
-    // no header → 401 `Not authenticated`, a placeholder value → 401 `Invalid token payload`, the
-    // real key → 200. So the literal this used to declare was not just misplaced, it was wrong.
-    // `config/providers/local.json` owns the `apiKey` field (the `{{apiKey}}` answer, defaulting to
-    // the inert `not-required`) and must be the ONLY place it lives: an extension-declared key is
-    // not a harmless duplicate
-    // — `configuredApiKey()` in provider-composer.js reads `extension?.apiKey ?? config?.apiKey`,
-    // so it overrides models.json outright.
+  it("arms no session_start or session_shutdown handler — nothing is warmed up any more", () => {
+    // The only reason this module ever subscribed to the session lifecycle was the local lane's
+    // warm-up ping and its footer status marker. Both are deleted; no replacement warning was
+    // invented, because a provider that does not exist cannot be unreachable.
     const pi = fakePi();
     register(pi as any);
-    assert.equal(pi.providers.get("local").apiKey, undefined);
-    assert.equal(pi.providers.get("local").api, "openai-completions");
+    assert.equal(pi.handlers.has("session_start"), false);
+    assert.equal(pi.handlers.has("session_shutdown"), false);
   });
 
   it("starts no timers, sockets or watchers — the factory also runs for `pi --list-models`", () => {
@@ -186,86 +163,10 @@ describe("register()", () => {
     register(pi as any);
     const after_ = (process as any)._getActiveHandles?.().length ?? 0;
     assert.equal(after_, before);
-    // All I/O is deferred to session_start and refreshModels.
-    assert.ok(pi.handlers.has("session_start"));
-    assert.ok(pi.handlers.has("session_shutdown"));
   });
 
   it("exports a stable module id", () => {
     assert.equal(id, "credentials");
-  });
-});
-
-describe("the warm-up ping", () => {
-  it("marks the lane healthy and says nothing when llama-swap answers", async () => {
-    const base = await listen((_req, res) => {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ data: [{ id: "unsloth/GLM-4.7-Flash-GGUF" }] }));
-    });
-    const previous = process.env.PI_LOCAL_BASE_URL;
-    process.env.PI_LOCAL_BASE_URL = base;
-    const ctx = fakeCtx();
-    try {
-      await warmUp(ctx as any);
-    } finally {
-      if (previous === undefined) delete process.env.PI_LOCAL_BASE_URL;
-      else process.env.PI_LOCAL_BASE_URL = previous;
-    }
-    assert.deepEqual(ctx.statuses, [["local", "local ✓"]]);
-    assert.deepEqual(ctx.notices, []);
-  });
-
-  it("warns once and never throws when llama-swap is absent", async () => {
-    // This is the environment-specific half of the item: a colleague without llama-swap must
-    // still be able to start the agent. `routing.json` marks the tier optional, so an unreachable
-    // server is information, not an error anybody has to act on.
-    const previous = process.env.PI_LOCAL_BASE_URL;
-    process.env.PI_LOCAL_BASE_URL = "http://127.0.0.1:1/v1";
-    const ctx = fakeCtx();
-    try {
-      await warmUp(ctx as any);
-    } finally {
-      if (previous === undefined) delete process.env.PI_LOCAL_BASE_URL;
-      else process.env.PI_LOCAL_BASE_URL = previous;
-    }
-    assert.deepEqual(ctx.statuses, [["local", "local ✗"]]);
-    assert.equal(ctx.notices.length, 1);
-    assert.equal(ctx.notices[0]?.level, "warning");
-    assert.match(ctx.notices[0]?.text ?? "", /every other provider is unaffected/);
-  });
-
-  it("falls back to stderr with no UI, so `-p` and `--mode json` still say it", async () => {
-    const previous = process.env.PI_LOCAL_BASE_URL;
-    process.env.PI_LOCAL_BASE_URL = "http://127.0.0.1:1/v1";
-    const ctx = fakeCtx(false);
-    let captured = "";
-    const original = process.stderr.write.bind(process.stderr);
-    (process.stderr as any).write = (chunk: any) => {
-      captured += String(chunk);
-      return true;
-    };
-    try {
-      await warmUp(ctx as any);
-    } finally {
-      (process.stderr as any).write = original;
-      if (previous === undefined) delete process.env.PI_LOCAL_BASE_URL;
-      else process.env.PI_LOCAL_BASE_URL = previous;
-    }
-    assert.match(captured, /local provider unreachable/);
-  });
-
-  it("is fired at most once per session and cleared on shutdown", () => {
-    const pi = fakePi();
-    register(pi as any);
-    const ctx = fakeCtx();
-    pi.emit("session_start", { type: "session_start" }, ctx);
-    pi.emit("session_start", { type: "session_start" }, ctx);
-    pi.emit("session_shutdown", { type: "session_shutdown" }, ctx);
-    // Two starts, one shutdown: the shutdown clears the marker and no second ping was armed.
-    assert.deepEqual(
-      ctx.statuses.filter(([, value]) => value === undefined),
-      [["local", undefined]],
-    );
   });
 });
 
@@ -394,7 +295,7 @@ describe("provider error surfacing on message_end", () => {
       ["message_end", emptyCompletion()],
     ]);
     assert.match(out, /class {4}: empty-response/);
-    assert.match(out, /provider : openai/);
+    assert.match(out, /provider : openai-compatible/);
     assert.match(out, /model {4}: gpt-5\.6-luna/);
     assert.match(out, /0 content parts/);
     assert.match(out, /responseId=chatcmpl-2e6c1517-8984-4434-9673-a0fb231c5e3f/);
@@ -462,35 +363,5 @@ describe("provider error surfacing on message_end", () => {
     } finally {
       process.exitCode = previous;
     }
-  });
-});
-
-describe("coexistence with pi-llama-cpp 0.9.1", () => {
-  // The plan adopts `pi-llama-cpp` for the local lane. It is installed and pinned, and it is NOT
-  // the owner of the provider id `local` — these assertions pin why, so that a later integration
-  // pass cannot delete the hand-registered provider on the assumption that the package covers it.
-  const constants = readFileSync(PI_LLAMA_CPP_CONSTANTS, "utf8");
-
-  it("uses a different provider prefix, so the two never collide", () => {
-    const prefix = /PROVIDER_PREFIX = "([^"]+)"/.exec(constants)?.[1];
-    assert.equal(prefix, "llama-server");
-    assert.notEqual(prefix, "local");
-  });
-
-  it("defaults to :8080, not the llama-swap port routing.json's tier depends on", () => {
-    assert.match(constants, /DEFAULT_LLAMA_SERVER_URL = "http:\/\/127\.0\.0\.1:8080"/);
-  });
-
-  it("never reads models.json, which is where every local model's tuning lives", () => {
-    // `config/models.json` carries per-model `samplingParams`, `compat.thinkingFormat` and the
-    // tuned context windows, plus the provider-level `supportsDeveloperRole: false`. The package
-    // builds its catalogue from the server alone, so adopting it AS the `local` provider would
-    // silently drop all of it — which is exactly what `mergeLocalCatalogue` exists to prevent.
-    const sources = readFileSync(
-      fileURLToPath(new URL("../node_modules/pi-llama-cpp/src/resolver.ts", import.meta.url)),
-      "utf8",
-    );
-    assert.doesNotMatch(sources, /models\.json/);
-    assert.doesNotMatch(constants, /models\.json/);
   });
 });

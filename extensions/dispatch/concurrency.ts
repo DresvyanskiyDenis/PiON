@@ -14,8 +14,8 @@
  * `prepareToolCall` is what invokes `config.beforeToolCall`, i.e. our `tool_call` handler. Every
  * hook in the batch is therefore awaited **before any tool in the batch begins executing**. A hook
  * that blocks waiting for a permit held by an earlier call in the same batch waits for a task that
- * has not started and cannot start until the hook returns. With `local: 1` and two `subagent` calls
- * in one assistant message, that is a permanent hang — strictly worse than over-subscription.
+ * has not started and cannot start until the hook returns. On a lane capped at 1, with two
+ * `subagent` calls in one assistant message, that is a permanent hang — strictly worse than over-subscription.
  * `tool_execution_start` is emitted inside the same loop and is no better.
  *
  * There is no extension-visible hook that runs inside the `Promise.all` phase: `pi.registerTool`

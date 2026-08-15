@@ -24,11 +24,13 @@ const UNTITLED_RE = /^(untitled|session-)/i;
 
 /**
  * Titling is a throwaway one-liner, so it wants the cheapest model that exists. It cannot read
- * `routing.json`'s `cheap` tier here, because this module has no config loader and adding one for a
- * cosmetic feature would put a file read on the `turn_end` path — so the default mirrors
- * `config/routing.default.json`'s `cheap` binding instead, and `PI_TITLE_MODEL` is how a different
- * install corrects it. A wrong id here costs an untitled session and nothing else: every failure of
- * the sub-invocation is swallowed by design.
+ * `routing.json` here, because this module has no config loader and adding one for a cosmetic
+ * feature would put a file read on the `turn_end` path — so this is a STANDALONE default, not a
+ * tier lookup, and it deliberately does not track the `light` tier's model: `light` also does
+ * subagent work and is bound accordingly, while titling wants the smallest thing the default
+ * provider serves. `PI_TITLE_MODEL` is how a different install corrects it. A wrong id here costs
+ * an untitled session and nothing else: every failure of the sub-invocation is swallowed by
+ * design.
  */
 function defaultTitleModel(): string {
   return process.env.PI_TITLE_MODEL ?? "github-copilot/claude-haiku-4.5";

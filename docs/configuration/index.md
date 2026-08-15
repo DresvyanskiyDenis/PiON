@@ -81,9 +81,9 @@ Fact 2.
 |---|---|---|
 | add a provider, or point one at a different endpoint | `config/models.json` | [models.json](models.md) |
 | fix a model that runs out of context too late | `modelOverrides` in `config/models.json` | [models.json](models.md#modeloverrides) |
-| change which model `fast` (or any tier) uses | `config/routing.json` | [routing.json](routing.md) |
+| change which model `light` (or any tier) uses | `config/routing.json` | [routing.json](routing.md) |
 | declare where a provider's traffic goes | `egress` in `config/routing.json` | [routing.json](routing.md#egress) |
-| stop two local dispatches thrashing one GPU | `concurrency` in `config/routing.json` | [routing.json](routing.md#concurrency) |
+| stop two dispatches thrashing one endpoint | `concurrency` in `config/routing.json` | [routing.json](routing.md#concurrency) |
 | change the default model or thinking level | `config/settings.json` | [settings.json](settings.md) |
 | make compaction fire earlier or later | `contextWindow`, then `compaction.reserveTokens` | [settings.json](settings.md#compaction) · [Context windows](../concepts/context-windows.md) |
 | protect more branches from force-push | `protectedBranches` in `config/guard.json` | [guard.json](guard.md#protectedbranches) |
@@ -99,7 +99,7 @@ Fact 2.
 | auto-trust a directory root | `config/trusted-roots.json` | [Paths and trust](paths-and-trust.md) |
 | set a per-project default model | `<project>/.pi/settings.json` | [Paths and trust](paths-and-trust.md#per-project-settings) |
 | use a proxy or a corporate CA bundle | `config/shell/pi-env.sh` | [Environment](environment.md) |
-| point the local provider at a different port | `config/models.json` **and** `PI_LOCAL_BASE_URL` | [Environment](environment.md#pi_local_base_url) |
+| point a gateway or loopback endpoint at a different port | `config/models.json` | [`models.json`](models.md) |
 | add a language server | `config/pi-lsp.json` | [Tool behaviour](tools.md#pi-lspjson) |
 | change what the statusline shows | `config/pi-statusline.json` | [Tool behaviour](tools.md#pi-statuslinejson) |
 
@@ -115,7 +115,7 @@ Task-shaped versions of these, with the commands, live in the
 | File | Generated? | Controls |
 |---|---|---|
 | [`models.json`](models.md) | **yes** | providers, endpoints, model catalogues, `modelOverrides`, `compat` |
-| [`routing.json`](routing.md) | **yes** | the five tiers, `egress` classes, per-provider `concurrency`, `onProviderError` |
+| [`routing.json`](routing.md) | **yes** | the three tiers, `egress` classes, per-provider `concurrency`, `onProviderError` |
 | [`mcp.json`](mcp.md) | **yes** | MCP servers, `hostConfigDiscovery`, `directTools` |
 | [`settings.json`](settings.md) | **yes** | PI's own behaviour: default model, thinking, trust, compaction, retry, resource paths |
 | [`guard.json`](guard.md) | **yes** | shell-execution safety: protected branches, dispatch-tool names for the routing observer |

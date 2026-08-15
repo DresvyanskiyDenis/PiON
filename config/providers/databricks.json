@@ -97,28 +97,28 @@
       "required": true
     },
     {
-      "id": "cheapEndpoint",
+      "id": "lightEndpoint",
       "type": "string",
-      "label": "Serving-endpoint name for a cheaper model (optional, press Enter to skip)",
-      "help": "Used for the `cheap` tier - summaries, digests, classification. Leave blank and the cheap tier stays on whatever else you installed.",
+      "label": "Serving-endpoint name for a lighter model (optional, press Enter to skip)",
+      "help": "Used for the `light` tier - subagents, reviews, docs, summaries, digests, classification. Leave blank and the light tier stays on whatever else you installed.",
       "example": "databricks-claude-haiku-4-5",
       "required": false
     },
     {
-      "id": "cheapContextWindow",
+      "id": "lightContextWindow",
       "type": "number",
-      "label": "Context window that cheap endpoint actually serves",
+      "label": "Context window that light endpoint actually serves",
       "default": 200000,
       "required": false,
-      "when": { "cheapEndpoint": "*" }
+      "when": { "lightEndpoint": "*" }
     },
     {
-      "id": "cheapMaxTokens",
+      "id": "lightMaxTokens",
       "type": "number",
-      "label": "Maximum output tokens for the cheap endpoint",
+      "label": "Maximum output tokens for the light endpoint",
       "default": 64000,
       "required": false,
-      "when": { "cheapEndpoint": "*" }
+      "when": { "lightEndpoint": "*" }
     }
   ],
 
@@ -135,7 +135,7 @@
 
   "tiers": {
     "confidential": "databricks/{{primaryEndpoint}}",
-    "cheap": "databricks/{{cheapEndpoint}}"
+    "light": "databricks/{{lightEndpoint}}"
   },
 
   "provider": {
@@ -160,14 +160,14 @@
         "maxTokens": "{{primaryMaxTokens}}"
       },
       {
-        "$omitIfBlank": "cheapEndpoint",
-        "id": "{{cheapEndpoint}}",
-        "name": "[dbx] {{cheapEndpoint}}",
+        "$omitIfBlank": "lightEndpoint",
+        "id": "{{lightEndpoint}}",
+        "name": "[dbx] {{lightEndpoint}}",
         "reasoning": true,
         "thinkingLevelMap": { "off": null, "minimal": null, "low": null, "medium": null, "high": null, "xhigh": null, "max": null },
         "input": ["text", "image"],
-        "contextWindow": "{{cheapContextWindow}}",
-        "maxTokens": "{{cheapMaxTokens}}"
+        "contextWindow": "{{lightContextWindow}}",
+        "maxTokens": "{{lightMaxTokens}}"
       }
     ]
   },

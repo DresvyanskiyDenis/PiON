@@ -255,7 +255,7 @@ describe("renderModelMenu", () => {
 
   it("states that an explicit model wins over the agent file, and names the default tier", () => {
     assert.match(menu(), /wins over the agent file's own `model:`/);
-    assert.match(menu(), /default tier: `fast`/);
+    assert.match(menu(), /default tier: `light`/);
   });
 
   it("states the consequence of getting it wrong, in this project's terms", () => {

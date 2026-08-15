@@ -164,11 +164,11 @@ error, not silent drift.
     of this flag is every private page you happen to be logged into. It ships `false` and should
     stay `false` unless you have a specific, bounded reason.
 
-!!! note "Two loopback ports, and they must differ"
-    `searxngBaseUrl` ships on `127.0.0.1:8080`; the `local` model provider defaults to **8888**.
-    They are deliberately different, but both are popular ports. If something else on your machine
-    already owns one of them, move it here — and if you move the model port, move
-    `PI_LOCAL_BASE_URL` with it (see [Environment](environment.md#pi_local_base_url)).
+!!! note "Loopback ports collide"
+    `searxngBaseUrl` ships on `127.0.0.1:8080`, which is a popular port. If something else on your
+    machine already owns it, move it here. The same applies to any model endpoint you configure on
+    loopback through [`openai-compatible`](openai-compatible.md): its port lives in
+    `config/models.json` and nowhere else, so moving it is a one-place edit.
 
 One backend is pinned, rather than a list with fallbacks, for the same reason there is no provider
 failover: a search that silently came from somewhere else is a result you cannot attribute.

@@ -1,5 +1,5 @@
 /**
- * Resolves a `config/routing.json` tier name (e.g. `"cheap"`) to a provider-qualified
+ * Resolves a `config/routing.json` tier name (e.g. `"light"`) to a provider-qualified
  * model id (e.g. `"github-copilot/claude-haiku-4.5"`) — the same lookup `config/bin/pi-tier`
  * does in shell,
  * kept here as its TypeScript twin because `bin/pi-digest-drain` needs it in-process rather

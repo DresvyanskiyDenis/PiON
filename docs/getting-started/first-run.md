@@ -29,11 +29,9 @@ pi-tier --list
 ```
 
 ```text
-strong    github-copilot/claude-opus-5     main loop, architecture, hard debugging
-fast      github-copilot/claude-sonnet-5   reviews, docs, mechanical multi-file edits
-cheap     …                                summaries, digests, classification
-confidential …                             anything that must not leave the tenant
-local     …                                local lane; requires a server on 127.0.0.1:8888
+strong       github-copilot/claude-opus-5     main loop, architecture, hard debugging
+light        github-copilot/claude-sonnet-5   everything the main loop delegates
+confidential …                               anything that must not leave your boundary (unbound until you bind it)
 ```
 
 An unknown tier exits **2**. That is deliberate: a typo in a cron job must fail, never fall back to
@@ -43,7 +41,7 @@ a default model you did not choose.
 
 ```bash
 pi -p "reply OK" --model "$(pi-tier strong)"
-pi -p "reply OK" --model "$(pi-tier cheap)"
+pi -p "reply OK" --model "$(pi-tier light)"
 ```
 
 `OK`, exit 0. A provider whose credential is missing produces a block like this — it is the
@@ -104,7 +102,7 @@ before using this harness for real work.
 Then the headless half:
 
 ```bash
-pi-run -p "reply OK" --model "$(pi-tier cheap)"; echo "exit=$?"
+pi-run -p "reply OK" --model "$(pi-tier light)"; echo "exit=$?"
 ```
 
 `exit=0`. Now point it at a deliberately broken credential and confirm it exits **20** rather than

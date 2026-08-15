@@ -5,7 +5,7 @@
 # model id. Extensions read routing.json directly; shell scripts, cron jobs and
 # `pi -p` one-liners use this. Repointing a tier is then a one-line edit in one file.
 #
-#   pi -p "summarise" --model "$(pi-tier cheap)"
+#   pi -p "summarise" --model "$(pi-tier light)"
 #   pi-tier --list
 #   pi-tier --thinking strong        # prints the tier's thinking level
 #   pi-tier --egress databricks      # prints a provider's declared egress class

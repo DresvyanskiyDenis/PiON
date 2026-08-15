@@ -98,19 +98,6 @@
       "licenseTextNote": "declared-but-textless licence: the package excludes its LICENSE via package.json `files`. docs/PACKAGES.md trap 2 reviewed and accepted this on 2026-08-06. Recorded here because PC-17's title is \"ships a licence file (or the ledger says why not)\" and this is the ledger saying why not."
     },
     {
-      "name": "pi-llama-cpp",
-      "version": "0.9.1",
-      "tarball": "https://registry.npmjs.org/pi-llama-cpp/-/pi-llama-cpp-0.9.1.tgz",
-      "sha256": "b5e1b3d8088c58081159b5dd7782ce3e66161a39848121c16049d94dac9c927f",
-      "npm_dist_shasum_sha1": "9c96eb7392fe424dee9fc9f2faaf2b1b8fe36b20",
-      "license": "MIT",
-      "repository": "https://github.com/gsanhueza/pi-llama-cpp",
-      "reviewed": "2026-08-06",
-      "status": "adopted",
-      "role": "EXT-13 local provider",
-      "vendor": false
-    },
-    {
       "name": "@narumitw/pi-statusline",
       "version": "0.49.5",
       "tarball": "https://registry.npmjs.org/@narumitw/pi-statusline/-/pi-statusline-0.49.5.tgz",
@@ -291,12 +278,17 @@
       "name": "pi-yaml-hooks",
       "version": "2026.7.19",
       "reason": "VP-06 - fail-open at every layer and not configurable. See DENYLIST.md section 4a."
+    },
+    {
+      "name": "pi-llama-cpp",
+      "version": "0.9.1",
+      "reason": "Reviewed and adopted 2026-08-06 for the EXT-13 local lane, then made moot: owner decision, 2026-08-15, the provider set is exactly github-copilot, an OpenAI-compatible gateway and databricks, and the whole local-model-server lane is deleted. The package served nothing else - it never registered the provider id `local` (its own prefix is `llama-server`, its default port :8080) and nothing in extensions/ ever imported it. Uninstalled 2026-08-15 rather than left pinned-but-dead. A model server on loopback is still reachable through config/providers/openai-compatible.json, which needs no package at all. Re-adopting it needs a fresh review AND a provider to adopt it for."
     }
   ],
   "sha256_method": "npm pack --ignore-scripts, then shasum -a 256 on the resulting tarball. The npm_dist_shasum_sha1 field is npm's own SHA-1 and is recorded only as a cross-check.",
   "counts": {
-    "adopted": 21,
+    "adopted": 20,
     "transitive_pins": 2,
-    "not_installed": 2
+    "not_installed": 3
   }
 }

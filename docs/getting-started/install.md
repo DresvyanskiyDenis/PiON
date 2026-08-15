@@ -221,7 +221,7 @@ Every flag drives the identical code path — there is no separate "quiet mode" 
 ./scripts/install.sh --express                    # providers + safety only, defaults for the rest
 ./scripts/install.sh --answers my.conf --yes      # from a saved answer file
 ./scripts/install.sh --providers a,b              # preselect providers, skip the picker
-./scripts/install.sh --tier fast=acme/model-1     # preset one tier binding (repeatable)
+./scripts/install.sh --tier light=acme/model-1    # preset one tier binding (repeatable)
 ```
 
 Each run saves its answers, so **a second machine can be made identical** by copying that file and

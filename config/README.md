@@ -17,12 +17,12 @@ git-ignored so a fork can never publish your endpoints. The contract that descri
 | `routing.default.json` | *not installed* | — | Generic tier bindings referencing only what `models.default.json` provides |
 | `path-defaults.default.json` | *not installed* | — | The unconfigured default: tier `strong`, every channel `allow` |
 | `models.json` *(generated)* | `~/.pi/agent/models.json` | global | The active providers, their wire APIs, credential *references*, `compat` blocks, honest context windows |
-| `routing.json` *(generated)* | `~/.pi/agent/routing.json` | global | **Semantic tiers** (`strong`/`fast`/`cheap`/`confidential`/`local`), per-provider egress class and concurrency cap. Not a pi file — read by our extensions and by `bin/pi-tier` |
+| `routing.json` *(generated)* | `~/.pi/agent/routing.json` | global | **Semantic tiers** (`strong`/`light`/`confidential`), per-provider egress class and concurrency cap. Not a pi file — read by our extensions and by `bin/pi-tier` |
 | `path-defaults.json` *(generated)* | `~/.pi/agent/path-defaults.json` | global | One default tier and one declarative per-channel egress policy (`web`/`mcp`/`publicModels`), applied at every `session_start`. Optional — a missing file is an unconfigured install, not an error. See `bin/pi-check` rule PC-20 for its shape assertion |
 | `settings.json` | `~/.pi/agent/settings.json` | global | Default model, thinking, trust posture, retry, compaction, skills/prompts/packages paths |
 | `keybindings.json` | `~/.pi/agent/keybindings.json` | global | Key remaps. Ships empty on purpose |
 | `web.json` | `~/.pi/agent/web.json` | global | Our own declared-intent file: the one pinned `search.backend`, for humans and `jq`-based tooling. Not read by `pi-web-access` itself — see `web-search.json` |
-| `web-search.json` | `~/.pi/agent/web-search.json` | global | The config `pi-web-access` actually reads at runtime: pinned `provider`, `searxngBaseUrl`, SSRF posture, `allowBrowserCookies: false`, and a `toolNames.fetchContent` rename to `web_fetch` so the TRIGGER blocks in `AGENTS.md` resolve. `extensions/web/config-guard.ts` asserts this file and `web.json` agree, and that the rename is present, at every `session_start`. **`searxngBaseUrl` defaults to a SearXNG you run yourself on `127.0.0.1:8080`** (SearXNG's own default port; `8888` is deliberately left to the local model server, see `providers/local.json`) — point it at your own instance, or change the pinned backend in *both* files together |
+| `web-search.json` | `~/.pi/agent/web-search.json` | global | The config `pi-web-access` actually reads at runtime: pinned `provider`, `searxngBaseUrl`, SSRF posture, `allowBrowserCookies: false`, and a `toolNames.fetchContent` rename to `web_fetch` so the TRIGGER blocks in `AGENTS.md` resolve. `extensions/web/config-guard.ts` asserts this file and `web.json` agree, and that the rename is present, at every `session_start`. **`searxngBaseUrl` defaults to a SearXNG you run yourself on `127.0.0.1:8080`** (SearXNG's own default port; pick a different one for any model endpoint you run on loopback, since both are popular) — point it at your own instance, or change the pinned backend in *both* files together |
 | `project-settings.example.json` | copied to `<repo>/.pi/settings.json` | project | Per-repo model/provider pinning; deep-merged over the global settings |
 | `bin/dbx-token-cached` | `~/bin/dbx-token-cached` | — | TTL cache in front of Databricks OAuth. `models.json` re-executes `!command` on **every request**; this makes that a file read |
 | `bin/pi-tier` | `~/bin/pi-tier` | — | Resolve a tier name to `provider/model-id` from shell/cron, with the tier's `thinkingLevel` appended as `:level`. The model string is the only place PI reads reasoning effort from, so printing the bare id would run shell aliases at the provider default while `routing.json` declared otherwise. `--thinking <tier>` still reports the level on its own |
@@ -53,5 +53,5 @@ jq empty config/*.json config/providers/*.json && echo "JSON ok"
 bash -n config/bin/dbx-token-cached config/bin/pi-tier config/shell/pi-env.sh && echo "shell ok"
 grep -n '{{' config/models.json config/routing.json   # EXPECT: no output
 pi-tier --list
-pi -p "reply with OK" --model "$(pi-tier cheap)"
+pi -p "reply with OK" --model "$(pi-tier light)"
 ```

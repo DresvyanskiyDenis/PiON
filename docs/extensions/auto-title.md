@@ -21,8 +21,9 @@ Titling is a throwaway one-liner that wants the cheapest model that exists. Read
 would mean adding a config loader to this module and putting a **file read on the `turn_end` path** —
 for a cosmetic feature.
 
-So the default mirrors `config/routing.default.json`'s `cheap` binding as a constant, and
-`PI_TITLE_MODEL` is how a different install corrects it.
+So the default is a standalone constant — the cheapest Copilot model, not whatever `light`
+currently points at — and `PI_TITLE_MODEL` is how a different install corrects it. It is deliberately
+not kept in step with any tier: a tier is a promise about a *role*, and titling is not one of them.
 
 !!! note "A wrong id here costs an untitled session and nothing else"
     Every failure of the sub-invocation is swallowed by design. This is the one place in the tree

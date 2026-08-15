@@ -13,7 +13,7 @@
  *   4. `tiers.ts`      — tier name → `provider/id`, from `routing.json`, the single source of truth.
  *   5. `catalogue.ts`  — the model registry as a dispatch surface: a call-time `provider/id` is
  *      checked for existence, a bad one is refused with the closest real ids, and the selectable
- *      set is put in the system prompt so the orchestrating model can pick a cheap model on
+ *      set is put in the system prompt so the orchestrating model can pick a cheaper model on
  *      purpose instead of guessing an id (`REQ-PRV-09`, dispatch-time override wins).
  *
  * plus the acceptance criterion this item calls non-negotiable — a typo in an agent file is a
@@ -887,7 +887,7 @@ function agentOf(state: State, event: ToolCallEvent): AgentDef | undefined {
  * `workflowScript` IS pinned, as a FLOOR. Its children are launched by the package, past the point
  * where this rule sees them; a child that names no model gets its agent file's tier word, and
  * `pi-subagents` hands an unmatched string on unchanged for PI to substring-match — which resolves
- * a word like `fast` onto whatever provider happens to contain it, typically one
+ * a tier word onto whatever provider id happens to contain it, typically one
  * `config/models.json` never declared, and the run then dies with a credentials error that is
  * really a silent provider substitution. Pinning our own resolved model as the workflow-level
  * default closes that: children that name no model inherit it, children that name one are

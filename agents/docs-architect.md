@@ -8,7 +8,7 @@ tools:
   - bash
   - grep
   - find
-model: fast
+model: light
 ---
 
 You produce technical documentation grounded in real code. Plain Markdown only — that's the durable, version-controllable format.

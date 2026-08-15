@@ -13,7 +13,7 @@ Markdown files with YAML frontmatter, one per agent, in `agents/`.
 ```json
 {
   "maxDepth": 2,
-  "defaultTier": "fast",
+  "defaultTier": "light",
   "defaultEgress": "internal",
   "defaultTimeoutMs": 1800000,
   "concurrencyDefault": 3,
@@ -48,7 +48,7 @@ shallow enough to notice.
 
 | Key | Ships | Meaning |
 |---|---|---|
-| `defaultTier` | `"fast"` | The tier an agent gets when its frontmatter declares no `model:` |
+| `defaultTier` | `"light"` | The tier an agent gets when its frontmatter declares no `model:` |
 | `defaultEgress` | `"internal"` | The egress class reported for a session that declares none |
 
 `defaultEgress` used to be load-bearing: it was the class an undeclared agent was *checked* against,
@@ -62,7 +62,7 @@ more honestly as the middle class than as either extreme. See
 `defaultTier` has a second job: it is the **floor for a `workflowScript` fan-out**. A workflow's
 children are built inside the package, past the point where a tier word is turned into a
 `provider/model`, so a child that names no model would otherwise fall through to PI's own substring
-matcher — which happily resolves a word like `fast` onto some provider your `models.json` never
+matcher — which happily resolves a word like `light` onto some provider your `models.json` never
 declared, and then fails with a credentials error that is really a silent substitution. When a
 `workflowScript` call names no `model`, the resolved `defaultTier` is pinned onto the call, the
 package spreads it *underneath* each child's own parameters, and the outcome is: children that name
@@ -72,7 +72,7 @@ child, to choose something else.
 
 **What breaks:** `defaultTier` naming a tier that is unbound in `routing.json` means every
 undeclared agent fails at load, and every `workflowScript` that names no model is refused rather
-than floored. Since `confidential` and `local` ship unbound, do not default to either.
+than floored. Since `confidential` ships unbound, do not default to it.
 
 ---
 
@@ -94,8 +94,9 @@ work.
 | `concurrencyDefault` | `3` | Parallel sub-agents when the resolved provider has no row in `routing.json`'s `concurrency` |
 | `packageDefaultConcurrency` | `4` | The underlying package's own default |
 
-Per-provider caps in [`routing.json`](routing.md#concurrency) win over both. That is where
-`local: 1` lives, and that is the entry that encodes a physical fact rather than a preference.
+Per-provider caps in [`routing.json`](routing.md#concurrency) win over both. That is where a cap of
+`1` would live for an endpoint that can only serve one request at a time — the one kind of entry that
+encodes a physical fact rather than a preference.
 
 ---
 

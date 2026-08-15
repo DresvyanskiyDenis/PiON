@@ -8,7 +8,7 @@ tools:
   - bash
   - grep
   - find
-model: fast
+model: light
 ---
 
 You design prompts for production LLM applications. **Always show the complete prompt text in a code block — never describe a prompt without showing it.**

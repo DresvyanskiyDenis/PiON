@@ -582,19 +582,27 @@ describe("the shipped routing table — the no-substitution contract this module
     ]);
   });
 
-  it("never makes the local tier a hard requirement — someone with no local model server must still start", () => {
-    // The shipped table binds no local provider at all, so `local` lives in `tiersUnbound` with the
-    // reason and the remedy. An install that does bind it must mark it optional instead: either way
-    // a missing llama-swap is not a failed start.
-    const bound = routing.tiers?.["local"];
-    if (bound) {
-      assert.equal(bound.optional, true, "a bound local tier must be optional");
-    } else {
-      assert.match(
-        routing.tiersUnbound?.["local"] ?? "",
-        /install/i,
-        "an unbound local tier must explain how to bind it, not just be missing",
-      );
+  it("never makes an unbindable tier a hard requirement — someone with only Copilot must still start", () => {
+    // This used to name the `local` tier and a missing llama-swap. That lane was deleted (owner
+    // decision, 2026-08-15: the provider set is exactly github-copilot, an OpenAI-compatible gateway
+    // and databricks), and `confidential` inherited the property it was testing: the shipped table
+    // binds no provider inside anyone's boundary, so the tier sits in `tiersUnbound` with the reason
+    // AND the remedy. Written over every unbound tier rather than one name, so the next tier that
+    // ships unbound cannot ship without its remedy.
+    const unbound = Object.entries(routing.tiersUnbound ?? {});
+    assert.ok(unbound.length > 0, "the shipped table is expected to leave at least `confidential` unbound");
+    assert.ok(
+      unbound.some(([tier]) => tier === "confidential"),
+      "`confidential` must stay unbound by default — binding it to a public provider empties the word",
+    );
+    for (const [tier, reason] of unbound) {
+      assert.equal(routing.tiers?.[tier], undefined, `tier "${tier}" is both bound and listed as unbound`);
+      assert.match(reason, /install/i, `unbound tier "${tier}" must explain how to bind it, not just be missing`);
+    }
+    // An install that DOES bind a tier whose target may legitimately be absent marks it optional;
+    // that is the other half of "a missing endpoint is not a failed start".
+    for (const [tier, bound] of Object.entries(routing.tiers ?? {})) {
+      if (bound.optional !== undefined) assert.equal(bound.optional, true, `tier "${tier}": optional is never false`);
     }
   });
 });

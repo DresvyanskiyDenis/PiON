@@ -108,11 +108,11 @@ describe("agent registry — the shipped definitions", () => {
     assert.ok(dispatchableNames(registry).length >= SHIPPED.length);
   });
 
-  it("model tiers: the six review/engineering agents are strong, the rest fast", () => {
+  it("model tiers: the six review/engineering agents are strong, the rest light", () => {
     const registry = loadRegistry();
     const byName = registry.byName;
     const strongTier = ["ai-engineer", "architect-reviewer", "debugger", "security-reviewer", "code-reviewer", "data-engineer"];
-    const fastTier = [
+    const lightTier = [
       "app-builder",
       "docs-architect",
       "frontend-developer",
@@ -124,11 +124,11 @@ describe("agent registry — the shipped definitions", () => {
     for (const name of strongTier) {
       assert.equal(byName.get(name)?.spec, "strong", `${name} must declare model: strong`);
     }
-    for (const name of fastTier) {
-      assert.equal(byName.get(name)?.spec, "fast", `${name} must declare model: fast`);
+    for (const name of lightTier) {
+      assert.equal(byName.get(name)?.spec, "light", `${name} must declare model: light`);
     }
     // Every shipped agent is accounted for by exactly one of the two lists.
-    assert.deepEqual([...strongTier, ...fastTier].toSorted(), [...SHIPPED].toSorted());
+    assert.deepEqual([...strongTier, ...lightTier].toSorted(), [...SHIPPED].toSorted());
   });
 
   it("no bare model id anywhere in an agent file — a tier name or nothing", () => {
@@ -142,7 +142,7 @@ describe("agent registry — the shipped definitions", () => {
           !/\b(opus|sonnet|haiku|claude-|gpt-|gemini-)/i.test(value),
           `${file}: model: "${value}" looks like a bare model id, not a tier name`,
         );
-        assert.match(value, /^(strong|fast|cheap|confidential|local)$/, `${file}: model: "${value}" is not a routing tier`);
+        assert.match(value, /^(strong|light|confidential)$/, `${file}: model: "${value}" is not a routing tier`);
       }
     }
   });

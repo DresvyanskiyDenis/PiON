@@ -167,15 +167,18 @@ describe("accumulateSessionStats", () => {
 });
 
 describe("isUnpricedProvider (REQ-PRV-74)", () => {
-  it("flags Copilot and local as unpriced, by name", () => {
+  it("flags Copilot as unpriced, by name — and is the only member since 2026-08-15", () => {
+    // The requirement's wording is "Copilot, local". `local` was dropped from the set when the
+    // provider was deleted (owner decision, 2026-08-15: exactly github-copilot, an
+    // OpenAI-compatible gateway and databricks), because a denylist member that can never match a
+    // live provider id is noise.
     assert.equal(isUnpricedProvider("github-copilot"), true);
-    assert.equal(isUnpricedProvider("local"), true);
-    assert.deepEqual([...UNPRICED_PROVIDERS].sort(), ["github-copilot", "local"]);
+    assert.deepEqual([...UNPRICED_PROVIDERS].sort(), ["github-copilot"]);
   });
 
-  it("treats a known provider as priced", () => {
-    assert.equal(isUnpricedProvider("anthropic"), false);
-    assert.equal(isUnpricedProvider("openai"), false);
+  it("treats a live priced provider as priced", () => {
+    assert.equal(isUnpricedProvider("openai-compatible"), false);
+    assert.equal(isUnpricedProvider("databricks"), false);
   });
 
   it("treats an unknown (null) provider as unpriced — never claim a price for nothing", () => {

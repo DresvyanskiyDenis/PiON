@@ -130,16 +130,20 @@ resolved after the lookup. A map value of `null` is meaningful — see rule 3.
 ### 2.4 `tiers{}` — suggested bindings
 
 ```jsonc
-"tiers": { "confidential": "databricks/{{primaryEndpoint}}", "cheap": "databricks/{{cheapEndpoint}}" }
+"tiers": { "confidential": "databricks/{{primaryEndpoint}}", "light": "databricks/{{lightEndpoint}}" }
 ```
 
 A map of semantic tier name → provider-qualified model id this fragment can satisfy. The installer
 offers these when asking which provider should back each tier; it is a **suggestion**, never applied
 without the user choosing it. A binding whose substitution leaves a blank segment (e.g. the user
-skipped `cheapEndpoint`) is **dropped**, not written with a hole in it.
+skipped `lightEndpoint`) is **dropped**, not written with a hole in it.
 
-The five tier names are fixed vocabulary: `strong`, `fast`, `cheap`, `confidential`, `local`. They are
-what every agent, skill and script in this harness dispatches on. Do not invent a sixth.
+The three tier names are fixed vocabulary: `strong`, `light`, `confidential`. They are what every
+agent, skill and script in this harness dispatches on. Do not invent a fourth — the resolver refuses
+an unknown tier by name rather than substituting one, so a tier nobody declared is a hard failure at
+dispatch time, not a soft default. The list is enforced in one place, `TIER_NAMES` in
+`scripts/lib/providers.mjs`, and asserted against `routing.default.json` by
+`test/dispatch/config.test.ts`.
 
 ### 2.5 `provider{}` — the models.json payload
 
@@ -262,27 +266,31 @@ provider nobody configured is not.
   installer prompt may offer to change them. There is no provider failover in this harness, anywhere.
 
 **`config/shell/pi-env.sh`** — the installer may append or uncomment the documented lines
-(`DATABRICKS_HOST`, `PI_LOCAL_BASE_URL`, `NODE_EXTRA_CA_CERTS`, proxy). It must not write a secret
-value there; the file's own header says it contains none, and `bin/pi-check` rule PC-06 enforces it.
+(`DATABRICKS_HOST`, `NODE_EXTRA_CA_CERTS`, proxy). It must not write a secret value there; the
+file's own header says it contains none, and `bin/pi-check` rule PC-06 enforces it.
 
-Two of those are not optional polish:
+One of those is not optional polish:
 
 - **`DATABRICKS_HOST`** must be exported whenever the `databricks` fragment is selected — the CLI and
   `config/bin/dbx-token-cached` read it, and PI does not expand `$VAR` inside `baseUrl`, so it is set
   twice from one answer and the two have to agree.
-- **`PI_LOCAL_BASE_URL`** must be exported whenever the `local` fragment is selected on a port other
-  than `8888`. PI's provider composer resolves `extension?.baseUrl ?? config?.baseUrl`, and
-  `extensions/credentials.ts` re-registers `local` with `PI_LOCAL_BASE_URL ??
-  "http://127.0.0.1:8888/v1"` — so the extension's value wins over `models.json` and a mismatched
-  port sends requests somewhere the config never mentions.
+
+A second entry used to sit here: `PI_LOCAL_BASE_URL`, read by a `local` fragment and by an extension
+that re-registered a loopback provider at runtime. Both are gone (owner decision, 2026-08-15: the
+provider set is exactly `github-copilot`, an OpenAI-compatible gateway and `databricks`), and with
+them the only case where an extension's `baseUrl` could win over `models.json`. A loopback endpoint
+is now configured like any other — `openai-compatible.json`, answered with a `127.0.0.1` base URL,
+written once into `models.json` and read from there.
 
 ---
 
 ## 5. Adding another provider
 
-Six fragments ship. Before writing a seventh, check whether `openai-compatible.json` already covers
+Three fragments ship. Before writing a fourth, check whether `openai-compatible.json` already covers
 your case: any endpoint speaking `/v1/chat/completions` under its own model names is that fragment,
-answered differently, and a new file buys you nothing.
+answered differently, and a new file buys you nothing. That is what retired the `local` and `openai`
+fragments — a loopback model server and a first-party OpenAI account are both just that fragment with
+different answers.
 
 Copy the closest fragment, change `id` to match the new filename, and answer these before you ship it:
 
