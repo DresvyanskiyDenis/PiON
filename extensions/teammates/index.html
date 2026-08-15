@@ -2432,6 +2432,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#spawning-is-off-until-a-spawner-is-wired-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spawning is off until a spawner is wired in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3714,6 +3725,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#spawning-is-off-until-a-spawner-is-wired-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spawning is off until a spawner is wired in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3778,6 +3800,23 @@ and passing a name. Everything else routes through ordinary <a href="../dispatch
 cheaper and returns its result the ordinary way.</p>
 <p>Reach for a teammate when the children need to talk to each other, or when you will send them
 follow-up messages by hand. For "do this, give it back", use <code>subagent</code>.</p>
+<h2 id="spawning-is-off-until-a-spawner-is-wired-in">Spawning is off until a spawner is wired in<a class="headerlink" href="#spawning-is-off-until-a-spawner-is-wired-in" title="Permanent link">&para;</a></h2>
+<p>Out of the box, <code>teammate(action="spawn")</code> <strong>refuses</strong>, names the <code>subagent</code> tool (one call per
+agent, or a <code>workflowScript</code> with <code>runs.all([...])</code> to fan out) and stops. Nothing is started.</p>
+<p>The reason is a missing piece, not a missing feature. Opening a real child session needs a callback
+that turns an agent's <code>provider/id</code> into the model object the SDK session wants, and that callback
+comes from the host's model registry — an extension cannot build one. Constructed without it, the
+session spawner used to fail <em>after</em> the tool call was accepted, from inside the SDK, with a message
+blaming the agent file or the provider configuration; neither was at fault. Refusing at the tool
+boundary is the same outcome one layer earlier, where the message can be useful.</p>
+<p>Guessing a model instead was rejected on purpose: it trades a loud failure for a teammate quietly
+running on a model its agent file never asked for.</p>
+<p>To turn spawning on, register the extension with a spawner that can resolve models:</p>
+<div class="language-ts highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nx">register</span><span class="p">(</span><span class="nx">pi</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">spawner</span><span class="o">:</span><span class="w"> </span><span class="kt">createSdkSpawner</span><span class="p">({</span><span class="w"> </span><span class="nx">resolveModel</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">});</span>
+</span></code></pre></div>
+<p><code>createSdkSpawner</code> is exported from <code>extensions/teammates/runtime.ts</code> and is otherwise unchanged.
+Everything else the module does — <code>send</code>, <code>list</code>, <code>close</code>, the delivery obligation, the stranded-work
+notices — works against whatever spawner is supplied, which is also how the tests drive it.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../dispatch/">dispatch</a> · <a href="../jobs/">jobs</a> · <a href="../../extending/subagents/">Adding a sub-agent</a></p>
 

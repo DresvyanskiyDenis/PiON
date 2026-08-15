@@ -2030,6 +2030,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reasoning-effort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reasoning effort
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3770,6 +3781,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reasoning-effort" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reasoning effort
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3835,6 +3857,25 @@ is a declaration, not a network boundary.</p>
 <p>There is no tool call to gate — "which model does this session start on" is decided before any tool
 exists. So the tier default is applied once, at session start, rather than by a <code>tool_call</code>
 handler.</p>
+<h2 id="reasoning-effort">Reasoning effort<a class="headerlink" href="#reasoning-effort" title="Permanent link">&para;</a></h2>
+<p>A root names a tier, and a tier may declare how hard to think — <code>"thinkingLevel": "high"</code> on the
+row, one of <code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code>. That level is now <strong>applied,
+not merely parsed</strong>: this module runs inside <code>session_start</code> holding the extension API, so it calls
+<code>setThinkingLevel()</code> (which PI clamps to what the model actually supports) immediately after a
+successful <code>setModel()</code>, and on no other path. If an explicit model selection is already in effect,
+if the model is not in the registry, or if the provider has no usable credential, this module
+returns before that call and the session's effort is left exactly as it was.</p>
+<p>A <code>thinkingLevel</code> that is not one of the seven levels is a <strong>hard error</strong>, naming the tier, the
+value and <code>routing.json</code>. Nothing is guessed, and nothing quietly falls back to the provider
+default.</p>
+<p>A tier's <code>model</code> is meant to be a bare <code>provider/id</code> with the level in <code>thinkingLevel</code> and
+<a href="../../configuration/routing/#how-thinkinglevel-reaches-the-child">nowhere else</a> — but if one does
+carry a <code>:level</code> suffix, it is split off before the model registry is asked whether the model
+exists, so <code>provider/some-id:high</code> now resolves exactly like <code>provider/some-id</code> instead of being
+reported as unconfigured. Where a row states both, <strong>the suffix wins</strong>: it is the more specific
+statement, the same precedence <a href="../dispatch/"><code>dispatch</code></a> applies to the same row. Only a <em>known</em>
+level splits — a typo such as <code>provider/some-id:hgih</code> stays part of the id, misses the registry and
+is refused by name, which is the loud failure rather than a quiet downgrade.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../configuration/paths-and-trust/"><code>path-defaults.json</code></a> · <a href="../dispatch/">dispatch</a> ·
 <a href="../../concepts/providers-and-tiers/#egress-classes">Providers and tiers</a></p>

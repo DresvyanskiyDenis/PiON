@@ -1347,6 +1347,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#onthinkingclamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        onThinkingClamp — when the effort you asked for is not served
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#agent-definitions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3862,6 +3873,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#onthinkingclamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        onThinkingClamp — when the effort you asked for is not served
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#agent-definitions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3937,8 +3959,9 @@ Markdown files with YAML frontmatter, one per agent, in <code>agents/</code>.</p
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">                   </span><span class="s2">&quot;&lt;agentDir&gt;/agents&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&lt;cwd&gt;/.pi/agents&quot;</span><span class="p">],</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">&quot;dispatchTools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;subagent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent_run&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;dispatch_agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;task&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent&quot;</span><span class="p">],</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">&quot;genericAgents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;general-purpose&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;general&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;generalist&quot;</span><span class="p">],</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">&quot;specialistMatchMinScore&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">}</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">&quot;specialistMatchMinScore&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">&quot;onThinkingClamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;warn&quot;</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">}</span>
 </span></code></pre></div>
 <hr />
 <h2 id="maxdepth"><code>maxDepth</code><a class="headerlink" href="#maxdepth" title="Permanent link">&para;</a></h2>
@@ -4099,23 +4122,67 @@ fire more readily.</p>
 noise the model learns to ignore, which is the real cost. Setting it very high, or emptying
 <code>genericAgents</code>, switches the nudge off entirely.</p>
 <hr />
+<h2 id="onthinkingclamp"><code>onThinkingClamp</code> — when the effort you asked for is not served<a class="headerlink" href="#onthinkingclamp" title="Permanent link">&para;</a></h2>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;onThinkingClamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;warn&quot;</span>
+</span></code></pre></div>
+<p>A reasoning effort travels <strong>inside the model string</strong>: <code>provider/id:high</code>, <code>provider/id:max</code>. That
+suffix is a <em>request</em>. Before the wire, PI clamps it against what the model's own registry entry says
+it serves (<code>thinkingLevelMap</code> in <a href="../models/"><code>models.json</code></a>), and a model that declares no map at all
+is read as serving <code>off</code>/<code>minimal</code>/<code>low</code>/<code>medium</code>/<code>high</code> and <strong>not</strong> <code>xhigh</code> or <code>max</code>.</p>
+<p>The clamp is not ours and cannot be turned off. What this key controls is whether you are told.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>"warn"</code></strong> (ships)</td>
+<td>The dispatch runs at the effective level and says so, naming the requested level, the effective one, everything the model does serve, and which <em>other</em> configured providers serve what you asked for — with each candidate's egress class, since moving between classes is your decision and not a routing optimisation</td>
+</tr>
+<tr>
+<td><code>"abort"</code></td>
+<td>The dispatch is refused by name instead, with the same information</td>
+</tr>
+</tbody>
+</table>
+<p>Neither value ever reroutes. A clamp is never resolved by silently sending the work somewhere else.</p>
+<p><code>warn</code> ships because the clamp happens inside PI either way — refusing would not buy you a
+harder-thinking run, only no run — and because the failure this key came out of was never the clamp
+itself, it was that nobody was <strong>told</strong>. Set <code>abort</code> for a session where a quietly downgraded effort
+is worse than a missing answer: a benchmark, or a job commissioned at a specific effort.</p>
+<p>The model string is also <strong>rewritten to the effective level</strong> before the dispatcher sees it. That is
+disclosure, not substitution: the bytes on the wire are identical either way, and the rewrite is what
+makes the run's own metadata agree with what was actually sent. The requested level is not lost —
+the audit record carries both.</p>
+<p><code>/agents</code> lists every tier whose declared effort its resolved model will not serve, as
+<code>reasoning effort CLAMPED: …</code>, so a whole routing table can be checked without dispatching anything.</p>
+<div class="admonition warning">
+<p class="admonition-title">A model whose vocabulary is unknown produces no disclosure at all</p>
+<p>If the registry does not know the model, nothing is reported and nothing is rewritten. "Cannot
+say" must not render as "no clamp will happen" — check <code>thinkingLevelMap</code> for a model you added
+by hand.</p>
+</div>
+<hr />
 <h2 id="agent-definitions">Agent definitions<a class="headerlink" href="#agent-definitions" title="Permanent link">&para;</a></h2>
 <p>One Markdown file per agent, frontmatter plus the system prompt as the body:</p>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>---
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>name: code-reviewer
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>description: Use for thorough code review of a PR or committed branch — correctness,
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  security, performance, maintainability, test adequacy. Read-only.
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>tools:
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>read
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>egress: internal       # a reported label; nothing is refused on account of it
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="gu">returns: object</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="gu">---</span>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>You are a code reviewer. …
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>---
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>name: code-reviewer
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>description: Use for thorough code review of a PR or committed branch — correctness,
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  security, performance, maintainability, test adequacy. Read-only.
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>tools:
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>read
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>egress: internal       # a reported label; nothing is refused on account of it
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="gu">returns: object</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="gu">---</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>You are a code reviewer. …
 </span></code></pre></div>
 <table>
 <thead>
@@ -4169,7 +4236,7 @@ and an unqualified one resolves by accident.</p>
 <p>See <a href="../../extending/subagents/">Adding a sub-agent</a> for the walkthrough.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">     </span><span class="c1"># PC-04 agent frontmatter, PC-08 bare ids</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">     </span><span class="c1"># PC-04 agent frontmatter, PC-08 bare ids</span>
 </span></code></pre></div>
 <p>In a session, <code>/agents</code> prints the resolved agent list <em>and</em> the sub-agent model-selection block
 the model sees — verbatim the same text. <code>/doctor</code>'s <code>D-03</code> reports any agent name mentioned in

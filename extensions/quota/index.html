@@ -3808,8 +3808,11 @@ command you just typed may surface a real error, because silence would read as s
 <h2 id="the-token">The token<a class="headerlink" href="#the-token" title="Permanent link">&para;</a></h2>
 <p>A <strong>separate, read-only credential</strong>, never the chat token. Stored <code>0600</code> at the path in
 <code>quota.json</code>.</p>
-<p>The guard's <code>SEC-QUOTA-TOKEN</code> rule denies any path ending <code>quota-token.json</code>, with no override — so
-the agent cannot read the file even if asked directly.</p>
+<p>The guard's <code>SEC-QUOTA-TOKEN</code> rule matches any path ending <code>quota-token.json</code>. Since 2026-08-15 that
+match is <strong>recorded, not refused</strong>: the agent can read the file if asked, and the record in the
+session transcript is the only trace. The <code>0600</code> mode and the read-only scope are what actually
+limit the damage — see
+<a href="../../concepts/safety-model/#credential-reads-are-no-longer-refused">Safety model</a>.</p>
 <p>A classic personal access token with a read-only user scope is required. A fine-grained token is
 <strong>rejected by the usage endpoint</strong>, which is worth knowing before you spend twenty minutes creating
 one.</p>

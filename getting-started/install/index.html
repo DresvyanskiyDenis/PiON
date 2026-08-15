@@ -4176,11 +4176,12 @@ matters, in one plain sentence, before asking.</p>
 </table>
 <div class="admonition danger">
 <p class="admonition-title">Section 6 is the one to actually read</p>
-<p>It sets <code>guard.json</code>'s <code>nonInteractive</code> — what runs unattended without a confirmation. The
-shipped answer is <code>allowlist-only</code>. <code>allow-all</code> means an agent can run <strong>any</strong> shell command
-with no prompt, in a headless session, with your credentials in its environment.</p>
-<p>Relaxing it is a real decision with a real consequence. <a href="../../configuration/guard/"><code>guard.json</code></a>
-spells out what each value costs.</p>
+<p>A small, fixed set of catastrophic command shapes — credential-file reads, <code>rm -rf /</code>, a
+disk-format command, a force-push onto a protected branch, and a handful of others — is
+refused outright, in code, and there is nothing here to configure for that: no allowlist, no
+unattended-execution mode. Everything else runs, headless included, with no prompt.</p>
+<p>The only thing this section asks is which branches count as "protected."
+<a href="../../configuration/guard/"><code>guard.json</code></a> spells out exactly what still blocks and what does not.</p>
 </div>
 <h3 id="section-7-also-asks-where-your-skills-go">Section 7 also asks where your skills go<a class="headerlink" href="#section-7-also-asks-where-your-skills-go" title="Permanent link">&para;</a></h3>
 <p>This repository ships <strong>zero skills</strong> — only the machinery that loads them. So the only skill question

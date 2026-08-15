@@ -3771,7 +3771,7 @@ that template plus your answers, and git-ignored.</p>
 </tr>
 <tr>
 <td><code>config/guard.json</code></td>
-<td><code>guard.default.json</code> + your headless policy, protected branches and allowlist additions</td>
+<td><code>guard.default.json</code> + your protected branches</td>
 </tr>
 <tr>
 <td><code>config/trusted-roots.json</code></td>
@@ -3860,11 +3860,6 @@ Fact 2.</p>
 <td>make compaction fire earlier or later</td>
 <td><code>contextWindow</code>, then <code>compaction.reserveTokens</code></td>
 <td><a href="settings/#compaction">settings.json</a> · <a href="../concepts/context-windows/">Context windows</a></td>
-</tr>
-<tr>
-<td>stop being asked before every shell command</td>
-<td><code>config/guard.json</code></td>
-<td><a href="guard/">guard.json</a></td>
 </tr>
 <tr>
 <td>protect more branches from force-push</td>
@@ -3985,7 +3980,7 @@ Fact 2.</p>
 <tr>
 <td><a href="guard/"><code>guard.json</code></a></td>
 <td><strong>yes</strong></td>
-<td>shell-execution safety: headless policy, allowlist, escalation, protected branches</td>
+<td>shell-execution safety: protected branches, dispatch-tool names for the routing observer</td>
 </tr>
 <tr>
 <td><a href="paths-and-trust/"><code>trusted-roots.json</code></a>, <a href="paths-and-trust/"><code>path-defaults.json</code></a></td>

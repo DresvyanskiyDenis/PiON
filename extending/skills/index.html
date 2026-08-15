@@ -3986,9 +3986,11 @@ where the environment shim earns its place.</p>
 <div class="admonition note">
 <p class="admonition-title">The exported directory is the <em>real</em> path, symlinks resolved</p>
 <p><code>~/.pi/agent/skills</code> is an install symlink. Left unresolved, every exported directory would
-contain the literal <code>.pi/agent/</code>, and the guard's <code>SEC-PI-STATE</code> rule refuses any read built
-from that path — an unoverridable rule, so the skill would simply never work. <code>skills-env</code>
-resolves to the physical path before exporting, which is why you can ignore all of this.</p>
+contain the literal <code>.pi/agent/</code>, and the guard's <code>SEC-PI-STATE</code> rule matches any path built
+from that — which, before the rule became audit-only on 2026-08-15, refused the read outright
+and meant the skill simply never worked. It now records instead, so the same shape would fill
+the audit log with a finding about ordinary skill files. <code>skills-env</code> resolves to the physical
+path before exporting, which is why you can ignore all of this.</p>
 </div>
 <hr />
 <h2 id="front-matter-exactly-three-fields-are-read">Front matter: exactly three fields are read<a class="headerlink" href="#front-matter-exactly-three-fields-are-read" title="Permanent link">&para;</a></h2>

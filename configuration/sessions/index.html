@@ -4141,11 +4141,13 @@ fail-loud path. The meter does not block a turn, does not substitute a provider,
 retry. That is the same standing rule as
 <a href="../routing/#onprovidererror"><code>onProviderError</code></a>.</p>
 </div>
-<div class="admonition note">
-<p class="admonition-title">The token file is guarded and cannot be read by the agent</p>
-<p><code>SEC-QUOTA-TOKEN</code> denies any path ending <code>quota-token.json</code>, with no override. The credential
-it holds is a classic PAT with a read-only user scope; a fine-grained token is rejected by the
-usage endpoint. Details on <a href="../../extensions/quota/">quota</a>.</p>
+<div class="admonition warning">
+<p class="admonition-title">The token file is recorded when touched — not protected</p>
+<p><code>SEC-QUOTA-TOKEN</code> matches any path ending <code>quota-token.json</code>, but since 2026-08-15 it writes a
+<code>guard.observed</code> entry and permits the call rather than refusing it. Keep the file <code>0600</code> and
+scope the credential accordingly: it is a classic PAT with a read-only user scope; a
+fine-grained token is rejected by the usage endpoint. Details on
+<a href="../../extensions/quota/">quota</a>.</p>
 </div>
 <p>If your provider has no such endpoint, set <code>enabled: false</code> and the extension degrades to a
 one-line "no quota source configured" status instead of failing.</p>

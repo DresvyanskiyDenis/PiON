@@ -1627,16 +1627,27 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#1-the-guard-six-gates" class="md-nav__link">
+  <a href="#1-the-guard-six-gates-three-verdicts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. The guard: six gates
+        1. The guard: six gates, three verdicts
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="1. The guard: six gates">
+    <nav class="md-nav" aria-label="1. The guard: six gates, three verdicts">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#credential-reads-are-no-longer-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Credential reads are no longer refused
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#why-it-does-not-delegate-to-a-sandbox" class="md-nav__link">
@@ -3819,16 +3830,27 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#1-the-guard-six-gates" class="md-nav__link">
+  <a href="#1-the-guard-six-gates-three-verdicts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. The guard: six gates
+        1. The guard: six gates, three verdicts
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="1. The guard: six gates">
+    <nav class="md-nav" aria-label="1. The guard: six gates, three verdicts">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#credential-reads-are-no-longer-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Credential reads are no longer refused
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#why-it-does-not-delegate-to-a-sandbox" class="md-nav__link">
@@ -4026,13 +4048,27 @@ extensions <strong>in load order</strong> and returns on the first <code>{block:
 to block must reach the guard before anything rewrites its arguments. That single fact is why
 <a href="../architecture/"><code>extensions/index.ts</code></a> exists.</p>
 <hr />
-<h2 id="1-the-guard-six-gates">1. The guard: six gates<a class="headerlink" href="#1-the-guard-six-gates" title="Permanent link">&para;</a></h2>
-<p>In policy order — cheap and absolute first, the one that can block on a human last.</p>
+<h2 id="1-the-guard-six-gates-three-verdicts">1. The guard: six gates, three verdicts<a class="headerlink" href="#1-the-guard-six-gates-three-verdicts" title="Permanent link">&para;</a></h2>
+<p><strong>2026-08-14 — the deny-list inversion.</strong> This used to be seven gates ending in a program allowlist
+that refused any command not on a name list, and refused it outright headless because there was no
+one to ask. That gate — and the escalation/session-inheritance machinery that existed only to widen
+it — is gone by owner decision: deciding safety by <em>program name</em> never worked, because a short list
+blocked ordinary work and a long list stopped meaning anything. What replaced it is a small, fixed
+set of catastrophic command <em>shapes</em>, decided in code. Three gates were downgraded from blocking to
+audit-only in the same change — they still see every call, they just no longer refuse one.</p>
+<p><strong>2026-08-15 — <code>SEC</code> joins them.</strong> The credential-path gate was the one the inversion left blocking
+for a reason other than destruction. Owner decision, 2026-08-15: the same rule covers it — only
+catastrophic commands block, and reading a file is not catastrophic. Two gates block now; four
+observe. <a href="#credential-reads-are-no-longer-refused">What this costs is stated below</a>, unsoftened,
+because it is the largest single thing this repository stopped doing.</p>
+<p>The taxonomy is three verdicts, not two: <strong>block</strong>, <strong>observe</strong>, and (everything not named below)
+<strong>pass with no record at all</strong>.</p>
 <table>
 <thead>
 <tr>
 <th>Order</th>
 <th>Family</th>
+<th>Verdict</th>
 <th>Overridable</th>
 </tr>
 </thead>
@@ -4040,37 +4076,73 @@ to block must reach the guard before anything rewrites its arguments. That singl
 <tr>
 <td>1</td>
 <td><code>SEC-*</code> secret paths</td>
-<td><strong>never</strong></td>
+<td><strong>observes</strong> — permitted, recorded</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>2</td>
 <td><code>DB-*</code> catastrophic bash</td>
+<td><strong>blocks</strong></td>
 <td>mostly not</td>
 </tr>
 <tr>
 <td>3</td>
-<td><code>GIT-*</code> destructive git</td>
+<td><code>GIT-REWRITE</code> / <code>GIT-FORCE-PROTECTED</code></td>
+<td><strong>blocks</strong></td>
 <td>with a written justification</td>
 </tr>
 <tr>
 <td>4</td>
 <td><code>PRV-*</code> privileged commands</td>
-<td>no</td>
+<td><strong>observes</strong> — permitted, recorded</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>5</td>
-<td><code>RTE-*</code> agent routing / specialist match</td>
-<td>a SHOULD-level veto</td>
+<td><code>FS-*</code> write surface — writes outside cwd and the session temp dir</td>
+<td><strong>observes</strong> — permitted, recorded</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>6</td>
-<td><code>ALW-*</code> bash allowlist</td>
-<td>confirm in the TUI, <strong>fail closed</strong> headless</td>
+<td><code>RTE-*</code> agent routing / specialist match</td>
+<td><strong>observes</strong> — permitted, recorded</td>
+<td>n/a</td>
 </tr>
 </tbody>
 </table>
-<p>Gate 1 has no config key, no escalation variable and no justification path. A permission layer whose
-strongest rule has an escape hatch has no strongest rule.</p>
+<p>Gate 1 stays first in the order even though it no longer blocks: order decides which id a match is
+<em>reported</em> under, and "touched a credential path" is a more informative record than whatever a later
+gate noticed about the same command.</p>
+<h3 id="credential-reads-are-no-longer-refused">Credential reads are no longer refused<a class="headerlink" href="#credential-reads-are-no-longer-refused" title="Permanent link">&para;</a></h3>
+<p>A tool call may now read a credential file — an SSH private key, <code>~/.aws/credentials</code>, a <code>.env</code>, the
+agent's own <code>auth.json</code> — and its contents land in the model's context and are therefore sent to
+whichever provider serves the next turn. <strong>There is no runtime control in this repository that
+prevents this.</strong> Not a weakened one. None. Specifically:</p>
+<ul>
+<li>The committed-secrets scrub rule (<code>PC-06</code>, run by <code>pi-check --all</code>) scans what git tracks for
+  secret-shaped literals. It is a <strong>push-time</strong> gate and it protects the <strong>repository</strong>, not the
+  model's context. It cannot see a value that was read into a turn and never written to a tracked
+  file, and it is not a substitute for the gate.</li>
+<li>The OS-level sandbox package is declared in <code>config/packages.lock.json</code> and installed, but
+  <strong>nothing imports it</strong> — it is on no runtime path here. Even once wired, its read-deny is
+  documented as explicitly not a hard block, so it would not close this either.</li>
+</ul>
+<p>What remains is the <code>guard.observed</code> record in the session transcript, and whoever reads it
+afterwards. Detection is unchanged — the same pattern table, still tested by id — so the record tells
+you exactly which credential path was touched. It just tells you after the fact.</p>
+<p>Re-enforcing is a one-line change in <code>extensions/guard/gates/secret-paths.ts</code>, back from <code>observe</code>
+to <code>denyWithEscapeHatch</code>. The table it would enforce is still there.</p>
+<p>The four observing gates write a <code>guard.observed</code> audit entry — same shape as <code>guard.block</code>, plus
+what was seen — every time they fire, and nothing they see is returned to the model. "Remove the
+enforcement, keep the observability" was the explicit instruction: a form that stops being recorded
+is a regression this tree's tests still fail on, even though nothing stops it from running. Ordinary git —
+<code>reset --hard</code>, <code>branch -D</code>, <code>clean -fd</code>, <code>checkout -- .</code>, a force-push to a branch outside
+<code>protectedBranches</code> — is not gated <em>or</em> recorded at all; it was judged genuinely ordinary, not merely
+tolerated.</p>
+<p>Read what gate 5 could and could not see before this change, and still cannot: it is a static text
+check on the command string, and it never saw a write expressed inside an interpreter —
+<a href="../../limitations/#the-guard-is-not-a-sandbox">Known limitations</a>.</p>
 <p>Full reference and the consequences of relaxing anything:
 <a href="../../configuration/guard/"><code>config/guard.json</code></a>.</p>
 <h3 id="why-it-does-not-delegate-to-a-sandbox">Why it does not delegate to a sandbox<a class="headerlink" href="#why-it-does-not-delegate-to-a-sandbox" title="Permanent link">&para;</a></h3>
@@ -4262,8 +4334,20 @@ stream, and exits non-zero when the run actually failed:</p>
 <td>The guard gates tool calls. It does not contain a running process, its children, or what it does to the filesystem</td>
 </tr>
 <tr>
-<td><strong>An allowlisted program that can run other programs</strong></td>
-<td>Adding <code>sh</code>, <code>env</code>, <code>xargs</code> or <code>ssh</code> to the allowlist is functionally <code>allow-all</code></td>
+<td><strong>Any program, by name, at all</strong></td>
+<td>There is no allowlist and no denylist keyed on program name any more. <code>sh</code>, <code>env</code>, <code>xargs</code>, <code>ssh</code>, <code>sudo</code>, <code>curl</code> — everything runs headless, with no prompt, unless the <em>command shape</em> it is used for matches <code>DB-*</code>/<code>GIT-REWRITE</code>/<code>GIT-FORCE-PROTECTED</code></td>
+</tr>
+<tr>
+<td><strong>A credential reaching the model's context</strong></td>
+<td>Since 2026-08-15 <code>SEC-*</code> records a credential-path read and permits it. Nothing at runtime stops the file's contents from being sent to the provider — see <a href="#credential-reads-are-no-longer-refused">above</a></td>
+</tr>
+<tr>
+<td><strong>A write expressed inside a program's own argument text</strong></td>
+<td><code>FS-*</code> reads the command as text, and even where it matches it only records, it does not refuse. <code>python3 -c</code>, <code>node -e</code>, <code>awk '{print &gt; "…"}'</code>, a <code>make</code> target or a <code>$( )</code> subshell hides the destination where no static check can follow it. These are ordinary commands, not exotic ones</td>
+</tr>
+<tr>
+<td><strong><code>SEC-*</code>/<code>PRV-*</code>/<code>FS-*</code>/<code>RTE-*</code> refusing anything</strong></td>
+<td><code>PRV</code>, <code>FS</code> and <code>RTE</code> are audit-only since 2026-08-14, <code>SEC</code> since 2026-08-15. All four write a record; they do not ask permission and they do not block</td>
 </tr>
 <tr>
 <td><strong>Model quality</strong></td>

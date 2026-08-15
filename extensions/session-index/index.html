@@ -2765,6 +2765,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-other-modules-write-into-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What other modules write into it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#never-throws" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3736,6 +3747,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-other-modules-write-into-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What other modules write into it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#never-throws" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3804,6 +3826,40 @@ the thing it observes is not worth having.</p>
 <h2 id="what-is-stored">What is stored<a class="headerlink" href="#what-is-stored" title="Permanent link">&para;</a></h2>
 <p>Identifiers, counts and durations only — <strong>never message content</strong>. That is a calling convention the
 insert function cannot enforce, only document, which is why it is stated in the code and again here.</p>
+<h2 id="what-other-modules-write-into-it">What other modules write into it<a class="headerlink" href="#what-other-modules-write-into-it" title="Permanent link">&para;</a></h2>
+<p>Besides the per-session row, modules append to the event log through a single <code>logEvent</code> call —
+session id, kind, name, an <code>ok</code> flag, an optional duration and an optional JSON payload. Names
+follow one shape, <code>&lt;domain&gt;.&lt;action&gt;:&lt;subject&gt;</code>, so a whole kind reads as one stream:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Name</th>
+<th>Written by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dispatch</code></td>
+<td><code>teammate.spawn:&lt;name&gt;</code>, <code>teammate.send:&lt;name&gt;</code>, <code>teammate.close:&lt;name&gt;</code></td>
+<td><a href="../teammates/">teammates</a></td>
+</tr>
+<tr>
+<td><code>dispatch</code></td>
+<td><code>dispatch.resolve:&lt;agent&gt;</code></td>
+<td><a href="../dispatch/">dispatch</a></td>
+</tr>
+</tbody>
+</table>
+<p><code>dispatch.resolve</code> is the answer to <em>what model did this delegation run on, and why</em>: the <code>subagent</code>
+tool the call arrived on, the agent, the resolved provider, and the model record — the spec's origin,
+what it resolved to, its tier, and the default's scope when the tier was defaulted rather than asked
+for — plus the concurrency and the isolation applied, if any. It is written <strong>whenever a spec
+resolves</strong>, not only when the call's model was rewritten; a dispatch a rule <em>refused</em> writes no such
+row, because that block is already in the guarded handler's own audit entry. Both places have to be
+read to account for every delegation.</p>
+<p>The payload column is generic JSON, so a new event kind needs no schema change and an existing
+<code>index.db</code> keeps working.</p>
 <h2 id="never-throws">Never throws<a class="headerlink" href="#never-throws" title="Permanent link">&para;</a></h2>
 <p>"Observability must never break a session" holds for every call site. A failed index write is a
 logged line, not an exception.</p>

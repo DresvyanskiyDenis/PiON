@@ -3908,8 +3908,11 @@ order, the fail-closed inversion, what happens to a broken file — is on
 <div class="admonition warning">
 <p class="admonition-title">Hooks can only add denial, never remove it</p>
 <p>They stack <strong>on top of</strong> the <a href="../../extensions/guard/">guard</a>, which loads first. A hook cannot
-permit something the guard refused. If you are trying to <em>allow</em> something, you are looking for
-<code>config/guard.json</code>'s allowlist, not this file.</p>
+permit something the guard refused. There is no allowlist to be looking for any more —
+<code>DB-*</code>/<code>GIT-REWRITE</code>/<code>GIT-FORCE-PROTECTED</code> are the only things a bash command can be
+refused for by the guard itself, and none of them is configurable from here or from
+<code>config/guard.json</code>. <code>SEC-*</code> is audit-only since 2026-08-15, so a hook is now the only way to
+make a credential path refuse anything.</p>
 </div>
 <hr />
 <h2 id="the-shape">The shape<a class="headerlink" href="#the-shape" title="Permanent link">&para;</a></h2>
@@ -4001,10 +4004,9 @@ no headless-safe meaning for text you already typed.</p>
 </span></code></pre></div>
 <div class="admonition danger">
 <p class="admonition-title"><code>confirm</code> has no meaning in a headless run</p>
-<p>There is nobody to answer. Combined with <code>config/guard.json</code>'s
-<code>nonInteractive: "allowlist-only"</code>, an unattended run fails closed rather than guessing — which
-is correct, and is also why a <code>confirm</code> rule on a command your scheduled job needs will stop that
-job. Use <code>warn</code> for rules that should not gate automation.</p>
+<p>There is nobody to answer. Hooks fail <strong>closed</strong> — an unattended run refuses rather than
+guessing, which is correct, and is also why a <code>confirm</code> rule on a command your scheduled job
+needs will stop that job. Use <code>warn</code> for rules that should not gate automation.</p>
 </div>
 <h2 id="a-nudge-rather-than-a-gate">A nudge rather than a gate<a class="headerlink" href="#a-nudge-rather-than-a-gate" title="Permanent link">&para;</a></h2>
 <p><code>warn</code> on <code>input</code> reacts to what <em>you</em> typed, before the model sees it.</p>

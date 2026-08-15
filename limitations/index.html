@@ -4361,9 +4361,39 @@ specified, scheduled and <strong>cancelled</strong>. See
 attempting it breaks providers. The per-model lever is <code>modelOverrides.&lt;id&gt;.contextWindow</code>. See
 <a href="../concepts/context-windows/">Context windows</a>.</p>
 <h3 id="the-guard-is-not-a-sandbox">The guard is not a sandbox<a class="headerlink" href="#the-guard-is-not-a-sandbox" title="Permanent link">&para;</a></h3>
-<p>It gates tool calls. It does not contain a process that already started, and an allowlisted program
-that can run other programs (<code>sh</code>, <code>env</code>, <code>xargs</code>, <code>ssh</code>) collapses the allowlist. See
+<p><strong>There is no OS-level sandbox around bash.</strong> Nothing here confines a command's writes to the working
+directory at the operating-system layer, and nothing is auto-approved for being sandboxed, because
+nothing is sandboxed. <code>pi-sandbox</code> is the mechanism that would do it and it is <strong>not wired</strong>; the
+reasons it was not adopted are in
+<a href="../concepts/safety-model/#why-it-does-not-delegate-to-a-sandbox">Safety model</a>. Read the four points
+below before you decide what to run this against.</p>
+<ul>
+<li><strong>The write boundary exists at the guard layer only, and since 2026-08-14 it cannot even refuse.</strong>
+  The <code>FS-*</code> gate <em>records</em> a bash command whose write targets resolve outside the working directory
+  and the session temp dir — it no longer blocks one. It reads the command as text. It is a static
+  check, not an OS boundary, and it is audit-only.</li>
+<li><strong>Interpreter-internal writes are invisible to it.</strong> <code>python3 -c</code>, <code>node -e</code>,
+  <code>awk '{print &gt; "…"}'</code>, a <code>make</code> target, a <code>$( )</code> subshell — the destination is expressed inside a
+  program's own argument text and no static analysis can follow it. These are not edge cases; they
+  are ordinary commands an agent issues all day.</li>
+<li><strong>Every program runs with neither a prompt nor an OS sandbox.</strong> There is no allowlist any more —
+  by owner decision, 2026-08-14, the allow-list model was removed outright. <code>sed</code>, <code>tar</code>, <code>unzip</code>,
+  <code>awk</code>, <code>python3</code>, <code>node</code>, <code>make</code>, <code>docker</code>, <code>sh</code>, <code>xargs</code>, <code>ssh</code>, <code>sudo</code>, <code>curl</code> — every one of them
+  executes unattended, headless included, with no prompt and no per-program decision anywhere in the
+  guard. The only bound on what any of them can do is the small set of catastrophic command shapes
+  described below, plus (for writes specifically) the now-audit-only <code>FS-*</code> record.</li>
+</ul>
+<p>The guard also does not contain a process that already started. See
 <a href="../concepts/safety-model/#what-this-does-not-protect-you-from">Safety model</a>.</p>
+<p>What still stops a headless run, with no config and no override: <code>DB-*</code> (eight catastrophic shapes —
+<code>rm -rf /</code>, fork bomb, <code>dd of=/dev/…</code>, <code>mkfs</code>, redirect onto a raw disk, <code>chmod -R 777 /</code>,
+<code>curl … | sh</code>, shutdown), and two <code>GIT-*</code> rules (<code>GIT-REWRITE</code>, <code>GIT-FORCE-PROTECTED</code>). <code>SEC-*</code>
+(credential paths) was on that list until 2026-08-15 and is now audit-only: a credential read is
+recorded and permitted, and its contents reach the provider serving the next turn — see
+<a href="../concepts/safety-model/#credential-reads-are-no-longer-refused">Safety model</a>. Nothing else in the guard can refuse a bash command, and
+nothing prompts — a UI present or absent makes no difference. <code>PI_GUARD_APPROVE</code> and
+<code>PI_GUARD_SESSION_ALLOWLIST</code> are removed rather than left inert; if you see either name anywhere in
+an older note, it is stale.</p>
 <h3 id="task-lists-do-not-survive-a-session">Task lists do not survive a session<a class="headerlink" href="#task-lists-do-not-survive-a-session" title="Permanent link">&para;</a></h3>
 <p>The task package replays state from the session transcript and writes nothing to disk. If a plan must
 outlive a session, write it to a file. See <a href="../extensions/tasks/">tasks</a>.</p>

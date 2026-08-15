@@ -1102,6 +1102,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#2026-08-14-the-deny-list-inversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-08-14 — the deny-list inversion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#shipped-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1113,65 +1124,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#noninteractive" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nonInteractive
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#allowlist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        allowlist
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#escalation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        escalation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#approvalui-and-confirmtimeoutms" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        approvalUi and confirmTimeoutMs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#protectedbranches" class="md-nav__link">
     <span class="md-ellipsis">
       
         protectedBranches
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#remoteallowlist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        remoteAllowlist
       
     </span>
   </a>
@@ -3774,6 +3730,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#2026-08-14-the-deny-list-inversion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2026-08-14 — the deny-list inversion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#shipped-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3785,65 +3752,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#noninteractive" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nonInteractive
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#allowlist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        allowlist
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#escalation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        escalation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#approvalui-and-confirmtimeoutms" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        approvalUi and confirmTimeoutMs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#protectedbranches" class="md-nav__link">
     <span class="md-ellipsis">
       
         protectedBranches
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#remoteallowlist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        remoteAllowlist
       
     </span>
   </a>
@@ -3921,195 +3833,82 @@
 
 <h1 id="configguardjson-shell-execution-safety"><code>config/guard.json</code> — shell-execution safety<a class="headerlink" href="#configguardjson-shell-execution-safety" title="Permanent link">&para;</a></h1>
 <p><strong>Generated, not tracked.</strong> <code>config/guard.default.json</code> is the template in git; the installer copies
-it to <code>config/guard.json</code> and patches in your headless policy, protected branches and any allowlist
-additions. The generated file is git-ignored and is what <code>extensions/guard/policy.ts</code> reads at
-session start. Edit it in place — a re-run patches rather than resets — and mirror into
-<code>config/guard.default.json</code> anything that must survive a fresh clone.</p>
-<p>This is the sharpest file in the repository. Every other page here describes a preference;
-<strong>relaxing this one is a real decision with a real consequence</strong>, and the page says so rather than
-listing field names.</p>
+it to <code>config/guard.json</code> and patches in your protected branches. The generated file is git-ignored
+and is what <code>extensions/guard/policy.ts</code> reads at session start. Edit it in place — a re-run patches
+rather than resets — and mirror into <code>config/guard.default.json</code> anything that must survive a fresh
+clone.</p>
 <p>The guard is a <em>permission layer</em>, not a sandbox. It refuses tool calls by pattern before they
 run. It does not contain a process that has already started, and it does not stop code the model
-never routed through a tool. What it buys you is that the obviously catastrophic and the quietly
-expensive both require a human to say yes.</p>
-<p>The conceptual model — the six gates, the policy order, the fail-closed/fail-open contract, the
-deadman — is on <a href="../../concepts/safety-model/">Safety model</a>. This page is the reference.</p>
+never routed through a tool. What it buys you is that the small set of genuinely catastrophic
+commands cannot run at all, no matter how a headless session got there.</p>
+<p>The conceptual model — the six gates, two that block and four that only observe, the
+fail-closed/fail-open contract, the deadman — is on
+<a href="../../concepts/safety-model/">Safety model</a>. This page is the reference.</p>
+<hr />
+<h2 id="2026-08-14-the-deny-list-inversion">2026-08-14 — the deny-list inversion<a class="headerlink" href="#2026-08-14-the-deny-list-inversion" title="Permanent link">&para;</a></h2>
+<p>This file used to carry an 83-name program allowlist, a headless policy (<code>nonInteractive</code>), an
+escalation variable, a confirm timeout, an approval-UI choice and a remote allowlist — the whole
+machinery behind a seventh gate (<code>ALW</code>) that refused any program not on the list, and refused it
+<em>outright</em> headless because there was no one to ask.</p>
+<p>That gate is gone, by owner decision. Not narrowed, not defaulted differently — removed as a
+concept, along with the escalation and session-inheritance mechanisms that existed only to widen
+it. Deciding safety by <em>program name</em> never worked well: a short list refused ordinary work, a long
+list stopped meaning anything, and either way the actual boundary was somewhere else (see
+<a href="../../limitations/#the-guard-is-not-a-sandbox">Known limitations</a> for what that somewhere-else is).
+What replaced it is a small, fixed set of catastrophic <em>command shapes</em>, blocked in code rather than
+by config, plus three families (<code>PRV-*</code>, <code>FS-*</code>, <code>RTE-*</code>) that used to block and now only record
+what they see. Removing enforcement was the decision; removing observability was not — a gate that
+stopped being enforced still writes an audit entry every time it fires.</p>
+<p>If you are reading this because you want the allowlist back: it was never the boundary, and this
+file cannot bring it back on its own — there is no key left that means "decide by program name."</p>
 <hr />
 <h2 id="shipped-file">Shipped file<a class="headerlink" href="#shipped-file" title="Permanent link">&para;</a></h2>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;nonInteractive&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allowlist-only&quot;</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;allowlist&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;git&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;npm&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;npx&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;node&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;uv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;python&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">                </span><span class="s2">&quot;ruff&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;mypy&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;sleep&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;echo&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;cat&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;ls&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;fd&quot;</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">                </span><span class="s2">&quot;jq&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;make&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;docker&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;gh&quot;</span><span class="p">],</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;escalation&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PI_GUARD_APPROVE=1&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">&quot;approvalUi&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;select&quot;</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">&quot;confirmTimeoutMs&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">&quot;protectedBranches&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;main&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;master&quot;</span><span class="p">],</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">&quot;remoteAllowlist&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">&quot;dispatchTools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;dispatch_agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent_run&quot;</span><span class="p">]</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">}</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;protectedBranches&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;main&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;master&quot;</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;dispatchTools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;dispatch_agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent_run&quot;</span><span class="p">]</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">}</span>
 </span></code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">The policy ships as data, deliberately</p>
-<p>Extending the allowlist is a config commit, not an edit to a gate. That is why the file exists
-at all.</p>
-</div>
+<p>That is the whole file. Two keys: which branches a force-push cannot touch, and which tool names
+count as "dispatching a sub-agent" for the one gate that still watches routing.</p>
 <div class="admonition warning">
 <p class="admonition-title">A missing or malformed <code>guard.json</code> does not disable the guard</p>
 <p><code>policy.ts</code> falls back to <code>DEFAULT_POLICY</code> — byte-for-byte the same content as the shipped
-JSON — sets <code>degraded: true</code>, and reports the problem loudly. Gates read <code>degraded</code> and get
-<strong>stricter</strong>, never looser. You cannot turn the guard off by deleting its config; you can only
-make it complain.</p>
+JSON — sets <code>degraded: true</code>, and reports the problem loudly. Degradation cannot weaken
+<code>SEC-*</code>/<code>DB-*</code>/<code>GIT-*</code>: they are not read from this file at all. It can only mean
+<code>protectedBranches</code> falls back to <code>main</code>/<code>master</code>.</p>
 <p>An <strong>unknown key</strong> is rejected rather than ignored. A typo'd key that silently does nothing is
-how a policy stops applying without anyone noticing.</p>
+how a policy stops applying without anyone noticing — and a key from the old shape (<code>allowlist</code>,
+<code>nonInteractive</code>, …) is now exactly as unknown as a typo.</p>
 </div>
-<hr />
-<h2 id="noninteractive"><code>nonInteractive</code><a class="headerlink" href="#noninteractive" title="Permanent link">&para;</a></h2>
-<p>The single most consequential key in the file. It answers: <em>what does an allowlist miss mean when
-there is no UI to prompt with?</em> — i.e. under <code>pi -p</code>, cron, CI, or a sub-agent.</p>
-<table>
-<thead>
-<tr>
-<th>Value</th>
-<th>Behaviour</th>
-<th>Who wants it</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>"deny-all"</code></td>
-<td>bash is refused outright in a headless session</td>
-<td>A scheduled job that should never shell out. The strictest posture that still starts</td>
-</tr>
-<tr>
-<td><strong><code>"allowlist-only"</code></strong> (ships)</td>
-<td>the allowlist runs; a miss is <strong>blocked</strong></td>
-<td>Everyone, by default</td>
-</tr>
-<tr>
-<td><code>"allow-all"</code></td>
-<td>every command runs unprompted</td>
-<td>A disposable container you are willing to lose</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition danger">
-<p class="admonition-title"><code>allow-all</code> is not 'convenient', it is 'unattended arbitrary execution'</p>
-<p>In an interactive session an allowlist miss shows you a prompt and you decide. Headless there
-is nobody to ask, so the only two honest answers are <em>block</em> and <em>run it</em>. <code>allow-all</code> picks
-the second for every command a model can compose, for the entire run, with no record of the
-decision because no decision was made.</p>
-<p>If you need one specific command unattended, add <strong>that program</strong> to <code>allowlist</code>. If you need
-one specific <em>run</em> escalated, use <code>escalation</code> — it is per invocation and leaves the policy
-intact.</p>
-</div>
-<p>The gates above the allowlist (<code>SEC-*</code>, <code>DB-*</code>, <code>GIT-*</code>, <code>PRV-*</code>) still apply under <code>allow-all</code>.
-It relaxes the last gate, not the file.</p>
-<hr />
-<h2 id="allowlist"><code>allowlist</code><a class="headerlink" href="#allowlist" title="Permanent link">&para;</a></h2>
-<p><strong>Program basenames</strong> — not command lines, not patterns — that run without an approval prompt.</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">&quot;allowlist&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;git&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;npm&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;node&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;uv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;python&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rg&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;jq&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;docker&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;gh&quot;</span><span class="p">]</span>
-</span></code></pre></div>
-<p>Adding an entry is the normal way to stop being asked about a tool you use constantly. Ask two
-questions before you do:</p>
-<ol>
-<li><strong>Can this program run another program?</strong> <code>sh</code>, <code>bash</code>, <code>zsh</code>, <code>env</code>, <code>xargs</code>, <code>find -exec</code>,
-   <code>ssh</code>, <code>sudo</code> and friends turn one allowlist entry into all of them. Adding <code>sh</code> is
-   indistinguishable from <code>nonInteractive: "allow-all"</code>.</li>
-<li><strong>Can it write outside the project?</strong> An allowlisted installer or package manager can, by
-   design.</li>
-</ol>
-<div class="admonition note">
-<p class="admonition-title"><code>docker</code> is on the shipped list and is worth a second look</p>
-<p><code>docker run -v /:/host …</code> is a filesystem escape. It ships allowlisted because the alternative
-— a prompt on every container command — made the harness unusable for container work, and
-because <code>SEC-*</code> and <code>DB-*</code> still cover the paths that matter most. If you do not use
-containers, removing it is a free tightening.</p>
-</div>
-<p><strong>What breaks if you get it wrong:</strong> too tight and headless runs stall on blocked commands (loud,
-recoverable, annoying). Too loose and a model composes something you would not have approved, with
-no prompt and no record (quiet, not recoverable). The failure modes are not symmetric; err tight.</p>
-<hr />
-<h2 id="escalation"><code>escalation</code><a class="headerlink" href="#escalation" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">&quot;escalation&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PI_GUARD_APPROVE=1&quot;</span>
-</span></code></pre></div>
-<p>The environment variable that promotes a single headless invocation to "approved":</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PI_GUARD_APPROVE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;run the full migration&quot;</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>pi-tier<span class="w"> </span>fast<span class="k">)</span><span class="s2">&quot;</span>
-</span></code></pre></div>
-<p><strong>Never set this in your shell profile.</strong> It is per invocation on purpose: the value of the
-mechanism is that a human typed it for <em>this</em> run, next to the command they were approving. Export
-it globally and every headless run is escalated, including the ones a cron job starts at 03:00.</p>
-<p>Rename the variable if it collides with something in your environment; the shape is
-<code>NAME=value</code>.</p>
-<hr />
-<h2 id="approvalui-and-confirmtimeoutms"><code>approvalUi</code> and <code>confirmTimeoutMs</code><a class="headerlink" href="#approvalui-and-confirmtimeoutms" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Key</th>
-<th>Ships</th>
-<th>Options</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>approvalUi</code></td>
-<td><code>"select"</code></td>
-<td><code>select</code> gives allow-once / allow-session / deny. <code>confirm</code> is a two-way yes/no</td>
-</tr>
-<tr>
-<td><code>confirmTimeoutMs</code></td>
-<td><code>120000</code></td>
-<td>Milliseconds before the dialog times out</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition warning">
-<p class="admonition-title">A timed-out dialog is a DENY</p>
-<p>Not a default-yes, not a hang. If you walk away from a prompt, the command does not run. Raise
-the timeout if you routinely step away mid-run; do not lower it below the time it takes you to
-read what you are approving.</p>
-</div>
-<p><code>allow-session</code> on the <code>select</code> UI grants for the remainder of the session, which is a real grant —
-it is the option to reach for when a build loop needs the same command forty times, and the option
-to avoid when you are approving something you have not read.</p>
 <hr />
 <h2 id="protectedbranches"><code>protectedBranches</code><a class="headerlink" href="#protectedbranches" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;protectedBranches&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;main&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;master&quot;</span><span class="p">]</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">&quot;protectedBranches&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;main&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;master&quot;</span><span class="p">]</span>
 </span></code></pre></div>
 <p>Branches on which even <code>git push --force-with-lease</code> is refused, by the <code>GIT-FORCE-PROTECTED</code> rule.</p>
 <p>Add your own long-lived branches — <code>develop</code>, <code>release/*</code>-style names, a shared integration branch.
 This is a cheap, high-value edit and it is the one most people should make on day one.</p>
-<p><strong>What breaks:</strong> nothing, in the direction of adding. In the direction of removing: the <code>GIT-*</code>
-family is <em>overridable with a written justification</em>, so a model can talk its way past a
+<p><strong>What breaks:</strong> nothing, in the direction of adding. In the direction of removing: <code>GIT-FORCE-PROTECTED</code>
+and <code>GIT-REWRITE</code> are <em>overridable with a written justification</em>, so a model can talk its way past a
 destructive-git rule if it argues the case. <code>protectedBranches</code> is the list where "I have a good
-reason" stops being accepted.</p>
+reason" stops being accepted at all — a branch not on the list is not gated by this file, full stop.</p>
 <p>There is also a declarative rule in <a href="../tools/#hooksyaml"><code>config/hooks.yaml</code></a>,
 <code>no-force-push-main</code>, which blocks force-push to <code>main</code>/<code>master</code> by regex. Two layers on the same
 risk, on purpose: the hook is easy to read and easy to extend, the gate is harder to fool.</p>
 <hr />
-<h2 id="remoteallowlist"><code>remoteAllowlist</code><a class="headerlink" href="#remoteallowlist" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">&quot;remoteAllowlist&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
-</span></code></pre></div>
-<p>Remotes <code>git push</code> may target. <strong>Empty means any.</strong></p>
-<p>Populate it with your real remote names (<code>origin</code>, and whatever else you legitimately push to) if
-you work in a tree that has more than one and pushing to the wrong one would matter. On a
-single-remote checkout it buys nothing.</p>
-<hr />
 <h2 id="dispatchtools"><code>dispatchTools</code><a class="headerlink" href="#dispatchtools" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">&quot;dispatchTools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;dispatch_agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent_run&quot;</span><span class="p">]</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">&quot;dispatchTools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;task&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;dispatch_agent&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;subagent_run&quot;</span><span class="p">]</span>
 </span></code></pre></div>
-<p>The tool names that count as "dispatching a sub-agent", for the <code>RTE-*</code> agent-routing veto. The
+<p>The tool names that count as "dispatching a sub-agent", for the <code>RTE-*</code> agent-routing observer. The
 list is deliberately wider than the tool actually registered (<code>subagent</code>) because prose, older
-agent definitions and other packages use the other names, and a routing veto that misses because
-the tool was called <code>task</code> is a veto that does not exist.</p>
+agent definitions and other packages use the other names, and an observer that misses because the
+tool was called <code>task</code> is an observer that records nothing.</p>
 <p>Only change this if you add a package that registers a <em>differently named</em> dispatch tool — then add
-its name. Removing names weakens the veto silently.</p>
+its name.</p>
 <p>The same list appears in <a href="../dispatch/"><code>config/dispatch.json</code></a>; they serve different consumers and
 both should name any new dispatch tool you add.</p>
 <hr />
 <h2 id="the-rule-families-this-file-does-not-configure">The rule families this file does <em>not</em> configure<a class="headerlink" href="#the-rule-families-this-file-does-not-configure" title="Permanent link">&para;</a></h2>
-<p>The gates run in policy order and only the last one is data-driven:</p>
+<p>Everything that can actually <strong>block</strong> is in code, not data:</p>
 <table>
 <thead>
 <tr>
@@ -4120,44 +3919,94 @@ both should name any new dispatch tool you add.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>SEC-*</code> secret paths</td>
-<td><code>SEC-SSH</code>, <code>SEC-PEM</code>, <code>SEC-ENV</code>, <code>SEC-PI-AUTH</code>, <code>SEC-PI-SECRETS</code>, <code>SEC-QUOTA-TOKEN</code>, <code>SEC-AWS-CRED</code></td>
-<td><strong>Never.</strong> No config key, no escalation, no written justification</td>
-</tr>
-<tr>
 <td><code>DB-*</code> dangerous bash</td>
 <td><code>DB-RM-ROOT</code>, <code>DB-MKFS</code>, <code>DB-DD-DISK</code>, <code>DB-FORKBOMB</code>, <code>DB-CURL-SH</code>, <code>DB-SHUTDOWN</code>, <code>DB-CHMOD-777</code>, <code>DB-REDIR-DISK</code></td>
-<td>No</td>
+<td>Two of the eight (<code>DB-CURL-SH</code>, <code>DB-SHUTDOWN</code>) — with a written justification. The rest, no</td>
 </tr>
 <tr>
-<td><code>GIT-*</code> destructive git</td>
-<td><code>GIT-FORCE</code>, <code>GIT-FORCE-PROTECTED</code>, <code>GIT-RESET</code>, <code>GIT-CLEAN</code>, <code>GIT-CHECKOUT-DOT</code>, <code>GIT-BRANCH-D</code>, <code>GIT-REMOTE</code></td>
+<td><code>GIT-REWRITE</code></td>
+<td><code>git filter-repo</code>, <code>git filter-branch</code></td>
 <td>Yes — with a written justification</td>
 </tr>
 <tr>
-<td><code>PRV-*</code> privileged</td>
-<td><code>PRV-SUDO</code>, <code>PRV-KILLALL</code>, <code>PRV-PKILL-9</code>, <code>PRV-CHMOD-777</code></td>
-<td>No</td>
-</tr>
-<tr>
-<td><code>RTE-*</code> agent routing</td>
-<td><code>DV-SPECIALIST</code> — a generic agent dispatched where a specialist matches the prompt. Fires only on a real match; an unmatched generic dispatch is not challenged at all</td>
-<td>Yes — <code># PI-JUSTIFY(DV-SPECIALIST): &lt;reason&gt;</code> prepended to the prompt</td>
-</tr>
-<tr>
-<td><code>ALW-*</code> allowlist</td>
-<td>the miss</td>
-<td>Confirm in the TUI; fail closed headless</td>
+<td><code>GIT-FORCE-PROTECTED</code></td>
+<td>a force-push (any spelling) onto a <code>protectedBranches</code> name</td>
+<td>Yes — with a written justification</td>
 </tr>
 </tbody>
 </table>
-<p>If you want a <em>new</em> rule, do not edit a gate — write it in
+<p><code>SEC-*</code> (secret paths) was in that table until 2026-08-15. It is now audit-only: it records a
+credential-path touch and permits the call, so a credential can reach the model's context with
+nothing at runtime to stop it. See
+<a href="../../concepts/safety-model/#credential-reads-are-no-longer-refused">Safety model</a>.</p>
+<p>Everything else in <code>git</code> — <code>reset --hard</code>, <code>branch -D</code>, <code>clean -fd</code>, <code>checkout -- .</code>, a force-push
+to any branch <em>not</em> in <code>protectedBranches</code> — is no longer gated at all. Each of those is
+recoverable through the reflog or affects only untracked files; gating them cost real headless
+runs for a safety margin the git history itself already provides.</p>
+<p>And the three that used to block and now only <strong>observe</strong> — permitted, and written to the audit
+log, with nothing returned to the model:</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Examples</th>
+<th>What it records</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PRV-*</code> privileged</td>
+<td><code>PRV-SUDO</code>, <code>PRV-KILLALL</code>, <code>PRV-PKILL-9</code>, <code>PRV-CHMOD-777</code></td>
+<td>A <code>guard.observed</code> entry naming the gate and the command</td>
+</tr>
+<tr>
+<td><code>FS-*</code> write surface</td>
+<td><code>FS-OUTSIDE</code> — a write whose target resolves outside the working directory and the session temp dir. <code>FS-UNRESOLVED</code> — a write whose target starts with a variable this process cannot resolve</td>
+<td>The form (<code>sed -i</code>, <code>tee</code>, <code>cp</code> destination, …), the literal argument and the resolved path</td>
+</tr>
+<tr>
+<td><code>RTE-*</code> agent routing</td>
+<td><code>DV-SPECIALIST</code> — a generic agent dispatched where a specialist matches the prompt</td>
+<td>The agent type that was dispatched</td>
+</tr>
+</tbody>
+</table>
+<p>None of the three can refuse a call, ask for confirmation, or return a reason to the model. They
+exist so the transcript still answers "what did this session actually do to the filesystem, run as
+root, or route to a generic agent instead of a specialist?" — a question worth being able to answer
+even when nothing was stopped.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>GIT-REWRITE</code> blocks <code>filter-repo</code> and <code>filter-branch</code>, and a no-op rewrite is not safe</p>
+<p><code>git filter-repo</code> ends every run with the same post-pass, whether or not it changed a single
+commit: it deletes the <code>origin</code> remote, runs <code>reflog expire --expire=now --all</code> and
+<code>gc --prune=now</code>. Every reflog in the shared git dir goes to zero bytes — <code>logs/HEAD</code>, each
+branch reflog, and every linked worktree's own — so the commits survive and the way back does
+not. <code>--force</code> only suppresses the "this is not a fresh clone" refusal that would otherwise
+have stopped it. Rewrite a throwaway clone and push the result; if you really mean to do it in
+place, the written justification is there, and you are stating on the record that you accept
+losing the reflogs.</p>
+</div>
+<div class="admonition danger">
+<p class="admonition-title"><code>FS-*</code> was never a container, and now it cannot even refuse</p>
+<p>It reads the command string and locates write <strong>forms</strong> — <code>&gt;</code>, <code>&gt;&gt;</code>, <code>tee</code>, <code>cp</code>, <code>mv</code>, <code>rm</code>,
+<code>install</code>, <code>truncate</code>, <code>dd</code>, <code>find -delete</code>, <code>curl -o</code> / <code>wget -O</code>, archive extraction, an
+in-place editor flag — then resolves each target against the working directory and the session
+temp dir. That is the whole mechanism, and since 2026-08-14 it only writes what it saw; it does
+not decide anything. It cannot see a write expressed <em>inside</em> a program (<code>python3 -c</code>, <code>node -e</code>,
+<code>awk '{print &gt; "…"}'</code>, a <code>make</code> target, a <code>$( )</code> subshell). The full disclosure of what the guard
+does and does not contain is in
+<a href="../../limitations/#the-guard-is-not-a-sandbox">Known limitations</a>.</p>
+<p>It gates <strong>bash command strings only</strong>. It does not observe PI's own <code>write</code> / <code>edit</code> tools, and
+it does not gate reads; <code>SEC-*</code> covers the credential set on every tool — but since 2026-08-15
+<code>SEC-*</code> only records, so nothing there refuses either.</p>
+</div>
+<p>If you want a <em>new</em> rule that can actually block, do not edit a gate — write it in
 <a href="../tools/#hooksyaml"><code>config/hooks.yaml</code></a>. Hooks stack on the guard and may only <strong>add</strong> denial,
 never remove it.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
 <p>The point of a permission layer is that you can demonstrate it. In an interactive session:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>run: sudo rm -rf /
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>run: sudo rm -rf /
 </span></code></pre></div>
 <p>You should get a refusal naming <code>DB-RM-ROOT</code> — not a confirmation prompt, not an execution.</p>
 <p>Then <code>/doctor</code>. Its <code>D-06</code> check re-runs the synthetic probe <code>matchDangerous("rm -rf /")</code> and

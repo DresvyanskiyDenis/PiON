@@ -1795,10 +1795,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#six-gates-in-policy-order" class="md-nav__link">
+  <a href="#six-gates-two-that-block-and-four-that-only-observe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Six gates, in policy order
+        Six gates, two that block and four that only observe
       
     </span>
   </a>
@@ -1817,10 +1817,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-policy-is-data" class="md-nav__link">
+  <a href="#the-policy-is-data-whats-left-of-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The policy is data
+        The policy is data — what's left of it
       
     </span>
   </a>
@@ -3725,10 +3725,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#six-gates-in-policy-order" class="md-nav__link">
+  <a href="#six-gates-two-that-block-and-four-that-only-observe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Six gates, in policy order
+        Six gates, two that block and four that only observe
       
     </span>
   </a>
@@ -3747,10 +3747,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-policy-is-data" class="md-nav__link">
+  <a href="#the-policy-is-data-whats-left-of-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The policy is data
+        The policy is data — what's left of it
       
     </span>
   </a>
@@ -3820,15 +3820,25 @@
 primitive. This module is the policy on top of it.</p>
 <p>Configured by <a href="../../configuration/guard/"><code>config/guard.json</code></a>, which is where you should go for the
 key-by-key reference and for the consequences of relaxing anything.</p>
-<h2 id="six-gates-in-policy-order">Six gates, in policy order<a class="headerlink" href="#six-gates-in-policy-order" title="Permanent link">&para;</a></h2>
-<p>The order is itself the policy: cheap and absolute first, the one that can block on a human last.</p>
+<h2 id="six-gates-two-that-block-and-four-that-only-observe">Six gates, two that block and four that only observe<a class="headerlink" href="#six-gates-two-that-block-and-four-that-only-observe" title="Permanent link">&para;</a></h2>
+<p><strong>2026-08-14 — the deny-list inversion.</strong> This used to be seven gates ending in a program allowlist
+(<code>ALW-*</code>) that refused headless by default and confirmed in the TUI. That gate is gone as a concept,
+along with the escalation variable and the session-inheritance mechanism (<code>PI_GUARD_SESSION_ALLOWLIST</code>)
+that existed only to widen it — deciding safety by <em>program name</em> never worked well, and what
+replaced it is a small, fixed set of catastrophic command shapes, decided by code rather than by
+config. Three of the remaining gates were downgraded from blocking to audit-only in the same
+change: they still see everything, they just no longer refuse anything. <strong>On 2026-08-15 <code>SEC</code> was
+downgraded the same way</strong> — it was the last gate blocking for a reason other than destruction, and
+by owner decision the rule applies to it too: only catastrophic commands block, and reading a file
+is not catastrophic. Two gates block; four observe. The order is still the policy — cheap and
+absolute first, so a match is reported under the most informative id.</p>
 <table>
 <thead>
 <tr>
 <th>Order</th>
 <th>Gate</th>
 <th>Rule ids</th>
-<th>Override</th>
+<th>Verdict</th>
 </tr>
 </thead>
 <tbody>
@@ -3836,57 +3846,73 @@ key-by-key reference and for the consequences of relaxing anything.</p>
 <td>1</td>
 <td>secret paths</td>
 <td><code>SEC-SSH</code>, <code>SEC-PEM</code>, <code>SEC-ENV</code>, <code>SEC-KEY</code>, <code>SEC-AWS</code>, <code>SEC-AWS-CRED</code>, <code>SEC-CREDJSON</code>, <code>SEC-SECRETSDIR</code>, <code>SEC-SESSION</code>, <code>SEC-TOKENCACHE</code>, <code>SEC-PI-AUTH</code>, <code>SEC-PI-SECRETS</code>, <code>SEC-PI-STATE</code>, <code>SEC-QUOTA-TOKEN</code>, <code>SEC-QUOTA-PAT</code></td>
-<td><strong>never</strong></td>
+<td><strong>observes only</strong> — permitted, recorded</td>
 </tr>
 <tr>
 <td>2</td>
 <td>dangerous bash</td>
 <td><code>DB-RM-ROOT</code>, <code>DB-MKFS</code>, <code>DB-DD-DISK</code>, <code>DB-FORKBOMB</code>, <code>DB-CURL-SH</code>, <code>DB-SHUTDOWN</code>, <code>DB-CHMOD-777</code>, <code>DB-REDIR-DISK</code></td>
-<td>mostly none</td>
+<td>blocks, mostly not overridable</td>
 </tr>
 <tr>
 <td>3</td>
 <td>destructive git</td>
-<td><code>GIT-FORCE</code>, <code>GIT-FORCE-PROTECTED</code>, <code>GIT-RESET</code>, <code>GIT-CLEAN</code>, <code>GIT-CHECKOUT-DOT</code>, <code>GIT-BRANCH-D</code>, <code>GIT-REMOTE</code></td>
-<td>with a written justification</td>
+<td><code>GIT-REWRITE</code>, <code>GIT-FORCE-PROTECTED</code></td>
+<td>blocks, overridable with a written justification</td>
 </tr>
 <tr>
 <td>4</td>
 <td>privileged commands</td>
 <td><code>PRV-SUDO</code>, <code>PRV-CHMOD-777</code>, <code>PRV-PKILL-9</code>, <code>PRV-KILLALL</code></td>
-<td>none</td>
+<td><strong>observes only</strong> — permitted, recorded</td>
 </tr>
 <tr>
 <td>5</td>
-<td>agent routing</td>
-<td><code>RTE-*</code> — the specialist-match veto on dispatch</td>
-<td>a SHOULD-level veto, overridable</td>
+<td>write surface</td>
+<td><code>FS-OUTSIDE</code>, <code>FS-UNRESOLVED</code> — a bash write whose target is outside the working directory and the session temp dir, or cannot be shown to be inside</td>
+<td><strong>observes only</strong> — permitted, recorded</td>
 </tr>
 <tr>
 <td>6</td>
-<td>bash allowlist</td>
-<td><code>ALW-*</code></td>
-<td>confirm in the TUI; <strong>fail closed</strong> headless</td>
+<td>agent routing</td>
+<td><code>RTE-*</code> — a generic agent dispatched where a specialist matches the prompt</td>
+<td><strong>observes only</strong> — permitted, recorded</td>
 </tr>
 </tbody>
 </table>
-<p>Gate 1 is absolute by construction. There is no config key, no escalation variable and no
-justification that opens a secret path — a permission layer whose strongest rule has an escape
-hatch has no strongest rule.</p>
+<p>Gate 1 no longer stops anything. <code>cd ~/.aws &amp;&amp; cat credentials</code> runs, and the AWS credentials land
+in the model's context and go to the provider serving the next turn; the <code>SEC-AWS</code> record is the
+whole of what is left. <strong>No runtime control in this repository prevents that</strong> — the committed-secrets
+scrub rule is push-time and protects the repository, not the context, and the OS-level sandbox
+package is declared but imported by nothing. The consequence in full, and the one-line path back to
+enforcement, are in <a href="../../concepts/safety-model/#credential-reads-are-no-longer-refused">Safety model</a>.</p>
+<p>The four observing gates write a <code>guard.observed</code> audit entry — same shape as a <code>guard.block</code> entry,
+plus what was seen — every time they fire. Removing enforcement did not remove observability: a form that stopped
+being recorded after this change is a regression, not a simplification. <code>git reset --hard</code>,
+<code>git branch -D</code>, <code>git clean -fd</code>, <code>git checkout -- .</code> and an ordinary force-push (to a branch outside
+<code>protectedBranches</code>) are no longer gated <em>or</em> recorded at all — those are treated as ordinary git,
+not merely tolerated.</p>
+<p>If you are reading this looking for <code>PI_GUARD_APPROVE</code> or <code>PI_GUARD_SESSION_ALLOWLIST</code>: both are
+removed rather than left inert. Neither name does anything any more.</p>
 <h2 id="why-it-does-not-delegate-to-a-sandbox">Why it does not delegate to a sandbox<a class="headerlink" href="#why-it-does-not-delegate-to-a-sandbox" title="Permanent link">&para;</a></h2>
 <p>An OS-level sandbox package exists and was reviewed. It is not this, and this gate never delegates
 to it: its read-deny is explicitly not a hard block, and its network filter is a local
 TLS-intercepting proxy with a generated CA whose interaction with corporate TLS inspection is
 unresolved. A gate that sits above a sandbox and assumes the sandbox holds is two layers with one
 guarantee between them.</p>
-<h2 id="the-policy-is-data">The policy is data<a class="headerlink" href="#the-policy-is-data" title="Permanent link">&para;</a></h2>
-<p><code>config/guard.json</code> is loaded, not compiled in. Extending the allowlist is a config commit rather
-than an edit to a gate.</p>
+<p><strong>There is therefore no OS-level containment around bash at all</strong>, and nothing is auto-approved for
+being sandboxed, because nothing is sandboxed.</p>
+<h2 id="the-policy-is-data-whats-left-of-it">The policy is data — what's left of it<a class="headerlink" href="#the-policy-is-data-whats-left-of-it" title="Permanent link">&para;</a></h2>
+<p><code>config/guard.json</code> is loaded, not compiled in, and carries exactly two keys now:
+<code>protectedBranches</code> and <code>dispatchTools</code>. There is nothing left in it that widens what runs — the
+deny-list itself lives in code.</p>
 <p>A <strong>missing or malformed</strong> policy file does not disable the guard. <code>policy.ts</code> falls back to
 <code>DEFAULT_POLICY</code> — the same content the shipped JSON carries — sets <code>degraded: true</code>, and reports
-the problem loudly. Gates read <code>degraded</code> and get <strong>stricter</strong>, never looser. An unknown key is
-rejected rather than ignored, because a typo'd key that silently does nothing is how a policy stops
-applying without anyone noticing.</p>
+the problem loudly. Degradation can only mean <code>protectedBranches</code> falls back to <code>main</code>/<code>master</code>; it
+cannot loosen <code>SEC-*</code>/<code>DB-*</code>/<code>GIT-*</code>, which do not read this file. An unknown key is rejected rather
+than ignored, because a typo'd key that silently does nothing is how a policy stops applying without
+anyone noticing — and any key from the old shape (<code>allowlist</code>, <code>nonInteractive</code>, <code>escalation</code>, …) is
+now exactly as unknown as a typo.</p>
 <h2 id="internal-error-posture">Internal-error posture<a class="headerlink" href="#internal-error-posture" title="Permanent link">&para;</a></h2>
 <p>The guard registers with <code>onInternalError: "open"</code>. A bug in <em>our</em> code must not blanket-block
 every tool call on your machine. That is the opposite of <a href="../hooks/">hooks</a>, and the asymmetry is

@@ -4215,6 +4215,10 @@ whole argument. The full reasoning, the measurement recipe and the <code>/contex
 <td><code>true</code> for a thinking model</td>
 </tr>
 <tr>
+<td><code>thinkingLevelMap</code></td>
+<td>which reasoning efforts this model actually serves. See the warning below — the default when you omit it is not "all of them"</td>
+</tr>
+<tr>
 <td><code>input</code></td>
 <td><code>["text"]</code> or <code>["text", "image"]</code></td>
 </tr>
@@ -4249,6 +4253,22 @@ exist anywhere.</p>
 <p class="admonition-title">A thinking model at the wrong temperature looks like a harness bug</p>
 <p>Use the values the model card publishes in <code>samplingParams</code>. Degradation from bad sampling
 presents as the agent being stupid, and you will look for it in the wrong place.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">An absent <code>thinkingLevelMap</code> is a claim, not a blank</p>
+<p>A <code>reasoning: true</code> model with no map is read as serving <code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code> and
+<code>high</code>, and <strong>not</strong> <code>xhigh</code> or <code>max</code>. So omitting it advertises five levels in the model menu
+whether or not one of them ever reaches the wire — and if the provider's
+<code>compat.supportsReasoningEffort</code> is <code>false</code>, none of them does.</p>
+<p>Write the map when you know: <code>null</code> for a level the model does not serve, the wire value for one
+it does. All-null is the honest entry for a model whose thinking cannot be <em>steered</em> — it is not
+a claim that the model does not reason, and it makes any requested level clamp to <code>off</code>, which
+sends no parameter at all. That is the same wire as an absent map, correctly described.</p>
+<p>Do not widen a map because a <code>curl</code> returned 200. An OpenAI-compatible server will accept every
+<code>reasoning_effort</code> value it recognises while the provider transmits none of them. What the
+endpoint <em>accepts</em> is not what your provider <em>sends</em>. When a level is requested that the map
+does not serve, the dispatch says so — see
+<a href="../dispatch/#onthinkingclamp"><code>onThinkingClamp</code></a>.</p>
 </div>
 <hr />
 <h2 id="provider-fragments-the-installers-source-of-truth">Provider fragments — the installer's source of truth<a class="headerlink" href="#provider-fragments-the-installers-source-of-truth" title="Permanent link">&para;</a></h2>

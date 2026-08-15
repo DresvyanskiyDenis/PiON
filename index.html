@@ -3690,8 +3690,9 @@ and the cause chain. Nothing is silently retried onto a different provider or a 
 </li>
 <li>
 <p><strong>A permission layer PI does not have</strong></p>
-<p>Six ordered gates over every tool call: secret paths, catastrophic bash, destructive git,
-privileged commands, agent routing, and a headless bash allowlist that fails closed.
+<p>Six ordered gates over every tool call: catastrophic bash and destructive git block outright;
+secret paths, privileged commands, the write surface and agent routing are recorded, not
+refused.
 → <a href="concepts/safety-model/">Safety model</a> · <a href="extensions/guard/"><code>guard</code></a></p>
 </li>
 <li>
@@ -3703,9 +3704,11 @@ than inheriting every API key you have exported.
 </li>
 <li>
 <p><strong>Sub-agents, teammates, jobs and worktrees</strong></p>
-<p>Depth-limited dispatch with per-provider concurrency, long-lived named teammates with a
-delivery obligation welded into the spawn path, a cross-session background job directory, and
-<code>isolation: worktree</code> that never nests and never <code>rm -rf</code>s a dirty tree.
+<p>Depth-limited dispatch with per-provider concurrency, a cross-session background job directory,
+and <code>isolation: worktree</code> that never nests and never <code>rm -rf</code>s a dirty tree. Long-lived named
+teammates carry a delivery obligation welded into the spawn path, but <code>spawn</code> refuses out of the
+box until the host supplies a model-resolving spawner — see
+<a href="extensions/teammates/">Teammates</a>.
 → <a href="extensions/dispatch/">Orchestration</a></p>
 </li>
 <li>

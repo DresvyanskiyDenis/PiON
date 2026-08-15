@@ -3808,6 +3808,14 @@ that mattered most.</p>
 </span></code></pre></div>
 <p>The abort names the provider, the model, the error class, the message and the cause chain. Five
 error classes are distinguished: <code>auth</code>, <code>quota</code>, <code>network</code>, <code>model-not-found</code>, <code>policy</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Amended 2026-08-14 — a sixth class, <code>empty-response</code></p>
+<p>A well-formed HTTP 200 that carries no completion is a provider failure that no error text
+describes, so it was not caught by a vocabulary built out of error messages. It is now a class
+of its own, recognised by shape rather than by wording. The decision above is unchanged: it is
+still an abort, still no substitution.
+<a href="../../configuration/routing/#onprovidererror">Reference</a>.</p>
+</div>
 <p>The decision is enforced mechanically, not by convention: <code>bin/pi-check</code>'s <code>PC-03</code> fails the
 repository if a <code>fallback</code>, <code>failover</code> or <code>egressOrder</code> key appears anywhere in the configuration
 tree, and <code>PC-05</code> fails it if a sub-agent definition carries <code>fallbackModels</code>.</p>

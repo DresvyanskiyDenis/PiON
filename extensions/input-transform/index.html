@@ -2251,10 +2251,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#signals" class="md-nav__link">
+  <a href="#signal" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Signals
+        Signal
       
     </span>
   </a>
@@ -3703,10 +3703,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#signals" class="md-nav__link">
+  <a href="#signal" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Signals
+        Signal
       
     </span>
   </a>
@@ -3778,15 +3778,31 @@ appends.</strong> The restraint is the design, not a limitation:</p>
 <p><strong>Design rule: stay silent.</strong> A hook that fires on every prompt is noise and gets tuned out. Each
 signal is a concrete lexical marker, never a guess about intent.</p>
 </blockquote>
-<h2 id="signals">Signals<a class="headerlink" href="#signals" title="Permanent link">&para;</a></h2>
-<ol>
-<li>A dependency of <strong>this project's own manifest</strong> is named in your prompt.</li>
-<li>An explicit <strong>version string</strong> appears in your prompt.</li>
-</ol>
-<p>Plus two bailouts: a leading <code>/</code>, and a prompt too short to be worth inspecting.</p>
-<p>Both signals are lexical markers you can point at in the text. Neither is an inference about what
-you meant — an inference that fires wrongly is worse than no hook, because the model starts
-discounting the ones that fire correctly.</p>
+<h2 id="signal">Signal<a class="headerlink" href="#signal" title="Permanent link">&para;</a></h2>
+<p>One: an explicit <strong>version string</strong> appears in your prompt. Plus two bailouts — a leading <code>/</code>, and a
+prompt too short to be worth inspecting.</p>
+<p>It is a lexical marker you can point at in the text, not an inference about what you meant. An
+inference that fires wrongly is worse than no hook, because the model starts discounting the ones
+that fire correctly.</p>
+<div class="admonition note">
+<p class="admonition-title">The dependency-name signal was removed, not narrowed</p>
+<p>A second signal used to fire whenever a bare token in your prompt equalled a declared dependency
+of the current project. Every short dependency name that is also an ordinary English word was
+therefore a tripwire: in a project whose <code>pyproject.toml</code> declares <code>mcp</code>, the sentence <em>"we speak
+only about UI, client side. We do not touch mcp wrapper"</em> fired the nudge, with no library
+reference in it at all. That is the design rule above being violated by a guess wearing a lexical
+marker's clothes.</p>
+<p>Narrowing it was considered and rejected twice over. Requiring the dependency token to co-occur
+with a version marker adds nothing, because the version marker already fires on its own; and
+requiring an import- or install-shaped context moves the noise rather than removing it, since a
+pasted snippet that merely <em>contains</em> an import is usually a request to change code, not a
+question about the library. What the signal was for is already covered statically —
+<a href="https://github.com/DresvyanskiyDenis/PiON/blob/main/AGENTS.md"><code>AGENTS.md</code></a> tells the model to check current documentation before touching a
+library, and names "a package or tool name" as the trigger. A rule the harness states once does
+not also need a per-prompt hook.</p>
+<p>The manifest reader that fed it — <code>package.json</code> / <code>pyproject.toml</code> parsing, its mtime cache and
+the TOML dependency — went with it, so the module now reads nothing from disk.</p>
+</div>
 <h2 id="the-ordering-fact-that-is-the-opposite-of-the-intuition">The ordering fact that is the opposite of the intuition<a class="headerlink" href="#the-ordering-fact-that-is-the-opposite-of-the-intuition" title="Permanent link">&para;</a></h2>
 <div class="admonition note">
 <p class="admonition-title"><code>input</code> fires BEFORE skill and prompt-template expansion</p>
@@ -3800,8 +3816,9 @@ words, pricing words, and a pasted stack trace. The narrower porting spec named 
 markers plus the bailouts, on the grounds that recency and pricing are already covered statically by
 the harness's own standing instructions, and a pasted stack trace is a different behaviour (triage,
 not verification) with no event mapping given.</p>
-<p>Implemented per the narrower list, and recorded as a deviation so the decision is visible rather
-than inferred from absence.</p>
+<p>Implemented per the narrower list, then narrowed once more to the version marker alone by the
+decision above. Whether the other three should be added is left open — recorded here so the shape of
+the module is a visible decision rather than something inferred from absence.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../hooks/">hooks</a> · <a href="../../extending/">AGENTS.md</a></p>
 

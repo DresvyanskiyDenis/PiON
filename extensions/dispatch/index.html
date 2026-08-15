@@ -2382,10 +2382,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-five-parts" class="md-nav__link">
+  <a href="#the-parts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The five parts
+        The parts
       
     </span>
   </a>
@@ -2408,6 +2408,28 @@
     <span class="md-ellipsis">
       
         The catalogue is a dispatch surface, not decoration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reasoning-effort-is-disclosed-never-assumed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reasoning effort is disclosed, never assumed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#async-runs-announce-their-own-terminal-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async runs announce their own terminal state
       
     </span>
   </a>
@@ -2441,6 +2463,17 @@
     <span class="md-ellipsis">
       
         The workflow floor, and the package internal it rests on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-resolution-leaves-behind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a resolution leaves behind
       
     </span>
   </a>
@@ -3747,10 +3780,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-five-parts" class="md-nav__link">
+  <a href="#the-parts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The five parts
+        The parts
       
     </span>
   </a>
@@ -3773,6 +3806,28 @@
     <span class="md-ellipsis">
       
         The catalogue is a dispatch surface, not decoration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reasoning-effort-is-disclosed-never-assumed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reasoning effort is disclosed, never assumed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#async-runs-announce-their-own-terminal-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async runs announce their own terminal state
       
     </span>
   </a>
@@ -3806,6 +3861,17 @@
     <span class="md-ellipsis">
       
         The workflow floor, and the package internal it rests on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-resolution-leaves-behind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a resolution leaves behind
       
     </span>
   </a>
@@ -3867,7 +3933,7 @@ per-agent permissions, worktrees, the async fleet.</p>
 <a href="../../configuration/dispatch/"><code>config/dispatch.json</code></a> and
 <a href="../../configuration/routing/"><code>config/routing.json</code></a>.</p>
 <p>Registers <code>/agents</code>.</p>
-<h2 id="the-five-parts">The five parts<a class="headerlink" href="#the-five-parts" title="Permanent link">&para;</a></h2>
+<h2 id="the-parts">The parts<a class="headerlink" href="#the-parts" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -3895,6 +3961,14 @@ per-agent permissions, worktrees, the async fleet.</p>
 <tr>
 <td><code>catalogue.ts</code></td>
 <td>The model registry as a dispatch surface</td>
+</tr>
+<tr>
+<td><code>thinking.ts</code></td>
+<td>The reasoning-effort suffix: what was asked, what the model serves, what will actually run</td>
+</tr>
+<tr>
+<td><code>async-fleet.ts</code></td>
+<td>Re-reads the state a background run wrote for itself, and announces the ones that ended</td>
 </tr>
 </tbody>
 </table>
@@ -3937,6 +4011,37 @@ while leaving them selectable by hand. Each tier line carries the same annotatio
 effort it resolves to, so the cost of a choice is visible at the point of choosing.</p>
 <p>Until 2026-08-13 the list was filtered by the session's own class and what had been removed was
 counted on one line. The filter went with the containment rule it implemented.</p>
+<h2 id="reasoning-effort-is-disclosed-never-assumed">Reasoning effort is disclosed, never assumed<a class="headerlink" href="#reasoning-effort-is-disclosed-never-assumed" title="Permanent link">&para;</a></h2>
+<p>A reasoning effort rides inside the model string as a suffix (<code>provider/id:max</code>), and that suffix is
+a <strong>request</strong>: PI clamps it against the model's declared vocabulary before the wire. Nothing warned
+about that, so a run commissioned at <code>max</code> could ship at <code>high</code> and record <code>max</code> in its own metadata
+— visibly wrong only to someone who went looking.</p>
+<p>Now every dispatch that would be clamped says so, naming the requested level, the effective one,
+what the model does serve, and which other configured providers serve what was asked — each with its
+egress class, because moving between classes is the operator's decision and not a routing
+optimisation. It is a hint: <strong>nothing is rerouted</strong>. The model string is rewritten to the effective
+level before the package sees it, so the run metadata and the announcement agree with the wire.</p>
+<p>The menu prints the same thing rather than the request alone — <code>effort high (asked max; &lt;provider&gt;
+does not serve it — serves low|medium|high)</code> — and <code>/agents</code> lists any tier in that state under
+<code>reasoning effort CLAMPED:</code>. A model whose vocabulary the registry does not know produces no
+disclosure and no rewrite: "cannot say" must not render as "no clamp will happen". Whether a clamp
+warns or refuses is
+<a href="../../configuration/dispatch/#onthinkingclamp"><code>onThinkingClamp</code></a>.</p>
+<h2 id="async-runs-announce-their-own-terminal-state">Async runs announce their own terminal state<a class="headerlink" href="#async-runs-announce-their-own-terminal-state" title="Permanent link">&para;</a></h2>
+<p><code>pi-subagents</code> acknowledges an async dispatch with a promise to wake you when it finishes. When that
+delivery path fails, nothing enters the transcript at all — and the acknowledgement is then the only
+in-context evidence the orchestrator has, so it keeps reporting a run that died seconds ago as live.
+Measured: every async result file of one session still on disk, undeleted, <code>"state": "failed"</code>, and
+zero notifications in the transcript.</p>
+<p>This module does not add a second lifecycle. The authoritative state is already on disk in the run's
+own <code>status.json</code>, written by the package's runner; the only thing missing was that nobody read it
+unless the model thought to ask. So each async spawn's directory is remembered, re-read at
+<code>turn_end</code>, and each run that has reached a terminal state and has not been reported yet produces one
+message. <code>paused</code> is deliberately <strong>not</strong> terminal — announcing it would spend the run's single
+announcement and hide the real ending.</p>
+<p>Duplication was chosen over silence: if the package's own notification does arrive, you may hear
+about a finished run twice. Being told twice is a nuisance; not being told is a wrong answer. The
+upstream delivery failure is routed around, not repaired.</p>
 <p>The block is built once at <code>session_start</code> and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. <code>/agents</code> prints the same text <strong>verbatim</strong> — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.</p>
@@ -3970,6 +4075,30 @@ documented argument (<code>pi-subagents</code> 0.41.0, <code>src/runs/foreground
 asserts that source's shape directly, so an upgrade that drops <code>model</code> from the defaults, or flips
 the spread order, fails the suite instead of quietly changing what a fan-out runs on. Re-check it
 whenever the package is upgraded.</p>
+<h2 id="what-a-resolution-leaves-behind">What a resolution leaves behind<a class="headerlink" href="#what-a-resolution-leaves-behind" title="Permanent link">&para;</a></h2>
+<p><code>/agents</code> describes what <strong>can</strong> be dispatched. It cannot answer <em>what did this delegation actually
+run on, and why</em> — so every resolution is written to the <a href="../session-index/">session index</a> as one
+row, under kind <code>dispatch</code> and name <code>dispatch.resolve:&lt;agent&gt;</code>. That is the same
+<code>&lt;domain&gt;.&lt;action&gt;:&lt;subject&gt;</code> shape <a href="../teammates/">teammates</a> writes into the same bucket, so
+<code>/index</code> and <code>bin/pi-log events</code> read one stream rather than two incompatible ones.</p>
+<p>The payload carries identifiers only: the <code>subagent</code> tool the call came in on, the agent named, the
+resolved provider, and the model record — where the spec came from (<code>from</code>), what it resolved to
+(<code>to</code>), the tier if it came from one, and <code>defaultedScope</code> when the value was the
+<a href="../../configuration/dispatch/#defaulttier-and-defaultegress"><code>defaultTier</code></a> rather than something
+asked for. The clamped concurrency and the isolation appear too, when either was applied.</p>
+<p>Two properties are deliberate, and a consumer of <code>/index</code> has to know both:</p>
+<ul>
+<li><strong>The row is written on resolution, not on rewrite.</strong> "The call already named exactly the model we
+  resolved to" is still a resolution worth recording; keying the row off the rewrite would silently
+  under-report a real share of delegations.</li>
+<li><strong>A refused call writes no <code>dispatch.resolve</code> row.</strong> The block is already carried by the guarded
+  handler's own audit entry, and a call that resolved no model has nothing to say about what it ran
+  on. Reading only this kind therefore counts delegations that proceeded — the refusals are in the
+  other place.</li>
+</ul>
+<p>Logging cannot fail a dispatch. The write swallows its own failures by contract, and the session-id
+lookup that precedes it is wrapped, so an unwritable index degrades the event log and leaves the
+verdict and the arguments exactly as they were.</p>
 <h2 id="where-the-semaphore-cannot-reach">Where the semaphore cannot reach<a class="headerlink" href="#where-the-semaphore-cannot-reach" title="Permanent link">&para;</a></h2>
 <p>Documented honestly in <code>extensions/dispatch/concurrency.ts</code>: there is no extension-visible hook
 inside PI's own <code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>

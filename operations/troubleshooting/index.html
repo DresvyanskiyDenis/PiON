@@ -3362,6 +3362,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#a-command-runs-that-i-expected-to-be-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A command runs that I expected to be refused
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#a-confirmation-dialog-timed-out-and-the-command-did-not-run" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3488,6 +3499,39 @@
     <span class="md-ellipsis">
       
         isolation: worktree refused the dispatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-sub-agent-was-blocked-running-a-program-i-use-all-the-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A sub-agent was blocked running a program I use all the time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-sub-agent-produced-no-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A sub-agent "produced no output"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-async-run-is-still-reported-as-running-long-after-it-should-have-finished" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An async run is still reported as "running" long after it should have finished
       
     </span>
   </a>
@@ -4247,6 +4291,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#a-command-runs-that-i-expected-to-be-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A command runs that I expected to be refused
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#a-confirmation-dialog-timed-out-and-the-command-did-not-run" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4373,6 +4428,39 @@
     <span class="md-ellipsis">
       
         isolation: worktree refused the dispatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-sub-agent-was-blocked-running-a-program-i-use-all-the-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A sub-agent was blocked running a program I use all the time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-sub-agent-produced-no-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A sub-agent "produced no output"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-async-run-is-still-reported-as-running-long-after-it-should-have-finished" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An async run is still reported as "running" long after it should have finished
       
     </span>
   </a>
@@ -4615,8 +4703,8 @@ a tool result is growing without bound.</p>
 <hr />
 <h2 id="tools-and-permissions">Tools and permissions<a class="headerlink" href="#tools-and-permissions" title="Permanent link">&para;</a></h2>
 <h3 id="a-command-was-refused-and-i-want-it-allowed">A command was refused and I want it allowed<a class="headerlink" href="#a-command-was-refused-and-i-want-it-allowed" title="Permanent link">&para;</a></h3>
-<p>Read the refusal — it names the rule id, and the id tells you which gate and whether it can be
-relaxed at all.</p>
+<p>Since the 2026-08-14 deny-list inversion, narrowed again on 2026-08-15, there are only three rule
+families left that can refuse a bash command at all — read the refusal, it names the rule id:</p>
 <table>
 <thead>
 <tr>
@@ -4626,42 +4714,38 @@ relaxed at all.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>SEC-*</code></td>
-<td><strong>never.</strong> No config key, no escalation variable, no justification path</td>
-</tr>
-<tr>
 <td><code>DB-*</code></td>
-<td>mostly not</td>
+<td>mostly not — two of the eight (<code>DB-CURL-SH</code>, <code>DB-SHUTDOWN</code>) take a written justification</td>
 </tr>
 <tr>
-<td><code>GIT-*</code></td>
+<td><code>GIT-REWRITE</code></td>
 <td>with a written justification</td>
 </tr>
 <tr>
-<td><code>PRV-*</code></td>
-<td>no</td>
-</tr>
-<tr>
-<td><code>RTE-*</code></td>
-<td>a routing veto — dispatch the specialist it names, or justify why it is wrong for this task</td>
-</tr>
-<tr>
-<td><code>ALW-*</code></td>
-<td>yes — the bash allowlist in <a href="../../configuration/guard/"><code>guard.json</code></a></td>
+<td><code>GIT-FORCE-PROTECTED</code></td>
+<td>with a written justification</td>
 </tr>
 </tbody>
 </table>
-<p>Before adding a program to the allowlist, ask the two questions: <strong>can it run another program?</strong> and
-<strong>can it write outside the project?</strong> A yes to the first (<code>sh</code>, <code>env</code>, <code>xargs</code>, <code>ssh</code>) makes the
-allowlist decorative.</p>
+<p><code>SEC-*</code> is no longer on this list. Since 2026-08-15 it records a credential-path touch and permits
+the call, so there is nothing to relax — and nothing at runtime keeping a credential out of the
+model's context either. See
+<a href="../../concepts/safety-model/#credential-reads-are-no-longer-refused">Safety model</a>.</p>
+<p>If the id is not one of those three, it did not come from the guard's bash gates — check
+<a href="../../configuration/tools/#hooksyaml"><code>hooks.yaml</code></a> for a declarative rule you or your team added.</p>
 <h3 id="it-asks-me-before-every-shell-command-and-i-want-it-to-stop">It asks me before every shell command and I want it to stop<a class="headerlink" href="#it-asks-me-before-every-shell-command-and-i-want-it-to-stop" title="Permanent link">&para;</a></h3>
-<p>That is <code>guard.json</code>'s <code>nonInteractive</code> plus the allowlist. Relaxing it is a real decision with a
-real consequence, and the page says so rather than listing field names:
-<a href="../../configuration/guard/"><code>guard.json</code></a>.</p>
-<p>The safe change is usually to <strong>add the specific programs you actually use</strong> to <code>allowlist</code>, not to
-widen <code>nonInteractive</code>.</p>
+<p>Nothing in the guard prompts any more. If a shell command is stopping to ask, the guard is not the
+cause — check <code>config/hooks.yaml</code> for a <code>select</code>/<code>confirm</code> action, or a project-level extension.</p>
+<h3 id="a-command-runs-that-i-expected-to-be-refused">A command runs that I expected to be refused<a class="headerlink" href="#a-command-runs-that-i-expected-to-be-refused" title="Permanent link">&para;</a></h3>
+<p>There is no allowlist to check any more. <code>PRV-*</code> (privileged commands: <code>sudo</code>, <code>chmod 777</code>,
+<code>pkill -9</code>, <code>killall</code>), <code>FS-*</code> (writes outside the project) and <code>RTE-*</code> (generic-agent dispatch where
+a specialist matches) are all <strong>audit-only</strong> since 2026-08-14 — permitted, and recorded in the
+session's audit log as a <code>guard.observed</code> entry, but never refused. If you need one of those
+enforced again for your own workflow, write a <code>run</code>/<code>select</code>/<code>confirm</code> rule in
+<a href="../../configuration/tools/#hooksyaml"><code>hooks.yaml</code></a>; the guard itself will not do it.</p>
 <h3 id="a-confirmation-dialog-timed-out-and-the-command-did-not-run">A confirmation dialog timed out and the command did not run<a class="headerlink" href="#a-confirmation-dialog-timed-out-and-the-command-did-not-run" title="Permanent link">&para;</a></h3>
-<p>A timed-out dialog is a <strong>DENY</strong>, not a default-yes. <code>confirmTimeoutMs</code> controls the window.</p>
+<p>The guard itself no longer raises any confirmation dialog. If you are seeing one, it came from a
+hook you or your team configured in <code>config/hooks.yaml</code> — check that rule's own timeout.</p>
 <h3 id="a-hook-stopped-applying-or-blocks-everything">A hook stopped applying, or blocks everything<a class="headerlink" href="#a-hook-stopped-applying-or-blocks-everything" title="Permanent link">&para;</a></h3>
 <p>Hooks fail <strong>closed</strong> — deliberately, and on the opposite side from the guard. A hook whose
 evaluation throws, whose action throws, or whose script is missing <strong>blocks</strong>.</p>
@@ -4706,6 +4790,28 @@ session". That rule was withdrawn; a class refuses nothing now.)</p>
 <h3 id="isolation-worktree-refused-the-dispatch"><code>isolation: worktree</code> refused the dispatch<a class="headerlink" href="#isolation-worktree-refused-the-dispatch" title="Permanent link">&para;</a></h3>
 <p>Neither the worktree module nor the package's own worktree support was available. It does <strong>not</strong>
 fall back to running in your checkout — an agent that asked for isolation asked for a reason.</p>
+<h3 id="a-sub-agent-was-blocked-running-a-program-i-use-all-the-time">A sub-agent was blocked running a program I use all the time<a class="headerlink" href="#a-sub-agent-was-blocked-running-a-program-i-use-all-the-time" title="Permanent link">&para;</a></h3>
+<p>That should not happen any more. There is no program allowlist, and nothing to approve for a
+session or inherit into a child — every program runs headless with no prompt, unless the specific
+<em>command shape</em> it is being used for is one of <code>DB-*</code>/<code>GIT-REWRITE</code>/<code>GIT-FORCE-PROTECTED</code>.
+If a sub-agent is refused, read the rule id: it is one of those three, and the fix is the same one
+described in <a href="#a-command-was-refused-and-i-want-it-allowed">A command was refused and I want it allowed</a>,
+not a session-allowlist variable. <code>PI_GUARD_APPROVE</code> and <code>PI_GUARD_SESSION_ALLOWLIST</code> are removed —
+setting either does nothing.</p>
+<h3 id="a-sub-agent-produced-no-output">A sub-agent "produced no output"<a class="headerlink" href="#a-sub-agent-produced-no-output" title="Permanent link">&para;</a></h3>
+<p>That is a description of a symptom, and on its own it says nothing about where the failure was. Look
+for a <code>[pi-config] provider call failed</code> block with error class <strong><code>empty-response</code></strong> just before it:
+that is a provider answering HTTP 200 with a well-formed body carrying no completion, and it names
+the provider, model, finish reason, effective reasoning effort, zero usage and <code>responseId</code>. Nothing
+else in the stack treats it as a failure, which is why it is detected explicitly. See
+<a href="../../configuration/routing/#onprovidererror"><code>onProviderError</code></a> and, for a worked investigation of
+one gateway's empty-200 behaviour, <a href="../../extensions/credentials/#d-field-notes-an-empty-200-investigation-2026-08-14">the field notes</a>.</p>
+<h3 id="an-async-run-is-still-reported-as-running-long-after-it-should-have-finished">An async run is still reported as "running" long after it should have finished<a class="headerlink" href="#an-async-run-is-still-reported-as-running-long-after-it-should-have-finished" title="Permanent link">&para;</a></h3>
+<p>It probably is not. The dispatcher's own completion notification can fail to deliver, and the
+acknowledgement is then the only thing in context. The harness re-reads each async run's status file
+at the end of every turn and announces terminal states itself, so a finished run surfaces even when
+the notification did not — occasionally twice, which is deliberate. <code>/agents</code> prints the current
+fleet on demand.</p>
 <hr />
 <h2 id="mcp">MCP<a class="headerlink" href="#mcp" title="Permanent link">&para;</a></h2>
 <h3 id="a-projects-mcp-server-is-refused">A project's MCP server is refused<a class="headerlink" href="#a-projects-mcp-server-is-refused" title="Permanent link">&para;</a></h3>

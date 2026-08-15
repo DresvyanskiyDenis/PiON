@@ -4028,6 +4028,11 @@ reads <code>:high</code> as part of the id. <code>/doctor</code>'s <code>D-04</c
 suffix-attaching is the job of whatever emits a model string — dispatch, the digest and
 <a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a> each do it, and each refuses a <code>thinkingLevel</code> that is not
 one of the seven levels rather than passing it on.</p>
+<p><a href="../../extensions/path-defaults/"><code>path-defaults</code></a> is the one consumer that neither emits nor
+forwards a model string: it splits the suffix off before asking the registry, then applies the
+resolved level to the session directly through <code>pi.setThinkingLevel</code>. So a suffix written into a
+tier's <code>model</code> is tolerated there and obeys the same precedence — but it is still the wrong place
+to write it, for every other consumer's sake.</p>
 <p><strong>What breaks:</strong> a <code>model</code> naming an id that is not in <code>config/models.json</code> fails at <strong>load</strong>, not
 at dispatch — every agent whose frontmatter names that tier refuses to start with
 <code>model "&lt;id&gt;" (from "fast") is not in the model registry</code>. That is the design working. A typo in
@@ -4092,7 +4097,7 @@ provider has no row here.</p>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abort&quot;</span><span class="p">,</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;substituteProvider&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">&quot;report&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;errorClass&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;causeChain&quot;</span><span class="p">],</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;errorClasses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;auth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;quota&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model-not-found&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">]</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">&quot;errorClasses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;auth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;quota&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;network&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;model-not-found&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;empty-response&quot;</span><span class="p">]</span>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <div class="admonition danger">
@@ -4111,12 +4116,34 @@ it.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[pi-config] provider call failed:
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  provider    : &lt;name&gt;
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  model       : &lt;id&gt;
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  error class : auth | quota | network | model-not-found | policy
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  error class : auth | quota | network | model-not-found | policy | empty-response
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  message     : &lt;upstream text&gt;
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  caused by   : &lt;cause chain&gt;
 </span></code></pre></div>
 <p><code>report</code> selects the fields in that block. <code>errorClasses</code> is the classification vocabulary.
 <code>policy</code> and <code>substituteProvider</code> are the two you should not change.</p>
+<div class="admonition note">
+<p class="admonition-title"><code>empty-response</code> is a shape, not a message</p>
+<p>The other five are decided by reading the provider's error text. <code>empty-response</code> is not: it is
+an HTTP <strong>200</strong> with a well-formed body that carried no completion — zero content parts, a
+<code>stop</code>-family finish reason, and usage of zero prompt and zero completion tokens. Nothing in the
+stack sees that as a failure on its own; PI materialises it as an ordinary assistant turn, the
+retry predicate skips it because the stop reason is not <code>error</code>, and <code>pi -p --mode json</code> exits
+<strong>0</strong> with no output. Downstream that surfaces as a sub-agent that "produced no output", which
+is a description of the symptom and tells you nothing about where it happened.</p>
+<p>The check is deliberately narrow — an empty <code>content</code> array — and deliberately unreachable from
+the text classifier, so no wording of a provider message can be mistaken for it. The report
+names the provider, the model, the status, the finish reason, the effective reasoning effort,
+the zero usage and the <code>responseId</code>. It states what was observed and does not guess at a cause.</p>
+<p>Two guesses that <em>did</em> get made and then had to be walked back, 2026-08-14, against an
+OpenAI-compatible gateway serving hundreds of reproductions: zero prompt tokens does <strong>not</strong>
+mean the request never reached the model — the underlying provider client pre-initialises usage
+to zero and only overwrites it from a usage chunk, so "no usage chunk arrived" and "the provider
+reported zero" reach this report byte-identical. And the <code>responseId</code>'s <em>form</em> — a gateway-issued
+id versus an upstream-shaped one — does <strong>not</strong> discriminate a dropped request either; a live
+check found it decided entirely by whether the request carried <code>tools</code>, which every agent turn
+does. Neither is printed as a cause; both are printed as what they are, an observation.</p>
+</div>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
