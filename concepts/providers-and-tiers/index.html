@@ -2121,7 +2121,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -4129,8 +4129,9 @@ impossible. A control whose failure mode is "the tool refuses the normal thing" 
 <p>If you need an actual network boundary, build one at the network layer. See
 <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 </div>
-<p><a href="../../extensions/path-defaults/"><code>path-defaults</code></a> extends the same vocabulary per directory root,
-with the same honesty caveat attached to its per-channel <code>{web, mcp, publicModels}</code> policy.</p>
+<p><a href="../../extensions/path-defaults/"><code>path-defaults</code></a> extends the same vocabulary — one configured tier
+and one install-wide policy, not a per-directory one — with the same honesty caveat attached to its
+per-channel <code>{web, mcp, publicModels}</code> policy.</p>
 <h2 id="concurrency">Concurrency<a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;&lt;cloud-provider&gt;&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;local&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>

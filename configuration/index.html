@@ -1928,7 +1928,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -3779,7 +3779,7 @@ that template plus your answers, and git-ignored.</p>
 </tr>
 <tr>
 <td><code>config/path-defaults.json</code></td>
-<td><code>path-defaults.default.json</code>, rewritten around your first trusted root</td>
+<td><code>path-defaults.default.json</code> — a single default tier and egress policy, not per-root</td>
 </tr>
 <tr>
 <td><code>config/web.json</code>, <code>config/web-search.json</code></td>
@@ -3985,7 +3985,7 @@ Fact 2.</p>
 <tr>
 <td><a href="paths-and-trust/"><code>trusted-roots.json</code></a>, <a href="paths-and-trust/"><code>path-defaults.json</code></a></td>
 <td><strong>yes</strong></td>
-<td>which filesystem roots are auto-trusted, and per-root tier/egress defaults</td>
+<td>which filesystem roots are auto-trusted, and the single default tier/egress policy</td>
 </tr>
 <tr>
 <td><a href="tools/#web"><code>web.json</code></a>, <a href="tools/#web"><code>web-search.json</code></a></td>

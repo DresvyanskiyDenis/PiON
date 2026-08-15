@@ -27,7 +27,7 @@
     
     
       
-        <title>path-defaults — per-directory defaults - PiON</title>
+        <title>path-defaults — default tier and egress policy - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#path-defaults-per-directory-defaults" class="md-skip">
+        <a href="#path-defaults-default-tier-and-egress-policy" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              path-defaults — per-directory defaults
+              path-defaults — default tier and egress policy
             
           </span>
         </div>
@@ -1936,7 +1936,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -1954,7 +1954,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -3827,29 +3827,32 @@
   
 
 
-<h1 id="path-defaults-per-directory-defaults"><code>path-defaults</code> — per-directory defaults<a class="headerlink" href="#path-defaults-per-directory-defaults" title="Permanent link">&para;</a></h1>
-<p>Per-<code>cwd</code> defaults for tier, plus a declarative per-channel policy. Configured by
-<a href="../../configuration/paths-and-trust/#path-defaultsjson"><code>config/path-defaults.json</code></a>.</p>
+<h1 id="path-defaults-default-tier-and-egress-policy"><code>path-defaults</code> — default tier and egress policy<a class="headerlink" href="#path-defaults-default-tier-and-egress-policy" title="Permanent link">&para;</a></h1>
+<p>A single default tier for every session, plus a declarative per-channel policy. Configured by
+<a href="../../configuration/paths-and-trust/#path-defaultsjson"><code>config/path-defaults.json</code></a>. There used to
+be a <code>roots</code> array here, matched by longest <code>cwd</code> prefix, so different directories could start on
+different tiers or postures — that per-directory split is gone; one tier and one policy apply
+everywhere, regardless of where a session starts.</p>
 <p>Registers <code>/path-defaults-status</code>.</p>
 <h2 id="two-different-things-both-called-egress">Two different things both called "egress"<a class="headerlink" href="#two-different-things-both-called-egress" title="Permanent link">&para;</a></h2>
 <p>This trips everyone once, so it is worth being explicit.</p>
 <h3 id="1-session-egress-class-a-reported-label">1. Session egress class — a reported label<a class="headerlink" href="#1-session-egress-class-a-reported-label" title="Permanent link">&para;</a></h3>
-<p>One scalar per matched root (<code>public</code> / <code>internal</code> / <code>confidential</code>), derived from the root's
+<p>One scalar per session (<code>public</code> / <code>internal</code> / <code>confidential</code>), derived from the configured
 <strong>tier</strong>'s provider via <code>routing.json</code>'s <code>egress</code> map. It is exported into the environment, where
 <a href="../dispatch/"><code>dispatch</code></a> reads it to print on the startup line, in <code>/agents</code> and in the sub-agent
 model-selection block.</p>
-<p>Until 2026-08-13 it also <em>decided</em> something: it made "a confidential root's session may not
-dispatch a child onto a public provider" true. That containment rule is withdrawn — it made most
-agents undispatchable rather than making anything safer — so this scalar now describes the session
-and refuses nothing. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
+<p>Until 2026-08-13 it also <em>decided</em> something: it made "a confidential session may not dispatch a
+child onto a public provider" true. That containment rule is withdrawn — it made most agents
+undispatchable rather than making anything safer — so this scalar now describes the session and
+refuses nothing. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 <h3 id="2-per-channel-policy-declarative-only">2. Per-channel policy — declarative only<a class="headerlink" href="#2-per-channel-policy-declarative-only" title="Permanent link">&para;</a></h3>
-<p><code>{web, mcp, publicModels}</code>, each <code>"allow"</code> or <code>"deny"</code>, per root. A different fact: whether this
-directory's session <em>should</em> reach the open web, use MCP tools, or fall back to a public model.</p>
+<p><code>{web, mcp, publicModels}</code>, each <code>"allow"</code> or <code>"deny"</code>, install-wide. A different fact: whether a
+session <em>should</em> reach the open web, use MCP tools, or fall back to a public model.</p>
 <div class="admonition warning">
 <p class="admonition-title">This module does not intercept anything to enforce channel policy</p>
 <p>It computes and exports the value for <a href="../web/"><code>web</code></a> and the MCP layer to read at their own
-call sites. A directory tree with no such wiring in place enforces <strong>nothing</strong> from this
-channel. The notice the module prints says so.</p>
+call sites. An install with no such wiring in place enforces <strong>nothing</strong> from this channel. The
+notice the module prints says so.</p>
 <p>Nobody should read the presence of a <code>"deny"</code> entry here as proof that traffic is blocked. It
 is a declaration, not a network boundary.</p>
 </div>
@@ -3858,8 +3861,8 @@ is a declaration, not a network boundary.</p>
 exists. So the tier default is applied once, at session start, rather than by a <code>tool_call</code>
 handler.</p>
 <h2 id="reasoning-effort">Reasoning effort<a class="headerlink" href="#reasoning-effort" title="Permanent link">&para;</a></h2>
-<p>A root names a tier, and a tier may declare how hard to think — <code>"thinkingLevel": "high"</code> on the
-row, one of <code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code>. That level is now <strong>applied,
+<p>The configured tier may declare how hard to think — <code>"thinkingLevel": "high"</code> on the tier's
+<code>routing.json</code> row, one of <code>off</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code>. That level is now <strong>applied,
 not merely parsed</strong>: this module runs inside <code>session_start</code> holding the extension API, so it calls
 <code>setThinkingLevel()</code> (which PI clamps to what the model actually supports) immediately after a
 successful <code>setModel()</code>, and on no other path. If an explicit model selection is already in effect,

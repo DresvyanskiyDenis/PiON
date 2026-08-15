@@ -1914,7 +1914,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -3795,23 +3795,25 @@ normal thing" buys no safety; it only trains people to widen the class until it 
 <p>What survives, unchanged: the class is still resolved, still carried on every resolved model, and
 still <strong>reported</strong> — on the startup line, in <code>/agents</code>, in the sub-agent model-selection block and
 in the <code>dispatch_registry</code> audit entry. A provider the config does not classify now reads as
-<code>unlabelled</code> rather than being refused. Separately, the <strong>per-root</strong> posture in
-<code>config/path-defaults.json</code> (<code>egress: {web, mcp, publicModels}</code>) is a different mechanism and is
-not affected by this amendment.</p>
+<code>unlabelled</code> rather than being refused. Separately, the posture in <code>config/path-defaults.json</code>
+(<code>egress: {web, mcp, publicModels}</code>) is a different mechanism and is not affected by this
+amendment — though as of 2026-08-15 it is a single install-wide policy rather than a per-root one
+(the per-directory <code>roots</code> array it used to match against is gone; see <a href="../../configuration/paths-and-trust/#path-defaultsjson">Paths and
+trust</a>).</p>
 <p>Read the sections below with that substitution in mind: where they say the dispatch ceiling
 <em>refuses</em>, it now <em>labels</em>.</p>
 </div>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
 <p>Every provider in this harness carries an <strong>egress class</strong>: <code>public</code>, <code>internal</code> or <code>confidential</code>.
 The dispatch ceiling uses it to refuse a sub-agent dispatch whose class exceeds its parent's, and
-<code>config/path-defaults.json</code> uses a related <code>egress</code> block to decide, per directory root, whether a
-session may use web tools, MCP tools, or a public-class model at all.</p>
+<code>config/path-defaults.json</code> uses a related <code>egress</code> block to decide whether a session may use web
+tools, MCP tools, or a public-class model at all.</p>
 <p>The words invite a stronger reading than the mechanism supports. "Confidential" sounds like a
 guarantee about where bytes go. It is not one. Nothing in this repository inspects, proxies or blocks
 a socket. The controls are:</p>
 <ul>
 <li>a check at dispatch time, before a sub-agent is created;</li>
-<li>a check at load time, when a session's posture is resolved from its directory;</li>
+<li>a check at load time, when a session's posture is resolved from the configured default tier;</li>
 <li>and configuration that decides which endpoint a request is <em>addressed</em> to.</li>
 </ul>
 <p>Everything after that is the operating system's business. A <code>bash</code> command the agent runs can open any
@@ -3877,7 +3879,7 @@ classes were enforced at the network layer gets rejected at the design stage rat
 <ul>
 <li><a href="../../concepts/safety-model/">Safety model</a></li>
 <li><a href="../../limitations/">Known limitations</a></li>
-<li><a href="../../configuration/paths-and-trust/">Paths and trust</a> — the per-root <code>egress</code> block</li>
+<li><a href="../../configuration/paths-and-trust/">Paths and trust</a> — the install-wide <code>egress</code> block</li>
 <li><a href="../0001-no-provider-failover/">ADR 0001</a> — why a confidential request is never re-addressed</li>
 </ul>
 

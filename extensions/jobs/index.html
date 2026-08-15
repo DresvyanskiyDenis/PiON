@@ -1925,7 +1925,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -3788,8 +3788,10 @@ want to start now and read the result of after a compaction, a <code>/reload</co
 <p>The alternative is a bash call with a very long timeout, which holds the session hostage for the
 duration and loses everything if the session ends.</p>
 <h2 id="cost">Cost<a class="headerlink" href="#cost" title="Permanent link">&para;</a></h2>
-<p>One directory per job, on disk, until pruned. <code>job prune</code> is a real command and worth running
-occasionally.</p>
+<p>One directory per job, on disk, until pruned. <code>session_start</code> auto-prunes finished jobs older than
+<code>PI_JOBS_PRUNE_HOURS</code> (default 168, i.e. 7 days) on every session, so a store nobody remembers to
+clean up does not grow without bound. <code>job prune</code> is still a real command for pruning by hand
+sooner than that.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../bash/">bash</a> · <a href="../big-results/">big-results</a> · <a href="../teammates/">teammates</a> ·
 <a href="../../getting-started/config-layout/#runtime-state">Configuration layout</a></p>

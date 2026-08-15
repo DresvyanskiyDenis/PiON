@@ -1927,7 +1927,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -2023,6 +2023,17 @@
     <span class="md-ellipsis">
       
         The correction that matters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-skill-contributed-by-an-extension-needs-a-second-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A skill contributed by an extension needs a second pass
       
     </span>
   </a>
@@ -3714,6 +3725,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-skill-contributed-by-an-extension-needs-a-second-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A skill contributed by an extension needs a second pass
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3790,6 +3812,20 @@ then <strong>discards that object</strong> and rebuilds it. What survives means 
 resolved from", which is a different thing and is optional.</p>
 <p>The module therefore derives the directory itself rather than trusting the field. This is the kind
 of finding that is cheap to write down and expensive to rediscover.</p>
+<h2 id="a-skill-contributed-by-an-extension-needs-a-second-pass">A skill contributed by an extension needs a second pass<a class="headerlink" href="#a-skill-contributed-by-an-extension-needs-a-second-pass" title="Permanent link">&para;</a></h2>
+<p><code>resources_discover</code> fires once per session for <em>this</em> module too, and PI collects every handler's
+return value before it applies any of them: a skill root contributed by another <code>resources_discover</code>
+handler — <a href="../skill-mask/"><code>skill-mask</code></a>, concretely — is only added to the resolved skill list
+<em>after</em> every <code>resources_discover</code> handler, this one included, has already returned. So on the very
+first pass, <code>pi.getCommands()</code> cannot see a skill that reached the roster this way, and its
+<code>PI_SKILL_DIR_&lt;NAME&gt;</code> would silently never be set.</p>
+<p>PI exposes no event that fires strictly after that resolution step, so this module registers a
+second handler on <code>agent_start</code> — the first point in the session, on every mode and after every
+<code>/reload</code>, that is guaranteed to run after the resolved skill list is final. It re-reads
+<code>pi.getCommands()</code> and reapplies every variable, gated so the re-run happens once per
+<code>resources_discover</code> firing (a startup or a reload) rather than on every turn. Skill scripts only
+ever run from a tool call inside a turn, which is after <code>agent_start</code>, so the variable is always
+correct by the time it could matter.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../extending/skills/">Adding a skill</a> · <a href="../skill-mask/">skill-mask</a> · <a href="../skills-lint/">skills-lint</a></p>
 

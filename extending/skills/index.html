@@ -1914,7 +1914,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -3979,7 +3979,10 @@ where the environment shim earns its place.</p>
   <code>${SKILL_DIR}</code>; <a href="../../extensions/skills-env/"><code>skills-env</code></a> supplies one on every
   <code>resources_discover</code>. The name is derived from the skill name — <code>coverage-report</code> becomes
   <code>PI_SKILL_DIR_COVERAGE_REPORT</code> (uppercased, hyphens to underscores). <code>PI_SKILLS_ROOT</code> also holds
-  the directory that contains the most discovered skills, for a skill that needs its siblings.</li>
+  the directory that contains the most discovered skills, for a skill that needs its siblings. A
+  skill contributed by a <code>resources_discover</code> handler rather than <code>config/settings.json</code> — see the
+  precedence table below — needs a second pass to get its variable at all; <code>skills-env</code> covers that
+  case too, on <code>agent_start</code> (see <a href="../../extensions/skills-env/"><code>skills-env</code></a>).</li>
 <li><strong>Keep the script small and boring.</strong> A skill that shells out to four hundred lines of Python is a
   program with a Markdown wrapper; give it a repository and let the skill call its CLI.</li>
 </ul>

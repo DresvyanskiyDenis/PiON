@@ -2143,7 +2143,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -4327,7 +4327,7 @@ stream, and exits non-zero when the run actually failed:</p>
 </tr>
 <tr>
 <td><strong><code>path-defaults</code>' per-channel policy is declarative</strong></td>
-<td>It computes and exports a value for other modules to honour at their own call sites. A tree with no such wiring enforces nothing from that channel</td>
+<td>It computes and exports one, install-wide value for other modules to honour at their own call sites. An install with no such wiring enforces nothing from that channel</td>
 </tr>
 <tr>
 <td><strong>A process that already started</strong></td>

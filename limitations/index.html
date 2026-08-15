@@ -736,6 +736,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-pi-binary-is-a-compiled-bun-executable-not-node-some-declared-packages-fail-to-load-under-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pi binary is a compiled Bun executable, not Node — some declared packages fail to load under it
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2281,7 +2292,7 @@
   <span class="md-ellipsis">
     
   
-    path-defaults — per-directory defaults
+    path-defaults — default tier and egress policy
   
 
     
@@ -4078,6 +4089,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-pi-binary-is-a-compiled-bun-executable-not-node-some-declared-packages-fail-to-load-under-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pi binary is a compiled Bun executable, not Node — some declared packages fail to load under it
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4339,6 +4361,58 @@ implemented directly in <a href="../extensions/web/"><code>web</code></a> instea
 <h3 id="the-event-bus-has-no-replay-buffer">The event bus has no replay buffer<a class="headerlink" href="#the-event-bus-has-no-replay-buffer" title="Permanent link">&para;</a></h3>
 <p>A listener attached after an <code>emit()</code> receives nothing, ever. Anything ordering-sensitive must gate
 on recorded state, not on an event. See <a href="../extensions/doctor/"><code>doctor</code></a>'s <code>D-06</code>.</p>
+<h3 id="the-pi-binary-is-a-compiled-bun-executable-not-node-some-declared-packages-fail-to-load-under-it">The <code>pi</code> binary is a compiled Bun executable, not Node — some declared packages fail to load under it<a class="headerlink" href="#the-pi-binary-is-a-compiled-bun-executable-not-node-some-declared-packages-fail-to-load-under-it" title="Permanent link">&para;</a></h3>
+<p><code>pi</code> (<code>file</code> reports Mach-O with a <code>__BUN</code> section, <code>bun --version</code> on this machine is 1.3.11) uses
+Bun's own module resolver for every entry in <code>settings.packages</code>, not the system <code>node</code> these packages
+were written against. <a href="../reference/third-party/">Third-party components</a> lists all of the following as
+<em>adopted</em> — reviewed, pinned, present in <code>node_modules</code> — but wiring them into <code>settings.packages</code> and
+starting a real session (<code>pi -p '...'</code>, not <code>pi --list-models</code>, which does not exercise extension
+registration) throws and <strong>aborts startup entirely</strong>, one failed extension being enough to abort all of
+them:</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Failure, verbatim</th>
+<th>Category</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pi-hashline-edit-pro</code>, <code>@nklisch/pi-plugins</code></td>
+<td><code>ResolveMessage: No such built-in module: node:sqlite</code></td>
+<td>Bun does not implement Node's <code>node:sqlite</code> (it ships <code>bun:sqlite</code> instead); both packages assume Node ≥22.5's built-in.</td>
+</tr>
+<tr>
+<td><code>@99percentpeople/pi-background-tasks</code></td>
+<td><code>ResolveMessage: Cannot find module '@xterm/headless'</code></td>
+<td>The dependency is physically present in <code>node_modules</code>; Bun's resolver still cannot find it — unexplained, not chased further.</td>
+</tr>
+<tr>
+<td><code>pi-smart-compact</code></td>
+<td><code>ResolveMessage: NameTooLong while resolving package 'data:text/javascript;base64,...'</code></td>
+<td>A jiti-style in-memory TS transpile handed to Bun's resolver as a <code>data:</code> URL; Bun appears to cap resolvable module specifier length below what a bundled file encodes to.</td>
+</tr>
+<tr>
+<td><code>pi-opa-net</code></td>
+<td><code>Failed to load extension: undefined is not an object (evaluating '_index.default')</code></td>
+<td>The package's <code>src/pi/index.ts</code> calls its registration function eagerly at module scope but does not <code>export default</code> it — a packaging bug, not a config problem.</td>
+</tr>
+<tr>
+<td><code>pi-web-search</code></td>
+<td><code>Tool "web_search" conflicts with .../pi-web-access/index.ts</code></td>
+<td><code>pi-web-search</code> and the already-adopted <code>pi-web-access</code> both default to a tool named <code>web_search</code>; PI's loader rejects the duplicate registration outright. Wiring both together is not possible without one of them renaming its tool.</td>
+</tr>
+</tbody>
+</table>
+<p>None of this is visible from <code>pi --list-models</code> — that command loads packages but does not appear to
+exercise the same registration path a real session does, so it is not a substitute for a real
+<code>pi -p '...'</code> smoke call when validating a newly wired package. <code>settings.default.json</code> in this
+repository therefore ships only the five packages from this review that load cleanly under a real
+session start (<code>@narumitw/pi-usage</code>, <code>@narumitw/pi-retry</code>, <code>pi-lean-ctx</code>, <code>pi-hermes-memory</code>,
+<code>pi-sandbox</code>, alongside the packages already adopted before this review) — the five above are reviewed
+and pinned but <strong>not</strong> in <code>settings.default.json</code>'s <code>packages[]</code>, precisely because wiring any one of
+them breaks every session.</p>
 <hr />
 <h2 id="design-limits-deliberate-non-goals">Design limits — deliberate non-goals<a class="headerlink" href="#design-limits-deliberate-non-goals" title="Permanent link">&para;</a></h2>
 <h3 id="egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything">Egress classes are not a network boundary, and no longer refuse anything<a class="headerlink" href="#egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything" title="Permanent link">&para;</a></h3>
@@ -4350,8 +4424,9 @@ provider classed looser than itself. That rule was withdrawn — it refused ordi
 often than it prevented anything, and it never made the network claim true.
 <a href="../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 <h3 id="path-defaults-per-channel-policy-is-declarative-only"><code>path-defaults</code>' per-channel policy is declarative only<a class="headerlink" href="#path-defaults-per-channel-policy-is-declarative-only" title="Permanent link">&para;</a></h3>
-<p>It computes and exports <code>{web, mcp, publicModels}</code> for other modules to honour at their own call
-sites. A tree with no such wiring enforces nothing from that channel.</p>
+<p>It computes and exports <code>{web, mcp, publicModels}</code> — one policy for the whole install, since
+2026-08-15 — for other modules to honour at their own call sites. An install with no such wiring
+enforces nothing from that channel.</p>
 <h3 id="there-is-no-provider-failover-and-there-will-not-be">There is no provider failover, and there will not be<a class="headerlink" href="#there-is-no-provider-failover-and-there-will-not-be" title="Permanent link">&para;</a></h3>
 <p><code>onProviderError</code> is <code>{"policy": "abort", "substituteProvider": false}</code>. A failover extension was
 specified, scheduled and <strong>cancelled</strong>. See
