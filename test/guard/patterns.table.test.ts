@@ -27,7 +27,7 @@ async function verdict(command: string) {
 }
 
 describe("the ported table — REQ-EXT-15", () => {
-  it("blocks all 20 MUST_BLOCK commands, each with the expected gate id", async () => {
+  it("blocks all 18 MUST_BLOCK commands, each with the expected gate id", async () => {
     const failures: string[] = [];
     for (const [command, gateId] of MUST_BLOCK) {
       const result = await verdict(command);
@@ -38,7 +38,8 @@ describe("the ported table — REQ-EXT-15", () => {
     }
     assert.deepEqual(failures, []);
     // 21 until 2026-08-14: `git reset --hard HEAD~5` moved to MUST_PASS.
-    assert.equal(MUST_BLOCK.length, 20);
+    // 20 until 2026-08-15: the two `SEC-*` rows moved to MUST_OBSERVE with the rest of that gate.
+    assert.equal(MUST_BLOCK.length, 18);
   });
 
   it("passes all 11 MUST_PASS commands — the design rule", async () => {
@@ -85,7 +86,7 @@ describe("the ported table — REQ-EXT-15", () => {
     assert.ok(entry.at > 0);
   });
 
-  it("blocks the added cases (tokeniser, git history rewrites, the SEC patterns §6.4 omitted)", async () => {
+  it("blocks the added cases (tokeniser, shutdown, git history rewrites)", async () => {
     const failures: string[] = [];
     for (const [command, gateId] of MUST_BLOCK_EXTRA) {
       const result = await verdict(command);

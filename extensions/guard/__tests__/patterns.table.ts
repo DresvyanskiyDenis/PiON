@@ -16,6 +16,14 @@
  * and `sudo`/`chmod 777`/`pkill -9`/`killall` all moved from a MUST_BLOCK table into MUST_PASS or
  * into `MUST_OBSERVE` below. `git push --force origin main` stayed blocked but changed gate id,
  * from `GIT-FORCE` (any branch) to `GIT-FORCE-PROTECTED` (only `policy.protectedBranches`).
+ *
+ * ## 2026-08-15 — `SEC` follows them
+ *
+ * Owner decision: the credential-path gate stops blocking as well, on the same rule — only
+ * catastrophic commands block, and reading a file is not catastrophic. All seven `SEC-*` rows moved
+ * from `MUST_BLOCK`/`MUST_BLOCK_EXTRA` into `MUST_OBSERVE`, which is why the first table is 18 rows
+ * rather than 20. They are still detected and still carry the same gate ids; only the verdict
+ * changed, and moving the row rather than deleting it is what keeps that visible.
  */
 
 /** [command, expected gate id]. Every entry must be blocked, and by that specific gate. */
@@ -37,8 +45,6 @@ export const MUST_BLOCK: ReadonlyArray<[string, string]> = [
   ["echo x > /dev/nvme0n1", "DB-REDIR-DISK"],
   ["chmod -R 777 /", "DB-CHMOD-777"],
   ["mkfs.ext4 /dev/sdb1", "DB-MKFS"], // the restored pattern
-  ["cat ~/.ssh/id_ed25519", "SEC-KEY"],
-  ["cat ~/.pi/agent/auth.json", "SEC-PI-AUTH"],
   ["git push --force origin main", "GIT-FORCE-PROTECTED"], // was GIT-FORCE, any branch
 ];
 
@@ -59,11 +65,12 @@ export const MUST_PASS: readonly string[] = [
 
 /**
  * Cases the spec's table does not carry, kept separate so the ported harness above stays a
- * faithful copy. These cover the tokeniser's reason for existing and the `SEC` patterns
- * `REQ-PRV-37` names that an earlier draft omitted.
+ * faithful copy. These cover the tokeniser's reason for existing.
  *
  * The `PRV-*` rows that used to live here — `sudo`, `chmod 777`, `pkill -9`, `killall` — moved to
- * `MUST_OBSERVE`, and the four ordinary-git rows moved to `MUST_PASS_EXTRA`.
+ * `MUST_OBSERVE`, and the four ordinary-git rows moved to `MUST_PASS_EXTRA`. The five `SEC-*` rows
+ * that covered the patterns an earlier draft omitted moved to `MUST_OBSERVE` on 2026-08-15 — the
+ * patterns are still asserted there, by id.
  */
 export const MUST_BLOCK_EXTRA: ReadonlyArray<[string, string]> = [
   ["xargs rm -rf /", "DB-RM-ROOT"], // wrapper peeling, not a prefix glob
@@ -75,21 +82,22 @@ export const MUST_BLOCK_EXTRA: ReadonlyArray<[string, string]> = [
   ["git push --force-with-lease origin main", "GIT-FORCE-PROTECTED"],
   ["git filter-repo --mailmap mailmap.txt --force", "GIT-REWRITE"],
   ["git filter-branch --env-filter 'true' -- --all", "GIT-REWRITE"],
-  ["cat ~/.aws/credentials", "SEC-AWS-CRED"],
-  ["cat /etc/ssl/private/server.pem", "SEC-PEM"],
-  ["cat ./copilot-quota-token.json", "SEC-QUOTA-TOKEN"],
-  ["cat ~/projects/app/.env", "SEC-ENV"],
-  ["cat ./secrets/db-password", "SEC-SECRETSDIR"],
 ];
 
 /**
  * [command, expected `guard.observed` gate id]. **Permitted, and recorded.**
  *
- * The 2026-08-14 inversion downgraded `PRV-*`, `FS-*` and `RTE-*` from blocking to audit-only.
- * "Removing enforcement must not remove observability" was part of the instruction, so these rows
- * are an assertion in their own right: each command must run, *and* must leave exactly one
- * `guard.observed` entry with this gate id. A row that stops being recorded is a regression, and
- * the only way to notice it is a table like this one — nothing else fails when a log line stops.
+ * The 2026-08-14 inversion downgraded `PRV-*`, `FS-*` and `RTE-*` from blocking to audit-only, and
+ * the 2026-08-15 follow-up did the same to `SEC-*`. "Removing enforcement must not remove
+ * observability" was part of the instruction, so these rows are an assertion in their own right:
+ * each command must run, *and* must leave exactly one `guard.observed` entry with this gate id. A
+ * row that stops being recorded is a regression, and the only way to notice it is a table like this
+ * one — nothing else fails when a log line stops.
+ *
+ * The `SEC-*` block is the seven rows that used to sit in `MUST_BLOCK` and `MUST_BLOCK_EXTRA`,
+ * covering the patterns an earlier draft omitted — including `SEC-QUOTA-TOKEN`. Every one of these
+ * commands now RUNS: the credential is read into the model's context and sent to the provider, with
+ * the audit line below as the only trace.
  */
 export const MUST_OBSERVE: ReadonlyArray<[string, string]> = [
   ["sudo apt-get install nmap", "PRV-SUDO"],
@@ -100,6 +108,13 @@ export const MUST_OBSERVE: ReadonlyArray<[string, string]> = [
   ["echo pwned > /etc/hosts", "FS-OUTSIDE"],
   ["cp build/out /usr/local/bin/tool", "FS-OUTSIDE"],
   ["echo report > $OUT_DIR/report.txt", "FS-UNRESOLVED"],
+  ["cat ~/.ssh/id_ed25519", "SEC-KEY"],
+  ["cat ~/.pi/agent/auth.json", "SEC-PI-AUTH"],
+  ["cat ~/.aws/credentials", "SEC-AWS-CRED"],
+  ["cat /etc/ssl/private/server.pem", "SEC-PEM"],
+  ["cat ./copilot-quota-token.json", "SEC-QUOTA-TOKEN"],
+  ["cat ~/projects/app/.env", "SEC-ENV"],
+  ["cat ./secrets/db-password", "SEC-SECRETSDIR"],
 ];
 
 /** Ordinary work that the added gates must also leave alone. */

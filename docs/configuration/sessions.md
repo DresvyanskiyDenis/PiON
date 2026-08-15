@@ -176,10 +176,12 @@ question at the tools step.
     retry. That is the same standing rule as
     [`onProviderError`](routing.md#onprovidererror).
 
-!!! note "The token file is guarded and cannot be read by the agent"
-    `SEC-QUOTA-TOKEN` denies any path ending `quota-token.json`, with no override. The credential
-    it holds is a classic PAT with a read-only user scope; a fine-grained token is rejected by the
-    usage endpoint. Details on [quota](../extensions/quota.md).
+!!! warning "The token file is recorded when touched — not protected"
+    `SEC-QUOTA-TOKEN` matches any path ending `quota-token.json`, but since 2026-08-15 it writes a
+    `guard.observed` entry and permits the call rather than refusing it. Keep the file `0600` and
+    scope the credential accordingly: it is a classic PAT with a read-only user scope; a
+    fine-grained token is rejected by the usage endpoint. Details on
+    [quota](../extensions/quota.md).
 
 If your provider has no such endpoint, set `enabled: false` and the extension degrades to a
 one-line "no quota source configured" status instead of failing.

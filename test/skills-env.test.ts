@@ -285,8 +285,10 @@ describe("skills-env: register + resources_discover end-to-end", () => {
   // REGRESSION (2026-08-12). `~/.pi/agent/skills` is itself a symlink to `~/pi-config/skills`,
   // and PI reports `sourceInfo.path` through the declared (symlinked) location. Left
   // unresolved, the exported dir contains `.pi/agent/`, which `secret-paths.ts`'s `SEC-PI-STATE`
-  // gate refuses unconditionally, and a skill's own `..` escape collapses lexically through the
-  // symlink name instead of the real one. Resolving to the realpath here fixes both.
+  // gate matched and — until it became audit-only on 2026-08-15 — refused unconditionally, and a
+  // skill's own `..` escape collapses lexically through the symlink name instead of the real one.
+  // Resolving to the realpath here fixes both; it now also keeps ordinary skill reads out of the
+  // audit log.
   it("resolves a symlinked skill directory to its physical path", async () => {
     const root = makeTmpRoot();
     const realSkillsDir = join(root, "real-repo", "skills");

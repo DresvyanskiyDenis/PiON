@@ -1,20 +1,21 @@
 /**
- * The 2026-08-14 relaxation, stated as one acceptance probe.
+ * The relaxation, stated as one acceptance probe.
  *
- * Withdrawn by owner decision, 2026-08-14: the allow-list model was removed outright, and only
- * catastrophic commands are to be blocked. That decision has two halves and this file is the place
- * both are pinned, so a future reader can answer "what does the guard actually stop?" from a single
- * screen rather than by reading six gates.
+ * Owner decision, 2026-08-14: the allow-list model was removed outright, and only catastrophic
+ * commands are to be blocked. Owner decision, 2026-08-15: `SEC` — the one gate the first decision
+ * left blocking for a reason other than destruction — is covered by the same rule and stops
+ * blocking too. This file is the place the result is pinned, so a future reader can answer "what
+ * does the guard actually stop?" from a single screen rather than by reading six gates.
  *
  *   1. **The catastrophic set still blocks.** `rm -rf /`, `rm -rf $HOME`, `mkfs`, `dd of=/dev/…`,
  *      `git filter-repo`, and a force-push onto a protected branch. If any row here stops blocking,
  *      the relaxation went too far.
- *   2. **Everything else runs, headless, with no prompt.** The commands below are the ones that
- *      were measured stopping work — 24 of 33 subagent runs blocked in one morning. If any row here
- *      starts blocking, the relaxation has quietly grown back.
+ *   2. **Everything else runs, headless, with no prompt** — credential paths included. The commands
+ *      below are the ones that were measured stopping work — 24 of 33 subagent runs blocked in one
+ *      morning. If any row here starts blocking, the relaxation has quietly grown back.
  *
- * The gates that used to enforce and now only observe (`PRV`, `FS`, `RTE`) are covered where they
- * live: `write-surface.test.ts`, `gates.test.ts`, and `patterns.table.ts`'s `MUST_OBSERVE`.
+ * The gates that used to enforce and now only observe (`SEC`, `PRV`, `FS`, `RTE`) are covered where
+ * they live: `write-surface.test.ts`, `gates.test.ts`, and `patterns.table.ts`'s `MUST_OBSERVE`.
  */
 import assert from "node:assert/strict";
 import { homedir } from "node:os";
@@ -79,20 +80,6 @@ describe("what still blocks — the catastrophic set", () => {
     assert.equal((blocks[0]![1] as { ruleId: string }).ruleId, "DB");
   });
 
-  it("SEC still refuses credential paths — the one gate kept for a non-destructive reason", async () => {
-    // This is not about destruction. One of the two remotes this repo syncs to is genuinely
-    // public, and the standing rule is that no credential or tenant secret reaches either.
-    for (const [command, gateId] of [
-      [`cat ${homedir()}/.ssh/id_ed25519`, "SEC-KEY"],
-      [`cat ${homedir()}/.aws/credentials`, "SEC-AWS-CRED"],
-      [`cat ${homedir()}/.pi/agent/auth.json`, "SEC-PI-AUTH"],
-      ["cat .env", "SEC-ENV"],
-    ] as const) {
-      const { result } = await headless(command);
-      assert.equal(result.gateId, gateId, command);
-    }
-  });
-
   it("the written-justification hatch still works headless for what still blocks", async () => {
     const rec = recorder();
     const rules = buildRules(testPolicy(), rec.services);
@@ -139,6 +126,39 @@ describe("what no longer blocks — the commands that were stopping work", () =>
       if (result.blocked) failures.push(`${result.gateId}: ${command}`);
       if (rec.selected.length > 0 || rec.confirmed.length > 0) {
         failures.push(`PROMPTED: ${command}`);
+      }
+    }
+    assert.deepEqual(failures, []);
+  });
+
+  it("SEC no longer refuses credential paths — it records them and permits the call", async () => {
+    // Owner decision, 2026-08-15. `SEC` was the one gate the 2026-08-14 inversion left blocking for
+    // a reason other than destruction; the same rule now covers it — only catastrophic commands
+    // block, and reading a file is not catastrophic.
+    //
+    // The consequence this test pins, so nobody can claim it was not visible: each of these
+    // commands now RUNS. The credential lands in the model's context and is sent to whichever
+    // provider serves the next turn, and no runtime control in this repo prevents that. The
+    // `guard.observed` entry asserted below is the whole of what is left, and it is a transcript
+    // record read after the fact — not a control. Re-enforcing is a one-line change in
+    // `secret-paths.ts` back to `denyWithEscapeHatch`.
+    const failures: string[] = [];
+    for (const [command, gateId] of [
+      [`cat ${homedir()}/.ssh/id_ed25519`, "SEC-KEY"],
+      [`cat ${homedir()}/.aws/credentials`, "SEC-AWS-CRED"],
+      [`cat ${homedir()}/.pi/agent/auth.json`, "SEC-PI-AUTH"],
+      ["cat .env", "SEC-ENV"],
+    ] as const) {
+      const { result, rec } = await headless(command);
+      if (result.blocked) {
+        failures.push(`BLOCKED by ${result.gateId}: ${command}`);
+        continue;
+      }
+      const observed = rec.audit
+        .filter(([type]) => type === "guard.observed")
+        .map(([, data]) => (data as { gateId: string }).gateId);
+      if (observed.length !== 1 || observed[0] !== gateId) {
+        failures.push(`${command}: expected one ${gateId}, got ${JSON.stringify(observed)}`);
       }
     }
     assert.deepEqual(failures, []);

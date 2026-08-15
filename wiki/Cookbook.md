@@ -143,21 +143,25 @@ request instead. See
 or headless.** There is no allowlist and no unattended-execution mode to set. Every program runs
 unattended unless the specific *command shape* it is used for is one of:
 
-- `SEC-*` — a credential path. Never overridable.
 - `DB-*` — one of eight catastrophic shapes (`rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect
   onto a raw disk, `chmod -R 777 /`, `curl … | sh`, shutdown). Mostly not overridable.
 - `GIT-REWRITE` (`filter-repo` / `filter-branch`) and `GIT-FORCE-PROTECTED` (a force-push onto a
   protected branch). Overridable with a written justification.
 
-If you are being refused and it is not one of those four, the guard is not the cause — check
+If you are being refused and it is not one of those two families, the guard is not the cause — check
 `config/hooks.yaml` for a rule your team added.
 
-### 8. Record — but do not block — a privileged command, an out-of-tree write, or a generic dispatch
+`SEC-*` (credential paths) was on that list until 2026-08-15 and now only records. A credential file
+can be read into the model's context and sent to the provider, and no runtime control here prevents
+it — see [Safety model](https://dresvyanskiydenis.github.io/PiON/concepts/safety-model/#credential-reads-are-no-longer-refused).
 
-**Nothing to configure; this is what the guard does by default.** `PRV-*` (`sudo`, `chmod 777`,
-`pkill -9`, `killall`), `FS-*` (a bash write whose target resolves outside the project) and `RTE-*`
-(a generic agent dispatched where a specialist matched) are all **audit-only**: permitted, and
-written to the session's audit log as a `guard.observed` entry, with nothing returned to the model.
+### 8. Record — but do not block — a credential read, a privileged command, an out-of-tree write, or a generic dispatch
+
+**Nothing to configure; this is what the guard does by default.** `SEC-*` (a credential path on any
+tool), `PRV-*` (`sudo`, `chmod 777`, `pkill -9`, `killall`), `FS-*` (a bash write whose target
+resolves outside the project) and `RTE-*` (a generic agent dispatched where a specialist matched) are
+all **audit-only**: permitted, and written to the session's audit log as a `guard.observed` entry,
+with nothing returned to the model.
 
 **If you need one of these to actually refuse for your own workflow**, the guard will not do it —
 write a `block` rule for the shape you care about in `config/hooks.yaml`. Hooks stack on
@@ -182,8 +186,8 @@ git filter-repo --mailmap mailmap.txt --force
 ```
 
 The comment is stripped before the command runs and the justification is written to the audit log.
-It never applies to the `SEC-*` family — secret-path rules have no escape hatch, no config key and
-no justification path, because a strongest rule with an exception is not the strongest rule.
+It does nothing for the `SEC-*` family — since 2026-08-15 those rules record rather than refuse, so
+there is no refusal for a justification to unlock.
 
 ### 11. Let a project contribute its own extensions and hooks
 
@@ -390,7 +394,7 @@ Full table: [Exit codes](https://dresvyanskiydenis.github.io/PiON/reference/exit
 
 ### 23. Make a headless run refuse to guess
 
-Nothing to set — the guard never guesses. `SEC-*`, `DB-*`, `GIT-REWRITE` and `GIT-FORCE-PROTECTED`
+Nothing to set — the guard never guesses. `DB-*`, `GIT-REWRITE` and `GIT-FORCE-PROTECTED`
 refuse the same way headless as interactively, with a named reason; everything else runs unattended
 either way, because none of it ever asked for confirmation in the first place. If a scheduled run
 needs to refuse rather than proceed on an *ambiguous* signal — a missing credential, an unresolved

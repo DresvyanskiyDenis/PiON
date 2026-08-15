@@ -25,10 +25,18 @@ function summaryLines(report: DoctorReport): string[] {
   const toolSuffix = report.tools.names.length > 6 ? ", …" : "";
   lines.push(`tools          ${report.tools.count} active (${toolPreview}${toolSuffix})`);
 
-  const modelBits = [`${report.models.available} available`];
-  if (report.models.uncredentialed.length > 0) {
+  // Two counts always, and a list only when this configuration is the reason for it. The previous
+  // version enumerated every uncredentialed entry in the registry PI ships and called them
+  // "declared-but-uncredentialed" — a name nothing here declared, describing an absence that is not
+  // one, at a length set by the registry. `/doctor` output can land in the model's context, so an
+  // unbounded list that names no problem is a cost with no reader.
+  const modelBits = [
+    `${report.models.inRegistry} in registry`,
+    `${report.models.usableHere} usable here`,
+  ];
+  if (report.models.referencedWithoutCredential.length > 0) {
     modelBits.push(
-      `${report.models.uncredentialed.length} declared-but-uncredentialed (${report.models.uncredentialed.join(", ")})`,
+      `referenced without a credential: ${report.models.referencedWithoutCredential.join(", ")}`,
     );
   }
   lines.push(`models         ${modelBits.join(", ")}`);

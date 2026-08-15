@@ -11,7 +11,7 @@ run. It does not contain a process that has already started, and it does not sto
 never routed through a tool. What it buys you is that the small set of genuinely catastrophic
 commands cannot run at all, no matter how a headless session got there.
 
-The conceptual model — the six gates, three that block and three that only observe, the
+The conceptual model — the six gates, two that block and four that only observe, the
 fail-closed/fail-open contract, the deadman — is on
 [Safety model](../concepts/safety-model.md). This page is the reference.
 
@@ -110,10 +110,14 @@ Everything that can actually **block** is in code, not data:
 
 | Family | Examples | Overridable? |
 |---|---|---|
-| `SEC-*` secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-PI-AUTH`, `SEC-PI-STATE`, `SEC-QUOTA-TOKEN`, `SEC-AWS-CRED` | **Never.** No config key, no override, no written justification |
 | `DB-*` dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | Two of the eight (`DB-CURL-SH`, `DB-SHUTDOWN`) — with a written justification. The rest, no |
 | `GIT-REWRITE` | `git filter-repo`, `git filter-branch` | Yes — with a written justification |
 | `GIT-FORCE-PROTECTED` | a force-push (any spelling) onto a `protectedBranches` name | Yes — with a written justification |
+
+`SEC-*` (secret paths) was in that table until 2026-08-15. It is now audit-only: it records a
+credential-path touch and permits the call, so a credential can reach the model's context with
+nothing at runtime to stop it. See
+[Safety model](../concepts/safety-model.md#credential-reads-are-no-longer-refused).
 
 Everything else in `git` — `reset --hard`, `branch -D`, `clean -fd`, `checkout -- .`, a force-push
 to any branch *not* in `protectedBranches` — is no longer gated at all. Each of those is
@@ -155,8 +159,8 @@ even when nothing was stopped.
     [Known limitations](../limitations.md#the-guard-is-not-a-sandbox).
 
     It gates **bash command strings only**. It does not observe PI's own `write` / `edit` tools, and
-    it does not gate reads; `SEC-*` covers the credential set on every tool, and `SEC-*` can still
-    refuse.
+    it does not gate reads; `SEC-*` covers the credential set on every tool — but since 2026-08-15
+    `SEC-*` only records, so nothing there refuses either.
 
 If you want a *new* rule that can actually block, do not edit a gate — write it in
 [`config/hooks.yaml`](tools.md#hooksyaml). Hooks stack on the guard and may only **add** denial,

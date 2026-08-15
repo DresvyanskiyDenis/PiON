@@ -11,9 +11,10 @@ order, the fail-closed inversion, what happens to a broken file — is on
 !!! warning "Hooks can only add denial, never remove it"
     They stack **on top of** the [guard](../extensions/guard.md), which loads first. A hook cannot
     permit something the guard refused. There is no allowlist to be looking for any more —
-    `SEC-*`/`DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` are the only things a bash command can be
+    `DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` are the only things a bash command can be
     refused for by the guard itself, and none of them is configurable from here or from
-    `config/guard.json`.
+    `config/guard.json`. `SEC-*` is audit-only since 2026-08-15, so a hook is now the only way to
+    make a credential path refuse anything.
 
 ---
 

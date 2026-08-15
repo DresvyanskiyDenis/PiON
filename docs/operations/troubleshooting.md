@@ -119,17 +119,21 @@ a tool result is growing without bound.
 
 ### A command was refused and I want it allowed
 
-Since the 2026-08-14 deny-list inversion there are only four gates left that can refuse a bash
-command at all — read the refusal, it names the rule id:
+Since the 2026-08-14 deny-list inversion, narrowed again on 2026-08-15, there are only three rule
+families left that can refuse a bash command at all — read the refusal, it names the rule id:
 
 | Prefix | Relaxable |
 |---|---|
-| `SEC-*` | **never.** No config key, no override, no justification path |
 | `DB-*` | mostly not — two of the eight (`DB-CURL-SH`, `DB-SHUTDOWN`) take a written justification |
 | `GIT-REWRITE` | with a written justification |
 | `GIT-FORCE-PROTECTED` | with a written justification |
 
-If the id is not one of those four, it did not come from the guard's bash gates — check
+`SEC-*` is no longer on this list. Since 2026-08-15 it records a credential-path touch and permits
+the call, so there is nothing to relax — and nothing at runtime keeping a credential out of the
+model's context either. See
+[Safety model](../concepts/safety-model.md#credential-reads-are-no-longer-refused).
+
+If the id is not one of those three, it did not come from the guard's bash gates — check
 [`hooks.yaml`](../configuration/tools.md#hooksyaml) for a declarative rule you or your team added.
 
 ### It asks me before every shell command and I want it to stop
@@ -226,8 +230,8 @@ fall back to running in your checkout — an agent that asked for isolation aske
 
 That should not happen any more. There is no program allowlist, and nothing to approve for a
 session or inherit into a child — every program runs headless with no prompt, unless the specific
-*command shape* it is being used for is one of `SEC-*`/`DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED`.
-If a sub-agent is refused, read the rule id: it is one of those four, and the fix is the same one
+*command shape* it is being used for is one of `DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED`.
+If a sub-agent is refused, read the rule id: it is one of those three, and the fix is the same one
 described in [A command was refused and I want it allowed](#a-command-was-refused-and-i-want-it-allowed),
 not a session-allowlist variable. `PI_GUARD_APPROVE` and `PI_GUARD_SESSION_ALLOWLIST` are removed —
 setting either does nothing.

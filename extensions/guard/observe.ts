@@ -3,15 +3,16 @@
  *
  * ## Why this exists
  *
- * The 2026-08-14 inversion turned the guard from an allow-list into a deny-list: only `SEC-*`,
- * `DB-*` and the two history-destroying `GIT-*` rules refuse anything. `PRV` (sudo / chmod 777 /
- * pkill -9 / killall), `FS` (the sandbox write boundary) and `RTE` (the dispatch routing veto) all
- * stopped refusing — but their *detectors* were the only thing in the tree that could tell an
- * operator, after the fact, that a command ran as root, wrote outside the project, or dispatched a
- * generic agent past a matching specialist.
+ * The 2026-08-14 inversion turned the guard from an allow-list into a deny-list, and the 2026-08-15
+ * follow-up took `SEC` off the blocking side as well: only `DB-*` and the two history-destroying
+ * `GIT-*` rules refuse anything now. `SEC` (credential paths), `PRV` (sudo / chmod 777 / pkill -9 /
+ * killall), `FS` (the sandbox write boundary) and `RTE` (the dispatch routing veto) all stopped
+ * refusing — but their *detectors* were the only thing in the tree that could tell an operator,
+ * after the fact, that a command read a credential file, ran as root, wrote outside the project, or
+ * dispatched a generic agent past a matching specialist.
  *
  * Removing enforcement is the instruction. Removing observability is not: "fail loud is
- * unchanged". So those three gates keep evaluating and write one `guard.observed` entry per match,
+ * unchanged". So those four gates keep evaluating and write one `guard.observed` entry per match,
  * then return `{ block: false }`. The entry is deliberately shaped like `guard.block`'s
  * (`lib/guarded-handler.ts#writeAudit`) so a reader can join the two streams: same `gateId`,
  * `toolName`, `toolCallId` and `at`, with `what` carrying the human-readable finding.

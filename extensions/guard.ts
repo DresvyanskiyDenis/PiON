@@ -14,20 +14,31 @@
  * project, 24 of 33 sub-agent runs were blocked rather than failed. Removed outright by owner
  * decision, 2026-08-14: only catastrophic commands are blocked now.
  *
- * So: **six gates, three of which block and three of which only observe.**
+ * ## 2026-08-15 — `SEC` stops blocking too
  *
- *   - `SEC` — credential paths. Blocks. No override, ever. This one is not about destruction: this
- *     repo is genuinely public, and the standing rule is that no credential or tenant secret
- *     reaches it.
+ * `SEC` was the one gate kept on the blocking side for a reason other than destruction. Owner
+ * decision, 2026-08-15: it becomes audit-only as well, on the same rule — only catastrophic
+ * commands block, and reading a file is not catastrophic.
+ *
+ * So: **six gates, two of which block and four of which only observe.**
+ *
  *   - `DB` — the eight catastrophic shapes. Blocks. Mostly no override.
  *   - `GIT` — history destruction only: `filter-repo`/`filter-branch`, and a force-push onto a
  *     protected branch. Blocks, overridable with a written justification. Ordinary git is not
  *     gated.
- *   - `PRV`, `FS`, `RTE` — **audit only**. They evaluate, write one `guard.observed` entry when
- *     they match, and permit the call. Nothing here prompts: fewer approvals is the point, and a
- *     gate that asks instead of blocking has not been relaxed.
+ *   - `SEC`, `PRV`, `FS`, `RTE` — **audit only**. They evaluate, write one `guard.observed` entry
+ *     when they match, and permit the call. Nothing here prompts: fewer approvals is the point, and
+ *     a gate that asks instead of blocking has not been relaxed.
  *
- * Order still matters, for the three that block: cheapest and most absolute first, so a
+ * `SEC`'s demotion costs more than the other three and is written down rather than absorbed: a
+ * tool call may now read a credential file into the model's context, which sends it to whichever
+ * provider serves the next turn, and **no runtime control in this repo prevents that** — not a
+ * weakened one, none. `bin/rules/pc-06-no-committed-secrets.mjs` is push-time and protects the
+ * repository rather than the context; `pi-sandbox` 0.6.2 is declared in `config/packages.lock.json`
+ * but imported by nothing, and its `denyRead` is documented as not a hard block even once wired.
+ * See `guard/gates/secret-paths.ts` for the full statement and for the one-line path back.
+ *
+ * Order still matters, for the two that block: cheapest and most absolute first, so a
  * catastrophic shape is reported as what it is rather than as whatever a later gate noticed.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -42,12 +53,12 @@ import { writeSurfaceGate } from "./guard/gates/write-surface.ts";
 import { agentRoutingGate } from "./guard/gates/agent-routing.ts";
 
 export const id = "guard";
-export const GUARD_VERSION = "2.0.0";
+export const GUARD_VERSION = "2.1.0";
 
 /** Exported so `test/` and `/doctor` can build the same rule set without a live `pi`. */
 export function buildRules(policy: Policy, services: GuardServices): GuardRule[] {
   const rules: GuardRule[] = [
-    secretPathsGate(policy), // SEC-*  — credential paths, no override, ever
+    secretPathsGate(policy, services), // SEC-*  — credential paths, AUDIT ONLY
     dangerousBashGate(policy, services), // DB-*   — catastrophic shapes, mostly no override
     destructiveGitGate(policy, services), // GIT-*  — history destruction, written justification
     privilegedCommandsGate(policy, services), // PRV-*  — AUDIT ONLY

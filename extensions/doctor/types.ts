@@ -48,9 +48,29 @@ export interface DoctorReport {
     readonly selfTestPatternId: string | null;
     readonly selfTestOk: boolean;
   };
+  /**
+   * The model summary line, renamed field by field on 2026-08-15 because the old shape encouraged
+   * exactly one wrong reading. It used to be `{ available, uncredentialed }`, and `uncredentialed`
+   * held every entry in the model registry without a credential — which `render.ts` then printed as
+   * "declared-but-uncredentialed". Neither half was true: those entries are the registry PI ships,
+   * nothing in this configuration declares them, nothing is missing because of them, and the list is
+   * as long as the registry's uncredentialed tail. `/doctor` output can land in the model's context,
+   * so enumerating it cost tokens to say nothing.
+   *
+   * The names below are chosen so the mistake cannot be repeated by reading the field name alone.
+   */
   readonly models: {
-    readonly available: number;
-    readonly uncredentialed: readonly string[];
+    /** Every entry the model registry returns — the registry's size, not a claim about config. */
+    readonly inRegistry: number;
+    /** Of those, the ones that carry a credential here: the models that can actually answer. */
+    readonly usableHere: number;
+    /**
+     * The only genuinely interesting list: `provider/id` for models **this configuration
+     * references** — `routing.json` tier `model` and `fallback` refs, thinking suffix stripped —
+     * that resolve in the registry but have no credential. A mere registry entry never appears
+     * here. `D-04` carries the per-tier diagnosis; this is the count's subject line.
+     */
+    readonly referencedWithoutCredential: readonly string[];
   };
   /** `D-08`. `config/packages.lock.json` cross-referenced against `node_modules/`. */
   readonly packages: {

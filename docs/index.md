@@ -33,8 +33,8 @@ shell and are exercised on macOS.
 
 - **A permission layer PI does not have**
 
-    Six ordered gates over every tool call: secret paths, catastrophic bash and destructive git
-    block outright; privileged commands, the write surface and agent routing are recorded, not
+    Six ordered gates over every tool call: catastrophic bash and destructive git block outright;
+    secret paths, privileged commands, the write surface and agent routing are recorded, not
     refused.
     → [Safety model](concepts/safety-model.md) · [`guard`](extensions/guard.md)
 

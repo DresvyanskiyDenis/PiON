@@ -28,7 +28,7 @@ that fire correctly.
     requiring an import- or install-shaped context moves the noise rather than removing it, since a
     pasted snippet that merely *contains* an import is usually a request to change code, not a
     question about the library. What the signal was for is already covered statically —
-    [`AGENTS.md`](../../AGENTS.md) tells the model to check current documentation before touching a
+    [`AGENTS.md`](https://github.com/DresvyanskiyDenis/PiON/blob/main/AGENTS.md) tells the model to check current documentation before touching a
     library, and names "a package or tool name" as the trigger. A rule the harness states once does
     not also need a per-prompt hook.
 

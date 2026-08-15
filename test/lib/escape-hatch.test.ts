@@ -42,13 +42,17 @@ describe("escape hatch", () => {
   });
 
   it("legitimateUse is included when given", () => {
+    // A fictional gate id on purpose. This exercises the message formatter, not any real gate, and
+    // a real id here would read as documentation: `SEC-ENV` used to sit in this slot and implied
+    // that SEC refuses with an escape hatch — which was never true, and since 2026-08-15 SEC does
+    // not refuse at all.
     const { reason } = denyWithEscapeHatch({
-      gateId: "SEC-ENV",
-      what: "reading a .env file",
-      legitimateUse: "Reading .env.example is always allowed.",
+      gateId: "XX-EXAMPLE",
+      what: "an example refusal",
+      legitimateUse: "This is the legitimate-use sentence.",
       overridable: true,
     });
-    assert.match(reason, /Reading \.env\.example is always allowed\./);
+    assert.match(reason, /This is the legitimate-use sentence\./);
     assert.match(reason, new RegExp(JUSTIFY_TOKEN));
   });
 

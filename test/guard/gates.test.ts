@@ -35,93 +35,91 @@ afterEach(() => {
   delete process.env.PI_GUARD_TEST_THROW;
 });
 
-describe("secret-paths — REQ-PRV-15, REQ-PRV-37", () => {
-  async function check(event: ReturnType<typeof readEvent>) {
+/**
+ * `SEC-*` — the detection table, now read through `guard.observed` rather than through a refusal.
+ *
+ * Owner decision, 2026-08-15: this gate stops blocking; only catastrophic commands block. The
+ * `DENY`/`ALLOW` tables and the `SEC-PI-STATE` anchoring are exactly what they were, and this suite
+ * is what keeps them correct — so `observed()` asserts the id the gate REPORTS instead of the id it
+ * refuses under. Everything these tests used to prove about which path produces which id still has
+ * to hold; what changed is that the call proceeds afterwards, and the credential reaches the model's
+ * context.
+ */
+describe("secret-paths — REQ-PRV-15, REQ-PRV-37 (audit only since 2026-08-15)", () => {
+  /** The `guard.observed` gate ids a call produced, in order. Empty = the gate saw nothing. */
+  async function observed(event: ReturnType<typeof readEvent>, ctx?: ReturnType<typeof fakeCtx>) {
     const rec = recorder();
-    return runRules(safetyRules(testPolicy(), rec.services), event, fakeCtx({}, rec), rec.services);
-  }
-
-  it("blocks the read tool on the agent's own credential store", async () => {
-    const result = await check(readEvent(`${homedir()}/.pi/agent/auth.json`));
-    assert.equal(result.gateId, "SEC-PI-AUTH");
-  });
-
-  it("blocks a write tool on a .env, and never offers an override", async () => {
-    const rec = recorder();
-    const event = customEvent("write", { path: ".env", content: "TOKEN=x" });
     const result = await runRules(
       safetyRules(testPolicy(), rec.services),
       event,
-      fakeCtx({}, rec),
+      ctx ?? fakeCtx({}, rec),
       rec.services,
     );
-    assert.equal(result.gateId, "SEC-ENV");
-    assert.match(result.reason ?? "", /no override/);
-    assert.doesNotMatch(result.reason ?? "", /PI-JUSTIFY/);
+    const ids = rec.audit
+      .filter(([type]) => type === "guard.observed")
+      .map(([, data]) => (data as { gateId: string }).gateId);
+    return { result, ids, first: ids[0] };
+  }
+
+  it("records, and permits, the read tool on the agent's own credential store", async () => {
+    const { result, first } = await observed(readEvent(`${homedir()}/.pi/agent/auth.json`));
+    assert.equal(result.blocked, false);
+    assert.equal(first, "SEC-PI-AUTH");
   });
 
-  it("allows the .env template family", async () => {
+  it("records a write tool on a .env — and there is no refusal left to override", async () => {
+    const { result, first } = await observed(customEvent("write", { path: ".env", content: "TOKEN=x" }));
+    assert.equal(result.blocked, false);
+    assert.equal(first, "SEC-ENV");
+  });
+
+  it("says nothing at all about the .env template family", async () => {
+    // The ALLOW short-circuit is the assertion: a template must produce neither a block nor a
+    // record. A log that fires on `.env.example` is a log nobody reads.
     for (const path of [".env.example", ".env.template", ".env.sample", ".env.local.example"]) {
-      const result = await check(readEvent(path));
+      const { result, ids } = await observed(readEvent(path));
       assert.equal(result.blocked, false, path);
+      assert.deepEqual(ids, [], path);
     }
   });
 
-  it("is not read-tool-only: a bash cat of the same path is denied too", async () => {
-    const rec = recorder();
-    const result = await runRules(
-      safetyRules(testPolicy(), rec.services),
-      bashEvent("cat ~/.aws/credentials"),
-      fakeCtx({}, rec),
-      rec.services,
-    );
-    assert.equal(result.gateId, "SEC-AWS-CRED");
+  it("is not read-tool-only: a bash cat of the same path is recorded too", async () => {
+    const { first } = await observed(bashEvent("cat ~/.aws/credentials"));
+    assert.equal(first, "SEC-AWS-CRED");
   });
 
   it("catches a relative escape that only resolves to a secret via cwd", async () => {
-    const rec = recorder();
-    const result = await runRules(
-      safetyRules(testPolicy(), rec.services),
+    const { first } = await observed(
       readEvent("../../secrets/token"),
-      fakeCtx({ cwd: "/workspace/project/src/app" }, rec),
-      rec.services,
+      fakeCtx({ cwd: "/workspace/project/src/app" }),
     );
-    assert.equal(result.gateId, "SEC-SECRETSDIR");
+    assert.equal(first, "SEC-SECRETSDIR");
   });
 
   it("REGRESSION: the credential DIRECTORY is a target too, not only the files inside it", async () => {
-    // `ls ~/.aws` is an allowlisted program taking a bare directory. While the directory rules were
-    // anchored on a trailing slash, nothing in this gate matched it and the only thing standing in
-    // the way was the allowlist — which `ls` passes. Listing a credential directory is where an
-    // attempt to read one starts, and it must be refused by name here.
+    // `ls ~/.aws` is a bare directory argument. While the directory rules were anchored on a
+    // trailing slash, nothing in this gate matched it at all. Listing a credential directory is
+    // where an attempt to read one starts, and it must still be reported by name here — since
+    // 2026-08-15 as a record rather than a refusal.
     for (const [command, gateId] of [
       ["ls ~/.aws", "SEC-AWS"],
       ["ls ~/.ssh", "SEC-SSH"],
       ["tar -cf backup.tar ~/.ssh", "SEC-SSH"],
     ] as const) {
-      const rec = recorder();
-      const result = await runRules(
-        safetyRules(testPolicy(), rec.services),
-        bashEvent(command),
-        fakeCtx({}, rec),
-        rec.services,
-      );
-      assert.equal(result.gateId, gateId, command);
-      assert.match(result.reason ?? "", /no override/, command);
+      const { result, first } = await observed(bashEvent(command));
+      assert.equal(result.blocked, false, command);
+      assert.equal(first, gateId, command);
     }
   });
 
   it("keeps SEC-SECRETSDIR anchored on the slash — `secret` is an ordinary English word", async () => {
     // The counterpart of the rule above, and the reason it was not applied across the table: a bare
-    // trailing `secret`/`secrets` argument is prose far more often than it is a path.
-    const rec = recorder();
-    const result = await runRules(
-      safetyRules(testPolicy(), rec.services),
-      bashEvent("echo keep this secret"),
-      fakeCtx({}, rec),
-      rec.services,
-    );
+    // trailing `secret`/`secrets` argument is prose far more often than it is a path. Now that the
+    // verdict is a log line rather than a refusal, a false match is noise instead of an outage —
+    // and noise is how a real record gets missed, so the anchoring still has to hold.
+    const { result, ids } = await observed(bashEvent("echo keep this secret"));
     assert.equal(result.blocked, false);
+    assert.deepEqual(ids, []);
   });
 
   it("harvests paths from an unknown tool's file_path / files[] arguments", () => {
@@ -139,9 +137,19 @@ describe("secret-paths — REQ-PRV-15, REQ-PRV-37", () => {
 });
 
 describe("target harvesting — F3, no more key allowlist", () => {
+  /** As in the suite above: the gate ids the call was RECORDED under, since `SEC` no longer blocks. */
   async function check(event: ReturnType<typeof customEvent>) {
     const rec = recorder();
-    return runRules(safetyRules(testPolicy(), rec.services), event, fakeCtx({}, rec), rec.services);
+    const result = await runRules(
+      safetyRules(testPolicy(), rec.services),
+      event,
+      fakeCtx({}, rec),
+      rec.services,
+    );
+    const ids = rec.audit
+      .filter(([type]) => type === "guard.observed")
+      .map(([, data]) => (data as { gateId: string }).gateId);
+    return { ...result, ids, first: ids[0] };
   }
 
   it("harvests a target from an argument name the fixed key list never chose (uri)", () => {
@@ -168,24 +176,27 @@ describe("target harvesting — F3, no more key allowlist", () => {
     assert.ok(targets.some((t) => t.endsWith("id_ed25519")));
   });
 
-  it("blocks read_file({uri}) on the agent's secrets store — a shape none of PATH_KEYS named", async () => {
-    const result = await check(customEvent("read_file", { uri: `file://${homedir()}/.pi/secrets.env` }));
-    assert.equal(result.gateId, "SEC-PI-SECRETS");
+  it("records read_file({uri}) on the agent's secrets store — a shape none of PATH_KEYS named", async () => {
+    const { first } = await check(customEvent("read_file", { uri: `file://${homedir()}/.pi/secrets.env` }));
+    assert.equal(first, "SEC-PI-SECRETS");
   });
 
-  it("blocks run({args}) touching ~/.aws/credentials — the args[] shape is not command/cmd/script", async () => {
-    const result = await check(customEvent("run", { args: ["cat", "~/.aws/credentials"] }));
-    assert.equal(result.gateId, "SEC-AWS-CRED");
+  it("records run({args}) touching ~/.aws/credentials — the args[] shape is not command/cmd/script", async () => {
+    const { first } = await check(customEvent("run", { args: ["cat", "~/.aws/credentials"] }));
+    assert.equal(first, "SEC-AWS-CRED");
   });
 
-  it("blocks a path nested two levels deep under an unknown key (params.path)", async () => {
-    const result = await check(customEvent("proxy_tool", { params: { path: "~/.ssh/id_ed25519" } }));
-    assert.equal(result.gateId, "SEC-KEY");
+  it("records a path nested two levels deep under an unknown key (params.path)", async () => {
+    const { first } = await check(customEvent("proxy_tool", { params: { path: "~/.ssh/id_ed25519" } }));
+    assert.equal(first, "SEC-KEY");
   });
 
-  it("still passes an ordinary unknown-shaped call that touches nothing secret", async () => {
-    const result = await check(customEvent("read_file", { uri: "file:///workspace/project/README.md" }));
-    assert.equal(result.blocked, false);
+  it("still passes, and says nothing about, an unknown-shaped call that touches nothing secret", async () => {
+    const { blocked, ids } = await check(
+      customEvent("read_file", { uri: "file:///workspace/project/README.md" }),
+    );
+    assert.equal(blocked, false);
+    assert.deepEqual(ids, []);
   });
 
   it("collectStringLeaves is depth-bounded, leaf-capped and cycle-safe", () => {
@@ -441,19 +452,22 @@ describe("the program allow-list is gone — REQ-PRV-38 withdrawn", () => {
     assert.equal(result.blocked, false);
   });
 
-  it("`cd` runs, and SEC — not the allow-list — is what catches `cd ~/.aws && cat credentials`", async () => {
-    // Correcting a claim this file used to make. The old note said the ALW gate was "the only
-    // thing that stops" this line, because `secret-paths.ts` resolves relative arguments against
-    // `ctx.cwd` and never against a directory an earlier segment moved to. The first half is true
-    // and the conclusion was not: `SEC-AWS` matches the *directory* `~/.aws` in the `cd` segment,
-    // so the line is still refused with the allow-list gone. What genuinely relies on the removed
-    // gate is a `cd` into a directory SEC has no pattern for — that residual is in the README.
+  it("`cd ~/.aws && cat credentials` runs, and SEC is the only thing that even notices", async () => {
+    // `secret-paths.ts` resolves relative arguments against `ctx.cwd` and never against a directory
+    // an earlier segment moved to, so the second segment's bare `credentials` is invisible. What is
+    // visible is the directory in the first segment: `SEC-AWS`. Since 2026-08-15 that produces a
+    // `guard.observed` line and the command runs — nothing refuses it, and the AWS credentials
+    // reach the model's context. A `cd` into a directory SEC has no pattern for is not even
+    // recorded. Both halves are stated in docs/concepts/safety-model.md.
     const { rec, rules: r } = rules();
     const ctx = fakeCtx({ hasUI: false, mode: "json" }, rec);
-    assert.equal(
-      (await runRules(r, bashEvent("cd ~/.aws && cat credentials"), ctx, rec.services)).gateId,
-      "SEC-AWS",
-    );
+    const secret = await runRules(r, bashEvent("cd ~/.aws && cat credentials"), ctx, rec.services);
+    assert.equal(secret.blocked, false);
+    const observedIds = rec.audit
+      .filter(([type]) => type === "guard.observed")
+      .map(([, data]) => (data as { gateId: string }).gateId);
+    assert.deepEqual(observedIds, ["SEC-AWS"]);
+
     assert.equal(
       (await runRules(r, bashEvent("cd frontend && cat package.json"), ctx, rec.services)).blocked,
       false,
@@ -628,13 +642,19 @@ describe("REQ-EXT-16 — our own bug must not block the world", () => {
     assert.equal(result.gateId, "DB-RM-ROOT");
   });
 
-  it("F2: SEC fails CLOSED on an internal error, and keeps reporting every occurrence", async () => {
+  it("F2: SEC fails OPEN on an internal error, and still reports every occurrence", async () => {
     const rec = recorder();
     const r = buildRules(testPolicy(), rec.services);
     // A malformed `ctx.cwd` (not a string) makes `collectTargets`'s `path.resolve` throw — a
     // real, reachable internal error in SEC's own code path, not a synthetic injected rule.
     // Built by hand, not via `fakeCtx()`: that helper's `opts.cwd ?? TEST_CWD` would silently
     // replace an explicit `undefined` with the default cwd and defeat the whole point here.
+    //
+    // This inverts the pre-2026-08-15 assertion. SEC used to refuse on its own bug because a
+    // skipped credential check meant a credential read went through; it cannot refuse anything
+    // now, so the only thing failing closed would buy is an agent that refuses every tool call
+    // because one audit gate is broken — REQ-EXT-16's exact failure. What must survive is the
+    // reporting: F2 is that a repeating internal error keeps being logged rather than deduped.
     const brokenCtx = {
       hasUI: false,
       mode: "print",
@@ -643,12 +663,12 @@ describe("REQ-EXT-16 — our own bug must not block the world", () => {
     } as unknown as ReturnType<typeof fakeCtx>;
 
     const first = await runRules(r, bashEvent("cat foo.txt"), brokenCtx, rec.services);
-    assert.equal(first.blocked, true, "SEC must refuse the call, not silently allow it");
-    assert.match(first.reason ?? "", /^SEC: guard unavailable \(internal error\)/);
+    assert.equal(first.blocked, false, "an audit-only gate's bug must not refuse the tool call");
 
     const second = await runRules(r, bashEvent("cat bar.txt", "tc-2"), brokenCtx, rec.services);
-    assert.equal(second.blocked, true, "the SECOND occurrence must still refuse, not go quiet");
+    assert.equal(second.blocked, false, "and must not start refusing on the second occurrence");
 
     assert.equal(rec.log.length, 2, "each occurrence must be logged — not deduped after the first");
+    for (const line of rec.log) assert.match(line, /SEC/);
   });
 });

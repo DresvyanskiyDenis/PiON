@@ -44,26 +44,54 @@ blocked ordinary work and a long list stopped meaning anything. What replaced it
 set of catastrophic command *shapes*, decided in code. Three gates were downgraded from blocking to
 audit-only in the same change — they still see every call, they just no longer refuse one.
 
-The taxonomy is now three verdicts, not two: **block**, **observe**, and (everything not named
-below) **pass with no record at all**.
+**2026-08-15 — `SEC` joins them.** The credential-path gate was the one the inversion left blocking
+for a reason other than destruction. Owner decision, 2026-08-15: the same rule covers it — only
+catastrophic commands block, and reading a file is not catastrophic. Two gates block now; four
+observe. [What this costs is stated below](#credential-reads-are-no-longer-refused), unsoftened,
+because it is the largest single thing this repository stopped doing.
+
+The taxonomy is three verdicts, not two: **block**, **observe**, and (everything not named below)
+**pass with no record at all**.
 
 | Order | Family | Verdict | Overridable |
 |---|---|---|---|
-| 1 | `SEC-*` secret paths | **blocks** | never |
+| 1 | `SEC-*` secret paths | **observes** — permitted, recorded | n/a |
 | 2 | `DB-*` catastrophic bash | **blocks** | mostly not |
 | 3 | `GIT-REWRITE` / `GIT-FORCE-PROTECTED` | **blocks** | with a written justification |
 | 4 | `PRV-*` privileged commands | **observes** — permitted, recorded | n/a |
 | 5 | `FS-*` write surface — writes outside cwd and the session temp dir | **observes** — permitted, recorded | n/a |
 | 6 | `RTE-*` agent routing / specialist match | **observes** — permitted, recorded | n/a |
 
-Gate 1 has no config key and no justification path. A permission layer whose strongest rule has an
-escape hatch has no strongest rule — and now that gates 4-6 cannot refuse anything, gate 1 is also
-the *only* thing left that can catch a credential-directory `cd` followed by a bare filename read.
+Gate 1 stays first in the order even though it no longer blocks: order decides which id a match is
+*reported* under, and "touched a credential path" is a more informative record than whatever a later
+gate noticed about the same command.
 
-Gates 4-6 write a `guard.observed` audit entry — same shape as `guard.block`, plus what was seen —
-every time they fire, and nothing they see is returned to the model. "Remove the enforcement, keep
-the observability" was the explicit instruction: a form that stops being recorded is a regression
-this tree's tests still fail on, even though nothing stops it from running. Ordinary git —
+### Credential reads are no longer refused { #credential-reads-are-no-longer-refused }
+
+A tool call may now read a credential file — an SSH private key, `~/.aws/credentials`, a `.env`, the
+agent's own `auth.json` — and its contents land in the model's context and are therefore sent to
+whichever provider serves the next turn. **There is no runtime control in this repository that
+prevents this.** Not a weakened one. None. Specifically:
+
+- The committed-secrets scrub rule (`PC-06`, run by `pi-check --all`) scans what git tracks for
+  secret-shaped literals. It is a **push-time** gate and it protects the **repository**, not the
+  model's context. It cannot see a value that was read into a turn and never written to a tracked
+  file, and it is not a substitute for the gate.
+- The OS-level sandbox package is declared in `config/packages.lock.json` and installed, but
+  **nothing imports it** — it is on no runtime path here. Even once wired, its read-deny is
+  documented as explicitly not a hard block, so it would not close this either.
+
+What remains is the `guard.observed` record in the session transcript, and whoever reads it
+afterwards. Detection is unchanged — the same pattern table, still tested by id — so the record tells
+you exactly which credential path was touched. It just tells you after the fact.
+
+Re-enforcing is a one-line change in `extensions/guard/gates/secret-paths.ts`, back from `observe`
+to `denyWithEscapeHatch`. The table it would enforce is still there.
+
+The four observing gates write a `guard.observed` audit entry — same shape as `guard.block`, plus
+what was seen — every time they fire, and nothing they see is returned to the model. "Remove the
+enforcement, keep the observability" was the explicit instruction: a form that stops being recorded
+is a regression this tree's tests still fail on, even though nothing stops it from running. Ordinary git —
 `reset --hard`, `branch -D`, `clean -fd`, `checkout -- .`, a force-push to a branch outside
 `protectedBranches` — is not gated *or* recorded at all; it was judged genuinely ordinary, not merely
 tolerated.
@@ -251,9 +279,10 @@ Stated plainly, because implied enforcement is worse than none.
 | **Egress classes are not a network boundary — and since 2026-08-13 they are not a refusal either** | Nothing intercepts a socket, and nothing refuses a dispatch on account of a class any more. `egress` is a word from `routing.json` printed beside every model and agent. If you need a real boundary, build one at the network layer |
 | **`path-defaults`' per-channel policy is declarative** | It computes and exports a value for other modules to honour at their own call sites. A tree with no such wiring enforces nothing from that channel |
 | **A process that already started** | The guard gates tool calls. It does not contain a running process, its children, or what it does to the filesystem |
-| **Any program, by name, at all** | There is no allowlist and no denylist keyed on program name any more. `sh`, `env`, `xargs`, `ssh`, `sudo`, `curl` — everything runs headless, with no prompt, unless the *command shape* it is used for matches `SEC-*`/`DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` |
+| **Any program, by name, at all** | There is no allowlist and no denylist keyed on program name any more. `sh`, `env`, `xargs`, `ssh`, `sudo`, `curl` — everything runs headless, with no prompt, unless the *command shape* it is used for matches `DB-*`/`GIT-REWRITE`/`GIT-FORCE-PROTECTED` |
+| **A credential reaching the model's context** | Since 2026-08-15 `SEC-*` records a credential-path read and permits it. Nothing at runtime stops the file's contents from being sent to the provider — see [above](#credential-reads-are-no-longer-refused) |
 | **A write expressed inside a program's own argument text** | `FS-*` reads the command as text, and even where it matches it only records, it does not refuse. `python3 -c`, `node -e`, `awk '{print > "…"}'`, a `make` target or a `$( )` subshell hides the destination where no static check can follow it. These are ordinary commands, not exotic ones |
-| **`PRV-*`/`FS-*`/`RTE-*` refusing anything** | All three are audit-only since 2026-08-14. They write a record; they do not ask permission and they do not block |
+| **`SEC-*`/`PRV-*`/`FS-*`/`RTE-*` refusing anything** | `PRV`, `FS` and `RTE` are audit-only since 2026-08-14, `SEC` since 2026-08-15. All four write a record; they do not ask permission and they do not block |
 | **Model quality** | A small model emits malformed tool JSON at a materially higher rate, and PI exposes no repair-retry knob. That is a routing decision, not a safety one |
 | **Prompt injection from fetched content** | Nothing here classifies retrieved text. The `web_fetch` result is data the model reads |
 

@@ -126,10 +126,12 @@ below before you decide what to run this against.
 The guard also does not contain a process that already started. See
 [Safety model](concepts/safety-model.md#what-this-does-not-protect-you-from).
 
-What still stops a headless run, with no config and no override: `SEC-*` (credential paths),
-`DB-*` (eight catastrophic shapes — `rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect onto a
-raw disk, `chmod -R 777 /`, `curl … | sh`, shutdown), and two `GIT-*` rules
-(`GIT-REWRITE`, `GIT-FORCE-PROTECTED`). Nothing else in the guard can refuse a bash command, and
+What still stops a headless run, with no config and no override: `DB-*` (eight catastrophic shapes —
+`rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect onto a raw disk, `chmod -R 777 /`,
+`curl … | sh`, shutdown), and two `GIT-*` rules (`GIT-REWRITE`, `GIT-FORCE-PROTECTED`). `SEC-*`
+(credential paths) was on that list until 2026-08-15 and is now audit-only: a credential read is
+recorded and permitted, and its contents reach the provider serving the next turn — see
+[Safety model](concepts/safety-model.md#credential-reads-are-no-longer-refused). Nothing else in the guard can refuse a bash command, and
 nothing prompts — a UI present or absent makes no difference. `PI_GUARD_APPROVE` and
 `PI_GUARD_SESSION_ALLOWLIST` are removed rather than left inert; if you see either name anywhere in
 an older note, it is stale.

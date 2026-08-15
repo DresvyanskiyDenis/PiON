@@ -10,7 +10,10 @@ import { buildRules, GUARD_VERSION, id, register } from "../../extensions/guard.
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { bashEvent, fakeCtx, recorder, testPolicy } from "./helpers.ts";
 
-/** The six gates, in order. `ALW` was the seventh until the 2026-08-14 deny-list inversion. */
+/** The six gates, in order. `ALW` was the seventh until the 2026-08-14 deny-list inversion. Two of
+ *  these block (`DB`, `GIT`); the other four only observe. `SEC` keeps its leading position after
+ *  the 2026-08-15 demotion because order still decides which id a match is reported under, and a
+ *  credential path is the more informative answer than whatever a later gate noticed. */
 const GATES = ["SEC", "DB", "GIT", "PRV", "FS", "RTE"];
 
 type Handler = (
@@ -160,7 +163,7 @@ describe("guard.register", () => {
     assert.equal(process.getActiveResourcesInfo().length, before);
   });
 
-  it("gate order is the policy: the three that block first, the three that only observe last", () => {
+  it("gate order is the policy: cheapest and most absolute first", () => {
     const rec = recorder();
     assert.deepEqual(buildRules(testPolicy(), rec.services).map((r) => r.id), GATES);
   });
@@ -171,22 +174,27 @@ describe("guard.register", () => {
     assert.equal(ids.includes("ALW"), false);
   });
 
-  it("F2: SEC and DB fail CLOSED on an internal error; GIT/PRV/FS/RTE stay on the shared default", () => {
+  it("F2: only DB fails CLOSED on an internal error; SEC/GIT/PRV/FS/RTE stay on the shared default", () => {
+    // `SEC` carried `"closed"` until 2026-08-15, when it stopped blocking. The reasoning that put
+    // it there — "this rule's absence IS the unsafe state" — inverted with the demotion: a gate
+    // that cannot refuse anything has nothing to protect by refusing everything, so a bug in it
+    // would buy an outage for one missing audit line. `DB` still blocks, so it still fails closed.
     const rec = recorder();
     const byId = new Map(buildRules(testPolicy(), rec.services).map((r) => [r.id, r]));
-    assert.equal(byId.get("SEC")?.onInternalError, "closed");
     assert.equal(byId.get("DB")?.onInternalError, "closed");
-    for (const id of ["GIT", "PRV", "FS", "RTE"]) {
+    for (const id of ["SEC", "GIT", "PRV", "FS", "RTE"]) {
       assert.equal(byId.get(id)?.onInternalError, undefined, id);
     }
   });
 
-  it("F2: the credential gate fails CLOSED, not open, when it throws internally end-to-end", async () => {
+  it("REQ-EXT-16: a throwing audit-only gate does NOT refuse the call, and still reports every time", async () => {
     const { pi, handlers } = fakePi();
     register(pi);
     // A malformed `ctx.cwd` (not a string) makes `collectTargets`'s `path.resolve` throw —
     // exactly the class of internal error REQ-EXT-16 describes, reachable through SEC's real
-    // code path rather than a synthetic injected rule.
+    // code path rather than a synthetic injected rule. Before 2026-08-15 this refused the call;
+    // now the bug costs the SEC audit line for that call and nothing else, which is the whole
+    // point of not failing closed in a gate that cannot block.
     const brokenCtx = {
       hasUI: false,
       mode: "print",
@@ -195,10 +203,9 @@ describe("guard.register", () => {
     } as unknown as ReturnType<typeof fakeCtx>;
 
     const first = await handlers[0]!(bashEvent("cat foo.txt"), brokenCtx);
-    assert.equal(first?.block, true, "SEC must refuse the call, not silently allow it");
-    assert.match(first?.reason ?? "", /^SEC: guard unavailable \(internal error\)/);
+    assert.notEqual(first?.block, true, "an audit-only gate's bug must not refuse the tool call");
 
     const second = await handlers[0]!(bashEvent("cat bar.txt"), brokenCtx);
-    assert.equal(second?.block, true, "the SECOND occurrence must still refuse, not go quiet");
+    assert.notEqual(second?.block, true, "and must not start refusing on the second occurrence");
   });
 });

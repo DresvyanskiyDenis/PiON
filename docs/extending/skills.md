@@ -107,9 +107,11 @@ Two rules for skills that ship code:
 
 !!! note "The exported directory is the *real* path, symlinks resolved"
     `~/.pi/agent/skills` is an install symlink. Left unresolved, every exported directory would
-    contain the literal `.pi/agent/`, and the guard's `SEC-PI-STATE` rule refuses any read built
-    from that path — an unoverridable rule, so the skill would simply never work. `skills-env`
-    resolves to the physical path before exporting, which is why you can ignore all of this.
+    contain the literal `.pi/agent/`, and the guard's `SEC-PI-STATE` rule matches any path built
+    from that — which, before the rule became audit-only on 2026-08-15, refused the read outright
+    and meant the skill simply never worked. It now records instead, so the same shape would fill
+    the audit log with a finding about ordinary skill files. `skills-env` resolves to the physical
+    path before exporting, which is why you can ignore all of this.
 
 ---
 

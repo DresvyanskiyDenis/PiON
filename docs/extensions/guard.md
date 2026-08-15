@@ -6,7 +6,7 @@ primitive. This module is the policy on top of it.
 Configured by [`config/guard.json`](../configuration/guard.md), which is where you should go for the
 key-by-key reference and for the consequences of relaxing anything.
 
-## Six gates, three that block and three that only observe
+## Six gates, two that block and four that only observe
 
 **2026-08-14 — the deny-list inversion.** This used to be seven gates ending in a program allowlist
 (`ALW-*`) that refused headless by default and confirmed in the TUI. That gate is gone as a concept,
@@ -14,26 +14,30 @@ along with the escalation variable and the session-inheritance mechanism (`PI_GU
 that existed only to widen it — deciding safety by *program name* never worked well, and what
 replaced it is a small, fixed set of catastrophic command shapes, decided by code rather than by
 config. Three of the remaining gates were downgraded from blocking to audit-only in the same
-change: they still see everything, they just no longer refuse anything. The order is still the
-policy — cheap and absolute first, the ones that can only record last.
+change: they still see everything, they just no longer refuse anything. **On 2026-08-15 `SEC` was
+downgraded the same way** — it was the last gate blocking for a reason other than destruction, and
+by owner decision the rule applies to it too: only catastrophic commands block, and reading a file
+is not catastrophic. Two gates block; four observe. The order is still the policy — cheap and
+absolute first, so a match is reported under the most informative id.
 
 | Order | Gate | Rule ids | Verdict |
 |---|---|---|---|
-| 1 | secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-KEY`, `SEC-AWS`, `SEC-AWS-CRED`, `SEC-CREDJSON`, `SEC-SECRETSDIR`, `SEC-SESSION`, `SEC-TOKENCACHE`, `SEC-PI-AUTH`, `SEC-PI-SECRETS`, `SEC-PI-STATE`, `SEC-QUOTA-TOKEN`, `SEC-QUOTA-PAT` | **blocks, never overridable** |
+| 1 | secret paths | `SEC-SSH`, `SEC-PEM`, `SEC-ENV`, `SEC-KEY`, `SEC-AWS`, `SEC-AWS-CRED`, `SEC-CREDJSON`, `SEC-SECRETSDIR`, `SEC-SESSION`, `SEC-TOKENCACHE`, `SEC-PI-AUTH`, `SEC-PI-SECRETS`, `SEC-PI-STATE`, `SEC-QUOTA-TOKEN`, `SEC-QUOTA-PAT` | **observes only** — permitted, recorded |
 | 2 | dangerous bash | `DB-RM-ROOT`, `DB-MKFS`, `DB-DD-DISK`, `DB-FORKBOMB`, `DB-CURL-SH`, `DB-SHUTDOWN`, `DB-CHMOD-777`, `DB-REDIR-DISK` | blocks, mostly not overridable |
 | 3 | destructive git | `GIT-REWRITE`, `GIT-FORCE-PROTECTED` | blocks, overridable with a written justification |
 | 4 | privileged commands | `PRV-SUDO`, `PRV-CHMOD-777`, `PRV-PKILL-9`, `PRV-KILLALL` | **observes only** — permitted, recorded |
 | 5 | write surface | `FS-OUTSIDE`, `FS-UNRESOLVED` — a bash write whose target is outside the working directory and the session temp dir, or cannot be shown to be inside | **observes only** — permitted, recorded |
 | 6 | agent routing | `RTE-*` — a generic agent dispatched where a specialist matches the prompt | **observes only** — permitted, recorded |
 
-Gate 1 is absolute by construction. There is no config key and no justification that opens a secret
-path — a permission layer whose strongest rule has an escape hatch has no strongest rule. It is also
-the *only* gate a headless run cannot get past by any means, now that gates 4-6 cannot refuse at
-all: it is what stops `cd ~/.aws && cat credentials`, and there is nothing behind it to catch what
-it misses.
+Gate 1 no longer stops anything. `cd ~/.aws && cat credentials` runs, and the AWS credentials land
+in the model's context and go to the provider serving the next turn; the `SEC-AWS` record is the
+whole of what is left. **No runtime control in this repository prevents that** — the committed-secrets
+scrub rule is push-time and protects the repository, not the context, and the OS-level sandbox
+package is declared but imported by nothing. The consequence in full, and the one-line path back to
+enforcement, are in [Safety model](../concepts/safety-model.md#credential-reads-are-no-longer-refused).
 
-Gates 4-6 write a `guard.observed` audit entry — same shape as a `guard.block` entry, plus what was
-seen — every time they fire. Removing enforcement did not remove observability: a form that stopped
+The four observing gates write a `guard.observed` audit entry — same shape as a `guard.block` entry,
+plus what was seen — every time they fire. Removing enforcement did not remove observability: a form that stopped
 being recorded after this change is a regression, not a simplification. `git reset --hard`,
 `git branch -D`, `git clean -fd`, `git checkout -- .` and an ordinary force-push (to a branch outside
 `protectedBranches`) are no longer gated *or* recorded at all — those are treated as ordinary git,

@@ -30,8 +30,11 @@ command you just typed may surface a real error, because silence would read as s
 A **separate, read-only credential**, never the chat token. Stored `0600` at the path in
 `quota.json`.
 
-The guard's `SEC-QUOTA-TOKEN` rule denies any path ending `quota-token.json`, with no override — so
-the agent cannot read the file even if asked directly.
+The guard's `SEC-QUOTA-TOKEN` rule matches any path ending `quota-token.json`. Since 2026-08-15 that
+match is **recorded, not refused**: the agent can read the file if asked, and the record in the
+session transcript is the only trace. The `0600` mode and the read-only scope are what actually
+limit the damage — see
+[Safety model](../concepts/safety-model.md#credential-reads-are-no-longer-refused).
 
 A classic personal access token with a read-only user scope is required. A fine-grained token is
 **rejected by the usage endpoint**, which is worth knowing before you spend twenty minutes creating

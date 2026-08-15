@@ -139,11 +139,12 @@ one-liner asked for in place.
 
 ## Work
 
-- Blocked by the guard? It is one of four things, and nothing else blocks any more: `SEC-*`
-  (credential paths — no override, ever, so change the approach rather than retrying), `DB-*` (eight
+- Blocked by the guard? It is one of three things, and nothing else blocks any more: `DB-*` (eight
   catastrophic shapes — `rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect onto a raw disk,
   `chmod -R 777 /`, `curl … | sh`, shutdown), `GIT-REWRITE` (`filter-repo`/`filter-branch`), or
-  `GIT-FORCE-PROTECTED` (force-push onto `main`/`master`). Everything else runs — `sudo`, `ssh`,
+  `GIT-FORCE-PROTECTED` (force-push onto `main`/`master`). `SEC-*` (credential paths) blocked until
+  2026-08-15 and now only records — do not read a credential file on the strength of that; the
+  contents go to the provider serving the next turn. Everything else runs — `sudo`, `ssh`,
   `curl`, `make`, `terraform`, `python3 -c`, a write anywhere on disk, any binary on `PATH` — with no
   prompt and no approval, headless included. For the two `GIT-*` rules and two of the `DB-*` ones,
   re-issue the identical command with a `# PI-JUSTIFY(<gate-id>): <one sentence>` line prepended; the

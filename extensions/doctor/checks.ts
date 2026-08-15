@@ -185,6 +185,39 @@ function splitModelRef(ref: string): { provider: string; id: string } {
   return { provider: ref.slice(0, i), id: ref.slice(i + 1) };
 }
 
+/**
+ * The one place a `routing.json` model reference is turned into a registry entry.
+ *
+ * A tier's reasoning effort travels inside the model string — `provider/id:high` — and
+ * `dispatch/tiers.ts` puts it there itself from `thinkingLevel`. The model registry is keyed by the
+ * BARE `provider/id`, so the suffix comes off before the lookup, exactly as `dispatch/tiers.ts` and
+ * `dispatch/registry.ts` already do it. Asking the registry about the suffixed string reports a
+ * well-configured tier as unresolved — an invented error in the one tool whose job is to say
+ * whether the configuration is sound.
+ *
+ * `checkModels` and `buildReport` both need this and would otherwise carry two copies: a divergence
+ * between them would mean `/doctor`'s summary line and its `D-04` findings disagree about the same
+ * tier, which is worse than either being wrong alone.
+ */
+function resolveModelRef(ref: string, available: readonly ModelRef[]): ModelRef | undefined {
+  const { provider, id } = splitModelRef(splitThinkingSuffix(ref).baseModel);
+  return available.find((m) => m.provider === provider && m.id === id);
+}
+
+/** Every `provider/id` the routing tiers point at, model and fallback alike, deduplicated and in
+ *  declaration order. Unresolved refs are skipped — `D-04` is what reports those. */
+function referencedModels(inputs: DoctorInputs): ModelRef[] {
+  const seen = new Map<string, ModelRef>();
+  for (const t of inputs.routingTiers) {
+    for (const ref of [t.modelRef, t.fallbackRef]) {
+      if (ref === undefined) continue;
+      const match = resolveModelRef(ref, inputs.availableModels);
+      if (match !== undefined) seen.set(`${match.provider}/${match.id}`, match);
+    }
+  }
+  return [...seen.values()];
+}
+
 /** `D-04` — every `routing.json` tier's model (and `fallback`, if the field is ever reintroduced)
  *  resolves in the model registry. Unknown id -> error, UNLESS the tier is `optional` (audit 25:
  *  a colleague missing a local-provider setup must still start) -> warn. Known but uncredentialed
@@ -193,19 +226,8 @@ export function checkModels(inputs: DoctorInputs): Finding[] {
   const findings: Finding[] = [];
   const available = inputs.availableModels;
 
-  // A tier's reasoning effort travels inside the model string — `provider/id:high` — and
-  // `dispatch/tiers.ts` puts it there itself from `thinkingLevel`. The model registry is keyed by
-  // the BARE `provider/id`, so the suffix comes off before the lookup, exactly as
-  // `dispatch/tiers.ts` and `dispatch/registry.ts` already do it. Asking the registry about the
-  // suffixed string reports a well-configured tier as unresolved — an invented error in the one
-  // tool whose job is to say whether the configuration is sound.
-  const resolve = (ref: string): ModelRef | undefined => {
-    const { provider, id } = splitModelRef(splitThinkingSuffix(ref).baseModel);
-    return available.find((m) => m.provider === provider && m.id === id);
-  };
-
   const checkRef = (tier: string, ref: string, label: "model" | "fallback", optional: boolean) => {
-    const match = resolve(ref);
+    const match = resolveModelRef(ref, available);
     if (match === undefined) {
       findings.push(
         finding(
@@ -410,7 +432,12 @@ export function runAllChecks(inputs: DoctorInputs, opts?: RunAllOptions): Findin
  *  from the same `DoctorInputs` the checks ran against. Pure — `doctor.ts` supplies live data,
  *  tests supply fixtures. */
 export function buildReport(inputs: DoctorInputs, findings: readonly Finding[]): DoctorReport {
-  const uncredentialed = inputs.availableModels.filter((m) => !m.credentialed).map((m) => `${m.provider}/${m.id}`);
+  // NOT `availableModels.filter(m => !m.credentialed)` — that is the registry's uncredentialed
+  // tail, which this configuration never asked for and which nothing is missing. See the `models`
+  // field's docstring in `types.ts` for the label that mistake produced.
+  const referencedWithoutCredential = referencedModels(inputs)
+    .filter((m) => !m.credentialed)
+    .map((m) => `${m.provider}/${m.id}`);
   const packagesResolved = inputs.packages.filter((p) => p.installedVersion !== undefined).length;
   const packagesAbsent = inputs.packages.filter((p) => p.installedVersion === undefined).map((p) => p.name);
   const packagesMismatch = inputs.packages
@@ -436,7 +463,11 @@ export function buildReport(inputs: DoctorInputs, findings: readonly Finding[]):
       selfTestPatternId: inputs.guard.selfTestPatternId,
       selfTestOk: inputs.guard.selfTestPatternId === EXPECTED_GUARD_SELF_TEST_PATTERN_ID,
     },
-    models: { available: inputs.availableModels.length, uncredentialed },
+    models: {
+      inRegistry: inputs.availableModels.length,
+      usableHere: inputs.availableModels.filter((m) => m.credentialed).length,
+      referencedWithoutCredential,
+    },
     hooks: inputs.hooksDegradedReason !== undefined ? { degradedReason: inputs.hooksDegradedReason } : {},
     packages: {
       declared: inputs.packages.length,

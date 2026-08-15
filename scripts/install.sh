@@ -1960,7 +1960,7 @@ printf '\nWhat you now have:\n'
 printf '   providers    %s\n' "$SELECTED"
 printf '   pi           %s (%s), at %s/pi\n' "$PI_VERSION_EXPECTED" "$( [ "$SKIP_RUNTIME" = 1 ] && printf untouched || printf '%s' "$MODE" )" "$BIN_DIR"
 printf '   live config  %s -> %s\n' "$AGENT_DIR" "$STABLE_LINK"
-printf '   safety       SEC-*/DB-*/GIT-REWRITE/GIT-FORCE-PROTECTED always refuse; protected branches: %s\n' "$(ans_get guard.protectedBranches)"
+printf '   safety       DB-*/GIT-REWRITE/GIT-FORCE-PROTECTED always refuse; SEC-* records credential paths without refusing them; protected branches: %s\n' "$(ans_get guard.protectedBranches)"
 # Read back from the file rather than reported from the answer: on a re-run the MCP step stands
 # down (mcp.json is already yours), so $MCP_PICKED is empty even though servers are configured,
 # and a summary that then says "none" is simply wrong.

@@ -10,8 +10,9 @@
  * Writing outside the project is not catastrophic — it is how a `~/.config` edit, a
  * `/usr/local/bin` install and a `brew`-managed file all get written. The genuinely unrecoverable
  * write shapes are matched one gate earlier and still refuse with no override: `DB-RM-ROOT`,
- * `DB-DD-DISK`, `DB-REDIR-DISK`, `DB-MKFS`. `SEC-*` still refuses every credential path, on read
- * and on write, ahead of both.
+ * `DB-DD-DISK`, `DB-REDIR-DISK`, `DB-MKFS`. `SEC-*` used to refuse every credential path ahead of
+ * both; since 2026-08-15 it only records them, so a write into a credential path is now observed
+ * twice and refused by neither.
  *
  * ## Why it is kept as an observer rather than deleted
  *

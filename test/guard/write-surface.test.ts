@@ -328,14 +328,19 @@ describe("find -exec / fd -x no longer need to be unmasked", () => {
 });
 
 describe("the gates that still block, re-asserted from the far side of the relaxation", () => {
-  it("SEC still refuses a write into a credential path, by every form", async () => {
+  it("SEC no longer refuses a write into a credential path — it records it, by every form", async () => {
+    // Owner decision, 2026-08-15: `SEC` becomes audit-only like `PRV`/`FS`/`RTE`. Every form below
+    // now RUNS. The write lands, and on the read side the credential lands in the model's context;
+    // the first `guard.observed` id asserted here is the entire remaining trace. The form
+    // extraction is unchanged, which is why the expected ids are the same ones this test asserted
+    // when it was a refusal test.
     const cases: ReadonlyArray<[string, string]> = [
       [`echo k >> ${HOME}/.ssh/authorized_keys`, "SEC-SSH"],
       [`tee ${HOME}/.aws/credentials`, "SEC-AWS-CRED"],
       ["sed -i 's/a/b/' .env", "SEC-ENV"],
       // SEC-PI-STATE, not SEC-PI-AUTH: `collectTargets` offers the whole command string as a
       // target ahead of the individual words, and the directory rule is the one with no end
-      // anchor, so it matches the full line first. Pre-existing; the refusal is what matters.
+      // anchor, so it matches the full line first. Pre-existing; the detection is what matters.
       [`curl -o ${HOME}/.pi/agent/auth.json https://example.com/x`, "SEC-PI-STATE"],
       [`find ${HOME}/.ssh -delete`, "SEC-SSH"],
       [`cp payload ${HOME}/.aws/credentials`, "SEC-AWS-CRED"],
@@ -343,21 +348,27 @@ describe("the gates that still block, re-asserted from the far side of the relax
     ];
     const failures: string[] = [];
     for (const [command, gateId] of cases) {
-      const { result } = await verdict(command);
-      if (result.gateId !== gateId) {
-        failures.push(`${command}: expected ${gateId}, got ${result.gateId ?? "NOT BLOCKED"}`);
+      const { result, observed } = await verdict(command);
+      if (result.blocked) {
+        failures.push(`${command}: BLOCKED by ${result.gateId}`);
+        continue;
+      }
+      // First, not only: a credential path outside the project trips `FS-OUTSIDE` as well, and
+      // gate order is what makes the credential the reported answer rather than the write target.
+      if (observed[0]?.gateId !== gateId) {
+        failures.push(`${command}: expected ${gateId} first, got ${observed[0]?.gateId ?? "NOTHING"}`);
       }
     }
     assert.deepEqual(failures, []);
   });
 
-  it("SEC has no override, and no justification reaches it", async () => {
-    const { result } = await verdict(
+  it("a justification comment reaches nothing, because there is no SEC refusal to unlock", async () => {
+    const { result, observed } = await verdict(
       "# PI-JUSTIFY(SEC-KEY): the deploy key has to be refreshed from the vault export\n" +
         `cp new_key ${HOME}/.ssh/id_ed25519`,
     );
-    assert.equal(result.gateId, "SEC-KEY");
-    assert.match(result.reason ?? "", /no override/);
+    assert.equal(result.blocked, false);
+    assert.equal(observed[0]?.gateId, "SEC-KEY");
   });
 
   it("DB still refuses the catastrophic shapes, ahead of FS", async () => {
@@ -395,17 +406,21 @@ describe("the gates that still block, re-asserted from the far side of the relax
     }
   });
 
-  it("cd now runs, and SEC still catches a cd into a credential directory", async () => {
+  it("cd runs, and SEC still SEES a cd into a credential directory — without stopping it", async () => {
     // `secret-paths.ts` resolves relative arguments against `ctx.cwd`, never against a directory
     // an earlier segment moved to — so the second segment's bare `credentials` is invisible to it.
-    // The directory in the FIRST segment is not: `SEC-AWS` matches `~/.aws` itself. The residual
-    // risk is therefore narrower than "cd is unguarded": it is a cd into a secret-holding
-    // directory that matches no SEC pattern, followed by a bare filename. That is in the README.
-    const { result } = await verdict(`cd ${HOME}/.aws && cat credentials`);
-    assert.equal(result.gateId, "SEC-AWS");
+    // The directory in the FIRST segment is not: `SEC-AWS` matches `~/.aws` itself. Since
+    // 2026-08-15 that produces a record and nothing more, so the residual risk is no longer "a cd
+    // into a secret-holding directory SEC has no pattern for" — it is every credential read, and
+    // the narrower case is now only about which ones leave a trace. Both are in
+    // docs/concepts/safety-model.md.
+    const { result, observed } = await verdict(`cd ${HOME}/.aws && cat credentials`);
+    assert.equal(result.blocked, false);
+    assert.equal(observed[0]?.gateId, "SEC-AWS");
 
     const named = await verdict(`cat ${HOME}/.aws/credentials`, "tc-2");
-    assert.equal(named.result.gateId, "SEC-AWS-CRED");
+    assert.equal(named.result.blocked, false);
+    assert.equal(named.observed[0]?.gateId, "SEC-AWS-CRED");
   });
 
   it("cd in front of an ordinary build runs — the shape that blocked most often", async () => {

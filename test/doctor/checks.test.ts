@@ -462,10 +462,60 @@ describe("buildReport", () => {
     assert.equal(report.tools.count, 3);
     assert.equal(report.servers.count, 2);
     assert.equal(report.guard.selfTestOk, true);
-    assert.equal(report.models.available, 2);
-    assert.deepEqual(report.models.uncredentialed, ["databricks/x"]);
+    assert.equal(report.models.inRegistry, 2);
+    assert.equal(report.models.usableHere, 1);
+    // `databricks/x` is uncredentialed and is NOT listed: no tier references it, so it is a
+    // registry entry this configuration never asked for. The old field reported it as
+    // "declared-but-uncredentialed", which was wrong on both words.
+    assert.deepEqual(report.models.referencedWithoutCredential, []);
     assert.equal(report.packages.declared, 2);
     assert.equal(report.packages.resolved, 1);
     assert.deepEqual(report.packages.absent, ["b"]);
+  });
+
+  it("lists a model only when a routing tier references it AND it has no credential", () => {
+    const inputs = baseInputs({
+      availableModels: [
+        { provider: "github-copilot", id: "claude-opus-5", credentialed: true },
+        { provider: "databricks", id: "referenced", credentialed: false },
+        { provider: "databricks", id: "merely-in-the-registry", credentialed: false },
+      ],
+      routingTiers: [
+        { tier: "strong", modelRef: "github-copilot/claude-opus-5", optional: false },
+        { tier: "confidential", modelRef: "databricks/referenced", optional: false },
+      ],
+    });
+    const report = buildReport(inputs, runAllChecks(inputs));
+    assert.equal(report.models.inRegistry, 3);
+    assert.equal(report.models.usableHere, 1);
+    assert.deepEqual(report.models.referencedWithoutCredential, ["databricks/referenced"]);
+  });
+
+  it("strips the thinking suffix and reads fallback refs — the same normalisation D-04 uses", () => {
+    // The two must agree: a summary line that disagrees with the D-04 finding about the same tier
+    // is worse than either being wrong alone, which is why the normalisation is one function.
+    const inputs = baseInputs({
+      availableModels: [
+        { provider: "github-copilot", id: "gpt-5.6-terra", credentialed: false },
+        { provider: "local", id: "unsloth/Qwen3.6-35B", credentialed: false },
+      ],
+      routingTiers: [
+        {
+          tier: "fast",
+          modelRef: "github-copilot/gpt-5.6-terra:high",
+          fallbackRef: "local/unsloth/Qwen3.6-35B",
+          optional: false,
+        },
+      ],
+    });
+    const report = buildReport(inputs, runAllChecks(inputs));
+    assert.deepEqual(report.models.referencedWithoutCredential, [
+      "github-copilot/gpt-5.6-terra",
+      "local/unsloth/Qwen3.6-35B",
+    ]);
+    // D-04 already diagnoses each tier; the summary is a count, not a second copy of the finding.
+    const d04 = report.findings.filter((f) => f.check === "D-04");
+    assert.equal(d04.length, 2);
+    assert.ok(d04.every((f) => f.severity === "warn"));
   });
 });
