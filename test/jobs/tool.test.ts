@@ -17,6 +17,7 @@ import {
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { ensureJobsRoot, isProcessAlive, listJobs, readState, writeState, type JobState } from "../../extensions/jobs/store.ts";
 
+type CommandDefinition = { description: string; handler: (args: string, ctx: never) => Promise<void> };
 type Handler = (event: unknown, ctx: ExtensionContext) => Promise<void> | void;
 
 interface SentMessage {
@@ -30,14 +31,17 @@ function fakePi(): {
   pi: ExtensionAPI;
   handlers: Map<string, Handler>;
   tools: Map<string, ToolDefinition>;
+  commands: Map<string, CommandDefinition>;
   sent: SentMessage[];
 } {
   const handlers = new Map<string, Handler>();
   const tools = new Map<string, ToolDefinition>();
+  const commands = new Map<string, CommandDefinition>();
   const sent: SentMessage[] = [];
   const pi = {
     on: (event: string, handler: Handler) => void handlers.set(event, handler),
     registerTool: (tool: ToolDefinition) => void tools.set(tool.name, tool),
+    registerCommand: (name: string, command: CommandDefinition) => void commands.set(name, command),
     sendMessage: (
       message: { customType: string; content: Array<{ text?: string }> },
       options?: { deliverAs?: string; triggerTurn?: boolean },
@@ -50,7 +54,7 @@ function fakePi(): {
       });
     },
   } as unknown as ExtensionAPI;
-  return { pi, handlers, tools, sent };
+  return { pi, handlers, tools, commands, sent };
 }
 
 function fakeCtx(
@@ -122,8 +126,9 @@ describe("job tool (EXT-24)", () => {
     else process.env.XDG_STATE_HOME = prevXdg;
   });
 
-  it("registers one tool and the three lifecycle handlers", () => {
+  it("registers one tool, one operator command and the three lifecycle handlers", () => {
     assert.deepEqual([...harness.tools.keys()], ["job"]);
+    assert.deepEqual([...harness.commands.keys()], ["jobs"], "/jobs is the operator-facing browser");
     assert.deepEqual(
       [...harness.handlers.keys()].sort(),
       ["agent_settled", "agent_start", "session_shutdown", "session_start", "turn_end"],

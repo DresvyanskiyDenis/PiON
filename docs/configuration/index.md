@@ -122,7 +122,7 @@ Task-shaped versions of these, with the commands, live in the
 | [`trusted-roots.json`](paths-and-trust.md), [`path-defaults.json`](paths-and-trust.md) | **yes** | which filesystem roots are auto-trusted, and the single default tier/egress policy |
 | [`web.json`](tools.md#web), [`web-search.json`](tools.md#web) | **yes** | search backend, SSRF policy, cookie policy, tool names |
 | [`quota.json`](sessions.md#quotajson) | **yes** | quota metering for metered providers |
-| [`subagent.json`](../extending/subagents.md#concurrency-limits-what-each-one-actually-bounds) | **yes** | `pi-subagents`' own per-batch concurrency cap, plus the now-dormant legacy `parallel` keys |
+| [`subagent.json`](../extending/subagents.md#concurrency-limits-what-each-one-actually-bounds) | **yes** | `pi-subagents`' own per-batch concurrency cap, the now-dormant legacy `parallel` keys, and an optional [`fleetKeybindings`](../extending/subagents.md#fleetkeybindings-one-block-two-views) block |
 | [`pi-lsp.json`](tools.md#pi-lspjson) | no | language servers |
 | [`shell/pi-env.sh`](environment.md) | no | environment, secret *references*, proxy, CA bundle |
 

@@ -31,6 +31,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 | `/teammates` | [teammates](teammates.md) |
 | `/index` | [session-index](session-index.md) |
 | `/ctx-dump` | [session-context](session-context.md) |
+| `/jobs` | [jobs](jobs.md) |
 
 | Tool | Module |
 |---|---|

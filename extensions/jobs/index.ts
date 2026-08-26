@@ -35,10 +35,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, formatSize, truncateTail } from "@earendil-works/pi-coding-agent";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
+import { openJobHistory } from "./history-view.ts";
 import { registerJobProviders } from "./registry.ts";
 import {
   AUTO_PRUNE_HOURS_ENV,
@@ -460,6 +461,22 @@ export function register(pi: ExtensionAPI): void {
             details: result,
           };
         }
+      }
+    },
+  });
+
+  /**
+   * The operator-facing half of this extension. `job(action=…)` is a tool the *model* calls;
+   * until now nothing let you look through detached jobs yourself. Read-only and silent — it
+   * opens an overlay, it never sends a message or triggers a turn. See `history-view.ts`.
+   */
+  pi.registerCommand("jobs", {
+    description: "Browse background jobs: history, status, exit code, stdout/stderr (read-only)",
+    handler: async (_args: string, ctx: ExtensionCommandContext) => {
+      try {
+        await openJobHistory(ctx);
+      } catch (err) {
+        report(ctx, "jobs:history", `[pi-config] jobs: /jobs failed: ${describeError(err)}`);
       }
     },
   });

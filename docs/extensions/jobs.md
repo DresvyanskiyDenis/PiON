@@ -52,6 +52,36 @@ not silently leave the wake switched on.
 `state.json`'s `finishedAt` is the process's real exit time, read from the `exit` file's mtime, not
 the moment something got round to looking.
 
+## Looking through them yourself — `/jobs`
+
+`job(action=…)` is a tool the *model* calls. `/jobs` is the half you drive: an overlay listing
+every job in the store newest-first with its id, kind, status, exit code, duration and age, and a
+detail pane you can scroll through its `stdout.log`, `stderr.log` and `cmd.sh`. Detached jobs are
+exactly the ones you cannot watch as they run, so this is the only way to see one mid-flight
+without asking the model to fetch it for you.
+
+Two properties are enforced in code, not left to good behaviour:
+
+- **Read-only.** Every read goes through `listJobsSync()`, which judges whether a job is still
+  alive without persisting the verdict. The ordinary `listJobs()` defaults to `reap: true` and
+  *writes*, so the browser never calls it. Log files are opened `"r"` and tail-read, 64 KiB at
+  most, with the leading partial line dropped rather than shown as if it were whole. There is no
+  delete, prune or kill key — `job(action="prune")` is still the way to remove anything.
+- **It never wakes the agent.** Opening the overlay sends no message, triggers no turn and calls
+  no tool, so browsing costs zero tokens. That is deliberately the opposite of what a *completion*
+  does one section up, and the two are not inconsistent: a finished job is a result nobody is awake
+  to read, so it wakes the agent; you looking through history is not a result, and the agent has no
+  reason to know you did it.
+
+`↑`/`↓` move, `Enter` opens a job, `o` cycles stdout → stderr → cmd, `K`/`J` scroll the detail
+pane, `r` refreshes, `Esc` closes. Those first movements are spelled exactly as the sub-agent
+package's fleet inspector spells them, so the `fleetKeybindings` block in `config/subagent.json`
+retunes `/jobs` and `/subagents-fleet` together — one place to rebind if your terminal swallows
+`PgUp`/`PgDn`. The three jobs-only actions (`Enter`, `o`, `←`) are bound to keys no terminal
+intercepts and need no such hatch.
+
+Outside the TUI the command says so and points at `job(action="list")` rather than failing.
+
 ## Cost
 
 One directory per job, on disk, until pruned. `session_start` auto-prunes finished jobs older than
@@ -60,5 +90,5 @@ clean up does not grow without bound. `job prune` is still a real command for pr
 sooner than that.
 
 ## Related
-[bash](bash.md) · [big-results](big-results.md) · [teammates](teammates.md) ·
+[bash](bash.md) · [big-results](big-results.md) · [teammates](teammates.md) · [dispatch](dispatch.md) ·
 [Configuration layout](../getting-started/config-layout.md#runtime-state)

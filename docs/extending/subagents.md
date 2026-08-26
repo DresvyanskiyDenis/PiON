@@ -276,6 +276,22 @@ The file is installed at `~/.pi/agent/extensions/subagent/config.json` — the o
 reads its own config from, and the one nested symlink the installer makes; see
 [Configuration layout](../getting-started/config-layout.md).
 
+### `fleetKeybindings` — one block, two views
+
+The same file takes an optional `fleetKeybindings` block, which is `pi-subagents`' escape hatch for
+a terminal that swallows a named key — `PgUp` and `PgDn` are the usual casualties:
+
+```json
+{ "fleetKeybindings": { "pageUp": ["ctrl+b"], "pageDown": ["ctrl+f"] } }
+```
+
+It retunes **both** navigable views: the package's own `/subagents-fleet` and this repository's
+[`/jobs`](../extensions/jobs.md#looking-through-them-yourself-jobs) browser, which spells its ten
+shared movements exactly as the package spells them so that one override reaches both. Only those
+ten are overridable from here; `/jobs`' three own actions are bound to bare letters no terminal
+intercepts, so they need no hatch. A malformed entry is ignored rather than applied — an override
+that silently unbound `close` would trap you inside an overlay.
+
 ---
 
 ## Verifying

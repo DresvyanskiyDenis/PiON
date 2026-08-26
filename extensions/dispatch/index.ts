@@ -281,10 +281,25 @@ export function register(pi: ExtensionAPI): void {
     }
   });
 
+  /**
+   * Kept, not retired, and deliberately **not** turned into a launcher for the fleet inspector.
+   *
+   * Its async section is not the duplicate it looks like: `renderAsyncFleet` prints *this
+   * extension's own* reconciliation verdicts (`async-fleet.ts:409`), which include a run that
+   * never wrote a status file at all — `NEVER STARTED`. `pi-subagents`' navigable inspector
+   * lists `listAsyncRuns`, so a run that never registered is exactly the one it cannot show.
+   * Folding this into that view would lose the only surface that reports it.
+   *
+   * What it genuinely was is the *discoverable* command that looked like a fleet view while the
+   * live, navigable ones stayed hidden. The trailer fixes that without deleting a diagnostic.
+   */
   pi.registerCommand("agents", {
     description: "Sub-agent registry: what can be dispatched, on what model, and what cannot",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
-      ctx.ui.notify(`${renderStatus(state, ctx.cwd)}${renderAsyncFleet(fleet)}`, "info");
+      const pointer =
+        "\n\nThis is a one-shot snapshot. For a live, navigable view: /subagents-fleet " +
+        "(subagents, running and past) or /jobs (detached background jobs).";
+      ctx.ui.notify(`${renderStatus(state, ctx.cwd)}${renderAsyncFleet(fleet)}${pointer}`, "info");
     },
   });
 }
