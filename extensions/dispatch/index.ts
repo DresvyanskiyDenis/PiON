@@ -90,6 +90,7 @@ import { reorderResultContent } from "./failure-slot.ts";
 import {
   createAsyncFleet,
   formatAnnouncement,
+  noteAsyncConsumption,
   noteAsyncSpawn,
   reconcile,
   renderAsyncFleet,
@@ -227,8 +228,11 @@ export function register(pi: ExtensionAPI): void {
   // handlers close that gap without duplicating any lifecycle — see `async-fleet.ts`.
   pi.on("tool_execution_end", (event) => {
     try {
-      if (!state.settings.dispatch.dispatchTools.includes(event.toolName)) return;
-      noteAsyncSpawn(fleet, event.result);
+      if (state.settings.dispatch.dispatchTools.includes(event.toolName)) noteAsyncSpawn(fleet, event.result);
+      // Every result, not just a dispatch tool's: the model inspects a finished run through
+      // `subagent_wait` (not a dispatch tool) and through a read of the run's own artifact just as
+      // often as through `subagent({action:"status"})`. Cheap when nothing is tracked.
+      noteAsyncConsumption(fleet, event.result);
     } catch (err) {
       surfaceOnce(undefined, "dispatch:async-track", () => {
         pi.appendEntry("dispatch_problem", { phase: "async-track", problem: describeError(err) });

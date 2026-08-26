@@ -15,6 +15,7 @@ import {
   NO_STATUS_GRACE_MS,
   createAsyncFleet,
   formatAnnouncement,
+  noteAsyncConsumption,
   noteAsyncSpawn,
   readAsyncRunState,
   reconcile,
@@ -262,5 +263,121 @@ describe("the status surface a failed async run reaches", () => {
 
   it("renders nothing when this session started no async run", () => {
     assert.equal(renderAsyncFleet(createAsyncFleet()), "");
+  });
+});
+
+/**
+ * The mirror regression, measured 2026-08-26: run `d0ebf2c7-f055-4165-80db-fc1e70bfd69e` was waited
+ * on, polled and read by the model, which then closed its todo — and two minutes later the
+ * announcement told it to "read the artifact above". The three tool results below are that run's
+ * real shapes, trimmed to the fields the reconciler reads.
+ */
+describe("noteAsyncConsumption — the run the model already read", () => {
+  const RUN = "d0ebf2c7-f055-4165-80db-fc1e70bfd69e";
+
+  const completeStatus = { runId: RUN, state: "complete", startedAt: 1, endedAt: 151_000, turnCount: 1 };
+
+  /** `subagent_wait`: names the run in its text, and carries no `details` beyond the mode. */
+  const waitResult = {
+    content: [
+      {
+        type: "text",
+        text: `Waited 2m31s for run "${RUN}"; done. Outcome: 1 complete. Completion/control events have been observed.`,
+      },
+    ],
+    details: { mode: "management", results: [] },
+  };
+
+  /** `subagent({action:"status"})`: names the run in its text, and starts nothing. */
+  const statusResult = {
+    content: [{ type: "text", text: `Run: ${RUN}\nState: complete\nProcess terminal: observed` }],
+    details: { mode: "single", results: [], lifecycleStatus: "complete" },
+  };
+
+  /** `ctx_read` of the artifact: names the run ONLY in `details.path`. */
+  const readResult = (dir: string) => ({
+    content: [{ type: "text", text: "…the agent's output…" }],
+    details: { path: join(dir, "output-0.log"), source: "lean-ctx", mode: "full" },
+  });
+
+  it("suppresses the announcement once `subagent_wait` has reported the run done", () => {
+    const dir = writeStatus(RUN, completeStatus);
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    assert.deepEqual(noteAsyncConsumption(fleet, waitResult), [RUN]);
+    assert.deepEqual(takeAnnouncements(fleet, reconcile(fleet)), []);
+  });
+
+  it("suppresses it after a status poll that returned a terminal state", () => {
+    const dir = writeStatus(RUN, completeStatus);
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    assert.deepEqual(noteAsyncConsumption(fleet, statusResult), [RUN]);
+    assert.deepEqual(takeAnnouncements(fleet, reconcile(fleet)), []);
+  });
+
+  it("suppresses it after a read of the run's own artifact, named only in details.path", () => {
+    const dir = writeStatus(RUN, completeStatus);
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    assert.deepEqual(noteAsyncConsumption(fleet, readResult(dir)), [RUN]);
+    assert.deepEqual(takeAnnouncements(fleet, reconcile(fleet)), []);
+  });
+
+  it("suppresses a failed run the model inspected just the same — it was told", () => {
+    const dir = writeStatus(RUN, failedStatus(RUN));
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    assert.deepEqual(noteAsyncConsumption(fleet, statusResult), [RUN]);
+    assert.deepEqual(takeAnnouncements(fleet, reconcile(fleet)), []);
+  });
+
+  it("does NOT count a poll of a still-running run: it says nothing about how the run ends", () => {
+    const dir = writeStatus(RUN, { runId: RUN, state: "running", startedAt: 1 });
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    assert.deepEqual(noteAsyncConsumption(fleet, statusResult), []);
+    // …and the terminal state that arrives later is still announced, exactly once.
+    writeStatus(RUN, completeStatus);
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet)).length, 1);
+  });
+
+  it("does NOT count the spawn acknowledgement, which names the run because it created it", () => {
+    const dir = writeStatus(RUN, completeStatus);
+    const fleet = createAsyncFleet();
+    const spawn = spawnResult(RUN, dir, "data-engineer");
+    noteAsyncSpawn(fleet, spawn);
+    assert.deepEqual(noteAsyncConsumption(fleet, spawn), []);
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet)).length, 1);
+  });
+
+  it("does NOT count a run that has never written a status file — 'never started' still gets said", () => {
+    const dir = emptyRunDir(RUN);
+    const fleet = fleetWith(RUN, dir, "data-engineer", 1_000);
+    assert.deepEqual(noteAsyncConsumption(fleet, readResult(dir)), []);
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet), 1_000 + NO_STATUS_GRACE_MS).length, 1);
+  });
+
+  it("leaves a sibling run alone: only the run the result named is consumed", () => {
+    const readDir = writeStatus(RUN, completeStatus);
+    const otherDir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const fleet = fleetWith(RUN, readDir, "data-engineer");
+    noteAsyncSpawn(fleet, spawnResult(FAILED_RUN, otherDir, "researcher"));
+    assert.deepEqual(noteAsyncConsumption(fleet, waitResult), [RUN]);
+    const due = takeAnnouncements(fleet, reconcile(fleet));
+    assert.deepEqual(due.map((report) => report.run.runId), [FAILED_RUN]);
+  });
+
+  it("is inert for an unrelated tool result, and for a fleet with nothing tracked", () => {
+    const dir = writeStatus(RUN, completeStatus);
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    const todo = { content: [{ type: "text", text: "Updated #6 (in_progress → completed)" }], details: { action: "update" } };
+    assert.deepEqual(noteAsyncConsumption(fleet, todo), []);
+    assert.deepEqual(noteAsyncConsumption(createAsyncFleet(), waitResult), []);
+    assert.deepEqual(noteAsyncConsumption(fleet, undefined), []);
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet)).length, 1);
+  });
+
+  it("consumes a run only once, and never un-consumes one already announced", () => {
+    const dir = writeStatus(RUN, completeStatus);
+    const fleet = fleetWith(RUN, dir, "data-engineer");
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet)).length, 1);
+    assert.deepEqual(noteAsyncConsumption(fleet, waitResult), []);
+    assert.deepEqual(noteAsyncConsumption(fleet, waitResult), []);
   });
 });

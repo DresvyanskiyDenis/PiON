@@ -37,11 +37,22 @@
  * do not record: the state is the package's, the only thing kept here is where to look and what
  * has already been said.
  *
+ * ## The mirror failure: announcing a run the model already read
+ *
+ * The safety net is only worth anything for a run the model was never told about. Measured
+ * 2026-08-26, the other side of it: for one async run the model called `subagent_wait` (which
+ * returned `done. Outcome: 1 complete`), then `subagent({action:"status"})` (`State: complete`),
+ * then read the run's `output-0.log`, then closed the matching todo — and the announcement arrived
+ * two minutes later telling it to "read the artifact above". Nothing in the fleet knew any of that
+ * had happened, because the only suppression was `announced`, a set nothing but the fleet itself
+ * writes. The announcement was not so much late as unconditional; what was missing is state, not
+ * timing, and `noteAsyncConsumption` supplies it.
+ *
  * Pure data in, pure data out apart from `readFileSync` — no PI imports, so it is unit-tested
  * against real files in a scratch directory, like `registry.ts`.
  */
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { reorderFailureText } from "./failure-slot.ts";
 
 /**
@@ -94,10 +105,12 @@ export interface AsyncRunReport {
 export interface AsyncFleet {
   readonly tracked: Map<string, TrackedAsyncRun>;
   readonly announced: Set<string>;
+  /** Runs the model has already inspected itself, which therefore need no announcement. */
+  readonly consumed: Set<string>;
 }
 
 export function createAsyncFleet(): AsyncFleet {
-  return { tracked: new Map(), announced: new Set() };
+  return { tracked: new Map(), announced: new Set(), consumed: new Set() };
 }
 
 function str(value: unknown): string | undefined {
@@ -242,6 +255,66 @@ export function reconcile(fleet: AsyncFleet): AsyncRunReport[] {
 }
 
 /**
+ * Every string this tool result put in front of the model, shallow: the text parts plus the
+ * top-level string values of `details`. Both halves are needed — `subagent_wait` and
+ * `subagent({action:"status"})` name the run in their text, while a read of the run's artifact
+ * names it only in `details.path`.
+ */
+function shownStrings(result: unknown): string[] {
+  const outer = record(result);
+  const shown: string[] = [];
+  const content = outer?.content;
+  if (Array.isArray(content)) {
+    for (const entry of content) {
+      const text = str(record(entry)?.text);
+      if (text !== undefined) shown.push(text);
+    }
+  }
+  const details = record(outer?.details);
+  if (details) {
+    for (const value of Object.values(details)) {
+      const text = str(value);
+      if (text !== undefined) shown.push(text);
+    }
+  }
+  return shown;
+}
+
+/**
+ * Marks the runs this tool result showed the model, so they are not announced at it again.
+ *
+ * The announcement exists for the run nobody told the model about. Repeating it for a run the model
+ * has just read is not merely noise: it lands a turn or more later and contradicts nothing, so the
+ * model has to reconcile a stale instruction ("read the artifact") against work it already did. A
+ * run counts as consumed when a result names its id or names a path inside its directory — a
+ * `subagent_wait`, a `subagent({action:"status"})` and a read of `<asyncDir>/output-0.log` each do
+ * one or the other — AND its own `status.json` is terminal at that moment. That second condition is
+ * the point: polling a run that is still running says nothing about how it ends, so it must not
+ * spend the run's one announcement. The result that INTRODUCED a run never consumes it — the spawn
+ * acknowledgement names the id too, and it is the reason the run is tracked at all.
+ */
+export function noteAsyncConsumption(fleet: AsyncFleet, result: unknown, now: number = Date.now()): string[] {
+  if (fleet.tracked.size === 0) return [];
+  const shown = shownStrings(result);
+  if (shown.length === 0) return [];
+  const introduced = new Set(trackedAsyncRuns(result, now).map((run) => run.runId));
+
+  const consumed: string[] = [];
+  for (const run of fleet.tracked.values()) {
+    if (introduced.has(run.runId)) continue;
+    if (fleet.consumed.has(run.runId) || fleet.announced.has(run.runId)) continue;
+    const shows = shown.some(
+      (text) => text.includes(run.runId) || text === run.asyncDir || text.startsWith(`${run.asyncDir}${sep}`),
+    );
+    if (!shows) continue;
+    if (readAsyncRunState(run).kind !== "terminal") continue;
+    fleet.consumed.add(run.runId);
+    consumed.push(run.runId);
+  }
+  return consumed;
+}
+
+/**
  * How long a run may exist without a readable `status.json` before that counts as "never started"
  * rather than "has not written it yet". The spawn returns before the child process has necessarily
  * touched the directory, so announcing `no-status` on the same turn would be a race, not a report.
@@ -264,7 +337,7 @@ export function takeAnnouncements(
   const due: AsyncRunReport[] = [];
   for (const report of reports) {
     if (report.verdict.kind === "live") continue;
-    if (fleet.announced.has(report.run.runId)) continue;
+    if (fleet.announced.has(report.run.runId) || fleet.consumed.has(report.run.runId)) continue;
     if (report.verdict.kind === "no-status" && now - report.run.firstSeenAt < graceMs) continue;
     fleet.announced.add(report.run.runId);
     due.push(report);
