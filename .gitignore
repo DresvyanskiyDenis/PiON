@@ -44,11 +44,19 @@ config/subagent.json
 OPERATOR.local.md
 PRIVATE.md
 
-# --- Personal skills and sub-agents -------------------------------------------
-# This repo ships the skill and sub-agent *loading mechanisms* but no personal
-# content. Anything you keep to yourself goes in these two directories: they are
-# discovered at runtime and are never part of a commit.
-skills-private/
+# --- Your skills and sub-agents -----------------------------------------------
+# This repo ships the skill and sub-agent *loading mechanisms* but no content.
+# Anything you write goes in these two directories; neither is ever part of a
+# commit.
+#
+# `skills/` used to be three directories — `skills/`, `skills-work/` and
+# `skills-private/`. That split read as a privacy boundary and was not one: only
+# `skills-private/` was ignored here, and the other two were visible to PI only
+# because an extension contributed them at runtime, which is why neither ever
+# appeared in config/settings.json's `skills` array. One root, ignored here and
+# declared once in settings, is the honest shape. `bin/pi-check` rule PC-12 fails
+# the repository if anything under it becomes trackable.
+skills/
 agents-private/
 
 # --- Sub-agent run state -------------------------------------------------------

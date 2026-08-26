@@ -365,15 +365,16 @@ test("PC-06: a $ENV_VAR reference outside the original two paths is still clean"
   }
 });
 
-test("PC-06: a binary asset under skills-work/ is skipped even if its bytes happen to look secret-shaped", () => {
+test("PC-06: a tracked binary asset is skipped even if its bytes happen to look secret-shaped", () => {
   const dir = gitScratchRepo();
   try {
-    mkdirSync(join(dir, "skills-work", "example-skill", "assets"), { recursive: true });
+    mkdirSync(join(dir, "assets"), { recursive: true });
     const secretShapedTail = ["sk", "A".repeat(30)].join("-");
-    // A NUL byte plus a secret-shaped run of bytes, saved with an asset extension — this must be
-    // skipped on BOTH grounds (skills-work/ asset extension, and the binary sniff would also
-    // catch it if renamed), never scanned as text.
-    writeFileSync(join(dir, "skills-work", "example-skill", "assets", "logo.png"), Buffer.from(`\x00PNG\x00${secretShapedTail}`, "latin1"));
+    // A NUL byte plus a secret-shaped run of bytes. The binary sniff is what skips this, and now
+    // the only thing that does: the skills-root extension pre-filter went away with the bucket
+    // collapse, because a path under the (git-ignored) single `skills/` root can never be tracked
+    // and so can never reach this scan at all.
+    writeFileSync(join(dir, "assets", "logo.png"), Buffer.from(`\x00PNG\x00${secretShapedTail}`, "latin1"));
     execFileSync("git", ["add", "-A"], { cwd: dir });
 
     const { exitCode, json } = runPiCheck(dir);

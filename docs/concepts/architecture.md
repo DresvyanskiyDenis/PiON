@@ -58,7 +58,7 @@ The invariants encoded in that order, restated so nobody tidies them away:
 | **`guard` is first, always** | A blocked tool call must never be mutated by `bash` or `hooks` first. |
 | **`trust` is second, immediately after `guard`** | Its `session_start` deadman reads a load registry in which `guard`'s entry is already written, and its `project_trust` handler must be bound before any project resource is considered. |
 | **`hooks` follows `guard`** | Hooks stack on the guard and may only *add* denial, never remove it. |
-| **`path-defaults`, `skills-env`, `skill-mask` come before their readers** | They publish configuration later modules read. |
+| **`path-defaults` and `skills-env` come before their readers** | They publish configuration later modules read. `skill-mask` keeps its slot beside them; it registers nothing now, and moving a registered id is a bigger change than leaving it in place. |
 | **`dispatch` precedes `teammates` / `worktree` / `jobs`** | Those register providers and vetoes into registries `dispatch` owns. |
 | **`doctor` is last** | So its `session_start` pass observes everything above it. |
 

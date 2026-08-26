@@ -22,8 +22,8 @@ that reason. For a real tool restriction, use a [sub-agent](extending/subagents.
 
 ## Generated matrix
 
-The table below is produced from the skills present in `skills/`, `skills-work/` and
-`skills-private/` on this machine. Regenerate it after changing any skill's frontmatter:
+The table below is produced from the skills present in `skills/` on this machine. Regenerate it
+after changing any skill's frontmatter:
 
 ```bash
 node scripts/gen-skills-lint-matrix.mjs          # rewrites the block below

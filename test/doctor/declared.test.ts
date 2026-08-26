@@ -28,19 +28,17 @@ describe("discoverDeclaredSkills", () => {
     assert.deepEqual(discoverDeclaredSkills(join(root, "empty")), []);
   });
 
-  it("finds a skill dir by the presence of SKILL.md, across all three roots", async () => {
+  it("finds a skill dir by the presence of SKILL.md under the one root", async () => {
     const d = join(root, "skills-case");
-    await mkdir(join(d, "skills", "sofa"), { recursive: true });
-    await writeFile(join(d, "skills", "sofa", "SKILL.md"), "# sofa\n");
-    await mkdir(join(d, "skills-work", "wiki"), { recursive: true });
-    await writeFile(join(d, "skills-work", "wiki", "SKILL.md"), "# wiki\n");
-    await mkdir(join(d, "skills-private", "csv-import"), { recursive: true });
-    await writeFile(join(d, "skills-private", "csv-import", "SKILL.md"), "# csv\n");
+    await mkdir(join(d, "skills", "changelog"), { recursive: true });
+    await writeFile(join(d, "skills", "changelog", "SKILL.md"), "# changelog\n");
+    await mkdir(join(d, "skills", "csv-import"), { recursive: true });
+    await writeFile(join(d, "skills", "csv-import", "SKILL.md"), "# csv\n");
     // a stray directory with no SKILL.md must not count as a skill
     await mkdir(join(d, "skills", "not-a-skill"), { recursive: true });
     await writeFile(join(d, "skills", "not-a-skill", "notes.txt"), "x");
 
-    assert.deepEqual(discoverDeclaredSkills(d).toSorted(), ["csv-import", "sofa", "wiki"]);
+    assert.deepEqual(discoverDeclaredSkills(d).toSorted(), ["changelog", "csv-import"]);
   });
 });
 

@@ -123,10 +123,9 @@ export function checkTools(inputs: DoctorInputs): Finding[] {
  *
  * Both halves are load-bearing and neither subsumes the other:
  *
- *   - `declaredSkillIds` (`declared.ts`, the three repo roots) covers a repo skill the live set can
- *     still miss — neither `skills-work/` nor `skills-private/` is in `config/settings.json`'s
- *     `skills` array, so they load only because `skill-mask.ts` contributes them, and a clone
- *     without those directories has neither. Live-only would false-positive on them.
+ *   - `declaredSkillIds` (`declared.ts`, the repo's `skills/` root) covers a repo skill the live
+ *     set can still miss — a skill on disk that PI has not loaded this session, because the
+ *     settings file in force is not this repo's. Live-only would false-positive on it.
  *   - `liveSkillIds` (`pi.getCommands()`, `source === "skill"`) covers a skill installed outside
  *     this repo entirely — `~/.agents/skills/…`, or one shipped inside an adopted package such as
  *     `pi-mcp-adapter`'s `mcp-scripting`. Those are real, PI discovered them, and no roster under
@@ -147,8 +146,8 @@ export function checkSkills(inputs: DoctorInputs): Finding[] {
         "D-02",
         "error",
         name,
-        `skill "${name}" named in the instruction text has no SKILL.md under skills/, skills-work/ ` +
-          `or skills-private/, and PI did not discover it anywhere else`,
+        `skill "${name}" named in the instruction text has no SKILL.md under skills/, ` +
+          `and PI did not discover it anywhere else`,
         `remove the reference or add the skill`,
       ),
     );

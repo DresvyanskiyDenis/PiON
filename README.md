@@ -70,8 +70,9 @@ loaded and which are expected-but-absent.
 
 **No skills, and none are coming.** A skill is prose plus scripts, and prose is where somebody's
 employer, client or private workflow leaks out. What ships instead — and what is actually the
-valuable part — is the *machinery*: skill discovery across extra roots, the `PI_SKILL_DIR_*`
-environment shim, the `allowed-tools` portability lint, and a documented precedence order.
+valuable part — is the *machinery*: skill discovery, the `PI_SKILL_DIR_*` environment shim, the
+`allowed-tools` portability lint, and a documented precedence order. Yours go in the clone's
+git-ignored `skills/`, which the installer links to the one root `settings.json` searches.
 
 **No MCP server definitions either**, for the same reason: a server list is as personal as a password
 manager. The machinery ships — the vendored adapter, the project trust gate, the `mcp-stdio-guard`

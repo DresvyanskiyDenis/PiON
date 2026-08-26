@@ -9,7 +9,7 @@
  * itself, for the same reason `skill-mask.ts` keeps its own root resolution thin and testable —
  * `doctor.ts` is the one call site that supplies the real root.
  *
- * Absence is data, not an error: a colleague's trimmed-down clone with no `skills-work/`, no
+ * Absence is data, not an error: a fresh clone with no `skills/` directory, no
  * `agents/` yet (EXT-05's content port), or no `config/mcp.json` (MCP never opted into) is a
  * legitimate declared-empty state, and every reader below returns an empty/default result for
  * ENOENT rather than throwing. A file that *exists* but does not parse as JSON is different — that
@@ -83,11 +83,11 @@ export function readDeclaredTools(root: string): readonly DeclaredTool[] {
     }));
 }
 
-/** The three skill roots' immediate children that carry a `SKILL.md` — `D-02`'s declared roster,
- *  deliberately independent of which roots this *session* actually widened into (skill-mask.ts).
- *  `skill-bundles/` is excluded: its nested packages are not addressed by name in the ported
- *  instruction text, only through their parent skill. */
-const SKILL_ROOTS = ["skills", "skills-work", "skills-private"] as const;
+/** The skill root's immediate children that carry a `SKILL.md` — `D-02`'s declared roster.
+ *  `skill-bundles/` is excluded: its nested packages are not addressed by name in the
+ *  instruction text, only through their parent router skill. One root since the bucket collapse;
+ *  see `skills-lint.ts`'s `SKILL_ROOTS` for why the three-way split was not a boundary. */
+const SKILL_ROOTS = ["skills"] as const;
 
 export function discoverDeclaredSkills(root: string): readonly string[] {
   const ids: string[] = [];

@@ -36,8 +36,9 @@ of finding that is cheap to write down and expensive to rediscover.
 
 `resources_discover` fires once per session for *this* module too, and PI collects every handler's
 return value before it applies any of them: a skill root contributed by another `resources_discover`
-handler — [`skill-mask`](skill-mask.md), concretely — is only added to the resolved skill list
-*after* every `resources_discover` handler, this one included, has already returned. So on the very
+handler — [`skill-mask`](skill-mask.md) did exactly this before it was emptied — is only added to
+the resolved skill list *after* every `resources_discover` handler, this one included, has already
+returned. So on the very
 first pass, `pi.getCommands()` cannot see a skill that reached the roster this way, and its
 `PI_SKILL_DIR_<NAME>` would silently never be set.
 

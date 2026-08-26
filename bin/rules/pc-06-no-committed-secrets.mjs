@@ -3,7 +3,7 @@
 //
 // The original version of this rule only scanned two hardcoded paths (config/models.json,
 // config/shell/pi-env.sh — the two files config/README.md rule 1 names as ever legitimately
-// holding a credential *reference*). Everything else in the repo — skills/, skills-work/,
+// holding a credential *reference*). Everything else in the repo — skills/,
 // extensions/, scripts/, docs/, test/, ... — was structurally invisible to it: a
 // secret pasted anywhere outside those two files passed `pi-check --all` with zero findings.
 //
@@ -64,10 +64,6 @@ const MAX_SCAN_BYTES = 256 * 1024;
 // unlike trusting a file's extension, which a renamed or extensionless binary would evade.
 const SNIFF_BYTES = 8000;
 
-// image/font/office-doc formats — the kind of asset a skill directory legitimately carries. This
-// is only a fast pre-filter (skip the syscalls for the obvious case); the binary sniff below is
-// what actually decides, so a mislabeled or extensionless binary is still caught.
-const ASSET_EXTENSIONS = /\.(png|jpe?g|gif|ico|webp|bmp|pptx|pdf|woff2?|ttf|otf|eot)$/i;
 
 // The four prefixes SECRET_LITERAL's alternation recognizes explicitly. Used only to decide
 // which of the two content checks below applies — see looksLikeAuthoredTextNotASecret.
@@ -165,7 +161,6 @@ export function run(ctx) {
   for (const file of enumerated.files) {
     if (INTEGRITY_LOCK_BASENAMES.has(basename(file))) continue;
     if (CREDENTIAL_FIXTURE_FILES.has(file)) continue;
-    if (file.startsWith("skills-work/") && ASSET_EXTENSIONS.test(file)) continue;
 
     const absPath = join(ctx.repoRoot, file);
     let size;

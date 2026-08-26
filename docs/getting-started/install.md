@@ -87,9 +87,10 @@ To try it without touching your real setup:
 ### Section 7 also asks where your skills go
 
 This repository ships **zero skills** — only the machinery that loads them. So the only skill question
-at install time is where yours will live, and the answer offered is `skills-private/` inside the
-checkout: git-ignored, and already a search path in `settings.json`. Say yes and the directory is
-created empty. Writing a skill can then never turn into committing one.
+at install time is where yours will live, and the answer offered is `skills/` inside the checkout:
+git-ignored, and symlinked to `~/.pi/agent/skills`, which is the one search path `settings.json`
+names. Say yes and the directory is created empty. Writing a skill can then never turn into
+committing one.
 
 How to actually write one: [Writing a skill](../extending/skills.md).
 

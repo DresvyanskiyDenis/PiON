@@ -318,9 +318,10 @@ Full walkthrough:
 ### 18. Add your own skill
 
 No skills ship, and none ever will — the *loading machinery* does. Put yours in
-`skills-private/` in the clone (git-ignored, and the installer offers to create it), or in
-`~/.pi/agent/skills/<name>/SKILL.md`. `skills-private/` is already named in `config/settings.json` →
-`skills`; any other root you invent has to be added there.
+`skills/` in the clone (git-ignored, and the installer offers to create it), or in
+`~/.pi/agent/skills/<name>/SKILL.md` — the installer links one to the other, so those are the same
+directory. That path is the single entry in `config/settings.json` → `skills`; any other root you
+invent has to be added there, or PI merges it last and it loses every name collision.
 
 PI parses exactly three front-matter fields: `name`, `description`,
 `disable-model-invocation`. **`allowed-tools` is inert** — it is accepted and ignored, so a skill

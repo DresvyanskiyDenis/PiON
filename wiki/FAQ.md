@@ -40,8 +40,9 @@ manager. Shipping either would mean shipping someone else's.
 What ships is the *machinery* — skill discovery across extra roots, the environment shim, the
 portability lint, the vendored MCP adapter, the environment-minimising stdio wrapper, the project
 trust gate — plus a documented, first-class path for adding your own. The installer creates
-`skills-private/` for you and offers two public MCP servers (`context7`, `playwright`), defaulting to
-neither. See recipes 17 and 18 in the [[Cookbook]].
+`skills/` for you and offers two public MCP servers (`context7`, `playwright`), defaulting to
+neither. A third browser server, `lightpanda`, is documented but not offered — it needs a binary the
+installer cannot assume. See recipes 17 and 18 in the [[Cookbook]].
 
 ## Does it work with my provider?
 

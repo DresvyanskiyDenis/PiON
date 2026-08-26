@@ -49,10 +49,17 @@ export const id = "skills-lint";
 /**
  * Mirrors `doctor/declared.ts`'s `SKILL_ROOTS` deliberately (not imported — see module
  * docstring on why this stays independent of `EXT-10`'s files). `skill-bundles/` is excluded
- * for the same reason `declared.ts` excludes it: its 32 nested members are never addressed by
- * name directly, only through the `databricks` router skill that dispatches to them by path.
+ * for the same reason `declared.ts` excludes it: a bundle's nested members are never addressed by
+ * name directly, only through a router skill that dispatches to them by path.
+ *
+ * **One root, since the bucket collapse.** This used to read
+ * `["skills", "skills-work", "skills-private"]`. The three-way split looked like a privacy
+ * boundary and was not one: only `skills-private/` was git-ignored, and the other two loaded
+ * because `skill-mask.ts` contributed them at runtime — which is why neither ever appeared in
+ * `config/settings.json`'s `skills` array. One root, declared once in settings, is the honest
+ * shape, and this array is a tuple only so `SkillTier` keeps naming something.
  */
-export const SKILL_ROOTS = ["skills", "skills-work", "skills-private"] as const;
+export const SKILL_ROOTS = ["skills"] as const;
 export type SkillTier = (typeof SKILL_ROOTS)[number];
 
 export interface SkillFrontmatterInfo {
@@ -63,16 +70,15 @@ export interface SkillFrontmatterInfo {
   readonly allowedTools: readonly string[];
   /** Set when `parseFrontmatter` itself threw — see `discoverSkillFrontmatter`'s docstring for
    *  why a corrupt `SKILL.md` degrades to a finding instead of aborting the whole scan, and why
-   *  this is a real, independently-discovered bug (`skills-private/notebooklm-sources/SKILL.md`
-   *  today), not a hypothetical this module guards defensively against. */
+   *  this is a real, independently-observed bug rather than a hypothetical this module guards
+   *  defensively against. */
   readonly parseError?: string;
 }
 
 /**
  * `allowed-tools` shows up in the wild as either a YAML array or a comma-separated string
- * (`allowed-tools: Read,Write,Edit,WebFetch,WebSearch`). As of 2026-08-12 no skill in this tree
- * declares it at all — `skills-private/cv-creator` was the last one and has been deleted — so this
- * parser currently has no live input. It stays because the field arrives with any skill copied in
+ * (`allowed-tools: Read,Write,Edit,WebFetch,WebSearch`). No skill in this tree declares it — the
+ * tree ships no skills at all — so this parser has no live input in a fresh clone. It stays because the field arrives with any skill copied in
  * from Claude Code, and the warning it feeds is the whole point of `EXT-16`: PI 0.84.0 parses
  * exactly `name`, `description` and `disable-model-invocation`, so an `allowed-tools` line is
  * inert prose that reads as enforcement. Both shapes are accepted; anything else
@@ -96,19 +102,17 @@ export function parseAllowedTools(raw: unknown): readonly string[] {
 }
 
 /**
- * Scans the three skill roots for `SKILL.md` files and reads each one's frontmatter. A missing
- * root is not an error — a trimmed-down clone may not carry `skills-work/`/`skills-private/`,
- * the same tolerance `doctor/declared.ts` uses for the identical layout.
+ * Scans the skill root for `SKILL.md` files and reads each one's frontmatter. A missing root is
+ * not an error — a fresh clone carries no `skills/` directory at all, the same tolerance
+ * `doctor/declared.ts` uses for the identical layout.
  *
  * A `SKILL.md` that exists but fails to parse as YAML frontmatter is recorded as a
- * `parseError` entry rather than thrown — **empirically necessary, not a defensive guess**:
- * `skills-private/notebooklm-sources/SKILL.md`'s unquoted description
- * ("`Default output dir: ...`", a colon inside a plain scalar) makes PI's own
- * `parseFrontmatter` throw `YAMLParseError` today, verified by calling the real export from the
- * pinned package directly. That means this real skill likely fails PI's own frontmatter read at
- * session start too — a pre-existing bug this module did not introduce and does not own the fix
- * for (the SKILL.md content belongs to whichever item ported `skills-private/`), but one bad
- * file must not blind the scan to the other 19.
+ * `parseError` entry rather than thrown — **empirically necessary, not a defensive guess**: a
+ * real skill was found whose unquoted `description:` contained a colon inside a plain scalar
+ * ("`Default output dir: ...`"), which makes PI's own `parseFrontmatter` throw `YAMLParseError`,
+ * verified by calling the real export from the pinned package directly. Such a skill likely fails
+ * PI's own frontmatter read at session start too — a bug this module did not introduce and does
+ * not own the fix for, but one bad file must not blind the scan to every other skill.
  */
 export function discoverSkillFrontmatter(root: string): readonly SkillFrontmatterInfo[] {
   const out: SkillFrontmatterInfo[] = [];
