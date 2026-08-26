@@ -27,8 +27,9 @@ duration and loses everything if the session ends.
 
 A detached child is deliberately `unref()`d so it can outlive the `pi` process, which means
 nothing observes its exit — the store is reconciled by whoever asks. So the extension polls while
-any job is running, every two seconds, and stops polling the moment none is. An idle session pays
-nothing for a watcher it does not need.
+any job is running, every two seconds (`PI_JOBS_WATCH_INTERVAL_MS`, in milliseconds, if you want a
+slower or faster sweep), and stops polling the moment none is. An idle session pays nothing for a
+watcher it does not need.
 
 How the notice reaches you depends on what the session is doing:
 

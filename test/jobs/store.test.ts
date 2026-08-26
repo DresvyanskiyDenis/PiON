@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, utimesSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -276,21 +276,20 @@ describe("jobs store (EXT-24)", () => {
     const job = await startJob({ root, command: "exit 0", cwd: process.cwd(), parentSession: "s" });
     const exitFile = join(jobDir(root, job.id), "exit");
     await until(() => existsSync(exitFile));
-    const wroteAt = Math.round(statSync(exitFile).mtimeMs);
 
     // Nothing observes the child exit, so `judge()` runs whenever a caller asks. Stamping
-    // `Date.now()` here recorded when somebody looked and called it when the job ended, which
-    // inflates the reported runtime by however long the store went unread. A quarter of a second
-    // is enough to prove which of the two values is used.
-    await delay(250);
-    const final = await reap(root, (await readState(root, job.id))!);
+    // `Date.now()` there recorded when somebody looked and called it when the job ended, which
+    // inflates the reported runtime by however long the store went unread.
+    //
+    // Pinning the mtime to a known instant is what makes this deterministic. Sleeping and then
+    // asserting that `finishedAt` sits far enough in the past proves the same property, but only
+    // while real elapsed time behaves — and an hour is a gap no scheduling delay can manufacture.
+    const exitedAt = Date.now() - 3_600_000;
+    utimesSync(exitFile, new Date(exitedAt), new Date(exitedAt));
 
+    const final = await reap(root, (await readState(root, job.id))!);
     assert.equal(final.status, "done");
-    assert.equal(final.finishedAt, wroteAt);
-    assert.ok(
-      Date.now() - final.finishedAt! >= 200,
-      "finishedAt predates the observation that recorded it",
-    );
+    assert.equal(final.finishedAt, exitedAt, "finishedAt is the exit file's mtime, exactly");
   });
 
   it("prune removes finished jobs and never a running one", async () => {

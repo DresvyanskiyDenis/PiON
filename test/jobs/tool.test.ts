@@ -5,7 +5,13 @@ import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
-import { register as registerJobs, __resetForTests } from "../../extensions/jobs/index.ts";
+import {
+  register as registerJobs,
+  watchIntervalMs,
+  DEFAULT_WATCH_INTERVAL_MS,
+  WATCH_INTERVAL_ENV,
+  __resetForTests,
+} from "../../extensions/jobs/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { ensureJobsRoot, isProcessAlive, listJobs, readState, writeState, type JobState } from "../../extensions/jobs/store.ts";
 
@@ -254,19 +260,43 @@ describe("job tool (EXT-24)", () => {
     );
   });
 
+  it("reads the poll interval from the environment, and refuses a malformed one", () => {
+    assert.equal(watchIntervalMs({}), DEFAULT_WATCH_INTERVAL_MS);
+    assert.equal(watchIntervalMs({ [WATCH_INTERVAL_ENV]: "500" }), 500);
+    for (const bad of ["0", "5", "-1", "2.5", "soon", ""]) {
+      assert.throws(
+        () => watchIntervalMs({ [WATCH_INTERVAL_ENV]: bad }),
+        new RegExp(WATCH_INTERVAL_ENV),
+        `${JSON.stringify(bad)} should be refused, not read as a default`,
+      );
+    }
+  });
+
   it("announces a job that died while the session sat idle, with no turn at all", async () => {
     // The case the watcher exists for: a detached job is started and nobody comes back. No turn
     // ends, so the only notification path never fires and the footer keeps claiming `1 bg`.
-    const status = new Map<string, string | undefined>();
-    const ctx = fakeCtx("sess-1", { hasUI: true, status });
-    await call({ action: "start", command: "exit 3" }, ctx);
-    assert.equal(status.get("jobs"), "1 bg");
+    //
+    // Scoped to this test rather than set in `beforeEach`: a 20ms poll would make the watcher
+    // race the sibling tests that assert on *not* being nudged. Waiting for the real 2s default
+    // would work on an idle machine and is exactly the margin a saturated one eats, so the
+    // interval is shortened instead of the budget being widened.
+    const prev = process.env[WATCH_INTERVAL_ENV];
+    process.env[WATCH_INTERVAL_ENV] = "20";
+    try {
+      const status = new Map<string, string | undefined>();
+      const ctx = fakeCtx("sess-1", { hasUI: true, status });
+      await call({ action: "start", command: "exit 3" }, ctx);
+      assert.equal(status.get("jobs"), "1 bg");
 
-    await until(() => harness.sent.length === 1, 15_000);
-    assert.equal(harness.sent[0]!.customType, "job-done");
-    assert.equal(harness.sent[0]!.deliverAs, undefined);
-    assert.match(harness.sent[0]!.text, /failed exit 3/);
-    assert.equal(status.get("jobs"), undefined, "and the footer stops claiming it is running");
+      await until(() => harness.sent.length === 1);
+      assert.equal(harness.sent[0]!.customType, "job-done");
+      assert.equal(harness.sent[0]!.deliverAs, undefined);
+      assert.match(harness.sent[0]!.text, /failed exit 3/);
+      assert.equal(status.get("jobs"), undefined, "and the footer stops claiming it is running");
+    } finally {
+      if (prev === undefined) delete process.env[WATCH_INTERVAL_ENV];
+      else process.env[WATCH_INTERVAL_ENV] = prev;
+    }
   });
 
   it("does not nudge about another session's job", async () => {

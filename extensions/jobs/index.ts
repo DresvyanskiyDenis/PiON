@@ -80,7 +80,33 @@ const announced = new Set<string>();
  * nothing, and one `readdir` plus a handful of small reads every two seconds is cheap next to
  * reporting a dead job as `running` for a quarter of an hour.
  */
-export const WATCH_INTERVAL_MS = 2_000;
+export const DEFAULT_WATCH_INTERVAL_MS = 2_000;
+
+/** Overrides `DEFAULT_WATCH_INTERVAL_MS`, in milliseconds. */
+export const WATCH_INTERVAL_ENV = "PI_JOBS_WATCH_INTERVAL_MS";
+
+/**
+ * The poll interval this session uses, in milliseconds.
+ *
+ * Env-overridable for the same reason `PI_JOBS_PRUNE_HOURS` is: two seconds is a default, not a
+ * law, and a session watching a large store may reasonably want it slower. A test wants it much
+ * faster — asserting that an idle session announces a finished job means waiting for the timer,
+ * and a two-second wait leaves a margin that a saturated machine can eat. Malformed input throws
+ * rather than being read as a default, matching `autoPruneRetentionHours`; the 10ms floor is
+ * there because a zero interval is a spin, not a poll.
+ */
+export function watchIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env[WATCH_INTERVAL_ENV];
+  if (raw === undefined) return DEFAULT_WATCH_INTERVAL_MS;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 10) {
+    throw new Error(
+      `${WATCH_INTERVAL_ENV} is ${JSON.stringify(raw)}, which is not an integer number of ` +
+        `milliseconds >= 10`,
+    );
+  }
+  return parsed;
+}
 
 /** Every live watcher's stop function, so the test seam can disarm registrations it replaced. */
 const watchers = new Set<() => void>();
@@ -226,7 +252,7 @@ export function register(pi: ExtensionAPI): void {
         stopWatch();
         report(ctx, "jobs:watch", `[pi-config] jobs: exit watcher stopped: ${describeError(err)}`);
       });
-    }, WATCH_INTERVAL_MS);
+    }, watchIntervalMs());
     watch.unref();
   }
 
