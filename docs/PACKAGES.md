@@ -295,9 +295,14 @@ Upstream's own documentation moved in this release too: `README.md` went from ro
 Two operational caveats, both measured on 2026-08-15 against binary 3.9.13.
 
 **Install the binary at 3.9.13, not latest.** The npm package shells out to a Rust binary of the same
-name. Versions 3.9.14 through 3.9.18 fail to compile — they declare `lean-ctx-ocla = "^1.0.0"` and the
-only published version of that crate lacks fields the code references, so the build ends in 17 errors
-regardless of `--locked`. `cargo install lean-ctx --version 3.9.13` is the last release that builds.
+name. Versions 3.9.14 through 3.9.18 failed to compile when this was measured on 2026-08-15 — they
+declare `lean-ctx-ocla = "^1.0.0"`, the sole version of that crate published at the time lacked fields
+the code references, and the build ended in 17 errors regardless of `--locked`.
+
+That cause no longer describes the registry. `lean-ctx-ocla 1.0.1` was published on 2026-08-26 and
+`lean-ctx 3.9.20` pins it exactly, so the missing-dependency explanation has expired. Nothing has been
+rebuilt to check whether those versions compile now, and 3.9.13 remains the only release measured to
+build here: `cargo install lean-ctx --version 3.9.13`.
 The npm side at 3.9.17 was checked call-by-call against 3.9.13's surface and passes no flag the older
 binary rejects.
 
