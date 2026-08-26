@@ -103,10 +103,10 @@ describe("planCeiling", () => {
       roster: [
         { name: "scout", file: "/pkg/agents/scout.md" },
         { name: "reviewer", file: "/pkg/agents/reviewer.md" },
-        { name: "databricks", file: "/home/.agents/databricks.md" },
+        { name: "project-tools", file: "/home/.agents/project-tools.md" },
       ],
     });
-    assert.deepEqual(plan.ceiling.allowedAgents, ["scout", "reviewer", "databricks"]);
+    assert.deepEqual(plan.ceiling.allowedAgents, ["scout", "reviewer", "project-tools"]);
     assert.match(plan.notes.join("\n"), /plus 2 PI resolves that we do not own/);
   });
 

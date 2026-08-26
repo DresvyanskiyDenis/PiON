@@ -48,8 +48,8 @@ describe("readAgentRoster", () => {
    */
   it("mirrors upstream and does NOT skip a renamed skills directory", () => {
     const root = join(scratch(), ".agents");
-    write(root, "skills-archived/databricks/SKILL.md", "name: databricks\ndescription: an archived skill");
-    assert.deepEqual(readAgentRoster([root]).map((e) => e.name), ["databricks"]);
+    write(root, "skills-archived/project-tools/SKILL.md", "name: project-tools\ndescription: an archived skill");
+    assert.deepEqual(readAgentRoster([root]).map((e) => e.name), ["project-tools"]);
   });
 
   it("skips absent, unreadable and non-directory entries instead of throwing", () => {

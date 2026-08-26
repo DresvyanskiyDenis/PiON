@@ -10,10 +10,21 @@
  * beyond "we do not own the file".
  *
  * `pi-subagents` does export the resolution itself — `discoverAgentsAll()` in
- * `src/agents/agents.ts` — but not through its `exports` map, and Node enforces that:
- * `import("pi-subagents/src/agents/agents.ts")` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`. So we
- * read the same directories it reads and take only the two fields the ceiling needs: the name,
- * and whether the agent is an external-CLI adapter.
+ * `src/agents/agents.ts` — but no import of it survives. Three walls, in the order you meet them:
+ *
+ *   1. `./agents` *is* in the package's `exports` map, so it looks like the way in. It points at
+ *      `src/api/agents.ts`, which exports `registerAgent` and nothing else. The discovery
+ *      functions are not re-exported there, and no other listed subpath carries them.
+ *   2. `src/agents/agents.ts`, where they do live, is not in the map, and Node enforces that:
+ *      `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+ *   3. Underneath both — every subpath the map lists is a `.ts` file inside `node_modules`, which
+ *      Node refuses to type-strip at all (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). Under
+ *      bare Node, `node --test` included, *no* subpath of this package is importable whatever the
+ *      map says. PI's own jiti loader clears this wall at runtime — which is why `installCeiling`
+ *      can dynamically import `capability-ceiling` — but it clears neither of the first two.
+ *
+ * So we read the same directories `discoverAgents()` reads and take only the two fields the
+ * ceiling needs: the name, and whether the agent is an external-CLI adapter.
  *
  * This reader is deliberately **generous**. It does not reproduce precedence, `disabled`,
  * settings overrides or `subagents.overrides` — it only widens an allowlist, and PI still
