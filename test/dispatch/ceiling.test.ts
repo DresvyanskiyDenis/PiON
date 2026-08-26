@@ -89,7 +89,60 @@ describe("planCeiling", () => {
       ["big", "scout"],
       "big is on a public provider and stays dispatchable; offline has no served model, typo is invalid",
     );
-    assert.match(plan.notes.join("\n"), /allowedAgents: 2 of 4 \(1 whose model is not currently served, 1 invalid\)/);
+    assert.match(plan.notes.join("\n"), /allowedAgents: 2 — 2 of 4 ours \(1 whose model is not currently served, 1 invalid\)/);
+  });
+
+  /**
+   * `allowedAgents` is a closed-world allowlist. Registering it from our own registry alone
+   * refuses every agent the package ships and every project agent, with `restricted_agent`.
+   */
+  it("admits an internal builtin PI can resolve but our registry does not own", () => {
+    const registry = registryOf([GOOD_SCOUT]);
+    const plan = planCeiling({
+      sessionId: "s1", registry, config: CONFIG, depth: 0, allToolNames: ALL_TOOLS,
+      roster: [
+        { name: "scout", file: "/pkg/agents/scout.md" },
+        { name: "reviewer", file: "/pkg/agents/reviewer.md" },
+        { name: "databricks", file: "/home/.agents/databricks.md" },
+      ],
+    });
+    assert.deepEqual(plan.ceiling.allowedAgents, ["scout", "reviewer", "databricks"]);
+    assert.match(plan.notes.join("\n"), /plus 2 PI resolves that we do not own/);
+  });
+
+  it("excludes every external-cli adapter - such a child runs outside this configuration", () => {
+    const registry = registryOf([GOOD_SCOUT]);
+    const plan = planCeiling({
+      sessionId: "s1", registry, config: CONFIG, depth: 0, allToolNames: ALL_TOOLS,
+      roster: [
+        { name: "worker", file: "/pkg/agents/worker.md" },
+        { name: "vendor-cli", runnerType: "external-cli", file: "/pkg/agents/vendor-cli.md" },
+        { name: "vendor-cli-writer", runnerType: "external-cli", file: "/pkg/agents/vendor-cli-writer.md" },
+      ],
+    });
+    assert.deepEqual(plan.ceiling.allowedAgents, ["scout", "worker"]);
+    assert.match(plan.notes.join("\n"), /2 external-cli adapters excluded by policy/);
+  });
+
+  it("keeps our own verdict on a file we own - a name we refused is not re-admitted by the roster", () => {
+    const registry = registryOf([GOOD_SCOUT, OFFLINE]);
+    const plan = planCeiling({
+      sessionId: "s1", registry, config: CONFIG, depth: 0, allToolNames: ALL_TOOLS,
+      roster: [{ name: "offline", file: "/pkg/agents/offline.md" }],
+    });
+    assert.deepEqual(plan.ceiling.allowedAgents, ["scout"], "offline's tier is not served; the roster does not overrule that");
+  });
+
+  /**
+   * The `(none)` failure: an empty `allowedAgents` is not "no restriction", it is "no agent at
+   * all", and preflight then refuses every dispatch with `Allowed agents: (none).`.
+   */
+  it("refuses to register an EMPTY agent allowlist, which would refuse every dispatch", () => {
+    const registry = registryOf([]);
+    const plan = planCeiling({ sessionId: "s1", registry, config: CONFIG, depth: 0, allToolNames: ALL_TOOLS, roster: [] });
+    assert.equal(plan.ceiling.allowedAgents, undefined);
+    assert.equal("allowedAgents" in plan.ceiling, false, "the key must be absent, not present and empty");
+    assert.match(plan.notes.join("\n"), /no allowedAgents ceiling is registered/);
   });
 
   it("leaves the dispatch tools in place while children are still below the cap", () => {

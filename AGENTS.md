@@ -110,6 +110,13 @@ compaction and loses the thread. One agent with a summary beats three with trans
 
 Pick the role by domain from `agents/` — `/agents` lists what is installed.
 
+**The names in the `subagent` tool's own description are the package's examples, not this
+install's roster.** `worker`, `reviewer`, `oracle`, `scout` and `delegate` ship with
+`pi-subagents` and do resolve — but `agents/` is where this configuration's roles live, and
+`/agents` is the list to route by. The external-CLI adapters are refused by the capability
+ceiling on purpose: a child launched through one runs outside this configuration entirely, with
+none of its tier routing, vetoes or audit trail.
+
 **A delegated call runs on the strong tier unless you say otherwise.** `config/dispatch.json`'s
 `defaultTier` is `strong`, and no agent file declares a cheaper one, so omitting `model` is not a
 downgrade — a subagent works unwatched, and a plausible wrong answer nobody re-reads costs more than

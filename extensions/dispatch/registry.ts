@@ -140,7 +140,7 @@ export function parseFrontmatter(raw: string): Frontmatter {
   return { data: parsed as Record<string, unknown>, body };
 }
 
-function listMarkdown(dir: string, onProblem: (message: string) => void): string[] {
+export function listMarkdown(dir: string, onProblem: (message: string) => void): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
     let entries: string[];

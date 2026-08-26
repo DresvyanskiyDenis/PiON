@@ -14,8 +14,9 @@
  * (`resolveSubagentLaunchContract` → `restricted_agent`). It cannot see a prompt. So the veto
  * splits along exactly that line, and both halves ship:
  *
- *   - **Static, and therefore in the ceiling**: which agents this session may dispatch at all
- *     (load-time validity, plus a tier whose model is not currently served), and whether children
+ *   - **Static, and therefore in the ceiling**: which agents this session may dispatch at all —
+ *     everything PI can resolve, minus what *we* loaded and refused (invalid, or a tier whose
+ *     model is not currently served) and minus the external-CLI adapters — and whether children
  *     may dispatch at all (the depth ceiling, expressed as tools removed rather than as a counter).
  *   - **Per-request, and therefore in `EXT-01`'s veto registry**: `REQ-CTX-47`'s specialist match,
  *     which is a judgement about *this prompt*.
@@ -45,6 +46,7 @@ import {
 } from "../lib/dispatch-veto.ts";
 import type { DispatchConfig } from "./config.ts";
 import { dispatchableNames, type AgentRegistry } from "./registry.ts";
+import { EXTERNAL_CLI_RUNNER, type RosterEntry } from "./roster.ts";
 
 export const CEILING_SOURCE = "pi-config/EXT-05";
 export const VETO_SPECIALIST = "DV-SPECIALIST";
@@ -57,6 +59,11 @@ export interface CeilingInput {
   readonly depth: number;
   /** Every tool name PI currently knows, from `pi.getAllTools()`. */
   readonly allToolNames: readonly string[];
+  /**
+   * The agents PI itself can resolve, from `roster.ts`. Absent means "we could not look", which
+   * is not the same as "there are none" — the union then degrades to our own registry.
+   */
+  readonly roster?: readonly RosterEntry[];
 }
 
 export interface CeilingPlan {
@@ -73,13 +80,47 @@ export interface CeilingPlan {
  */
 export function planCeiling(input: CeilingInput): CeilingPlan {
   const notes: string[] = [];
-  const allowedAgents = dispatchableNames(input.registry);
+  const ours = dispatchableNames(input.registry);
+  const refused = new Set(input.registry.agents.filter((a) => a.status !== "ok").map((a) => a.name));
+  const owned = new Set(ours);
+
+  // The union. `allowedAgents` is a closed-world allowlist, so anything we do not name is refused
+  // in preflight — and our registry only sees `registryDirs`, not the agents PI ships or the
+  // project supplies. Adding what PI can resolve is what stops the ceiling from refusing
+  // `reviewer`, `delegate`, `worker` and every project agent.
+  //
+  // Two subtractions survive the widening:
+  //
+  //   - Names our own registry loaded and then refused (`invalid`, or a tier whose model is not
+  //     currently served). Our verdict on a file we own beats a bare name on disk.
+  //   - Every `external-cli` runner — the adapters that shell out to a vendor coding CLI. This is
+  //     policy, not mechanism: such a child runs outside this configuration entirely, on its own
+  //     credentials and its own model routing, with none of the tier resolution, vetoes, depth
+  //     ceiling or audit trail that everything else here passes through. Excluding it is the
+  //     point of running a configured harness. A name we own shadows the adapter and stays in:
+  //     source precedence makes our file the one PI resolves.
+  const fromRoster = (input.roster ?? [])
+    .filter((e) => !owned.has(e.name) && !refused.has(e.name) && e.runnerType !== EXTERNAL_CLI_RUNNER)
+    .map((e) => e.name);
+  let allowedAgents: string[] | undefined = [...ours, ...fromRoster];
+  const excludedCli = (input.roster ?? []).filter((e) => e.runnerType === EXTERNAL_CLI_RUNNER).length;
   notes.push(
-    `allowedAgents: ${allowedAgents.length} of ${input.registry.agents.length} ` +
+    `allowedAgents: ${allowedAgents.length} — ${ours.length} of ${input.registry.agents.length} ours ` +
       `(${input.registry.agents.filter((a) => a.status === "restricted").length} whose model is not ` +
       `currently served, ` +
-      `${input.registry.agents.filter((a) => a.status === "invalid").length} invalid)`,
+      `${input.registry.agents.filter((a) => a.status === "invalid").length} invalid), ` +
+      `plus ${fromRoster.length} PI resolves that we do not own ` +
+      `(${excludedCli} external-cli adapter${excludedCli === 1 ? "" : "s"} excluded by policy)`,
   );
+  if (allowedAgents.length === 0) {
+    // An empty allowlist reads as "no agents at all" — the ceiling then refuses every dispatch
+    // with `Allowed agents: (none).`. Say so and register no agent ceiling instead.
+    notes.push(
+      `no agent is both known and dispatchable, so no allowedAgents ceiling is registered; ` +
+        `dispatch is bounded by the vetoes and the depth ceiling only`,
+    );
+    allowedAgents = undefined;
+  }
 
   const childDepth = input.depth + 1;
   let allowedTools: string[] | undefined;
@@ -105,7 +146,7 @@ export function planCeiling(input: CeilingInput): CeilingPlan {
   }
 
   const ceiling = {
-    allowedAgents,
+    ...(allowedAgents !== undefined ? { allowedAgents } : {}),
     ...(allowedTools !== undefined ? { allowedTools } : {}),
   } as SubagentCapabilityCeiling;
   return { ceiling, notes };

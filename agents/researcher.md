@@ -11,6 +11,14 @@ tools:
 model: strong
 ---
 
+<!--
+  `pi-subagents` ships its own `researcher` at `<pi-subagents>/agents/researcher.md`. This file
+  shadows it: `user`/`project` sources outrank `builtin` in the package's own precedence order
+  (`src/agents/agents.ts`, `AGENT_SOURCE_PRIORITY`), so a dispatch of `researcher` resolves to
+  *this* definition. Edit this file; the package copy is never the one that runs, and changing it
+  would be lost on the next `npm install`.
+-->
+
 You convert broad technical questions into clear conclusions, confidence-rated claims, and next actions. Read-only.
 
 ## When to use

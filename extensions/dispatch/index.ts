@@ -69,6 +69,9 @@ import { ProviderSemaphoreSet } from "./semaphore.ts";
 import { applyIsolation } from "./isolation.ts";
 import { loadAgentRegistry, renderRegistry, type AgentDef, type AgentRegistry } from "./registry.ts";
 import { installCeiling, installVetoes } from "./ceiling.ts";
+import { agentRosterDirs, readAgentRoster } from "./roster.ts";
+import { configDir } from "../lib/paths.ts";
+import { homedir } from "node:os";
 import { assertDispatchShape } from "./contract.ts";
 import { describeRelaxation, relaxDispatchOutputSchemas } from "./output-schema.ts";
 import { DispatchError, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
@@ -415,6 +418,7 @@ async function onSessionStart(pi: ExtensionAPI, ctx: ExtensionContext, state: St
       config: cfg,
       depth: state.depth,
       allToolNames: safeToolNames(pi),
+      roster: readAgentRoster(agentRosterDirs({ cwd: process.cwd(), homeDir: homedir(), agentDir: configDir() })),
     });
     state.ceilingNotes = installed.notes;
     if (installed.handle) state.ceiling = installed.handle;
