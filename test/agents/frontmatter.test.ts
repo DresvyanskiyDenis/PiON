@@ -33,7 +33,7 @@ import { AgentFrontmatterSchema, parseFrontmatter } from "../../extensions/dispa
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const AGENT_DIRS = ["agents", "agents-private"] as const;
-const SKILL_DIRS = ["skills", "skills-private", "skills-work"] as const;
+const SKILL_DIRS = ["skills"] as const;
 
 /** The keys pi-subagents feeds through `parseFrontmatterList`, intersected with the ones our
  *  schema types as arrays. Both consumers must agree on every one of them. */

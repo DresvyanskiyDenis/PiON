@@ -108,11 +108,21 @@ describe("agent registry — the shipped definitions", () => {
     assert.ok(dispatchableNames(registry).length >= SHIPPED.length);
   });
 
-  it("model tiers: the six review/engineering agents are strong, the rest light", () => {
+  it("model tiers: every shipped agent declares model: strong — no agent file defaults to light", () => {
     const registry = loadRegistry();
     const byName = registry.byName;
-    const strongTier = ["ai-engineer", "architect-reviewer", "debugger", "security-reviewer", "code-reviewer", "data-engineer"];
-    const lightTier = [
+    // This was a split — the six review/engineering roles on `strong`, the other seven on `light`.
+    // It is now flat, because `dispatch.defaultTier` is `strong`: a subagent gets the strong tier
+    // unless the caller asks for something else, and an agent file quietly declaring `light` would
+    // reintroduce exactly the invisible downgrade that change removed. `light` survives as a tier
+    // you NAME in a dispatch call for mechanical work, not as a frontmatter default.
+    const strongTier = [
+      "ai-engineer",
+      "architect-reviewer",
+      "debugger",
+      "security-reviewer",
+      "code-reviewer",
+      "data-engineer",
       "app-builder",
       "docs-architect",
       "frontend-developer",
@@ -124,11 +134,8 @@ describe("agent registry — the shipped definitions", () => {
     for (const name of strongTier) {
       assert.equal(byName.get(name)?.spec, "strong", `${name} must declare model: strong`);
     }
-    for (const name of lightTier) {
-      assert.equal(byName.get(name)?.spec, "light", `${name} must declare model: light`);
-    }
-    // Every shipped agent is accounted for by exactly one of the two lists.
-    assert.deepEqual([...strongTier, ...lightTier].toSorted(), [...SHIPPED].toSorted());
+    // Every shipped agent is accounted for.
+    assert.deepEqual([...strongTier].toSorted(), [...SHIPPED].toSorted());
   });
 
   it("no bare model id anywhere in an agent file — a tier name or nothing", () => {

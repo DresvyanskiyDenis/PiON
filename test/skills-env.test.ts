@@ -103,7 +103,7 @@ async function captureStderr<T>(fn: () => Promise<T> | T): Promise<{ value: T; l
 
 describe("skills-env: envVarName", () => {
   it("upper-cases and turns hyphens into underscores", () => {
-    assert.equal(envVarName("roadmap-artifact"), "PI_SKILL_DIR_ROADMAP_ARTIFACT");
+    assert.equal(envVarName("release-notes"), "PI_SKILL_DIR_RELEASE_NOTES");
     assert.equal(envVarName("sofa"), "PI_SKILL_DIR_SOFA");
     assert.equal(envVarName("agent-swarm-workflow"), "PI_SKILL_DIR_AGENT_SWARM_WORKFLOW");
   });
@@ -136,8 +136,8 @@ describe("skills-env: computeSkillsRoot", () => {
       "/repo/skills/sofa",
       "/repo/skills/council",
       "/repo/skills/pr-describe",
-      "/repo/skills-private/cv-creator",
-      "/repo/skills-private/doc-organizer",
+      "/other/.agents/skills/changelog",
+      "/other/.agents/skills/csv-import",
     ]);
     assert.equal(root, "/repo/skills");
   });
@@ -215,13 +215,13 @@ describe("skills-env: register + resources_discover end-to-end", () => {
     const { pi, fireResourcesDiscover: fire } = fakePi([
       extensionCommand("ctx-dump"),
       skillCommand("sofa", "/repo/skills/sofa"),
-      skillCommand("roadmap-artifact", "/repo/skills/roadmap-artifact"),
+      skillCommand("release-notes", "/repo/skills/release-notes"),
     ]);
     register(pi);
     await fire();
 
     assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
-    assert.equal(process.env.PI_SKILL_DIR_ROADMAP_ARTIFACT, "/repo/skills/roadmap-artifact");
+    assert.equal(process.env.PI_SKILL_DIR_RELEASE_NOTES, "/repo/skills/release-notes");
     assert.equal(process.env.PI_SKILLS_ROOT, "/repo/skills");
     // The extension command must never produce a PI_SKILL_DIR_* var.
     assert.equal(process.env["PI_SKILL_DIR_CTX-DUMP".toUpperCase()], undefined);
@@ -255,7 +255,7 @@ describe("skills-env: register + resources_discover end-to-end", () => {
   // REGRESSION (2026-08-07), the silent half of the same bug: `~/.agents/skills/tickets` reports
   // `baseDir: "~/.agents"` and a package skill reports the package install root. Trusting either
   // exported a directory two or three levels above the skill, and dragged PI_SKILLS_ROOT up with
-  // it — `$PI_SKILLS_ROOT/roadmap-artifact/scripts/render.py` would have resolved under $HOME.
+  // it — `$PI_SKILLS_ROOT/release-notes/scripts/render.py` would have resolved under $HOME.
   it("ignores a sourceInfo.baseDir that names a resolution root instead of the skill directory", async () => {
     const root = makeTmpRoot();
     const agentsSkillsDir = join(root, ".agents", "skills");
@@ -379,14 +379,14 @@ describe("skills-env: extension-contributed skills reach the roster after resour
   // REGRESSION. `AgentSession.extendResourcesFromExtensions` (`agent-session.js:1764-1777`)
   // collects every `resources_discover` handler's return value and only calls `extendResources`
   // AFTER all of them have returned — so a skill contributed by one `resources_discover` handler
-  // (e.g. `extensions/skill-mask.ts`) is invisible to `pi.getCommands()` inside another
+  // by any extension is invisible to `pi.getCommands()` inside another
   // `resources_discover` handler firing in the same pass (this module). Modelled here by a
   // `getCommands()` that returns a short roster during `resources_discover` and a longer one — the
   // same list, plus the extension-contributed skill — once `extendResources` would have landed it,
   // by the time `agent_start` fires.
   it("picks up a skill that only appears after resources_discover, on the next agent_start", async () => {
     const early = [skillCommand("sofa", "/repo/skills/sofa")];
-    const late = [...early, skillCommand("roadmap-artifact", "/repo/skills-private/roadmap-artifact")];
+    const late = [...early, skillCommand("release-notes", "/other/.agents/skills/release-notes")];
     const { pi, setCommands, fireResourcesDiscover, fireAgentStart } = fakePi(early);
     register(pi);
 
@@ -395,7 +395,7 @@ describe("skills-env: extension-contributed skills reach the roster after resour
     // not set, and — because from this module's point of view the skill did not exist yet — no
     // warning fires either. That silence is exactly what made the defect invisible for weeks.
     assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
-    assert.equal(process.env.PI_SKILL_DIR_ROADMAP_ARTIFACT, undefined);
+    assert.equal(process.env.PI_SKILL_DIR_RELEASE_NOTES, undefined);
 
     // `extendResources` has now landed the extension-contributed skill (agent-session.js:1777),
     // and the mode is about to start the first turn.
@@ -403,7 +403,7 @@ describe("skills-env: extension-contributed skills reach the roster after resour
     await fireAgentStart();
 
     assert.equal(process.env.PI_SKILL_DIR_SOFA, "/repo/skills/sofa");
-    assert.equal(process.env.PI_SKILL_DIR_ROADMAP_ARTIFACT, "/repo/skills-private/roadmap-artifact");
+    assert.equal(process.env.PI_SKILL_DIR_RELEASE_NOTES, "/other/.agents/skills/release-notes");
   });
 
   it("does not redo the discovery pass on a second agent_start with no prior resources_discover", async () => {

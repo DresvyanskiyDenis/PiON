@@ -266,7 +266,7 @@ give a read-only agent read-only tools.
 **File:** `config/dispatch.json`
 
 ```json
-{ "maxDepth": 2, "concurrencyDefault": 3, "defaultTier": "light", "defaultTimeoutMs": 1800000 }
+{ "maxDepth": 2, "concurrencyDefault": 3, "defaultTier": "strong", "defaultTimeoutMs": 1800000 }
 ```
 
 `maxDepth: 2` is **not overridable** — a written justification cannot make a fourth level of nesting
@@ -317,10 +317,12 @@ Full walkthrough:
 
 ### 18. Add your own skill
 
-No skills ship, and none ever will — the *loading machinery* does. Put yours in
-`skills-private/` in the clone (git-ignored, and the installer offers to create it), or in
-`~/.pi/agent/skills/<name>/SKILL.md`. `skills-private/` is already named in `config/settings.json` →
-`skills`; any other root you invent has to be added there.
+No skill is loaded by default — the *loading machinery* is what ships, plus one worked example under
+`examples/skills/` that you copy in if you want it. Put yours in
+`skills/` in the clone (git-ignored, and the installer offers to create it), or in
+`~/.pi/agent/skills/<name>/SKILL.md` — the installer links one to the other, so those are the same
+directory. That path is the single entry in `config/settings.json` → `skills`; any other root you
+invent has to be added there, or PI merges it last and it loses every name collision.
 
 PI parses exactly three front-matter fields: `name`, `description`,
 `disable-model-invocation`. **`allowed-tools` is inert** — it is accepted and ignored, so a skill

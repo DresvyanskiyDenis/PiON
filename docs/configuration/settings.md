@@ -164,7 +164,7 @@ compaction fires, which is why [first run](../getting-started/first-run.md) tell
 These four arrays are how PI finds everything this repository adds.
 
 ```json
-"skills":     ["~/.pi/agent/skills", "~/pi-config/skills-private"],
+"skills":     ["~/.pi/agent/skills"],
 "prompts":    ["~/.pi/agent/prompts"],
 "extensions": ["~/pi-config/extensions/index.ts"],
 "themes":     [],
@@ -181,16 +181,27 @@ These four arrays are how PI finds everything this repository adds.
 ```
 
 !!! warning "`extensions` names exactly one file, on purpose"
-    `extensions/index.ts` is a composition root that imports and registers 26 modules in a fixed
+    `extensions/index.ts` is a composition root that imports and registers 27 modules in a fixed
     order. Pointing PI at the *directory* instead would load 26 separate extensions in `readdir`
     order, fail every one that has no default export, and let `readdir` decide the `tool_call`
     chaining order — which decides whether `guard` sees a call before `bash` rewrites it. Do not
     "simplify" this line. [Architecture](../concepts/architecture.md) has the full argument.
 
-`skills` is the array you extend to add your own skills. **No skills ship with this repository, and
-none ever will** — the loading mechanism does, the content does not. `~/pi-config/skills-private` is
-a git-ignored path; the installer offers to create it empty, and PI tolerates it being absent. See
-[Writing a skill](../extending/skills.md) for the precedence ranks and a worked example.
+`skills` is the array you extend to add your own skills. **Nothing on this path ships populated** —
+the loading mechanism ships, the content does not, and the one worked example under
+`examples/skills/` is deliberately outside every search path. The one entry is where the
+installer symlinks the clone's git-ignored `skills/`, so the directory you write into and the path
+PI searches are the same directory under two names; PI tolerates it being absent.
+
+!!! note "One root, declared once"
+    An earlier layout split user skills across three sibling directories. That split looked like a
+    privacy boundary and was not one: a single `.gitignore` line was doing the whole job, and two of
+    the three roots were never in this array at all — an extension contributed them at runtime, and
+    PI merges contributed roots **last**, so every skill in them silently lost a name collision to
+    `~/.agents/skills`. Adding a root here is the only way to make one win. One root, declared in
+    the array, is the honest shape.
+
+See [Writing a skill](../extending/skills.md) for the precedence ranks and a worked example.
 
 `packages` is a list of directories, one per adopted community package. `pi-mcp-adapter` points at
 `pi-packages/` rather than `node_modules/` because it is **vendored in-tree and locally patched** —

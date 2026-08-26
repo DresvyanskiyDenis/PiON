@@ -46,7 +46,7 @@ link above goes through it, and so do `config/settings.json`'s own `extensions` 
 entries, so you can move or rename the checkout without editing anything.
 
 !!! warning "Two things are deliberately **not** linked"
-    **`extensions/`.** PI discovers `<agentDir>/extensions/*.ts` and would load all 26 modules as
+    **`extensions/`.** PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as
     separate extensions in `readdir` order — breaking the fixed load order and failing every module
     that has no default export. `config/settings.json` names the single file
     `~/pi-config/extensions/index.ts` instead.
@@ -57,9 +57,10 @@ entries, so you can move or rename the checkout without editing anything.
     one subdirectory and links only the single file into it — never `~/.pi/agent/extensions`
     itself, which is what would hand PI the extension source tree above.
 
-    **`skills/`.** There is no `skills/` directory in this repository and there never will be; the
-    link is made only by a fork that adds one. Your own skills live in the git-ignored
-    `skills-private/`, which `settings.json` lists as a search path directly. See
+    **`skills/`.** Nothing is tracked in this directory — the one worked example lives under
+    `examples/skills/`, outside every search path — but the
+    directory itself is the one place your own skills go: it is git-ignored, and the installer
+    links it to `~/.pi/agent/skills`, the single search path `settings.json` names. See
     [Writing a skill](../extending/skills.md).
 
 ## Which process reads what

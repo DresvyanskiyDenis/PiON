@@ -8,16 +8,20 @@ The machinery around them does ship, and it is worth understanding before you ad
 default-deny for project-declared servers, an environment-minimising wrapper for stdio servers, and
 host discovery turned off so nothing arrives that you did not write down.
 
-`config/mcp.example.json` is a template that is **never loaded**. It carries two worked entries —
-`context7` (HTTP, header credential) and `playwright` (stdio, wrapped) — chosen because they are
-public and self-explanatory, not because you need them. Copy from it.
+`config/mcp.example.json` is a template that is **never loaded**. It carries three worked entries —
+`context7` (HTTP, header credential), `playwright` (stdio, wrapped) and `lightpanda` (stdio, the
+text-only browser lane) — chosen because they are public and self-explanatory, not because you need
+them. Copy from it.
 
 ---
 
-## The installer offers those same two
+## The installer offers two of the three
 
 The install's MCP step (section 8) reads `config/mcp.example.json` and offers `context7` and
-`playwright` by number. **The default answer is none**, and blank means none. If you took it, or if
+`playwright` by number. `lightpanda` is left out on purpose — it is the one entry that needs a
+binary you have to install yourself, and offering it would let the installer write a server that
+cannot start. See [Two browser lanes](../configuration/mcp.md#two-browser-lanes-split-by-output)
+for why you probably still want it. **The default answer is none**, and blank means none. If you took it, or if
 you want to change your mind, re-run just that step:
 
 ```bash
@@ -120,7 +124,10 @@ Three practical notes:
 `lazy` starts the server on first use. The default starts it at session start, which means every
 session pays its startup cost and holds its process, whether or not you touch it.
 
-A server with an expensive start (a browser, a container) should always be `lazy`.
+A server with an expensive start (a browser, a container) should always be `lazy`. This is also
+what makes it cheap to declare **both** browser lanes — a text-only headless-JS server and a full
+browser — instead of picking one: two `lazy` entries are two config blocks and zero processes until
+a tool is called. See [Two browser lanes](../configuration/mcp.md#two-browser-lanes-split-by-output).
 
 ### 3. `directTools` — per server, never globally
 

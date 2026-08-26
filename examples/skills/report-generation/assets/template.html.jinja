@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ report.title }}</title>
+<meta name="description" content="{{ report.verdict }}">
+<meta name="generator" content="report-generation">
+<style>
+{{ css }}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <span class="topbar-title">{{ report.title }}</span>
+    <nav class="navdots" aria-label="Findings">
+      {%- for f in report.findings %}
+      <a href="#f{{ f.n }}" title="{{ f.headline }}"><span class="sr-only" data-computed="1">{{ f.n }}</span></a>
+      {%- endfor %}
+    </nav>
+    <button class="tbtn" id="theme-toggle" type="button">Dark</button>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Report{% if report.meta.get('Date') %} &middot; {{ report.meta['Date'] }}{% endif %}</p>
+      <h1>{{ report.title }}</h1>
+      <p class="verdict">{{ report.verdict }}</p>
+      {#- Hero carries scope only. The full provenance record lives once, in
+          the footer: repeating it here is the same fact printed twice. -#}
+      {%- if report.meta.get('Scope') %}
+      <p class="scope"><span>Scope</span> {{ report.meta['Scope'] }}</p>
+      {%- endif %}
+    </div>
+  </section>
+
+  {%- if report.kpis %}
+  <section class="wrap">
+    <div class="kpis">
+      {%- for k in report.kpis %}
+      <div class="kpi">
+        <div class="kpi-label">{{ k.label }}</div>
+        <div class="kpi-value">{{ k.value }}{% if k.unit %}<span class="kpi-unit">{{ k.unit }}</span>{% endif %}</div>
+        {%- if k.baseline or k.delta %}
+        <div class="kpi-foot">
+          {%- if k.delta %}<span class="kpi-delta {{ k.delta_dir }}">{{ k.delta }}</span>{% endif %}
+          {%- if k.baseline %}<span class="kpi-base">from {{ k.baseline }}</span>{% endif %}
+        </div>
+        {%- endif %}
+      </div>
+      {%- endfor %}
+    </div>
+  </section>
+  {%- endif %}
+
+  {%- for f in report.findings %}
+  <section class="finding" id="f{{ f.n }}">
+    <div class="wrap">
+      <p class="finding-n">Finding {{ f.n }}</p>
+      <h2>{{ f.headline }}</h2>
+      {%- if f.figure_html %}
+      <div class="figure reveal scrollx">
+{{ f.figure_html }}
+      </div>
+      {%- endif %}
+      <p class="caption">{{ f.caption }}</p>
+      <a class="more" href="{{ md_name }}#{{ f.anchor }}">Detail &amp; evidence &rarr;</a>
+    </div>
+  </section>
+  {%- endfor %}
+
+  <section class="finding">
+    <div class="wrap twocol">
+      {%- if report.actions %}
+      <div class="block">
+        <h2>What to do</h2>
+        <ol>
+          {%- for a in report.actions %}
+          <li>{{ a }}</li>
+          {%- endfor %}
+        </ol>
+      </div>
+      {%- endif %}
+      {%- if report.caveats_shown %}
+      <div class="block">
+        <h2>Caveats</h2>
+        <ul>
+          {%- for c in report.caveats_shown %}
+          <li>{{ c }}</li>
+          {%- endfor %}
+        </ul>
+        {%- if report.caveats_hidden %}
+        <details>
+          <summary>{{ report.caveats_hidden|length }} more in the full report</summary>
+          <p style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:var(--sp-2)">
+            See <a href="{{ md_name }}#caveats">{{ md_name }}</a>.
+          </p>
+        </details>
+        {%- endif %}
+      </div>
+      {%- endif %}
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>
+      Full detail, methodology and every measurement:
+      <a href="{{ md_name }}">{{ md_name }}</a>.
+      This page carries no fact that is not in that document.
+    </p>
+    {%- if report.meta %}
+    <dl>
+      {%- for k, val in report.meta.items() %}
+      <dt>{{ k }}</dt><dd>{{ val }}</dd>
+      {%- endfor %}
+    </dl>
+    {%- endif %}
+  </div>
+</footer>
+
+{%- if figures_json != "[]" %}
+<script id="figures" type="application/json">{{ figures_json }}</script>
+<script>
+{{ echarts_js }}
+</script>
+{%- endif %}
+<script>
+{{ charts_js }}
+</script>
+</body>
+</html>

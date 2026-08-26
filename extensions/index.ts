@@ -15,14 +15,15 @@
  *     reads a load registry in which `guard`'s entry is already written, and so its
  *     `project_trust` handler is bound before any project resource is considered.
  *   - `hooks` (`EXT-15`) stacks on the guard and may only add denial, so it follows it.
- *   - `path-defaults`, `skills-env`, `skill-mask` publish configuration later modules read.
+ *   - `path-defaults`, `path-rules` and `skills-env` publish configuration later modules read;
+ *     `skill-mask` keeps its slot beside them although it registers nothing.
  *   - `dispatch` precedes `teammates`/`worktree`/`jobs`: those register providers and vetoes
  *     into registries `dispatch` owns.
  *   - `doctor` is LAST so its session_start pass observes everything above it.
  *
  * Loading is intentionally NOT via directory discovery. PI discovers `extensions/*.ts` and
  * `extensions/<dir>/index.ts` (`core/extensions/loader.js` → `discoverExtensionsInDir`), so a
- * symlinked `~/.pi/agent/extensions -> <repo>/extensions` would try to load all 25 modules as
+ * symlinked `~/.pi/agent/extensions -> <repo>/extensions` would try to load all 27 modules as
  * separate extensions, in readdir order, and fail every one that has no default export.
  * `config/settings.json` therefore names this file explicitly, exactly as
  * the bootstrap install already prescribes for `extensions`.
@@ -42,6 +43,7 @@ import { id as trustId, register as registerTrust } from "./trust.ts";
 import { id as ctxId, register as registerSessionContext } from "./session-context.ts";
 import { id as credId, register as registerCredentials } from "./credentials.ts";
 import { id as pathDefaultsId, register as registerPathDefaults } from "./path-defaults/index.ts";
+import { id as pathRulesId, register as registerPathRules } from "./path-rules/index.ts";
 import { id as skillsEnvId, register as registerSkillsEnv } from "./skills-env.ts";
 import { id as skillMaskId, register as registerSkillMask } from "./skill-mask.ts";
 import { id as webId, register as registerWeb } from "./web.ts";
@@ -77,6 +79,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [credId, registerCredentials],
   // capability configuration that later modules read
   [pathDefaultsId, registerPathDefaults],
+  [pathRulesId, registerPathRules],
   [skillsEnvId, registerSkillsEnv],
   [skillMaskId, registerSkillMask],
   // tool providers and input mutators — after the guard, never before it

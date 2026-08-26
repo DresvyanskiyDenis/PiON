@@ -20,14 +20,14 @@ whether to invoke it; you can also invoke one explicitly as `/skill:<name>`.
 A skill is two things: a directory and a Markdown file with three lines of front matter.
 
 ```text
-~/pi-config/skills-private/
+~/pi-config/skills/
 └── release-notes/
     └── SKILL.md
 ```
 
 ```bash
-mkdir -p ~/pi-config/skills-private/release-notes
-cat > ~/pi-config/skills-private/release-notes/SKILL.md <<'EOF'
+mkdir -p ~/pi-config/skills/release-notes
+cat > ~/pi-config/skills/release-notes/SKILL.md <<'EOF'
 ---
 name: release-notes
 description: Use when asked to write release notes from a git range. Groups commits by type, drops noise, writes Markdown. Not for PR descriptions.
@@ -54,10 +54,38 @@ Restart `pi`. Two ways to confirm it landed:
 /doctor                  # D-02 reports skills named in your instructions vs skills found
 ```
 
-`skills-private/` is git-ignored, so nothing you put there can be committed by accident. That makes
-it the right place for anything with a client name, an internal URL or a personal workflow in it —
-and it is why the installer offers to create it for you at the tools step, empty, rather than leaving
-you to invent a location.
+`skills/` is git-ignored, so nothing you put there can be committed by accident. That makes it the
+right place for anything with a client name, an internal URL or a personal workflow in it — and it
+is why the installer offers to create it for you at the tools step, empty, rather than leaving you
+to invent a location. The installer also links it to `~/.pi/agent/skills`, so the path you write
+into and the path `settings.json` searches are one directory.
+
+---
+
+## `examples/skills/` — a real one you can read
+
+`examples/skills/report-generation/` is a complete, non-trivial skill: frontmatter, reference
+documents, a `uv`-run Python renderer, a CSS visual system and a vendored charting library. It is
+**tracked** and it is **outside every search path**, so PI never loads it. Copy the directory into
+your `skills/` to use it.
+
+That split is deliberate. The loaded roster staying empty is a privacy property, not an aesthetic
+one; a worked example you can read is a documentation property. Putting the example under
+`examples/` gets both, and nothing has to be un-ignored.
+
+!!! note "What ships with it, and what was left out"
+    Its palette is unbranded on purpose — two identity colours, a slate scale, and semantic and
+    categorical token sets, all defined in the four `:root` blocks of `assets/report.css`. Re-skin by
+    redefining those tokens; every rule beneath them reads a token, so a house style never has to
+    touch a selector.
+
+    Its vendored `echarts.min.js` carries `assets/vendor/SOURCE.txt`: upstream URL, exact version,
+    licence, fetch date, and an explicit "byte-identical, no local changes" claim. Copy that pattern
+    for anything you vendor. A second candidate skill was reviewed for publication here and
+    **rejected** precisely because it could not satisfy it — it vendors a third-party `data/`,
+    `references/` and `scripts/` tree with no licence file anywhere in it, and unlicensed
+    third-party content must not reach a public repository. That decision reverses only if the
+    upstream licence is confirmed to permit redistribution.
 
 ---
 
@@ -67,7 +95,7 @@ The five-minute version is a prompt in a directory. This one ships a script alon
 where the environment shim earns its place.
 
 ```text
-~/pi-config/skills-private/
+~/pi-config/skills/
 └── coverage-report/
     ├── SKILL.md
     └── scripts/
@@ -185,30 +213,31 @@ The shipped array is:
 
 ```json
 "skills": [
-  "~/.pi/agent/skills",
-  "~/pi-config/skills-private"
+  "~/.pi/agent/skills"
 ]
 ```
 
-Add your own root by adding a line there — see
+One entry, and the installer points it at the clone's git-ignored `skills/`. Add your own root by
+adding a line there — see
 [`config/settings.json`](../configuration/settings.md#resource-paths). A root that does not exist is
-skipped without complaint, which is why a fresh clone with no `skills-private/` starts cleanly.
+skipped without complaint, which is why a fresh clone with no `skills/` starts cleanly.
 
 !!! danger "Name your root in `config/settings.json`, not only from an extension"
     A root contributed *only* from a `resources_discover` handler sits behind **every** rank above,
     including `~/.agents/skills`. Measured, not theorised: two skills contributed that way were
     silently shadowed by stale same-named copies in `~/.agents/skills` and never ran once.
 
-    [`skill-mask`](../extensions/skill-mask.md) contributes `skills-private/` and `skills-work/` from
-    a handler as a fallback for an install whose settings file is not this repository's. It is a
-    safety net, **not** a substitute for the settings entry.
+    This is also why the three-way `skills/` + `skills-work/` + `skills-private/` split was
+    collapsed into the one root above: two of its three directories were contributed from a handler
+    and never named in `settings.json`, so they sat behind `~/.agents/skills` the whole time.
 
 !!! info "`skill-mask` masks nothing, despite the name"
     `extendResources` performs a **union** with what the settings-driven scan already found. No path
     in that chain removes a root, so a `resources_discover` handler can only ever *add* skills, never
     subtract them. There is no default-deny skill mask in this harness and one cannot be built at
-    that seam. The module keeps its name only because `config/settings.json` and the install symlinks
-    already refer to it. See [Known limitations](../limitations.md).
+    that seam. The module is now a registered no-op — it keeps its id only because
+    `extensions/index.ts`, the manifest and `/doctor`'s load registry all expect to find it. See
+    [Known limitations](../limitations.md).
 
     The control you *do* have over what a skill may do is the model's own judgement plus the
     [guard](../extensions/guard.md), which sees every tool call a skill causes.

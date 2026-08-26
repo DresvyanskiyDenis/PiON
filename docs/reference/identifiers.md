@@ -35,6 +35,11 @@ bearing rather than decorative. Renaming one is a code change, not a copy edit.
 | `VP-NN` | a verification point — something that had to be *proved* on a real machine, not argued |
 | `PC-NN` | a `bin/pi-check` rule |
 
+!!! warning "`PC-NN` numbers are local to this repository"
+    They are allocated in the order rules land here, and a rule with the same number in a fork or a
+    sibling configuration is a **different rule**. There is nothing to reconcile and reconciling
+    them would break every reference on this page. Match rules by `title`, never by number.
+
 `PC-NN` is the only family that is fully self-describing at runtime — `bin/pi-check --all --json`
 prints every rule it ran under `rulesRun`, and each rule file in `bin/rules/` exports both a `title`
 and a `closes` array naming the requirements it enforces. That `closes` export is the shortest path

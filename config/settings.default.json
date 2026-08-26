@@ -60,8 +60,7 @@
     "mermaid": "streaming"
   },
   "skills": [
-    "~/.pi/agent/skills",
-    "~/pi-config/skills-private"
+    "~/.pi/agent/skills"
   ],
   "prompts": [
     "~/.pi/agent/prompts"

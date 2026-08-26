@@ -31,9 +31,9 @@ describe("extractReferences — synthetic fixtures", () => {
     assert.deepEqual(refs.tools, []);
   });
 
-  it("finds a SKILL.md path under any of the three roots", () => {
+  it("finds a SKILL.md path under the skills root", () => {
     const refs = extractReferences(
-      "See skills/search-web/SKILL.md, skills-work/wiki/SKILL.md and skills-private/csv-import/SKILL.md.",
+      "See skills/search-web/SKILL.md, skills/wiki/SKILL.md and skills/csv-import/SKILL.md.",
     );
     assert.deepEqual(refs.skills.toSorted(), ["csv-import", "search-web", "wiki"]);
   });

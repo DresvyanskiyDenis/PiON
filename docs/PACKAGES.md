@@ -287,6 +287,52 @@ That is disclosed in the tool description and is the package's purpose, but it m
 needs either `mode=full`, an explicit line range, or the native `read` builtin — which stays available,
 since the package runs in `additive` mode.
 
+**The `Compressed N → N tokens (0%)` footer is a broken readout, not a decision** (measured
+2026-08-26 against the pinned 3.9.17). A `ctx_shell` result carries two footers and only the first
+one measures anything:
+
+```
+─── 917 → 239 tok (↓~70%) ───
+
+Compressed 333 → 333 tokens (0%)
+```
+
+The first comes from the Rust binary (`src/core/savings_footer.rs`) and is accurate — compression is
+working. The second comes from the npm extension (`formatFooter`, `extensions/index.ts:233`) and is
+arithmetically incapable of reporting anything but `0%` on the shell and search tools.
+
+`ctx_shell` does not run bash and then compress it. `baseBashTool` (`:407`) installs a `spawnHook`
+that rewrites every command to `lean-ctx -c '<command>'`, so the extension's only remaining job is to
+parse the binary's marker back out. `parseLeanCtxOutput` (`:200-231`) accepts exactly two shapes —
+`[lean-ctx: N → M tok, -P%]` at `:208` and `[N tok saved (P%)]` at `:214` — and binary 3.9.13 emits
+neither. It emits `[lean-ctx: 17001→1474 tok, verbatim truncated]`, a reason string where the regex
+demands a percentage, or the `─── … ───` banner above, which the regex does not model at all. A sweep
+of a 141 MB session corpus under `~/.pi/agent/sessions` finds **zero** occurrences of either accepted
+shape: never matched, not rarely.
+
+With nothing parsed, the bare `always: true` branch of `withFooter` measures the *already-compressed*
+text against itself, so `original === compressed` by construction. Its estimator is `ceil(length / 4)`
+over JS UTF-16 units, which is why the number agrees with neither side of the real footer — the body
+above is 1329 UTF-16 units, and `ceil(1329 / 4)` is exactly 333.
+
+Affected: `ctx_shell` (`:477`, `:486`) and `ctx_ls` / `ctx_find` / `ctx_grep` (`:691`, `:715`, `:764`),
+which pass a bare `always: true`. Eleven of eleven samples in the session corpus are exactly
+`N → N (0%)`, with no counter-example. **`ctx_read` is unaffected** (`:594`, `:607`, `:645`, `:658`):
+it passes `originalText` with `preferEstimate` and `suppressIfNoSaving`, which is where the genuine
+`-47%` / `-99%` / `-100%` footers come from. So a non-zero percentage always means `ctx_read`.
+
+The one case where this matters: `verbatim truncated` means output was *dropped* and teed to
+`~/.local/state/lean-ctx/tee/`, and the `0%` footer then sits directly beneath a marker saying content
+is missing. Nothing is lost silently — the binary's marker survives in the body precisely because the
+parser fails to strip it — but the footer actively contradicts it, and that is the only place the
+wrong readout sits next to something consequential.
+
+Upgrading does not fix it: npm 3.9.20 carries the identical two regexes at `:218` and `:224` and still
+passes a bare `always: true` on all four tools. It is not patched here either, and deliberately so —
+this repository has no patch mechanism, and adding one that every `npm ci` would have to honour
+forever is a bad trade for a footer worth roughly ten tokens a call. Recorded as a known cosmetic
+defect. Revisit if the `verbatim truncated` case is ever shown to hide real data loss.
+
 ## `pi-opa-net` 0.6.0
 
 | | |

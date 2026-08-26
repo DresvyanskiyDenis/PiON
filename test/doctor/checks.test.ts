@@ -81,8 +81,8 @@ describe("D-02 checkSkills", () => {
   });
 
   it("pass: a repo skill this session's cwd scoped out is still declared", () => {
-    // The other half of the union: `skills-private/` is never in settings.json's `skills` array,
-    // so it is declared-but-not-live. Live-only would false-positive here.
+    // The other half of the union: a skill can sit in the repo's `skills/` and still not be live
+    // this session, so it is declared-but-not-live. Live-only would false-positive here.
     const findings = checkSkills(
       baseInputs({ systemPrompt: "load the `sofa` skill", declaredSkillIds: ["sofa"], liveSkillIds: [] }),
     );

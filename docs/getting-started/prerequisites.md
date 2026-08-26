@@ -34,8 +34,10 @@ load-bearing:
 - `shouldCompact` is `contextTokens > contextWindow - reserveTokens`, and `reserveTokens` is a
   **global scalar**, not per-model. The whole [context-window rule](../concepts/context-windows.md)
   follows from that one fact.
-- `resources_discover` is **additive only** — a handler can add skill roots, never remove them. So
-  [`skill-mask`](../extensions/skill-mask.md) is an allow-list widener despite its name.
+- `resources_discover` is **additive only** — a handler can add skill roots, never remove them, and
+  what it adds is appended behind every settings-declared root. So
+  [`skill-mask`](../extensions/skill-mask.md) could never mask, and the roots it once contributed
+  were collapsed into the single one `settings.json` declares.
 - PI's skill frontmatter reader parses exactly three fields; `allowed-tools` is read by nothing.
   Hence [`skills-lint`](../extensions/skills-lint.md) warns instead of enforcing.
 - An extension **cannot** abort a headless run from the inside. Hence

@@ -1103,7 +1103,7 @@ fi
 # is prose plus scripts, and prose is exactly where somebody's employer leaks out. So the only
 # thing to decide here is where YOUR skills will live, and the answer is a git-ignored directory
 # so that writing one can never turn into committing one.
-SKILLS_DIR="$REPO_DIR/skills-private"
+SKILLS_DIR="$REPO_DIR/skills"
 if [ -d "$SKILLS_DIR" ]; then
   ok "your skills directory already exists: $SKILLS_DIR"
   ans_set skills.dir 1
@@ -1657,7 +1657,7 @@ link_one required config/settings.json      settings.json
 link_one required config/models.json        models.json
 link_one required config/routing.json       routing.json
 if [ "$(ans_get skills.dir)" = "1" ]; then
-  if [ -d "$SKILLS_DIR" ]; then ok "skills-private/ (your own skills)"
+  if [ -d "$SKILLS_DIR" ]; then ok "skills/ (your own skills)"
   else
     run "mkdir -p '$SKILLS_DIR'"
     changed "$SKILLS_DIR — git-ignored, already a skill search path in settings.json"
@@ -1671,10 +1671,10 @@ if [ "$(ans_get skills.dir)" = "1" ]; then
   todo_add "     (optional) write your first skill: $SKILLS_DIR/<name>/SKILL.md — see https://dresvyanskiydenis.github.io/PiON/extending/skills/"
 fi
 
-# `skills` is optional, and in this repository it is always absent: the public harness ships the
-# skill *loading mechanism* and no skills. settings.json lists ~/.pi/agent/skills as a search
-# path anyway, and PI treats a missing search path as "no skills here" rather than an error, so
-# the link is made only by a fork that added one.
+# `skills` is optional, and in a fresh clone it is absent: the public harness ships the skill
+# *loading mechanism* and no skills. settings.json lists ~/.pi/agent/skills as its ONE search
+# path, and PI treats a missing search path as "no skills here" rather than an error — so the
+# link is made once the step above has created the directory, or by a fork that added one.
 link_one optional skills                    skills
 link_one required prompts                   prompts
 link_one required AGENTS.md                 AGENTS.md

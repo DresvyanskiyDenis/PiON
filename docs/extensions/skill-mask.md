@@ -1,8 +1,13 @@
-# `skill-mask` — extra skill roots (and why it cannot mask)
+# `skill-mask` — a registered no-op (and why it cannot mask)
 
-Adds extra skill roots to every session via `resources_discover`. That is the whole module.
-**Despite the name it masks nothing**, and the name survives only because `config/settings.json` and
-the install symlinks refer to it.
+This module registers nothing. It used to add extra skill roots to every session via
+`resources_discover`; both the masking it is named for and the extra roots it contributed turned out
+to be the wrong mechanism, and the roots were collapsed into the single one `config/settings.json`
+declares. **Despite the name it masks nothing**, and it never did.
+
+The id survives because removing it is a bigger change than keeping it: `extensions/index.ts`, the
+extension manifest, the trust deadman list and `/doctor`'s load registry all expect to find it, and
+a module that registers no handler is not the same thing as a module that is absent.
 
 ## Why it cannot mask — measured, not assumed
 
@@ -15,7 +20,7 @@ settings-driven scan already found. No path in that chain removes a root.
 If you need a skill *not* to load, do not look for a mask. Remove the root from
 `config/settings.json`, or remove the skill.
 
-## What contributing a root here does not buy
+## Why contributing a root here bought nothing either
 
 Additive means **appended**. `extendResources` merges contributed paths onto the **end** of the
 already-resolved list, and `loadSkills` keeps the **first** loader of each skill name, reporting
@@ -32,17 +37,13 @@ Everything settings-driven is resolved first, and is itself rank-ordered:
 | 4 | package-shipped skills |
 | — | anything contributed by `resources_discover`, appended last |
 
-So a root contributed **only** from here sits behind everything and loses every name collision.
+So a root contributed **only** from here sat behind everything and lost every name collision.
 Measured, not theorised: two skills contributed only from here were silently shadowed by stale
 same-named copies in the standard tree, and never ran.
 
-!!! warning "The fix is not in this module and cannot be"
-    **Name your skill roots in `config/settings.json`.** This handler then becomes a harmless
-    duplicate — `loadSkills` dedupes by canonical path before the name check — and remains as a
-    fallback for an install whose settings file is not this repository's.
-
-A missing directory is a silent no-op rather than an error, so a clone without the optional roots
-works unchanged.
+!!! warning "The fix was never in this module and could not be"
+    **Name your skill root in `config/settings.json`.** That is what the shipped array does, with
+    one entry, and it is why this module has nothing left to contribute.
 
 ## Related
 [Adding a skill](../extending/skills.md) · [`settings.json`](../configuration/settings.md#resource-paths) ·
