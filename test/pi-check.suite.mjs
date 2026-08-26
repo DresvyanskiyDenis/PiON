@@ -18,6 +18,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, cpSync, rmSync, readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -124,6 +125,15 @@ test("clean fixture: --all passes with zero findings, exit 0", () => {
 // 2. Each rule fires on its own deliberately-broken fixture.
 // ---------------------------------------------------------------------------------------
 
+/**
+ * The digest PC-25 stores for `name`. Mirrors the salt and the tokenisation in
+ * bin/rules/pc-25-no-do-not-publish-names.mjs; only ever called here with invented names.
+ */
+function digestFor(name) {
+  const tokens = name.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 0);
+  return createHash("sha256").update(`pion-do-not-publish-v1\n${tokens.join("-")}`).digest("hex");
+}
+
 /** @type {Array<{ id: string, break: (dir: string) => void }>} */
 const MUTATIONS = [
   {
@@ -229,6 +239,22 @@ const MUTATIONS = [
         join(dir, "test", "path-rules", "fixtures", "broken.md"),
         '---\npaths:\n  - "**/[abc].py"\n---\nBroken body.\n',
       );
+    },
+  },
+  {
+    id: "PC-25",
+    // The names PC-25 really looks for cannot appear in this file — a gate that ships the list it
+    // forbids is the leak it exists to prevent, and this suite is git-tracked. So the mutation
+    // rewrites the fixture's digest file to hold the digest of a harmless invented name and then
+    // plants that name in a path. It exercises the real path scan, with nothing real in it.
+    // Needs a git repo underneath for the same reason PC-06's mutation does: the scan surface is
+    // `git ls-files`, and without one PC-25 reports "cannot enumerate" and never looks at a path.
+    break: (dir) => {
+      execFileSync("git", ["init", "-q"], { cwd: dir });
+      writeFileSync(join(dir, "config", "do-not-publish.digests.txt"), `2 ${digestFor("example-forbidden")}\n`);
+      mkdirSync(join(dir, "docs", "example-forbidden"), { recursive: true });
+      writeFileSync(join(dir, "docs", "example-forbidden", "note.md"), "Placeholder.\n");
+      execFileSync("git", ["add", "-A"], { cwd: dir });
     },
   },
 ];
@@ -465,7 +491,7 @@ test("static scan: no rule, lib or CLI file imports child_process/network module
   // pc-09 and the frontmatter reader both use legitimately. This only matches an actual
   // import/require of a spawning or network module, or a child_process-specific call name.
   const FORBIDDEN = /(?:from\s+|require\()["'](?:node:)?(?:child_process|net|http|https|dns|tls)["']|execSync\(|spawnSync\(|execFileSync\(|\bspawn\(|\bfetch\(/;
-  // Four declared, deliberate exceptions, for different reasons:
+  // Five declared, deliberate exceptions, for different reasons:
   //   - PC-19 (VP-10) spawns npm and touches the network — see the companion test below, which
   //     asserts it is exactly this one file and that it never runs without --live.
   //   - PC-12 (F8, adversarial security review) spawns `git` — local, read-only, no network —
@@ -478,7 +504,11 @@ test("static scan: no rule, lib or CLI file imports child_process/network module
   //   - PC-23 spawns `git ls-files`, and `git log` behind PI_LEAK_CHECK_HISTORY, for the third
   //     time for that same reason: a pattern that has already been committed is still published,
   //     and only git can say so. Local, read-only, no network.
+  //   - PC-25 spawns `git ls-files` and `git log --diff-filter=A`, again for that reason and one
+  //     more: a name deleted from the working tree is still in history, and history is what a
+  //     clone gets. Local, read-only, no network.
   const SPAWN_EXCEPTIONS = [
+    "pc-25-no-do-not-publish-names.mjs",
     "pc-19-npm-registry-version-agreement.mjs",
     "pc-12-private-files-not-tracked.mjs",
     "pc-06-no-committed-secrets.mjs",
@@ -758,6 +788,51 @@ test("PC-21's escape hatch: --write-vendor-manifest re-records a legitimate edit
       status = err.status;
     }
     assert.equal(status, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------------------
+// 2f. PC-25's two properties that the MUTATIONS entry cannot show: it fails CLOSED when it has
+//     nothing to check against, and its content scan is deliberately restricted to multi-token
+//     names. Both use invented names for the same reason the mutation does.
+// ---------------------------------------------------------------------------------------
+
+function pc25Findings(dir) {
+  const { json } = runPiCheck(dir);
+  assert.ok(json, "expected valid --json output");
+  return json.findings.filter((f) => f.rule === "PC-25");
+}
+
+test("PC-25 fails closed: a missing digest file is a finding, not a silent pass", () => {
+  const dir = freshRepoCopy();
+  try {
+    rmSync(join(dir, "config", "do-not-publish.digests.txt"));
+    const findings = pc25Findings(dir);
+    assert.equal(findings.length, 1, `expected exactly one PC-25 finding, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /fails closed/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-25 scans content for a multi-token name but not for a single-token one", () => {
+  const dir = freshRepoCopy();
+  try {
+    writeFileSync(
+      join(dir, "config", "do-not-publish.digests.txt"),
+      `2 ${digestFor("example-forbidden")}\n1 ${digestFor("placeholder")}\n`,
+    );
+    writeFileSync(join(dir, "docs", "prose.md"), "A sentence mentioning example forbidden things.\nAnd a placeholder.\n");
+    execFileSync("git", ["add", "-A"], { cwd: dir });
+
+    const findings = pc25Findings(dir);
+    assert.equal(findings.length, 1, `expected exactly one PC-25 finding, got: ${JSON.stringify(findings)}`);
+    assert.equal(findings[0].file, "docs/prose.md");
+    assert.equal(findings[0].line, 1, "the multi-token name is caught in prose; the single-token one on line 2 is not");
+    // The finding must not quote what it matched — that is what would put the name in a CI log.
+    assert.ok(!/example/i.test(findings[0].message), `finding repeated the matched text: ${findings[0].message}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
