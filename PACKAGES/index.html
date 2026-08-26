@@ -3665,10 +3665,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pi-subagents-0410" class="md-nav__link">
+  <a href="#pi-subagents-0570" class="md-nav__link">
     <span class="md-ellipsis">
       
-        pi-subagents 0.41.0
+        pi-subagents 0.57.0
       
     </span>
   </a>
@@ -3977,10 +3977,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pi-subagents-0410" class="md-nav__link">
+  <a href="#pi-subagents-0570" class="md-nav__link">
     <span class="md-ellipsis">
       
-        pi-subagents 0.41.0
+        pi-subagents 0.57.0
       
     </span>
   </a>
@@ -4240,7 +4240,7 @@ every session. The rest are reviewed and pinned but not loaded.</p>
 <tbody>
 <tr>
 <td><code>pi-subagents</code></td>
-<td>0.41.0</td>
+<td>0.57.0</td>
 <td>MIT</td>
 <td>adopted</td>
 <td>yes</td>
@@ -4417,7 +4417,7 @@ would let them change under a package that was reviewed at one version.</p>
 <h2 id="per-package-detail">Per-package detail<a class="headerlink" href="#per-package-detail" title="Permanent link">&para;</a></h2>
 <p>One section per pinned package. The heading carries the pinned version, and <strong>PC-18</strong>
 checks it against <code>config/packages.lock.json</code> on every run.</p>
-<h2 id="pi-subagents-0410"><code>pi-subagents</code> 0.41.0<a class="headerlink" href="#pi-subagents-0410" title="Permanent link">&para;</a></h2>
+<h2 id="pi-subagents-0570"><code>pi-subagents</code> 0.57.0<a class="headerlink" href="#pi-subagents-0570" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -4428,7 +4428,7 @@ checks it against <code>config/packages.lock.json</code> on every run.</p>
 <tbody>
 <tr>
 <td><strong>Pinned version</strong></td>
-<td>0.41.0</td>
+<td>0.57.0</td>
 </tr>
 <tr>
 <td><strong>Licence</strong></td>
@@ -4440,7 +4440,7 @@ checks it against <code>config/packages.lock.json</code> on every run.</p>
 </tr>
 <tr>
 <td><strong>Reviewed</strong></td>
-<td>2026-08-06</td>
+<td>2026-08-06; re-reviewed at 0.57.0 on 2026-08-26</td>
 </tr>
 <tr>
 <td><strong>Status</strong></td>
@@ -4452,10 +4452,34 @@ checks it against <code>config/packages.lock.json</code> on every run.</p>
 </tr>
 <tr>
 <td><strong>Tarball sha256</strong></td>
-<td><code>f433f7b1dcc252318e9960276e2e2696a1001ec46c7f82b29a5d100fe94252bc</code></td>
+<td><code>399689b0b17c0d9e079388280775d76d7fe9d32bd9d2aa0011fa7910a6572cc6</code></td>
 </tr>
 </tbody>
 </table>
+<p><strong>0.41.0 → 0.57.0, re-reviewed 2026-08-26.</strong> The dependency set grows from three pure-JS packages to
+four: <code>acorn</code> 8.18.0 joins <code>jiti</code>, <code>typebox</code> and <code>yaml</code>. It is MIT, ships its <code>LICENSE</code>, and the
+package still declares no install-time scripts. It backs the tightened <code>workflowScript</code> validation —
+scripts are now parsed rather than pattern-matched, which is why a parser appeared in a runtime that
+previously needed none.</p>
+<p>Three changes reach this repository's own documentation rather than only its lock file:</p>
+<ul>
+<li>The <code>runs.all</code> fan-out is still not width-capped, and upstream now says so in its own words:
+  <code>globalConcurrencyLimit</code> "Caps simultaneously running children inside existing durable legacy
+  multi-child runs. New orchestration uses <code>workflowScript</code> and <code>runs.all</code>"
+  (<code>docs/configuration.md:244</code>). What <a href="../adr/0005-unbounded-fan-out-on-runs-all/">ADR 0005</a>
+  established by measurement is now the vendor's own statement.</li>
+<li>Three spawn budgets exist and are live at their defaults — <code>maxSubagentSpawnsPerRun</code> (64),
+  <code>maxSubagentSpawnsPerSession</code> (100) and <code>maxActiveAsyncRunsPerSession</code> (4). The first two are
+  cumulative and the third bounds current async load; none is a width cap. See
+  <a href="../extending/subagents/#concurrency-limits-what-each-one-actually-bounds">Sub-agents</a>.</li>
+<li><code>parallel.maxTasks</code> and <code>parallel.concurrency</code> are now <strong>dormant</strong>: their resolvers
+  (<code>src/shared/types.ts:2411</code> and <code>:2415</code>) are exported and imported but called nowhere in the
+  package.</li>
+</ul>
+<p>Upstream's own documentation moved in this release too: <code>README.md</code> went from roughly 1600 lines to
+126, with the content split into <code>docs/agents.md</code>, <code>configuration.md</code>, <code>extension-api.md</code>,
+<code>missions.md</code>, <code>models.md</code>, <code>observability.md</code>, <code>tool-reference.md</code>, <code>watchdog.md</code> and
+<code>workflows.md</code>. Any note citing a <code>README.md</code> line from an earlier release is pointing at nothing.</p>
 <h2 id="pi-sandbox-062"><code>pi-sandbox</code> 0.6.2<a class="headerlink" href="#pi-sandbox-062" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

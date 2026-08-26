@@ -3142,6 +3142,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Concurrency limits — what each one actually bounds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#globalconcurrencylimit-children-inside-one-batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        globalConcurrencyLimit — children inside one batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-three-spawn-budgets-cumulative-spend-not-width" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three spawn budgets — cumulative spend, not width
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parallelmaxtasks-and-parallelconcurrency-dormant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parallel.maxTasks and parallel.concurrency — dormant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-repository-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this repository ships
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3975,6 +4025,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Concurrency limits — what each one actually bounds">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#globalconcurrencylimit-children-inside-one-batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        globalConcurrencyLimit — children inside one batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-three-spawn-budgets-cumulative-spend-not-width" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three spawn budgets — cumulative spend, not width
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parallelmaxtasks-and-parallelconcurrency-dormant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parallel.maxTasks and parallel.concurrency — dormant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-repository-ships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this repository ships
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4257,38 +4357,77 @@ server on <code>concurrency: 1</code> cannot.</p>
 <hr />
 <h2 id="concurrency-limits-what-each-one-actually-bounds">Concurrency limits — what each one actually bounds<a class="headerlink" href="#concurrency-limits-what-each-one-actually-bounds" title="Permanent link">&para;</a></h2>
 <p><code>config/dispatch.json</code>'s <code>concurrencyDefault</code> is this repository's own dial. <code>pi-subagents</code> (the
-runtime underneath it) carries a second, independent one: <code>globalConcurrencyLimit</code>. Left unset it
-defaults to the package's own built-in ceiling of 20 (<code>DEFAULT_GLOBAL_CONCURRENCY_LIMIT</code>,
-<code>src/runs/shared/parallel-utils.ts:128</code> in the pinned 0.41.0).</p>
-<p><strong>It bounds children within one batch, not fan-out width across launches.</strong> This is the part that is
-easy to get backwards, so it is worth being precise about the mechanism rather than the number.</p>
-<p>The semaphore is constructed <strong>per execution</strong>, at three separate sites — a background run
-(<code>src/runs/background/subagent-runner.ts:1941</code>), a foreground run
-(<code>src/runs/foreground/subagent-executor.ts:3381</code>, the path a plain dispatch actually takes), and a
-chain step's <code>parallel: [...]</code> group (<code>src/runs/foreground/chain-execution.ts:749</code>). It is consumed
-in exactly one place: the worker loop of <code>mapConcurrent</code> (<code>parallel-utils.ts:191</code> acquires,
-<code>:195</code> releases), which walks the items of <strong>one</strong> batch.</p>
-<p><code>runs.all([...])</code> does not go through that loop. It validates its items and then <code>Promise.all</code>s N
-independent host calls (<code>src/workflows/scripted-workflow.ts:70</code>). Each one reaches its own
-<code>execute(randomUUID(), …)</code> as a single-child execution and builds its own semaphore, which it never
-contends with. N launches, N semaphores, and nothing bounding N.</p>
-<p>So the setting is real and still does something useful — it caps the children inside a single run's
-parallel batch, and inside a chain step's <code>parallel:</code> group. What it does not do is cap how wide a
-<code>runs.all</code> fan-out may open. The only ceiling on that path is a workflow's <code>usageBudget</code>, which is a
-<strong>cost</strong> ceiling rather than a width one: the path is governed, just not on the dimension the
-concurrency setting names. Measured on 2026-08-26 against 0.41.0: eight children dispatched, eight
-ran concurrently, peak eight, no queueing. That this is accepted rather than overlooked is recorded
-in <a href="../../adr/0005-unbounded-fan-out-on-runs-all/">ADR 0005</a>.</p>
-<p>This repository ships the cap explicitly anyway, in <code>config/subagent.json</code> (generated at install
-time from <code>config/subagent.default.json</code>, git-ignored like the rest of the personal config — see
+runtime underneath it, pinned at 0.57.0) carries several of its own, and they bound different things.
+Line references below are into that package's source.</p>
+<h3 id="globalconcurrencylimit-children-inside-one-batch"><code>globalConcurrencyLimit</code> — children inside one batch<a class="headerlink" href="#globalconcurrencylimit-children-inside-one-batch" title="Permanent link">&para;</a></h3>
+<p>Left unset it defaults to 20 (<code>DEFAULT_GLOBAL_CONCURRENCY_LIMIT</code>,
+<code>src/runs/shared/parallel-utils.ts:137</code>). It is read into a semaphore built at exactly one place, in
+<code>runSubagent()</code> (<code>src/runs/background/subagent-runner.ts:2452</code>), and consumed at exactly one place —
+the worker loop of <code>mapConcurrent</code>, which acquires at <code>parallel-utils.ts:200</code> and releases at <code>:204</code>
+while walking the items of <strong>one</strong> batch.</p>
+<p><strong>It does not bound <code>runs.all</code> fan-out width.</strong> <code>runs.all([...])</code> validates its items and then
+launches N independent children, <code>Promise.all</code>-ing them (<code>src/workflows/scripted-workflow.ts:374</code>);
+each becomes its own execution and never contends for that semaphore. Upstream states the same thing
+in its own documentation: the setting "Caps simultaneously running children inside existing durable
+legacy multi-child runs. New orchestration uses <code>workflowScript</code> and <code>runs.all</code>."</p>
+<p>That this is accepted rather than overlooked — and what would reopen it — is recorded in
+<a href="../../adr/0005-unbounded-fan-out-on-runs-all/">ADR 0005</a>.</p>
+<p>A chain step's <code>parallel: [...]</code> group that names no <code>concurrency</code> of its own takes
+<code>MAX_PARALLEL_CONCURRENCY = 4</code> (<code>parallel-utils.ts:265</code>), not <code>globalConcurrencyLimit</code>.</p>
+<h3 id="the-three-spawn-budgets-cumulative-spend-not-width">The three spawn budgets — cumulative spend, not width<a class="headerlink" href="#the-three-spawn-budgets-cumulative-spend-not-width" title="Permanent link">&para;</a></h3>
+<p>New in 0.57.0, live at their defaults whether or not you set them:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Bounds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>maxSubagentSpawnsPerRun</code></td>
+<td>64</td>
+<td>every child one top-level run has <strong>ever</strong> started</td>
+</tr>
+<tr>
+<td><code>maxSubagentSpawnsPerSession</code></td>
+<td>100</td>
+<td>the same, counted across the session</td>
+</tr>
+<tr>
+<td><code>maxActiveAsyncRunsPerSession</code></td>
+<td>4</td>
+<td>top-level async runs in flight <strong>right now</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The first two are cumulative and their claims are never released or refunded, so a long-lived
+workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
+a concurrency one. A batch that does not fit is rejected <strong>whole</strong>, with none of its children
+started:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Run fan-out limit reached at &lt;path&gt; (64/64 used; 4 requested, 0 remaining). No children from this
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>admission group were started. Start a new top-level run or raise config.maxSubagentSpawnsPerRun.
+</span></code></pre></div>
+<p><code>maxActiveAsyncRunsPerSession</code> is the only one of the three that counts anything simultaneous, and it
+counts top-level async runs — not the children inside one of them.</p>
+<h3 id="parallelmaxtasks-and-parallelconcurrency-dormant"><code>parallel.maxTasks</code> and <code>parallel.concurrency</code> — dormant<a class="headerlink" href="#parallelmaxtasks-and-parallelconcurrency-dormant" title="Permanent link">&para;</a></h3>
+<p>These were the caps for the package's legacy top-level <code>tasks: [...]</code> dispatch path. As of 0.57.0
+their resolvers (<code>src/shared/types.ts:2411</code> and <code>:2415</code>) are exported and imported but <strong>called
+nowhere in the package</strong>, so neither key bounds anything today. This repository keeps them set for
+the same reason it set them originally: they cost nothing, and a key that reappears in a later
+release should find the conservative value already there rather than the package default.</p>
+<h3 id="what-this-repository-ships">What this repository ships<a class="headerlink" href="#what-this-repository-ships" title="Permanent link">&para;</a></h3>
+<p><code>config/subagent.json</code>, generated at install time from <code>config/subagent.default.json</code> and git-ignored
+like the rest of the personal config (see
 <a href="../../configuration/#fact-2-generated-vs-tracked">Generated vs tracked</a>):</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"globalConcurrencyLimit"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"parallel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">"maxTasks"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"globalConcurrencyLimit"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"parallel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">"maxTasks"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><code>4</code> mirrors the <code>concurrency</code> this repository's own <code>routing.default.json</code> ships for its one bundled
 provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
@@ -4297,17 +4436,14 @@ keep it no higher than the tightest <code>concurrency</code> entry in
 <a href="../../configuration/routing/#concurrency"><code>routing.json</code></a> that a batch could actually hit. Do not
 treat it as protection against a wide <code>runs.all</code>; for that, keep the width in the script itself
 inside the provider's budget, which is what the working rules in <code>AGENTS.md</code> ask a model to do.</p>
-<p><code>parallel.concurrency</code> is the same cap for the package's legacy top-level <code>tasks: [...]</code> dispatch
-path; <code>parallel.maxTasks</code> bounds how many tasks a single call may <em>carry</em>, not how many run at
-once, and is left at the package's own default. Installed at
-<code>~/.pi/agent/extensions/subagent/config.json</code> — the one path <code>pi-subagents</code> reads its own config
-from, and the one nested symlink the installer makes; see
+<p>The file is installed at <code>~/.pi/agent/extensions/subagent/config.json</code> — the one path <code>pi-subagents</code>
+reads its own config from, and the one nested symlink the installer makes; see
 <a href="../../getting-started/config-layout/">Configuration layout</a>.</p>
 <hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pi
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
 </span></code></pre></div>
 <p>An agent that appears as <strong>invalid</strong> carries its reason. An agent that appears as <strong>restricted</strong>
 resolved fine but names a model nothing is currently serving — usually an <code>optional</code> tier whose

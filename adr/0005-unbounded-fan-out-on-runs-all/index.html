@@ -3860,9 +3860,43 @@
 
 <h1 id="adr-0005-a-wide-runsall-fan-out-is-not-width-capped-and-that-is-accepted">ADR 0005: A wide <code>runs.all</code> fan-out is not width-capped, and that is accepted<a class="headerlink" href="#adr-0005-a-wide-runsall-fan-out-is-not-width-capped-and-that-is-accepted" title="Permanent link">&para;</a></h1>
 <ul>
-<li><strong>Status:</strong> accepted</li>
+<li><strong>Status:</strong> accepted, amended 2026-08-26 (evidence re-verified at <code>pi-subagents</code> 0.57.0)</li>
 <li><strong>Date:</strong> 2026-08-26</li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Amendment, 2026-08-26 — the decision is unchanged; its evidence moved</p>
+<p>The upgrade from <code>pi-subagents</code> 0.41.0 to 0.57.0 changed where the mechanism lives without
+changing what it does. <code>runs.all</code> still launches N independent children with nothing bounding N
+(<code>src/workflows/scripted-workflow.ts:374</code>), so the decision below stands exactly as written.
+Three corrections to the evidence, and one addition:</p>
+<ul>
+<li><strong>The semaphore is now built at one site, not three.</strong> It is constructed inside <code>runSubagent()</code>
+  at <code>src/runs/background/subagent-runner.ts:2452</code>, and that is the only <code>new Semaphore(...)</code> in
+  the package. <code>src/runs/foreground/subagent-executor.ts:82</code> still imports <code>Semaphore</code> and
+  <code>DEFAULT_GLOBAL_CONCURRENCY_LIMIT</code> and constructs neither.</li>
+<li><strong><code>src/runs/foreground/chain-execution.ts</code> was deleted outright.</strong> A chain step's parallel
+  group now takes <code>MAX_PARALLEL_CONCURRENCY = 4</code> (<code>src/runs/shared/parallel-utils.ts:265</code>) when
+  the step names no <code>concurrency</code> of its own. <code>DEFAULT_GLOBAL_CONCURRENCY_LIMIT</code> is still 20 and
+  moved to <code>parallel-utils.ts:137</code>; <code>mapConcurrent</code> still acquires and releases around one
+  batch, now at <code>:200</code> and <code>:204</code>.</li>
+<li><strong>Upstream now documents the limitation in its own words</strong>, which strengthens the argument
+  below rather than weakening it: what this ADR established by measurement is now the vendor's
+  own statement. <code>docs/configuration.md:244</code> — <code>globalConcurrencyLimit</code> "Caps simultaneously
+  running children inside existing durable legacy multi-child runs. New orchestration uses
+  <code>workflowScript</code> and <code>runs.all</code>."</li>
+<li><strong>Three spawn budgets are new, and none of them reopens this decision.</strong>
+  <code>maxSubagentSpawnsPerRun</code> (default 64) and <code>maxSubagentSpawnsPerSession</code> (default 100) are
+  <em>cumulative</em> — they count every child a run or a session has ever started, and
+  <code>docs/configuration.md:264</code> states claims are "never released or refunded", so they bound total
+  spend rather than instantaneous width. <code>maxActiveAsyncRunsPerSession</code> (default 4) bounds
+  concurrent <em>top-level async runs</em> per session, not the children inside one <code>runs.all</code>. A
+  twelve-wide fan-out inside one run still opens twelve concurrent provider calls; it now also
+  consumes twelve of that run's 64 claims. The <strong>Reopen this if</strong> section below is unaffected —
+  none of these is the process-wide or workflow-wide <em>width</em> limit it names.</li>
+</ul>
+<p>Read the line references in <strong>Context</strong> as the 0.41.0 evidence they were, and these as their
+0.57.0 equivalents.</p>
+</div>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
 <p><code>pi-subagents</code> exposes two ways to run children in parallel, and this repository documented both as
 if one setting bounded them. It does not.</p>
@@ -3954,8 +3988,7 @@ the old claim.</p>
 <ul>
 <li><a href="../../extending/subagents/">Sub-agents</a> — what each concurrency setting bounds</li>
 <li><a href="../../configuration/routing/#concurrency">Routing</a> — the per-provider budget this defers to</li>
-<li><a href="../../PACKAGES/">Package ledger</a> — <code>pi-subagents</code> 0.41.0, the version every line reference above
-  was verified against</li>
+<li><a href="../../PACKAGES/">Package ledger</a> — <code>pi-subagents</code>, and what the 0.57.0 upgrade changed</li>
 </ul>
 
 
