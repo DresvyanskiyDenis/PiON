@@ -46,7 +46,7 @@ link above goes through it, and so do `config/settings.json`'s own `extensions` 
 entries, so you can move or rename the checkout without editing anything.
 
 !!! warning "Two things are deliberately **not** linked"
-    **`extensions/`.** PI discovers `<agentDir>/extensions/*.ts` and would load all 26 modules as
+    **`extensions/`.** PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as
     separate extensions in `readdir` order — breaking the fixed load order and failing every module
     that has no default export. `config/settings.json` names the single file
     `~/pi-config/extensions/index.ts` instead.

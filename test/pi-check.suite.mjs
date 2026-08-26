@@ -216,6 +216,21 @@ const MUTATIONS = [
     // case get their own tests in section 7 below.
     break: (dir) => edit(dir, "pi-packages/examplepkg/example.ts", (t) => t + "\nexport const smuggled = true;\n"),
   },
+  {
+    id: "PC-24",
+    // The break has to create the directory as well as the file: `test/path-rules/fixtures/` does
+    // not exist in the fixture tree at all, and an absent directory is PC-24's own definition of a
+    // normal unconfigured state (the real rules directory lives outside the repo entirely). The
+    // file it writes uses a character class, which the hand-rolled matcher deliberately refuses
+    // rather than silently never matching.
+    break: (dir) => {
+      mkdirSync(join(dir, "test", "path-rules", "fixtures"), { recursive: true });
+      writeFileSync(
+        join(dir, "test", "path-rules", "fixtures", "broken.md"),
+        '---\npaths:\n  - "**/[abc].py"\n---\nBroken body.\n',
+      );
+    },
+  },
 ];
 
 describe("each rule fires exactly on its own broken fixture", () => {

@@ -81,6 +81,7 @@ It asserts things that are invisible until they bite:
 | `PC-15` | no extension source references the `X-Initiator` header |
 | `PC-17` | every installed or vendored package tree ships a licence file |
 | `PC-21` | the on-disk vendored tree matches its recorded per-file sha256 manifest |
+| `PC-24` | every committed `path-rules` fixture has valid frontmatter and a supported glob |
 
 Exit `0` = clean, `1` = findings, `2` = the checker could not run. That last distinction matters in
 CI: treating them the same hides broken tooling behind a red build.

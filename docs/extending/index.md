@@ -93,7 +93,7 @@ returns on the first `{block: true}`. The invariants, restated:
 - `trust` is **second**, so its `session_start` deadman reads a registry in which `guard`'s entry is
   already written.
 - `hooks` follows the guard, because it may only *add* denial.
-- `path-defaults` and `skills-env` publish configuration that later modules read; `skill-mask` keeps
+- `path-defaults`, `path-rules` and `skills-env` publish configuration that later modules read; `skill-mask` keeps
   its slot beside them although it registers nothing.
 - `dispatch` precedes `teammates`, `worktree` and `jobs` — those register into registries it owns.
 - `doctor` is **last**, so its session-start pass observes everything above it.
@@ -136,5 +136,5 @@ is the point: a guardrail module that quietly stopped loading is the failure mod
 ## Related
 
 - [Architecture](../concepts/architecture.md) — why the composition root exists
-- [Extensions reference](../extensions/index.md) — all 26 modules
+- [Extensions reference](../extensions/index.md) — all 27 modules
 - [Configuration reference](../configuration/index.md) — the knobs before the code
