@@ -63,14 +63,14 @@ describe("agentRosterDirs", () => {
   it("lists the directories pi-subagents discovers from, in its order, without duplicates", () => {
     const dirs = agentRosterDirs({
       cwd: "/work/project",
-      homeDir: "/home/u",
-      agentDir: "/home/u/.pi/agent",
+      homeDir: "/home/user",
+      agentDir: "/home/user/.pi/agent",
       env: { PI_SUBAGENT_EXTRA_AGENT_DIRS: "/extra/a" },
     });
     assert.deepEqual(dirs.slice(-5), [
       "/extra/a",
-      "/home/u/.pi/agent/agents",
-      "/home/u/.agents",
+      "/home/user/.pi/agent/agents",
+      "/home/user/.agents",
       "/work/project/.pi/agents",
       "/work/project/.agents",
     ]);
