@@ -2518,6 +2518,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-you-hear-that-it-finished" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How you hear that it finished
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cost" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3785,6 +3796,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-you-hear-that-it-finished" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How you hear that it finished
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cost" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3847,6 +3869,35 @@ module publishes it into the packaged registries so the packaged faces can see o
 want to start now and read the result of after a compaction, a <code>/reload</code>, or tomorrow.</p>
 <p>The alternative is a bash call with a very long timeout, which holds the session hostage for the
 duration and loses everything if the session ends.</p>
+<h2 id="how-you-hear-that-it-finished">How you hear that it finished<a class="headerlink" href="#how-you-hear-that-it-finished" title="Permanent link">&para;</a></h2>
+<p>A detached child is deliberately <code>unref()</code>d so it can outlive the <code>pi</code> process, which means
+nothing observes its exit — the store is reconciled by whoever asks. So the extension polls while
+any job is running, every two seconds, and stops polling the moment none is. An idle session pays
+nothing for a watcher it does not need.</p>
+<p>How the notice reaches you depends on what the session is doing:</p>
+<table>
+<thead>
+<tr>
+<th>Session state</th>
+<th>Delivery</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An agent run is in flight</td>
+<td>Queued for the next turn, so the notice does not steer the turn already running</td>
+</tr>
+<tr>
+<td>Idle</td>
+<td>Rendered straight away</td>
+</tr>
+</tbody>
+</table>
+<p>It never starts a turn by itself. A finished job is news, not an instruction, and waking the model
+unprompted spends tokens you did not ask to spend — <code>job(action="output")</code> is one call away when
+you want the log.</p>
+<p><code>state.json</code>'s <code>finishedAt</code> is the process's real exit time, read from the <code>exit</code> file's mtime, not
+the moment something got round to looking.</p>
 <h2 id="cost">Cost<a class="headerlink" href="#cost" title="Permanent link">&para;</a></h2>
 <p>One directory per job, on disk, until pruned. <code>session_start</code> auto-prunes finished jobs older than
 <code>PI_JOBS_PRUNE_HOURS</code> (default 168, i.e. 7 days) on every session, so a store nobody remembers to
