@@ -48,8 +48,8 @@ the predecessor harness hard-coded one model id into fourteen agent files.
 
 | Tier | For | Shipped `thinkingLevel` |
 |---|---|---|
-| `strong` | main loop, architecture, hard debugging | `high` |
-| `light` | everything else: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default | `medium` |
+| `strong` | main loop, architecture, hard debugging — **and the sub-agent default** (`dispatch.json`'s `defaultTier`) | `high` |
+| `light` | the opt-in tier for mechanical work, named on the call rather than inherited: multi-file edits, summaries, digests, classification, grep-and-report | `medium` |
 | `confidential` | anything that must not leave your boundary. Ships unbound | — |
 
 Do not invent a fourth. Everything that resolves a tier fails loud on an unknown name, and adding
@@ -63,6 +63,10 @@ one means every consumer has to learn it.
     different model, pin `provider/id` on that call rather than adding a vocabulary word every
     consumer then has to learn.
 
+    Which tier a delegated call *lands* on if nobody chooses is a separate question, answered by
+    [`dispatch.json`'s `defaultTier`](dispatch.md#defaulttier-and-defaultegress) — and the answer is
+    `strong`. Two roles, two tiers; the default is the careful one.
+
 ### How `thinkingLevel` reaches the child
 
 PI carries a child's reasoning effort **inside the model string**, as a `:<level>` suffix
@@ -70,6 +74,18 @@ PI carries a child's reasoning effort **inside the model string**, as a `:<level
 outranks both the agent file's own `thinking:` and any per-call override. So resolving a tier moves
 its declared `thinkingLevel` into the resolved id: `model: strong` dispatches on
 `github-copilot/claude-opus-5:high`, not on the bare id.
+
+!!! warning "Your gateway may cap effort below what the model advertises"
+    A `thinkingLevel` is a request, and the endpoint serving the model decides whether to honour it.
+    A gateway in front of a model family can refuse the top levels for the whole family — the
+    request comes back `400`, and because the level is carried *inside the model id*, the dispatch
+    aborts rather than thinking less hard. That is the correct behaviour and the harness does not
+    soften it: silently downgrading `max` to `high` would mean a tier whose declared effort is
+    fiction.
+
+    So the ceiling that matters is the one **your** endpoint actually serves, not the one the model
+    card claims. Probe it once with a throwaway call per level before writing a level into
+    `routing.json`, and set the tier to the highest that answers `200`.
 
 Two consequences worth knowing:
 

@@ -86,10 +86,12 @@ To try it without touching your real setup:
 
 ### Section 7 also asks where your skills go
 
-This repository ships **zero skills** — only the machinery that loads them. So the only skill question
-at install time is where yours will live, and the answer offered is `skills-private/` inside the
-checkout: git-ignored, and already a search path in `settings.json`. Say yes and the directory is
-created empty. Writing a skill can then never turn into committing one.
+This repository loads **zero skills** — only the machinery that finds them, plus one worked example
+under `examples/skills/` that no search path reaches. So the only skill question
+at install time is where yours will live, and the answer offered is `skills/` inside the checkout:
+git-ignored, and symlinked to `~/.pi/agent/skills`, which is the one search path `settings.json`
+names. Say yes and the directory is created empty. Writing a skill can then never turn into
+committing one.
 
 How to actually write one: [Writing a skill](../extending/skills.md).
 
@@ -163,7 +165,7 @@ Editing a file in the repository changes the live agent immediately, and `git pu
 **Nothing is copied.**
 
 !!! warning "`extensions/` is deliberately NOT linked"
-    PI discovers `<agentDir>/extensions/*.ts` and would load all 26 modules as separate extensions
+    PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as separate extensions
     in `readdir` order — breaking the fixed load order that puts `guard` before `bash`, and failing
     every module that has no default export.
 

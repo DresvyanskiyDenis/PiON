@@ -139,6 +139,7 @@ nav:
           - extensions/credentials.md
       - Capability configuration:
           - extensions/path-defaults.md
+          - extensions/path-rules.md
           - extensions/skills-env.md
           - extensions/skill-mask.md
           - extensions/skills-lint.md

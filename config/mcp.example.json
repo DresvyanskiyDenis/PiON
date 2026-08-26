@@ -18,8 +18,19 @@
     "    have exported. Use it for anything you did not write yourself. Widen the allowlist",
     "    with MCP_STDIO_EXTRA_ENV, as the playwright entry below does.",
     "  * 'lifecycle': 'lazy' starts the server on first use instead of at session start.",
+    "  * A server behind a token puts a REFERENCE in 'headers', never the token itself:",
+    "    'Authorization': 'Bearer ${SOME_TOKEN}'. The variable is expanded at connect time, so the",
+    "    secret lives in your environment and the config file stays publishable.",
     "",
-    "The two examples below are public services chosen because they are self-explanatory,",
+    "Two browser servers, split by OUTPUT rather than by capability. 'lightpanda' is real V8 with no",
+    "rendering: it answers text questions ('goto', then 'markdown'/'tree'/'links'/'extract') and can",
+    "never produce a screenshot, because it draws nothing. 'playwright' spawns a Chromium and owns",
+    "everything visual. Running only 'playwright' is not wrong, it just makes every JS-for-text page",
+    "pay for a browser it does not need. Both are 'lazy', so declaring both costs nothing until a",
+    "tool is called. 'lightpanda' needs its own binary on PATH; the installer does not offer it for",
+    "that reason, so copy this entry by hand once you have installed it.",
+    "",
+    "The three examples below are public services chosen because they are self-explanatory,",
     "not because you need them."
   ],
 
@@ -40,6 +51,13 @@
         "MCP_STDIO_EXTRA_ENV": "PLAYWRIGHT_BROWSERS_PATH",
         "PLAYWRIGHT_BROWSERS_PATH": "${HOME}/.cache/ms-playwright"
       },
+      "lifecycle": "lazy",
+      "directTools": true
+    },
+
+    "lightpanda": {
+      "command": "mcp-stdio-guard",
+      "args": ["lightpanda", "mcp"],
       "lifecycle": "lazy"
     }
   },

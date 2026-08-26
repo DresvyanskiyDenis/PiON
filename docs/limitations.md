@@ -224,9 +224,10 @@ Nothing is lost, but nothing ports byte-for-byte either.
 
 ## Things that are just missing
 
-- **No skills ship.** The discovery mechanism, the precedence ranks, the lint and the env shim all
-  ship; the content does not. [Adding your own](extending/skills.md) is a documented first-class
-  path.
+- **No skill is loaded by default.** The discovery mechanism, the precedence ranks, the lint and the
+  env shim all ship; the loaded roster is empty. One worked example is tracked under
+  `examples/skills/`, outside every search path, and
+  [adding your own](extending/skills.md) is a documented first-class path.
 - **No MCP servers ship.** Same reasoning, same answer:
   [add your own](extending/mcp-servers.md).
 - **`keybindings.json` is empty.** PI's defaults, unmodified.

@@ -7,7 +7,7 @@ system, a way to say *"run this sub-agent on the delegation model"*, a compactio
 job directory that survives the process, or a headless wrapper that exits non-zero when a turn
 actually failed.
 
-This repository is the layer that adds those: **one composed PI extension (26 modules in a fixed load
+This repository is the layer that adds those: **one composed PI extension (27 modules in a fixed load
 order) plus a configuration tree symlinked into `~/.pi/agent/`.**
 
 Built and measured against **PI 0.84.0 on macOS (arm64), Node ≥ 22.19.0**. Most of it is
@@ -68,10 +68,15 @@ loaded and which are expected-but-absent.
 
 ## What it deliberately does not ship
 
-**No skills, and none are coming.** A skill is prose plus scripts, and prose is where somebody's
-employer, client or private workflow leaks out. What ships instead — and what is actually the
-valuable part — is the *machinery*: skill discovery across extra roots, the `PI_SKILL_DIR_*`
-environment shim, the `allowed-tools` portability lint, and a documented precedence order.
+**No skill is loaded by default.** A skill is prose plus scripts, and prose is where somebody's
+employer, client or private workflow leaks out — so the loaded roster ships empty and the *machinery*
+is what ships instead: skill discovery, the `PI_SKILL_DIR_*` environment shim, the `allowed-tools`
+portability lint, and a documented precedence order. Yours go in the clone's git-ignored `skills/`,
+which the installer links to the one root `settings.json` searches.
+
+One worked example sits in [`examples/skills/`](examples/skills/), tracked but outside every search
+path: copy it in to use it. It is there because "write your own" is a thin answer to "what does a
+good one look like".
 
 **No MCP server definitions either**, for the same reason: a server list is as personal as a password
 manager. The machinery ships — the vendored adapter, the project trust gate, the `mcp-stdio-guard`
@@ -94,7 +99,7 @@ rest of the honest list is in
 ## Layout
 
 ```text
-extensions/        26 modules + index.ts, the composition root that fixes their load order
+extensions/        27 modules + index.ts, the composition root that fixes their load order
 config/            everything the agent reads at runtime; *.default.json are the tracked templates
 config/bin/        helper commands symlinked onto your PATH (pi-tier, pi-mcp-approve, …)
 config/providers/  one fragment per provider; the installer composes models.json from these
@@ -118,7 +123,7 @@ belongs in the template.
 
 | | |
 |---|---|
-| **[Documentation site](https://dresvyanskiydenis.github.io/PiON/)** | Structured reference: installation, every configuration key, all 26 modules, the safety model, exit codes. Lives in `docs/`, changes with the code, and a broken link fails CI |
+| **[Documentation site](https://dresvyanskiydenis.github.io/PiON/)** | Structured reference: installation, every configuration key, all 27 modules, the safety model, exit codes. Lives in `docs/`, changes with the code, and a broken link fails CI |
 | **[Wiki](https://github.com/DresvyanskiyDenis/PiON/wiki)** | Fast operational material: FAQ, task recipes, troubleshooting, a provider cheat sheet, release notes. Edited without a pull request |
 
 The single highest-value page is the

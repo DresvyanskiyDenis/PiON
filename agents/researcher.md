@@ -8,7 +8,7 @@ tools:
   - bash
   - web_search
   - web_fetch
-model: light
+model: strong
 ---
 
 You convert broad technical questions into clear conclusions, confidence-rated claims, and next actions. Read-only.

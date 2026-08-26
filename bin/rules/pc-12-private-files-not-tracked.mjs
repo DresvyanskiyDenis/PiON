@@ -3,7 +3,7 @@
 import { execFileSync } from "node:child_process";
 
 export const id = "PC-12";
-export const title = "PRIVATE.md, OPERATOR.local.md, agents-private/ and skills-private/ are never tracked (D-6)";
+export const title = "PRIVATE.md, OPERATOR.local.md, agents-private/ and skills/ are never tracked (D-6)";
 export const closes = ["REQ-CTX-13"];
 
 // A .gitignore pattern has no effect on a file already IN the index (`git add -f`, or a commit
@@ -27,7 +27,7 @@ export const closes = ["REQ-CTX-13"];
 // Any OTHER git failure (a real repository that errors for an unrelated reason) is left
 // uncaught, matching this checker's documented contract: a rule throwing is a bug in the
 // checker itself, reported distinctly (exit 2), not folded into a finding.
-const CANDIDATES = ["PRIVATE.md", "OPERATOR.local.md", "agents-private", "skills-private"];
+const CANDIDATES = ["PRIVATE.md", "OPERATOR.local.md", "agents-private", "skills"];
 
 /** @param {unknown} err @returns {boolean} */
 function isGitUnavailable(err) {

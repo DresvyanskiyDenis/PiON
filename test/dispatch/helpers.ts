@@ -59,6 +59,9 @@ export function grab(fn: () => unknown): Error {
 // ext-13-provider-error.test.ts's "the shipped routing table".
 export const ROUTING: RoutingConfig = {
   tiers: {
+    // `strong` mirrors `DEFAULT_DISPATCH_CONFIG.defaultTier` (`extensions/dispatch/config.ts`),
+    // which `CONFIG` below spreads verbatim — so this key must exist, and must resolve, or every
+    // test that falls through to the default tier breaks regardless of what it is about.
     strong: { model: "github-copilot/claude-opus-5", thinkingLevel: "high" },
     fast: { model: "github-copilot/claude-sonnet-5", thinkingLevel: "medium" },
     cheap: { model: "databricks/databricks-claude-haiku-4-5", thinkingLevel: "low" },

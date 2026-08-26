@@ -45,43 +45,42 @@ describe("discoverSkillFrontmatter", () => {
     assert.deepEqual(discoverSkillFrontmatter(join(root, "empty")), []);
   });
 
-  it("finds SKILL.md across all three roots, skips dirs with no SKILL.md", async () => {
+  it("finds every SKILL.md under the one root, skips dirs with no SKILL.md", async () => {
     const d = join(root, "basic");
-    await mkdir(join(d, "skills", "sofa"), { recursive: true });
-    await writeFile(join(d, "skills", "sofa", "SKILL.md"), "---\nname: sofa\ndescription: x\n---\nbody\n");
+    await mkdir(join(d, "skills", "plain"), { recursive: true });
+    await writeFile(join(d, "skills", "plain", "SKILL.md"), "---\nname: plain\ndescription: x\n---\nbody\n");
     await mkdir(join(d, "skills", "not-a-skill"), { recursive: true });
-    await mkdir(join(d, "skills-private", "cv-creator"), { recursive: true });
+    await mkdir(join(d, "skills", "declares-tools"), { recursive: true });
     await writeFile(
-      join(d, "skills-private", "cv-creator", "SKILL.md"),
-      "---\nname: cv-creator\ndescription: x\nallowed-tools: Read,Write,Edit,WebFetch,WebSearch\n---\nbody\n",
+      join(d, "skills", "declares-tools", "SKILL.md"),
+      "---\nname: declares-tools\ndescription: x\nallowed-tools: Read,Write,Edit,WebFetch,WebSearch\n---\nbody\n",
     );
 
     const found = discoverSkillFrontmatter(d);
     assert.equal(found.length, 2);
 
-    const sofa = found.find((s) => s.name === "sofa");
-    assert.ok(sofa);
-    assert.equal(sofa?.tier, "skills");
-    assert.equal(sofa?.declaresAllowedTools, false);
+    const plain = found.find((s) => s.name === "plain");
+    assert.ok(plain);
+    assert.equal(plain?.tier, "skills");
+    assert.equal(plain?.declaresAllowedTools, false);
 
-    const cv = found.find((s) => s.name === "cv-creator");
-    assert.ok(cv);
-    assert.equal(cv?.tier, "skills-private");
-    assert.equal(cv?.declaresAllowedTools, true);
-    assert.deepEqual(cv?.allowedTools, ["Read", "Write", "Edit", "WebFetch", "WebSearch"]);
+    const declaring = found.find((s) => s.name === "declares-tools");
+    assert.ok(declaring);
+    assert.equal(declaring?.tier, "skills");
+    assert.equal(declaring?.declaresAllowedTools, true);
+    assert.deepEqual(declaring?.allowedTools, ["Read", "Write", "Edit", "WebFetch", "WebSearch"]);
   });
 
   it("records a parseError instead of throwing, for a SKILL.md with malformed YAML frontmatter", async () => {
     const d = join(root, "malformed");
-    await mkdir(join(d, "skills-private", "broken"), { recursive: true });
-    // Reproduces the real bug found in skills-private/notebooklm-sources/SKILL.md: an unquoted
-    // colon inside a plain-scalar description value.
+    await mkdir(join(d, "skills", "broken"), { recursive: true });
+    // Reproduces a real observed bug: an unquoted colon inside a plain-scalar description value.
     await writeFile(
-      join(d, "skills-private", "broken", "SKILL.md"),
+      join(d, "skills", "broken", "SKILL.md"),
       "---\nname: broken\ndescription: Output dir: `~/x/<slug>/`.\n---\nbody\n",
     );
-    await mkdir(join(d, "skills-private", "ok"), { recursive: true });
-    await writeFile(join(d, "skills-private", "ok", "SKILL.md"), "---\nname: ok\ndescription: fine\n---\nbody\n");
+    await mkdir(join(d, "skills", "ok"), { recursive: true });
+    await writeFile(join(d, "skills", "ok", "SKILL.md"), "---\nname: ok\ndescription: fine\n---\nbody\n");
 
     const found = discoverSkillFrontmatter(d);
     assert.equal(found.length, 2);
@@ -103,17 +102,17 @@ describe("discoverSkillFrontmatter", () => {
 describe("lintAllowedTools", () => {
   it("produces one finding per skill that declares allowed-tools, none for skills that don't", () => {
     const findings = lintAllowedTools([
-      { name: "sofa", tier: "skills", path: "/x/sofa/SKILL.md", declaresAllowedTools: false, allowedTools: [] },
+      { name: "quiet", tier: "skills", path: "/x/quiet/SKILL.md", declaresAllowedTools: false, allowedTools: [] },
       {
-        name: "cv-creator",
-        tier: "skills-private",
-        path: "/x/cv-creator/SKILL.md",
+        name: "declares-tools",
+        tier: "skills",
+        path: "/x/declares-tools/SKILL.md",
         declaresAllowedTools: true,
         allowedTools: ["Read", "Write"],
       },
     ]);
     assert.equal(findings.length, 1);
-    assert.equal(findings[0]?.skillName, "cv-creator");
+    assert.equal(findings[0]?.skillName, "declares-tools");
     assert.match(findings[0]?.message ?? "", /does not read or enforce/);
     assert.match(findings[0]?.message ?? "", /Read, Write/);
   });
@@ -129,7 +128,7 @@ describe("lintParseErrors", () => {
       { name: "ok", tier: "skills", path: "/x/ok/SKILL.md", declaresAllowedTools: false, allowedTools: [] },
       {
         name: "broken",
-        tier: "skills-private",
+        tier: "skills",
         path: "/x/broken/SKILL.md",
         declaresAllowedTools: false,
         allowedTools: [],

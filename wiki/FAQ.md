@@ -3,7 +3,7 @@
 ## What is this, in one sentence?
 
 PiON — a hardened, portable harness for the [PI coding agent](https://github.com/earendil-works/pi):
-one composed extension of 26 modules plus a configuration tree, adding a permission layer, routing by
+one composed extension of 27 modules plus a configuration tree, adding a permission layer, routing by
 semantic tier, sub-agent orchestration and a headless wrapper that exits non-zero when a run actually
 failed.
 
@@ -40,8 +40,9 @@ manager. Shipping either would mean shipping someone else's.
 What ships is the *machinery* — skill discovery across extra roots, the environment shim, the
 portability lint, the vendored MCP adapter, the environment-minimising stdio wrapper, the project
 trust gate — plus a documented, first-class path for adding your own. The installer creates
-`skills-private/` for you and offers two public MCP servers (`context7`, `playwright`), defaulting to
-neither. See recipes 17 and 18 in the [[Cookbook]].
+`skills/` for you and offers two public MCP servers (`context7`, `playwright`), defaulting to
+neither. A third browser server, `lightpanda`, is documented but not offered — it needs a binary the
+installer cannot assume. See recipes 17 and 18 in the [[Cookbook]].
 
 ## Does it work with my provider?
 
@@ -109,7 +110,7 @@ running agent immediately and `git pull` updates it. Nothing is copied.
 
 ## Why is `extensions/` not symlinked like everything else?
 
-Because PI discovers `<agentDir>/extensions/*.ts` and would load all 26 modules as separate
+Because PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as separate
 extensions in `readdir` order — destroying the fixed load order that puts `guard` first, and failing
 every module that has no default export. `config/settings.json` names the single composition root
 `extensions/index.ts` explicitly instead.

@@ -43,6 +43,7 @@ export const DECLARED_MODULES = [
   "credentials",
   // capability configuration that later modules read
   "path-defaults",
+  "path-rules",
   "skills-env",
   "skill-mask",
   // tool providers and input mutators — after the guard, never before it

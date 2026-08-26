@@ -11,14 +11,14 @@ export const closes = ["REQ-CTX-80"];
 const CLAUDE_INVOKE = /(^|[\s;&|`(])claude(\s+(--\S+|-p\b)|\s*$)/;
 
 // Prose directories are excluded because they are documentation, never executed, and they quote
-// command lines while *describing* things. `skills-private/` and `agents-private/` are git-ignored
+// command lines while *describing* things. `skills/` and `agents-private/` are git-ignored
 // and PC-12 independently asserts they are untracked, so they are by definition not "committed" —
 // the word this rule's own title turns on. Their contents are NOT exempt from REQ-CTX-80 in spirit:
 // a private skill that shells out to a `claude` binary that does not exist on this machine is a
 // live runtime defect. It is out of *this* rule's scope, not forgiven — see docs/limitations.md.
 const ALWAYS_EXCLUDED_TOP = new Set([
   "node_modules", ".git", "dist", "test", "docs", "research",
-  "skills-private", "agents-private",
+  "skills", "agents-private",
 ]);
 
 /** @param {RuleContext} ctx @returns {Finding[]} */

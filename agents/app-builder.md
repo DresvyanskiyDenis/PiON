@@ -8,7 +8,7 @@ tools:
   - bash
   - grep
   - find
-model: light
+model: strong
 ---
 
 You build deployable, self-hosted applications that match the operator's stack and conventions.

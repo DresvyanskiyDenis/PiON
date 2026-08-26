@@ -11,7 +11,7 @@ template here earns its place only when you want a *fixed* prompt body with `{{p
 and no model-facing instructions around it — a form to fill in, not a capability to invoke.
 
 If you are coming from another harness and porting its slash commands, expect most of them to land
-as skills in `skills-private/` instead — the git-ignored directory the installer offers to create
+as skills in `skills/` instead — the git-ignored directory the installer offers to create
 for you. See [Skills](https://dresvyanskiydenis.github.io/PiON/extending/skills/).
 
 The directory itself still has to exist: `scripts/install.sh` treats `prompts` as a **required**

@@ -1,0 +1,27 @@
+Apache ECharts
+==============
+
+File:     echarts.min.js
+Version:  5.6.1
+Upstream: https://registry.npmjs.org/echarts/-/echarts-5.6.1.tgz  (dist/echarts.min.js)
+Project:  https://github.com/apache/echarts
+Licence:  Apache-2.0
+Fetched:  2026-08-25
+
+Local changes: none. Byte-identical to the published dist file.
+
+Licence text: LICENSE beside this file is the canonical Apache-2.0 text,
+included because redistributing an Apache-2.0 work means shipping a copy of
+the licence with it, not only a URL. The minified file carries the ASF header
+banner of its own. Upstream's NOTICE file is NOT vendored here — fetch it from
+the project repository above if you need it.
+
+Why vendored rather than loaded from a CDN
+------------------------------------------
+A rendered report must open from disk, offline, years later — a CDN
+reference makes the file expire silently. Tree-shaking to a smaller
+custom build was considered and rejected: it requires a JavaScript
+bundler in the toolchain, and the skill's only dependency is uv.
+
+The cost is ~1 MB per report. That is the price of a file that still
+works when nothing else does.

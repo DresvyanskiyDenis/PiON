@@ -43,7 +43,7 @@ ls -l ~/.pi/agent/extensions        # should not exist as a link to extensions/
 ./scripts/postinstall-verify.sh     # the "extensions not linked" check
 ```
 
-PI would load all 26 modules independently, in `readdir` order, and fail every one — none has a
+PI would load all 27 modules independently, in `readdir` order, and fail every one — none has a
 default export.
 
 ### A `/model` list that is missing a provider entirely

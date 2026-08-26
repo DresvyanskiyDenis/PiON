@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SKILL_ROOTS = ["skills", "skills-work", "skills-private"];
+const SKILL_ROOTS = ["skills"];
 const DOC_PATH = join(REPO_ROOT, "docs", "skills-portability.md");
 const START = "<!-- GENERATED:skills-lint:start -->";
 const END = "<!-- GENERATED:skills-lint:end -->";
@@ -70,10 +70,10 @@ export function collectRows(root) {
       try {
         frontmatter = readFrontmatter(raw);
       } catch (err) {
-        // Real, independently-discovered case: skills-private/notebooklm-sources/SKILL.md's
-        // unquoted description throws YAMLParseError in PI's own parseFrontmatter too (verified
-        // against the pinned package — see extensions/skills-lint.ts's docstring). One bad file
-        // must not abort the whole matrix.
+        // Real, independently-observed case: a SKILL.md whose unquoted `description:` contains a
+        // colon throws YAMLParseError in PI's own parseFrontmatter too (verified against the
+        // pinned package — see extensions/skills-lint.ts's docstring). One bad file must not abort
+        // the whole matrix.
         rows.push({ name: entry, tier, declares: false, allowedTools: [], parseError: err.message.split("\n")[0] });
         continue;
       }
@@ -102,8 +102,8 @@ export function renderTable(rows) {
     "guarantee** — `extensions/skills-lint.ts` surfaces it once per session, and this table is the same",
     "fact laid out per skill, regenerated from the tree, not hand-maintained.",
     "",
-    `Total: ${rows.length} skills scanned (\`skills/\`, \`skills-work/\`, \`skills-private/\` — \`skill-bundles/\``,
-    "is excluded, same as the layout matrix above: its 32 members are never addressed by name directly).",
+    `Total: ${rows.length} skills scanned (\`skills/\` — \`skill-bundles/\` is excluded, same as the`,
+    "layout matrix above: a bundle's members are never addressed by name directly).",
     "",
     "| Skill | Tier | allowed-tools declared | Enforced by PI |",
     "|---|---|---|---|",

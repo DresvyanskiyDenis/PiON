@@ -1,0 +1,17 @@
+# Salted SHA-256 digests of the names that must never appear in this repository.
+#
+# One per line, `<token-count> <sha256-hex>`. Checked by bin/rules/pc-25-no-do-not-publish-names.mjs,
+# which documents the scheme and why the names themselves cannot be stored here.
+# Regenerate with scripts/gen-do-not-publish-digests.mjs; never hand-edit.
+
+1 577871502a2b6b151c9580331c1952ad25eeb2f55c45502e0dcb2e51a059d0d0
+1 c58a2d3255e967edcfcb43a1d616348eb904c34f46924e51d8c27aa18b7af385
+1 c72a8e7270dbfadd7827ea3f187d9e7a96bacff27971e4a4a8ce40000ba63062
+2 30f77a7253f78e2c601d1f44830a4dc0775a4ade7d57206f8bf126ae7a658adc
+2 412e2152ada06167b838702ab4f34d1cad300914f6d179409f2b93fbf66c0d18
+2 bcc11979ff1de7034c329f7083cb2b35c89359b07824b426b46ab7318f83d1b9
+2 cac3df58df11470bbe5c1dcb142fd3dcfc70813a3dde371cbc4211df6cc00c26
+2 e8df8dfe80f9a5b82c3b352d5001dc1e186ef12ee88bff83954c472d4f68dc0f
+2 ed79b01a7325d10d31f4c635a11ba9c16894bbfd9599455fce287caf2ffa1fc1
+2 f1ea659e6fced8ef86a066451d8586b6edf0383dd00246d5b7201f1984eeb645
+4 5e76b1eae21e3570503c0bb447f0bf1ece448f9e0f03e846e0360cb5e65b7286
