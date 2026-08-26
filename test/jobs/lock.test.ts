@@ -89,7 +89,7 @@ describe("job lock (EXT-24, on EXT-01's detach lock)", () => {
     assert.equal(ran, true, "a crashed holder does not wedge the job forever");
   });
 
-  it("fails loudly, naming the holder, when a live lock never frees", async () => {
+  it("gives up inside its own deadline, naming the holder that is still there", async () => {
     const lockDir = freshLock();
     await mkdir(lockDir, { recursive: true });
     await writeFile(
@@ -97,13 +97,55 @@ describe("job lock (EXT-24, on EXT-01's detach lock)", () => {
       JSON.stringify({ at: Date.now(), pid: process.pid, version: JOB_LOCK_VERSION }),
     );
 
+    const startedAt = Date.now();
     await assert.rejects(
-      withJobLock(lockDir, async () => {}, { maxAttempts: 3, staleMs: 60_000 }),
+      withJobLock(lockDir, async () => {}, { timeoutMs: 200, staleMs: 60_000 }),
       (err: Error) =>
-        /is held by pid/.test(err.message) &&
+        /was not acquired within 200ms/.test(err.message) &&
+        /still held by pid/.test(err.message) &&
         err.message.includes(String(process.pid)) &&
         err.message.includes(lockDir),
     );
+
+    const waited = Date.now() - startedAt;
+    // The lower bound is the contract and is exact: the loop only breaks once the deadline has
+    // passed, so giving up early is a bug however loaded the machine is. The upper bound is
+    // deliberately loose — it is here to catch a wait that is not bounded at all, not to
+    // measure scheduling latency, which is the assertion that made the old shape flaky.
+    assert.ok(waited >= 200, `gave up after ${waited}ms, inside its own budget`);
+    assert.ok(waited < 5_000, `waited ${waited}ms for a 200ms budget`);
     await rm(lockDir, { recursive: true, force: true });
+  });
+
+  it("says the holder never stamped the lock, rather than naming a pid it never read", async () => {
+    const lockDir = freshLock();
+    // The window between `mkdir` and the `meta.json` write, held open.
+    await mkdir(lockDir, { recursive: true });
+
+    await assert.rejects(
+      withJobLock(lockDir, async () => {}, { timeoutMs: 60, staleMs: 60_000 }),
+      /had not stamped it yet/,
+    );
+    await rm(lockDir, { recursive: true, force: true });
+  });
+
+  it("does not invent a holder when the wait ends with the lock free", async () => {
+    const lockDir = freshLock();
+    await mkdir(lockDir, { recursive: true });
+    let deadPid = 2 ** 22 - 1;
+    while (isProcessAlive(deadPid)) deadPid--;
+    await writeFile(
+      join(lockDir, "meta.json"),
+      JSON.stringify({ at: Date.now(), pid: deadPid, version: JOB_LOCK_VERSION }),
+    );
+
+    // A zero budget reclaims the dead holder and then has nothing left to retry with, so the
+    // wait ends with the lock genuinely free. Under load the old code reached the same state by
+    // losing every race, and reported it as "held by pid unknown" — a wedged holder that did
+    // not exist.
+    await assert.rejects(
+      withJobLock(lockDir, async () => {}, { timeoutMs: 0 }),
+      (err: Error) => /free again/.test(err.message) && !/held by pid/.test(err.message),
+    );
   });
 });
