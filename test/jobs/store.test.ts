@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -269,6 +270,27 @@ describe("jobs store (EXT-24)", () => {
     assert.equal(final.status, "failed");
     assert.equal(final.exitCode, -1);
     assert.match(final.note ?? "", /no exit code was recorded/);
+  });
+
+  it("finishedAt is the exit file's mtime, not the moment the reaper looked", async () => {
+    const job = await startJob({ root, command: "exit 0", cwd: process.cwd(), parentSession: "s" });
+    const exitFile = join(jobDir(root, job.id), "exit");
+    await until(() => existsSync(exitFile));
+    const wroteAt = Math.round(statSync(exitFile).mtimeMs);
+
+    // Nothing observes the child exit, so `judge()` runs whenever a caller asks. Stamping
+    // `Date.now()` here recorded when somebody looked and called it when the job ended, which
+    // inflates the reported runtime by however long the store went unread. A quarter of a second
+    // is enough to prove which of the two values is used.
+    await delay(250);
+    const final = await reap(root, (await readState(root, job.id))!);
+
+    assert.equal(final.status, "done");
+    assert.equal(final.finishedAt, wroteAt);
+    assert.ok(
+      Date.now() - final.finishedAt! >= 200,
+      "finishedAt predates the observation that recorded it",
+    );
   });
 
   it("prune removes finished jobs and never a running one", async () => {

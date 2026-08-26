@@ -16,6 +16,13 @@
  * pattern (same as `extensions/big-results/index.ts` and `extensions/tasks/index.ts`), so
  * `settings.json`'s `"extensions"` array needs no entry.
  *
+ * A detached child is `unref()`d so it can outlive this process, which means nothing observes
+ * its exit: the store is reconciled lazily, by whoever asks. `refresh()` used to be reached only
+ * from `turn_end`, so a job that died while the session sat idle was announced at the *next* turn
+ * somebody started — and never at all if nobody came back. The self-arming watcher below is the
+ * missing push; see `announce()` for why delivery differs between an in-flight run and an idle
+ * session.
+ *
  * `session_start` also auto-prunes finished jobs past `store.ts`'s retention window
  * (`PI_JOBS_PRUNE_HOURS`, default 7 days) — a cross-session store has no session responsible for
  * its own cleanup, so the sweep runs on every session rather than waiting for someone to run
@@ -64,9 +71,25 @@ const DEFAULT_TAIL_LINES = 200;
  */
 const announced = new Set<string>();
 
+/**
+ * How often a session re-checks the store while any job is running.
+ *
+ * A poll is the only push available: the child is detached and `unref()`d by design, so there is
+ * no exit event to subscribe to and no watcher that could survive the session anyway. Self-arming
+ * — the timer exists only while `refresh()` reports a running job — so an idle session costs
+ * nothing, and one `readdir` plus a handful of small reads every two seconds is cheap next to
+ * reporting a dead job as `running` for a quarter of an hour.
+ */
+export const WATCH_INTERVAL_MS = 2_000;
+
+/** Every live watcher's stop function, so the test seam can disarm registrations it replaced. */
+const watchers = new Set<() => void>();
+
 /** Test seam. */
 export function __resetForTests(): void {
   announced.clear();
+  for (const stop of watchers) stop();
+  watchers.clear();
 }
 
 function jobLine(job: JobState): string {
@@ -143,6 +166,75 @@ async function refresh(ctx: ExtensionContext): Promise<{ running: number; finish
 
 export function register(pi: ExtensionAPI): void {
   let disposeProviders: (() => void) | undefined;
+  let watch: ReturnType<typeof setInterval> | undefined;
+  /** True between `agent_start` and `agent_settled` — PI's own `isStreaming` window. */
+  let streaming = false;
+
+  function stopWatch(): void {
+    if (!watch) return;
+    clearInterval(watch);
+    watch = undefined;
+  }
+  watchers.add(stopWatch);
+
+  /**
+   * Delivery depends on whether an agent run is in flight, because `sendMessage`'s branches are
+   * not interchangeable (`dist/core/agent-session.js`'s `sendCustomMessage`):
+   *
+   *   - mid-run, `deliverAs: "nextTurn"` parks the notice on the session's pending-next-turn
+   *     queue, so the agent picks it up at the next turn instead of being steered off the
+   *     current one. Passing no options there would fall through to `agent.steer()`, since
+   *     `turn_end` fires *inside* the run and `isStreaming` is still true at that point.
+   *   - idle, passing no options takes the final branch, which appends the entry and emits
+   *     `message_start`/`message_end` — it renders *now*. An idle session is exactly the case
+   *     `nextTurn` strands: the notice waits for a turn only a human can start.
+   *
+   * Never `triggerTurn`: a finished job is news, not an instruction, and waking the model by
+   * itself spends tokens nobody asked for.
+   */
+  function announce(finished: readonly JobState[]): void {
+    if (finished.length === 0) return;
+    const summary = finished
+      .map((job) => `${job.id} (${job.status}${job.exitCode !== undefined ? ` exit ${job.exitCode}` : ""})`)
+      .join(", ");
+    pi.sendMessage(
+      {
+        customType: "job-done",
+        content: [
+          {
+            type: "text",
+            text: `Background job(s) finished: ${summary}. Use job(action="output") to read them.`,
+          },
+        ],
+        display: true,
+      },
+      streaming ? { deliverAs: "nextTurn" } : undefined,
+    );
+  }
+
+  /** Arms the watcher while anything is running, disarms it when nothing is. */
+  function arm(ctx: ExtensionContext, running: number): void {
+    if (running === 0) {
+      stopWatch();
+      return;
+    }
+    if (watch) return;
+    watch = setInterval(() => {
+      // Mid-run `turn_end` already sweeps, on a boundary where steering is not a risk.
+      if (streaming) return;
+      void sweep(ctx).catch((err: unknown) => {
+        stopWatch();
+        report(ctx, "jobs:watch", `[pi-config] jobs: exit watcher stopped: ${describeError(err)}`);
+      });
+    }, WATCH_INTERVAL_MS);
+    watch.unref();
+  }
+
+  async function sweep(ctx: ExtensionContext): Promise<void> {
+    const { running, finished } = await refresh(ctx);
+    announce(finished);
+    arm(ctx, running);
+  }
 
   pi.registerTool({
     name: "job",
@@ -203,11 +295,10 @@ export function register(pi: ExtensionAPI): void {
             label: params.label,
             onError: (line) => report(ctx, `jobs:start:${line.slice(0, 80)}`, line),
           });
-          if (ctx.hasUI) {
-            const { jobs } = await listJobs(root, { reap: false });
-            const running = jobs.filter((job) => job.status === "running").length;
-            ctx.ui.setStatus("jobs", running > 0 ? `${running} bg` : undefined);
-          }
+          const { jobs } = await listJobs(root, { reap: false });
+          const running = jobs.filter((job) => job.status === "running").length;
+          if (ctx.hasUI) ctx.ui.setStatus("jobs", running > 0 ? `${running} bg` : undefined);
+          arm(ctx, running);
           return {
             content: [
               {
@@ -323,6 +414,7 @@ export function register(pi: ExtensionAPI): void {
       for (const job of jobs) if (job.status !== "running") announced.add(job.id);
       const running = jobs.filter((job) => job.status === "running").length;
       if (ctx.hasUI) ctx.ui.setStatus("jobs", running > 0 ? `${running} bg` : undefined);
+      arm(ctx, running);
 
       disposeProviders?.();
       disposeProviders = registerJobProviders({
@@ -334,33 +426,32 @@ export function register(pi: ExtensionAPI): void {
     }
   });
 
+  pi.on("agent_start", () => {
+    streaming = true;
+  });
+
   pi.on("turn_end", async (_event, ctx) => {
     try {
-      const { finished } = await refresh(ctx);
-      if (finished.length === 0) return;
-      const summary = finished
-        .map((job) => `${job.id} (${job.status}${job.exitCode !== undefined ? ` exit ${job.exitCode}` : ""})`)
-        .join(", ");
-      pi.sendMessage(
-        {
-          customType: "job-done",
-          content: [
-            {
-              type: "text",
-              text: `Background job(s) finished: ${summary}. Use job(action="output") to read them.`,
-            },
-          ],
-          display: true,
-        },
-        { deliverAs: "nextTurn" },
-      );
+      await sweep(ctx);
     } catch (err) {
       report(ctx, "jobs:turn_end", `[pi-config] jobs: turn_end failed: ${describeError(err)}`);
     }
   });
 
+  // PI clears its run-active flag *before* emitting `agent_settled`, so this is the first moment
+  // a notice can render immediately rather than waiting for a turn.
+  pi.on("agent_settled", async (_event, ctx) => {
+    streaming = false;
+    try {
+      await sweep(ctx);
+    } catch (err) {
+      report(ctx, "jobs:agent_settled", `[pi-config] jobs: agent_settled failed: ${describeError(err)}`);
+    }
+  });
+
   pi.on("session_shutdown", async (_event, ctx) => {
     try {
+      stopWatch();
       disposeProviders?.();
       disposeProviders = undefined;
       if (ctx.hasUI) ctx.ui.setStatus("jobs", undefined);

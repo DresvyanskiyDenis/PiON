@@ -25,7 +25,7 @@
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { stateRoot } from "../lib/paths.ts";
@@ -216,15 +216,30 @@ async function writeStateUnlocked(dir: string, state: JobState): Promise<void> {
   await rename(tmp, join(dir, "state.json"));
 }
 
-function readExitCode(dir: string): number | undefined {
+interface ExitRecord {
+  readonly code: number;
+  /**
+   * When the child actually exited, taken from the `exit` file's mtime.
+   *
+   * The wrapper writes and renames that file as its last act (`wrapCommand`), so its mtime is
+   * the process's real exit time. Reading it is the only way a lazily reconciled store can
+   * report *when* a job ended rather than when somebody happened to look.
+   */
+  readonly at: number;
+}
+
+function readExitRecord(dir: string): ExitRecord | undefined {
+  const path = join(dir, "exit");
   let raw: string;
+  let at: number;
   try {
-    raw = readFileSync(join(dir, "exit"), "utf8");
+    raw = readFileSync(path, "utf8");
+    at = statSync(path).mtimeMs;
   } catch {
     return undefined;
   }
-  const parsed = Number(raw.trim());
-  return Number.isInteger(parsed) ? parsed : undefined;
+  const code = Number(raw.trim());
+  return Number.isInteger(code) ? { code, at: Math.round(at) } : undefined;
 }
 
 /**
@@ -237,18 +252,25 @@ function readExitCode(dir: string): number | undefined {
  * An earlier draft's `reap()` marks *every* completed job `failed` with `exitCode: -1`,
  * because nothing in that sketch ever writes a success. Here the wrapper installed by
  * `wrapCommand()` records the true code on every exit path, so a clean job reports `done`.
+ *
+ * `finishedAt` is the `exit` file's mtime, **not** `Date.now()`. Nothing observes the child
+ * exit — this store is reconciled lazily, whenever a caller asks — so stamping the current time
+ * here recorded when somebody looked and called it when the job ended, inflating every job's
+ * apparent runtime by however long the store went unread. The one case with no ground truth is
+ * a job whose wrapper never wrote an exit code at all; there `Date.now()` is unavoidable and the
+ * `note` says so.
  */
 export function judge(root: string, state: JobState): JobState {
   if (state.status !== "running") return state;
   const dir = jobDir(root, state.id);
 
-  const exitCode = readExitCode(dir);
-  if (exitCode !== undefined) {
+  const exit = readExitRecord(dir);
+  if (exit !== undefined) {
     return {
       ...state,
-      status: exitCode === 0 ? "done" : "failed",
-      exitCode,
-      finishedAt: state.finishedAt ?? Date.now(),
+      status: exit.code === 0 ? "done" : "failed",
+      exitCode: exit.code,
+      finishedAt: state.finishedAt ?? exit.at,
     };
   }
 
@@ -261,7 +283,8 @@ export function judge(root: string, state: JobState): JobState {
     finishedAt: state.finishedAt ?? Date.now(),
     note:
       `pid ${state.pid} is gone and no exit code was recorded — the job was killed by a ` +
-      `signal that the wrapper could not survive (SIGKILL), or the machine restarted`,
+      `signal that the wrapper could not survive (SIGKILL), or the machine restarted; ` +
+      `finishedAt is when the loss was noticed, not when the process died`,
   };
 }
 

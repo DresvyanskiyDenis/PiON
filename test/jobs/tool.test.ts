@@ -107,6 +107,7 @@ describe("job tool (EXT-24)", () => {
   });
 
   after(() => {
+    __resetForTests();
     if (prevXdg === undefined) delete process.env.XDG_STATE_HOME;
     else process.env.XDG_STATE_HOME = prevXdg;
   });
@@ -115,7 +116,7 @@ describe("job tool (EXT-24)", () => {
     assert.deepEqual([...harness.tools.keys()], ["job"]);
     assert.deepEqual(
       [...harness.handlers.keys()].sort(),
-      ["session_shutdown", "session_start", "turn_end"],
+      ["agent_settled", "agent_start", "session_shutdown", "session_start", "turn_end"],
     );
     assert.ok(tool.promptSnippet, "the tool is advertised in the system prompt");
   });
@@ -199,6 +200,9 @@ describe("job tool (EXT-24)", () => {
   it("nudges once for a job that finished during this session, and never for older ones", async () => {
     const status = new Map<string, string | undefined>();
     const ctx = fakeCtx("sess-1", { hasUI: true, status });
+    // `turn_end` fires *inside* a run, so this whole test is the mid-run case. Without it the
+    // exit watcher would also be live and the assertions below would race it.
+    await harness.handlers.get("agent_start")!({}, ctx);
 
     // A job that finished before the session started is history, not news.
     const old = await call({ action: "start", command: "exit 0" }, ctx);
@@ -229,6 +233,40 @@ describe("job tool (EXT-24)", () => {
 
     await harness.handlers.get("turn_end")!({}, ctx);
     assert.equal(harness.sent.length, 1, "the nudge is once, not every turn");
+  });
+
+  it("renders the notice immediately once the run has settled", async () => {
+    const ctx = fakeCtx("sess-1");
+    await harness.handlers.get("agent_start")!({}, ctx);
+    const started = await call({ action: "start", command: "exit 0" }, ctx);
+    const id = (started.details as { id: string }).id;
+    await until(async () => {
+      const { jobs } = await listJobs(root);
+      return jobs.find((job) => job.id === id)?.status === "done";
+    });
+
+    await harness.handlers.get("agent_settled")!({}, ctx);
+    assert.equal(harness.sent.length, 1);
+    assert.equal(
+      harness.sent[0]!.deliverAs,
+      undefined,
+      "no deliverAs takes sendCustomMessage's final branch, which renders now",
+    );
+  });
+
+  it("announces a job that died while the session sat idle, with no turn at all", async () => {
+    // The case the watcher exists for: a detached job is started and nobody comes back. No turn
+    // ends, so the only notification path never fires and the footer keeps claiming `1 bg`.
+    const status = new Map<string, string | undefined>();
+    const ctx = fakeCtx("sess-1", { hasUI: true, status });
+    await call({ action: "start", command: "exit 3" }, ctx);
+    assert.equal(status.get("jobs"), "1 bg");
+
+    await until(() => harness.sent.length === 1, 15_000);
+    assert.equal(harness.sent[0]!.customType, "job-done");
+    assert.equal(harness.sent[0]!.deliverAs, undefined);
+    assert.match(harness.sent[0]!.text, /failed exit 3/);
+    assert.equal(status.get("jobs"), undefined, "and the footer stops claiming it is running");
   });
 
   it("does not nudge about another session's job", async () => {
