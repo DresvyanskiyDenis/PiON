@@ -3211,6 +3211,8 @@
       
         
       
+        
+      
     
     
     
@@ -3367,6 +3369,34 @@
     
   
     ADR 0004: Egress classes are declarative, not a network boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0005: A wide runs.all fan-out is not width-capped, and that is accepted
   
 
     
@@ -3661,7 +3691,7 @@
 
 
 <h1 id="architecture-decisions">Architecture decisions<a class="headerlink" href="#architecture-decisions" title="Permanent link">&para;</a></h1>
-<p>Four decisions shape most of what is surprising about this repository. They are recorded here so a
+<p>Five decisions shape most of what is surprising about this repository. They are recorded here so a
 reader who disagrees can see the argument rather than guess at it, and so a contributor who wants to
 reverse one knows what they are arguing against.</p>
 <table>
@@ -3692,6 +3722,11 @@ reverse one knows what they are arguing against.</p>
 <td><a href="0004-egress-classes-are-declarative/">0004</a></td>
 <td>Egress classes are a declarative control and are never described as a network boundary</td>
 <td>Accepted, amended 2026-08-13 (the dispatch-time containment check was withdrawn)</td>
+</tr>
+<tr>
+<td><a href="0005-unbounded-fan-out-on-runs-all/">0005</a></td>
+<td>A wide <code>runs.all</code> fan-out is not width-capped; the gap is documented rather than enforced</td>
+<td>Accepted</td>
 </tr>
 </tbody>
 </table>

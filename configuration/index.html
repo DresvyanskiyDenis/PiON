@@ -3223,6 +3223,8 @@
       
         
       
+        
+      
     
     
     
@@ -3376,6 +3378,34 @@
     
   
     ADR 0004: Egress classes are declarative, not a network boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0005: A wide runs.all fan-out is not width-capped, and that is accepted
   
 
     
@@ -3932,9 +3962,9 @@ Fact 2.</p>
 <td><a href="dispatch/#maxdepth">dispatch.json</a></td>
 </tr>
 <tr>
-<td>raise (or lower) how many sub-agent tasks may run at once</td>
+<td>raise (or lower) how many children run at once inside one parallel batch</td>
 <td><code>globalConcurrencyLimit</code> in <code>config/subagent.json</code></td>
-<td><a href="../extending/subagents/#fan-out-ceiling-the-packages-own-cap">Sub-agents</a></td>
+<td><a href="../extending/subagents/#concurrency-limits-what-each-one-actually-bounds">Sub-agents</a></td>
 </tr>
 <tr>
 <td>turn off session digests</td>
@@ -4028,9 +4058,9 @@ Fact 2.</p>
 <td>quota metering for metered providers</td>
 </tr>
 <tr>
-<td><a href="../extending/subagents/#fan-out-ceiling-the-packages-own-cap"><code>subagent.json</code></a></td>
+<td><a href="../extending/subagents/#concurrency-limits-what-each-one-actually-bounds"><code>subagent.json</code></a></td>
 <td><strong>yes</strong></td>
-<td><code>pi-subagents</code>' own global fan-out ceiling and legacy top-level <code>parallel</code> caps</td>
+<td><code>pi-subagents</code>' own per-batch concurrency cap and legacy top-level <code>parallel</code> caps</td>
 </tr>
 <tr>
 <td><a href="tools/#pi-lspjson"><code>pi-lsp.json</code></a></td>

@@ -3316,6 +3316,8 @@
       
         
       
+        
+      
     
     
     
@@ -3469,6 +3471,34 @@
     
   
     ADR 0004: Egress classes are declarative, not a network boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0005: A wide runs.all fan-out is not width-capped, and that is accepted
   
 
     
@@ -3937,7 +3967,7 @@ knows it exists.</p>
 <tr>
 <td><code>config/subagent.json</code></td>
 <td><code>pi-subagents</code> (linked to <code>extensions/subagent/config.json</code>, the package's own config path — not <code>dispatch.json</code>)</td>
-<td>The package's global fan-out ceiling and legacy top-level <code>parallel</code> caps</td>
+<td>The package's per-batch concurrency cap and legacy top-level <code>parallel</code> caps</td>
 </tr>
 <tr>
 <td><code>config/compaction.json</code></td>
