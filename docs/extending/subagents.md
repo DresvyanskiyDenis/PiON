@@ -191,17 +191,38 @@ server on `concurrency: 1` cannot.
 
 ---
 
-## Fan-out ceiling — the package's own cap
+## Concurrency limits — what each one actually bounds
 
 `config/dispatch.json`'s `concurrencyDefault` is this repository's own dial. `pi-subagents` (the
-runtime underneath it) carries a second, independent one: `globalConcurrencyLimit`, a cap on how
-many sub-agent tasks may run **simultaneously within a single run**, on the `workflowScript` +
-`runs.all` fan-out path. Left unset it defaults to the package's own built-in ceiling of 20 — wide
-enough that a broad fan-out can open 20 concurrent provider calls at once, regardless of anything
-`routing.json` or `dispatch.json` say.
+runtime underneath it) carries a second, independent one: `globalConcurrencyLimit`. Left unset it
+defaults to the package's own built-in ceiling of 20 (`DEFAULT_GLOBAL_CONCURRENCY_LIMIT`,
+`src/runs/shared/parallel-utils.ts:128` in the pinned 0.41.0).
 
-This repository ships that cap explicitly, in `config/subagent.json` (generated at install time
-from `config/subagent.default.json`, git-ignored like the rest of the personal config — see
+**It bounds children within one batch, not fan-out width across launches.** This is the part that is
+easy to get backwards, so it is worth being precise about the mechanism rather than the number.
+
+The semaphore is constructed **per execution**, at three separate sites — a background run
+(`src/runs/background/subagent-runner.ts:1941`), a foreground run
+(`src/runs/foreground/subagent-executor.ts:3381`, the path a plain dispatch actually takes), and a
+chain step's `parallel: [...]` group (`src/runs/foreground/chain-execution.ts:749`). It is consumed
+in exactly one place: the worker loop of `mapConcurrent` (`parallel-utils.ts:191` acquires,
+`:195` releases), which walks the items of **one** batch.
+
+`runs.all([...])` does not go through that loop. It validates its items and then `Promise.all`s N
+independent host calls (`src/workflows/scripted-workflow.ts:70`). Each one reaches its own
+`execute(randomUUID(), …)` as a single-child execution and builds its own semaphore, which it never
+contends with. N launches, N semaphores, and nothing bounding N.
+
+So the setting is real and still does something useful — it caps the children inside a single run's
+parallel batch, and inside a chain step's `parallel:` group. What it does not do is cap how wide a
+`runs.all` fan-out may open. The only ceiling on that path is a workflow's `usageBudget`, which is a
+**cost** ceiling rather than a width one: the path is governed, just not on the dimension the
+concurrency setting names. Measured on 2026-08-26 against 0.41.0: eight children dispatched, eight
+ran concurrently, peak eight, no queueing. That this is accepted rather than overlooked is recorded
+in [ADR 0005](../adr/0005-unbounded-fan-out-on-runs-all.md).
+
+This repository ships the cap explicitly anyway, in `config/subagent.json` (generated at install
+time from `config/subagent.default.json`, git-ignored like the rest of the personal config — see
 [Generated vs tracked](../configuration/index.md#fact-2-generated-vs-tracked)):
 
 ```json
@@ -214,13 +235,13 @@ from `config/subagent.default.json`, git-ignored like the rest of the personal c
 }
 ```
 
-`4` mirrors the `concurrency` this repository's own `routing.default.json` ships for its one
-bundled provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
-measurement of any particular provider's real budget. **Raise it if your provider allows more**,
-and keep it no higher than the tightest `concurrency` entry in
-[`routing.json`](../configuration/routing.md#concurrency) that your fan-out could actually hit —
-otherwise the sub-agent runtime opens more concurrent calls than the provider was told to expect,
-which is how a fan-out turns into 429s.
+`4` mirrors the `concurrency` this repository's own `routing.default.json` ships for its one bundled
+provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
+measurement of any particular provider's real budget. **Raise it if your provider allows more**, and
+keep it no higher than the tightest `concurrency` entry in
+[`routing.json`](../configuration/routing.md#concurrency) that a batch could actually hit. Do not
+treat it as protection against a wide `runs.all`; for that, keep the width in the script itself
+inside the provider's budget, which is what the working rules in `AGENTS.md` ask a model to do.
 
 `parallel.concurrency` is the same cap for the package's legacy top-level `tasks: [...]` dispatch
 path; `parallel.maxTasks` bounds how many tasks a single call may *carry*, not how many run at

@@ -103,10 +103,11 @@ Pick the role by domain from `agents/` — `/agents` lists what is installed.
 **Independent pieces → ONE `subagent` call that fans out on its own**, not several calls in one
 message. A second call in the same turn is rejected verbatim with `Rejected: a subagent call is
 already in progress. Issue exactly ONE subagent call per turn.` Fanning out means a `workflowScript`
-using `runs.all([...])` — the supported path — or a chain step with `parallel: [...]`. Keep the width
-inside the fan-out ceiling this installation ships: `config/subagent.json` sets
-`globalConcurrencyLimit` for the `runs.all` path and `parallel` for the legacy `tasks` path, both at
-4 unless someone raised them alongside the provider's `concurrency` in `config/routing.json`.
+using `runs.all([...])` — the supported path — or a chain step with `parallel: [...]`. **Keep the
+width inside the provider's `concurrency` in `config/routing.json` yourself.** Nothing enforces it on
+the `runs.all` path: `config/subagent.json`'s `globalConcurrencyLimit` bounds children within a
+single run's parallel batch and within a chain step's `parallel:` group, not how many launches a
+`runs.all` may open at once. Ten items in one `runs.all` is ten concurrent provider calls.
 
 `general-purpose` (aliases `general`, `generalist`) is the role of last resort. It is an ordinary
 definition in `agents/` like every other, not a magic word — reach for it only when no specialist
