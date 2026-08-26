@@ -1,4 +1,5 @@
 {
+  "_comment": "globalConcurrencyLimit bounds children WITHIN one parallel batch (a run's own parallel group, or a chain step's `parallel:`). It does NOT bound how wide a `runs.all` fan-out may open — each item there launches its own execution with its own semaphore. Keep a fan-out inside the provider's concurrency budget in the `concurrency` map of config/routing.json yourself; nothing enforces it on that path. See docs/adr/0005-unbounded-fan-out-on-runs-all.md.",
   "globalConcurrencyLimit": 4,
   "parallel": {
     "maxTasks": 8,
