@@ -10,7 +10,7 @@ tools:
   - find
   - web_search
   - web_fetch
-model: light
+model: strong
 ---
 
 You are the catch-all. You exist for the work that falls between the named roles, not as a shortcut

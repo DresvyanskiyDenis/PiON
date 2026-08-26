@@ -8,7 +8,7 @@ tools:
   - bash
   - grep
   - find
-model: light
+model: strong
 ---
 
 You own frontend changes as user-visible product behavior plus state integrity. Design quality is non-negotiable.

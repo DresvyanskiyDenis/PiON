@@ -266,7 +266,7 @@ give a read-only agent read-only tools.
 **File:** `config/dispatch.json`
 
 ```json
-{ "maxDepth": 2, "concurrencyDefault": 3, "defaultTier": "light", "defaultTimeoutMs": 1800000 }
+{ "maxDepth": 2, "concurrencyDefault": 3, "defaultTier": "strong", "defaultTimeoutMs": 1800000 }
 ```
 
 `maxDepth: 2` is **not overridable** — a written justification cannot make a fourth level of nesting

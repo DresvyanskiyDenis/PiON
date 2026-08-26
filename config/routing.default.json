@@ -5,12 +5,12 @@
     "strong": {
       "model": "github-copilot/claude-opus-5",
       "thinkingLevel": "high",
-      "purpose": "main loop, architecture, hard debugging"
+      "purpose": "main loop, the subagent default (dispatch.json's defaultTier), architecture, hard debugging"
     },
     "light": {
       "model": "github-copilot/claude-sonnet-5",
       "thinkingLevel": "medium",
-      "purpose": "everything that is not the main loop: the subagent default (dispatch.json's defaultTier), implementation, reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report"
+      "purpose": "the opt-in tier for mechanical work, named deliberately rather than inherited: mechanical multi-file edits, summaries, digests, classification, grep-and-report"
     }
   },
 

@@ -13,7 +13,7 @@ Markdown files with YAML frontmatter, one per agent, in `agents/`.
 ```json
 {
   "maxDepth": 2,
-  "defaultTier": "light",
+  "defaultTier": "strong",
   "defaultEgress": "internal",
   "defaultTimeoutMs": 1800000,
   "concurrencyDefault": 3,
@@ -48,8 +48,14 @@ shallow enough to notice.
 
 | Key | Ships | Meaning |
 |---|---|---|
-| `defaultTier` | `"light"` | The tier an agent gets when its frontmatter declares no `model:` |
+| `defaultTier` | `"strong"` | The tier an agent gets when its frontmatter declares no `model:` |
 | `defaultEgress` | `"internal"` | The egress class reported for a session that declares none |
+
+`defaultTier` ships **`strong`**, not the cheaper tier. A subagent is delegated work the main loop
+decided not to do itself, and it runs without the main loop watching — the failure mode of the cheap
+default is a plausible-looking wrong answer that nobody reads closely, which costs more than the
+tokens saved. So the strong tier is what you get by not choosing, and `light` is what you get by
+choosing it: name it on the call, for work whose correctness is obvious on inspection.
 
 `defaultEgress` used to be load-bearing: it was the class an undeclared agent was *checked* against,
 and setting it to `confidential` would have made every such agent fail against a public provider.

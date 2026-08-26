@@ -48,8 +48,8 @@ the predecessor harness hard-coded one model id into fourteen agent files.
 
 | Tier | For | Shipped `thinkingLevel` |
 |---|---|---|
-| `strong` | main loop, architecture, hard debugging | `high` |
-| `light` | everything else: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default | `medium` |
+| `strong` | main loop, architecture, hard debugging — **and the sub-agent default** (`dispatch.json`'s `defaultTier`) | `high` |
+| `light` | the opt-in tier for mechanical work, named on the call rather than inherited: multi-file edits, summaries, digests, classification, grep-and-report | `medium` |
 | `confidential` | anything that must not leave your boundary. Ships unbound | — |
 
 Do not invent a fourth. Everything that resolves a tier fails loud on an unknown name, and adding
@@ -62,6 +62,10 @@ one means every consumer has to learn it.
     vibes. `light` is the single delegation tier; when one particular call genuinely needs a
     different model, pin `provider/id` on that call rather than adding a vocabulary word every
     consumer then has to learn.
+
+    Which tier a delegated call *lands* on if nobody chooses is a separate question, answered by
+    [`dispatch.json`'s `defaultTier`](dispatch.md#defaulttier-and-defaultegress) — and the answer is
+    `strong`. Two roles, two tiers; the default is the careful one.
 
 ### How `thinkingLevel` reaches the child
 
