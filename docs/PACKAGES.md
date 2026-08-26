@@ -357,7 +357,33 @@ Upgrading does not fix it: npm 3.9.20 carries the identical two regexes at `:218
 passes a bare `always: true` on all four tools. It is not patched here either, and deliberately so —
 this repository has no patch mechanism, and adding one that every `npm ci` would have to honour
 forever is a bad trade for a footer worth roughly ten tokens a call. Recorded as a known cosmetic
-defect. Revisit if the `verbatim truncated` case is ever shown to hide real data loss.
+defect until the upstream fix ships, below. Revisit sooner if the `verbatim truncated` case is ever
+shown to hide real data loss.
+
+Fixed upstream on 2026-08-26, but not in any published release. Commit `6d32b767` (PR #1580, merged
+09:59Z) moves the extension's footer logic into a new `extensions/footer.ts`, adds a `bannerMatch`
+regex for the `─── N → M tok (↓~P%) ───` banner — including the abbreviated, comma-separated counts the
+binary's `format_number()` produces — and deletes the `always` self-measure fallback outright: with no
+parsed marker and no original text it now emits no footer at all. npm 3.9.20 was cut at 08:40Z, roughly
+eighty minutes earlier, so the changelog entry sits under `Unreleased` and no published version carries
+the fix.
+
+The pin therefore stays at 3.9.17 pending 3.9.21. Moving to 3.9.20 would record a dependency change
+whose entry does not address the defect it names — the two regexes and all five bare `always: true`
+callsites are byte-identical between the two tarballs. One honest lockfile change is worth more than
+two, and the second would have to be made anyway.
+
+When that release lands, check the shipped tarball rather than the version number. Unpack it and verify
+both that `extensions/footer.ts` exists and carries the `bannerMatch` regex, and that the self-measure
+fallback — `stats = clampStats(estimateTokens(text), estimateTokens(text))` — is gone. A release cut
+from a commit older than `6d32b767` would carry the bump without the fix.
+
+It will also fold in the 3.9.20 changes, none of which touch this footer: `shellPath` forwarded to the
+extension's private bash tools, `ctx_grep` exit code 1 with non-empty stderr now throwing instead of
+returning `(no matches)`, an awaited MCP bridge startup with a 10 s timeout, a `PI_CODING_AGENT_DIR`
+path fallback, and a widened `ctx_read` mode union (`auto` / `anchored` / `diff` / `raw` / `reference` /
+`task` / `lines:N-M`). The `ctx_grep` change is a behaviour change, not a fix to anything described
+here — noted so it does not later look unexplained.
 
 ## `pi-opa-net` 0.6.0
 
