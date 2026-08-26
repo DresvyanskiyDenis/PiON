@@ -3872,8 +3872,9 @@ duration and loses everything if the session ends.</p>
 <h2 id="how-you-hear-that-it-finished">How you hear that it finished<a class="headerlink" href="#how-you-hear-that-it-finished" title="Permanent link">&para;</a></h2>
 <p>A detached child is deliberately <code>unref()</code>d so it can outlive the <code>pi</code> process, which means
 nothing observes its exit — the store is reconciled by whoever asks. So the extension polls while
-any job is running, every two seconds, and stops polling the moment none is. An idle session pays
-nothing for a watcher it does not need.</p>
+any job is running, every two seconds (<code>PI_JOBS_WATCH_INTERVAL_MS</code>, in milliseconds, if you want a
+slower or faster sweep), and stops polling the moment none is. An idle session pays nothing for a
+watcher it does not need.</p>
 <p>How the notice reaches you depends on what the session is doing:</p>
 <table>
 <thead>
