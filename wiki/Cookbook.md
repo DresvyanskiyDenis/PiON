@@ -317,7 +317,8 @@ Full walkthrough:
 
 ### 18. Add your own skill
 
-No skills ship, and none ever will — the *loading machinery* does. Put yours in
+No skill is loaded by default — the *loading machinery* is what ships, plus one worked example under
+`examples/skills/` that you copy in if you want it. Put yours in
 `skills/` in the clone (git-ignored, and the installer offers to create it), or in
 `~/.pi/agent/skills/<name>/SKILL.md` — the installer links one to the other, so those are the same
 directory. That path is the single entry in `config/settings.json` → `skills`; any other root you

@@ -62,6 +62,33 @@ into and the path `settings.json` searches are one directory.
 
 ---
 
+## `examples/skills/` — a real one you can read
+
+`examples/skills/report-generation/` is a complete, non-trivial skill: frontmatter, reference
+documents, a `uv`-run Python renderer, a CSS visual system and a vendored charting library. It is
+**tracked** and it is **outside every search path**, so PI never loads it. Copy the directory into
+your `skills/` to use it.
+
+That split is deliberate. The loaded roster staying empty is a privacy property, not an aesthetic
+one; a worked example you can read is a documentation property. Putting the example under
+`examples/` gets both, and nothing has to be un-ignored.
+
+!!! note "What ships with it, and what was left out"
+    Its palette is unbranded on purpose — two identity colours, a slate scale, and semantic and
+    categorical token sets, all defined in the four `:root` blocks of `assets/report.css`. Re-skin by
+    redefining those tokens; every rule beneath them reads a token, so a house style never has to
+    touch a selector.
+
+    Its vendored `echarts.min.js` carries `assets/vendor/SOURCE.txt`: upstream URL, exact version,
+    licence, fetch date, and an explicit "byte-identical, no local changes" claim. Copy that pattern
+    for anything you vendor. A second candidate skill was reviewed for publication here and
+    **rejected** precisely because it could not satisfy it — it vendors a third-party `data/`,
+    `references/` and `scripts/` tree with no licence file anywhere in it, and unlicensed
+    third-party content must not reach a public repository. That decision reverses only if the
+    upstream licence is confirmed to permit redistribution.
+
+---
+
 ## A complete worked example
 
 The five-minute version is a prompt in a directory. This one ships a script alongside it, which is

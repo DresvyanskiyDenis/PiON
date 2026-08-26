@@ -57,7 +57,8 @@ entries, so you can move or rename the checkout without editing anything.
     one subdirectory and links only the single file into it — never `~/.pi/agent/extensions`
     itself, which is what would hand PI the extension source tree above.
 
-    **`skills/`.** No skills are tracked in this repository and none ever will be, but the
+    **`skills/`.** Nothing is tracked in this directory — the one worked example lives under
+    `examples/skills/`, outside every search path — but the
     directory itself is the one place your own skills go: it is git-ignored, and the installer
     links it to `~/.pi/agent/skills`, the single search path `settings.json` names. See
     [Writing a skill](../extending/skills.md).

@@ -86,7 +86,8 @@ To try it without touching your real setup:
 
 ### Section 7 also asks where your skills go
 
-This repository ships **zero skills** — only the machinery that loads them. So the only skill question
+This repository loads **zero skills** — only the machinery that finds them, plus one worked example
+under `examples/skills/` that no search path reaches. So the only skill question
 at install time is where yours will live, and the answer offered is `skills/` inside the checkout:
 git-ignored, and symlinked to `~/.pi/agent/skills`, which is the one search path `settings.json`
 names. Say yes and the directory is created empty. Writing a skill can then never turn into

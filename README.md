@@ -68,11 +68,15 @@ loaded and which are expected-but-absent.
 
 ## What it deliberately does not ship
 
-**No skills, and none are coming.** A skill is prose plus scripts, and prose is where somebody's
-employer, client or private workflow leaks out. What ships instead — and what is actually the
-valuable part — is the *machinery*: skill discovery, the `PI_SKILL_DIR_*` environment shim, the
-`allowed-tools` portability lint, and a documented precedence order. Yours go in the clone's
-git-ignored `skills/`, which the installer links to the one root `settings.json` searches.
+**No skill is loaded by default.** A skill is prose plus scripts, and prose is where somebody's
+employer, client or private workflow leaks out — so the loaded roster ships empty and the *machinery*
+is what ships instead: skill discovery, the `PI_SKILL_DIR_*` environment shim, the `allowed-tools`
+portability lint, and a documented precedence order. Yours go in the clone's git-ignored `skills/`,
+which the installer links to the one root `settings.json` searches.
+
+One worked example sits in [`examples/skills/`](examples/skills/), tracked but outside every search
+path: copy it in to use it. It is there because "write your own" is a thin answer to "what does a
+good one look like".
 
 **No MCP server definitions either**, for the same reason: a server list is as personal as a password
 manager. The machinery ships — the vendored adapter, the project trust gate, the `mcp-stdio-guard`

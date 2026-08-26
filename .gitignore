@@ -56,8 +56,12 @@ PRIVATE.md
 # appeared in config/settings.json's `skills` array. One root, ignored here and
 # declared once in settings, is the honest shape. `bin/pi-check` rule PC-12 fails
 # the repository if anything under it becomes trackable.
-skills/
-agents-private/
+#
+# Both patterns are ROOT-ANCHORED. Unanchored, `skills/` would also swallow
+# `examples/skills/`, which is tracked on purpose: it holds the one worked
+# example, deliberately outside every search path so PI never loads it.
+/skills/
+/agents-private/
 
 # --- Sub-agent run state -------------------------------------------------------
 # Per-run child state: transcripts, `_input.md`/`_output.md`, `_meta.json` cost

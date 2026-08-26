@@ -187,8 +187,9 @@ These four arrays are how PI finds everything this repository adds.
     chaining order — which decides whether `guard` sees a call before `bash` rewrites it. Do not
     "simplify" this line. [Architecture](../concepts/architecture.md) has the full argument.
 
-`skills` is the array you extend to add your own skills. **No skills ship with this repository, and
-none ever will** — the loading mechanism does, the content does not. The one entry is where the
+`skills` is the array you extend to add your own skills. **Nothing on this path ships populated** —
+the loading mechanism ships, the content does not, and the one worked example under
+`examples/skills/` is deliberately outside every search path. The one entry is where the
 installer symlinks the clone's git-ignored `skills/`, so the directory you write into and the path
 PI searches are the same directory under two names; PI tolerates it being absent.
 
