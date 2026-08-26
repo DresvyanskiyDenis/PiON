@@ -31,6 +31,13 @@ only available **if this project has opted in** (`.pi/settings.json` → `mcp`).
 default everywhere in this harness. If none is enabled and the page genuinely needs a browser, say so
 and stop — do not fall back to scraping HTML you cannot render.
 
+Where two are enabled, pick by **output, not by capability**. Need the page's *text* — its Markdown,
+its DOM tree, its links? Take the headless-JS lane (`lightpanda`-shaped: `goto`, then
+`markdown` / `tree` / `links` / `extract`). It runs a real JavaScript engine and renders nothing, so
+asking it for a screenshot is a category error, not a missing feature. Need anything **visual** — a
+screenshot, a layout check, a visual diff? That is the full-browser lane (`playwright`-shaped) and
+only that one.
+
 ## TRIGGER: read the current docs before touching a library
 
 Fire **before the first edit**, not after it fails, when the prompt or the file you are about to open
@@ -76,6 +83,9 @@ number; pricing, limits or quotas; a model id; a product that shipped or changed
 "does X support Y"; a tool comparison. Also before writing any sentence that contains a date, a
 version or a price.
 
+When what you find contradicts what you remembered, the search wins. Say which one you went with and
+link the source — a corrected answer with no citation is indistinguishable from a second guess.
+
 **Skip:** mathematics, algorithms, language semantics, this repository's own code.
 
 Questions about **our own model routing** — which provider, which tier, what context window, what a
@@ -99,6 +109,15 @@ compaction and loses the thread. One agent with a summary beats three with trans
 *widely*, not *redundantly*.
 
 Pick the role by domain from `agents/` — `/agents` lists what is installed.
+
+**A delegated call runs on the strong tier unless you say otherwise.** `config/dispatch.json`'s
+`defaultTier` is `strong`, and no agent file declares a cheaper one, so omitting `model` is not a
+downgrade — a subagent works unwatched, and a plausible wrong answer nobody re-reads costs more than
+the tokens. Reach for `light` deliberately and say why in the prompt, for work whose correctness is
+obvious on inspection. Inside a `workflowScript` the children are launched past the point where a
+tier is resolved, so each `runs.run(...)` / `runs.all([...])` child needs its own fully-qualified
+`provider/model` — a bare tier word there is substring-matched against the whole model catalogue and
+resolves to something you did not choose, on a provider you may not have configured.
 
 **Independent pieces → ONE `subagent` call that fans out on its own**, not several calls in one
 message. A second call in the same turn is rejected verbatim with `Rejected: a subagent call is
@@ -139,6 +158,7 @@ one-liner asked for in place.
 
 ## Work
 
+- Be concise. Answer what was asked. No preamble, no narrating what you are about to do.
 - Blocked by the guard? It is one of three things, and nothing else blocks any more: `DB-*` (eight
   catastrophic shapes — `rm -rf /`, fork bomb, `dd of=/dev/…`, `mkfs`, redirect onto a raw disk,
   `chmod -R 777 /`, `curl … | sh`, shutdown), `GIT-REWRITE` (`filter-repo`/`filter-branch`), or
@@ -152,10 +172,17 @@ one-liner asked for in place.
   allowlist any more — if you see either name anywhere, it is stale and does nothing.
 - "Fix the bug" → "write the test that reproduces it, then make it pass".
 - Multi-step work → a three-line plan, and one verification per step.
-- Two readings of the prompt → ask, don't pick silently.
+- Disagree with an architecture, library, data-model or approach decision — or find two readings of
+  the prompt — → say so **before** implementing, not after. Name the failure mode the other choice
+  has and what yours costs, not just the diff. Reaffirmed once you have made the case → implement it
+  and drop the objection.
 - Python: `uv run ruff format` → `uv run ruff check` → `uv run mypy` → `uv run pytest`. After each
-  change, not at the end.
+  change, not at the end — then finish the job: fix what you broke rather than stopping to ask
+  permission for the obvious next step.
 - Conventional commits (`feat:` / `fix:` / `docs:` / `refactor:` / `test:`) on `feature/…` | `fix/…`.
+  Behaviour a reader depends on changed → update the README in the same commit.
+- No AI attribution anywhere: no `Co-Authored-By` trailer, no generated-by credit line, in a commit
+  message or in a file.
 - Compaction → keep files and *intent*, TODO states, open errors, decisions and *why*, open
   `subagent` state; drop tool traces, searches, re-readable files, dead ends.
 
