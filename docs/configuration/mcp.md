@@ -13,7 +13,10 @@ this page before you expect a server to start, because the defaults are deny-sha
 intentional.
 
 The installer's MCP step offers exactly two servers from `config/mcp.example.json` — `context7` and
-`playwright` — and **defaults to neither**. Whatever you pick is written here. If `config/mcp.json`
+`playwright` — and **defaults to neither**. The example file carries a third entry, `lightpanda`,
+which the installer deliberately does not offer: unlike the other two it needs its own binary on
+`PATH`, and a numbered option that writes a server entry pointing at a command you do not have
+produces a broken roster rather than a working one. Install it yourself, then copy the entry. Whatever you pick is written here. If `config/mcp.json`
 already exists when you re-run, the step stands down entirely and says so: the file is yours and the
 installer will not edit it.
 
@@ -48,6 +51,30 @@ Hand edits are therefore safe. What a hand edit does not survive is a fresh clon
     "MCP_STDIO_EXTRA_ENV": "PLAYWRIGHT_BROWSERS_PATH",
     "PLAYWRIGHT_BROWSERS_PATH": "${HOME}/.cache/ms-playwright"
   },
+  "lifecycle": "lazy",
+  "directTools": true
+}
+```
+
+### Two browser lanes, split by output
+
+A headless-JS server and a full browser look like two ways to do one job, and declaring only the
+second looks like sensible deduplication. It is not: it deletes the cheap lane and makes every
+JavaScript-for-text page pay for a Chromium spawn.
+
+| Lane | Example server | Answers | Cannot |
+|---|---|---|---|
+| text | `lightpanda` | `goto`, then `markdown` / `tree` / `links` / `extract` — real V8, no rendering | produce a screenshot, ever; it draws nothing |
+| visual | `playwright` | screenshots, layout checks, visual diffs, full interaction | — |
+
+Split them by **output**, not by capability, and say so in `AGENTS.md` — otherwise a model with both
+enabled will pick whichever tool name it saw first. Both should be `lazy`: declaring the pair costs
+one config block and zero processes until a tool is actually called.
+
+```json
+"lightpanda": {
+  "command": "mcp-stdio-guard",
+  "args": ["lightpanda", "mcp"],
   "lifecycle": "lazy"
 }
 ```
