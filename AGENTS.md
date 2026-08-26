@@ -125,8 +125,15 @@ already in progress. Issue exactly ONE subagent call per turn.` Fanning out mean
 using `runs.all([...])` — the supported path — or a chain step with `parallel: [...]`. **Keep the
 width inside the provider's `concurrency` in `config/routing.json` yourself.** Nothing enforces it on
 the `runs.all` path: `config/subagent.json`'s `globalConcurrencyLimit` bounds children within a
-single run's parallel batch and within a chain step's `parallel:` group, not how many launches a
-`runs.all` may open at once. Ten items in one `runs.all` is ten concurrent provider calls.
+single run's parallel batch, not how many launches a `runs.all` may open at once. Ten items in one
+`runs.all` is ten concurrent provider calls.
+
+**A run also has a cumulative child budget — `maxSubagentSpawnsPerRun`, 64 by default and live
+whether or not anyone set it.** It counts every child the run has ever started, claims are never
+released or refunded, and a batch that does not fit is rejected whole: none of its children start,
+and the error names the group rather than the item. So a long-lived workflow can exhaust it at width
+2 as easily as at width 20. Budget children across the whole run, not just per fan-out, and start a
+new top-level run rather than widening an exhausted one.
 
 `general-purpose` (aliases `general`, `generalist`) is the role of last resort. It is an ordinary
 definition in `agents/` like every other, not a magic word — reach for it only when no specialist

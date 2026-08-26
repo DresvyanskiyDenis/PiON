@@ -1010,24 +1010,30 @@ describe("DSP-RESOLVE: a workflowScript with no model", () => {
     const lines = source.split("\n");
 
     const destructures = lines.filter((line) => line.includes("...workflowChildDefaults } ="));
-    assert.equal(destructures.length, 2, "the async and foreground branches, :4106 and :4178");
+    assert.equal(destructures.length, 2, "the async and foreground branches, :4723 and :4998");
     for (const line of destructures) {
       const omitted = line.slice(0, line.indexOf("...workflowChildDefaults"));
       assert.doesNotMatch(
         omitted,
         /\bmodel\s*:/,
         "pi-subagents began stripping `model` from workflowChildDefaults — the floor no longer " +
-          "reaches the children; re-read subagent-executor.ts:4106 before trusting DSP-RESOLVE",
+          "reaches the children; re-read subagent-executor.ts:4723 before trusting DSP-RESOLVE",
       );
     }
 
-    const builds = lines.filter((line) => line.includes("prepareWorkflowChildParams({ ...workflowChildDefaults"));
-    assert.equal(builds.length, 2, "the async and foreground child builds, :4142 and :4202");
-    for (const line of builds) {
-      assert.ok(
-        line.indexOf("...workflowChildDefaults") < line.indexOf("...childParams"),
-        "the spread order flipped: the workflow default would now OVERRIDE a child's own model",
-      );
-    }
+    // Both branches hand those defaults to prepareWorkflowChildLaunchParams (:4851 and :5056),
+    // which forwards them to prepareWorkflowLaunchParams — since 0.57.0 the merge that decides
+    // whether a child may keep its own model lives there, in one place, not at the call sites.
+    const mergeStart = lines.findIndex((line) => line.startsWith("export function prepareWorkflowLaunchParams("));
+    assert.ok(mergeStart >= 0, "prepareWorkflowLaunchParams is gone — the child merge moved somewhere new");
+    const mergeEnd = lines.findIndex((line, i) => i > mergeStart && line === "}");
+    const body = lines.slice(mergeStart, mergeEnd).join("\n");
+    const defaultsAt = body.indexOf("...workflowDefaults,");
+    const childAt = body.indexOf("...childParams,");
+    assert.ok(defaultsAt >= 0 && childAt >= 0, "the workflow-default/child merge is no longer two object spreads");
+    assert.ok(
+      defaultsAt < childAt,
+      "the spread order flipped: the workflow default would now OVERRIDE a child's own model",
+    );
   });
 });

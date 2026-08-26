@@ -194,35 +194,64 @@ server on `concurrency: 1` cannot.
 ## Concurrency limits — what each one actually bounds
 
 `config/dispatch.json`'s `concurrencyDefault` is this repository's own dial. `pi-subagents` (the
-runtime underneath it) carries a second, independent one: `globalConcurrencyLimit`. Left unset it
-defaults to the package's own built-in ceiling of 20 (`DEFAULT_GLOBAL_CONCURRENCY_LIMIT`,
-`src/runs/shared/parallel-utils.ts:128` in the pinned 0.41.0).
+runtime underneath it, pinned at 0.57.0) carries several of its own, and they bound different things.
+Line references below are into that package's source.
 
-**It bounds children within one batch, not fan-out width across launches.** This is the part that is
-easy to get backwards, so it is worth being precise about the mechanism rather than the number.
+### `globalConcurrencyLimit` — children inside one batch
 
-The semaphore is constructed **per execution**, at three separate sites — a background run
-(`src/runs/background/subagent-runner.ts:1941`), a foreground run
-(`src/runs/foreground/subagent-executor.ts:3381`, the path a plain dispatch actually takes), and a
-chain step's `parallel: [...]` group (`src/runs/foreground/chain-execution.ts:749`). It is consumed
-in exactly one place: the worker loop of `mapConcurrent` (`parallel-utils.ts:191` acquires,
-`:195` releases), which walks the items of **one** batch.
+Left unset it defaults to 20 (`DEFAULT_GLOBAL_CONCURRENCY_LIMIT`,
+`src/runs/shared/parallel-utils.ts:137`). It is read into a semaphore built at exactly one place, in
+`runSubagent()` (`src/runs/background/subagent-runner.ts:2452`), and consumed at exactly one place —
+the worker loop of `mapConcurrent`, which acquires at `parallel-utils.ts:200` and releases at `:204`
+while walking the items of **one** batch.
 
-`runs.all([...])` does not go through that loop. It validates its items and then `Promise.all`s N
-independent host calls (`src/workflows/scripted-workflow.ts:70`). Each one reaches its own
-`execute(randomUUID(), …)` as a single-child execution and builds its own semaphore, which it never
-contends with. N launches, N semaphores, and nothing bounding N.
+**It does not bound `runs.all` fan-out width.** `runs.all([...])` validates its items and then
+launches N independent children, `Promise.all`-ing them (`src/workflows/scripted-workflow.ts:374`);
+each becomes its own execution and never contends for that semaphore. Upstream states the same thing
+in its own documentation: the setting "Caps simultaneously running children inside existing durable
+legacy multi-child runs. New orchestration uses `workflowScript` and `runs.all`."
 
-So the setting is real and still does something useful — it caps the children inside a single run's
-parallel batch, and inside a chain step's `parallel:` group. What it does not do is cap how wide a
-`runs.all` fan-out may open. The only ceiling on that path is a workflow's `usageBudget`, which is a
-**cost** ceiling rather than a width one: the path is governed, just not on the dimension the
-concurrency setting names. Measured on 2026-08-26 against 0.41.0: eight children dispatched, eight
-ran concurrently, peak eight, no queueing. That this is accepted rather than overlooked is recorded
-in [ADR 0005](../adr/0005-unbounded-fan-out-on-runs-all.md).
+That this is accepted rather than overlooked — and what would reopen it — is recorded in
+[ADR 0005](../adr/0005-unbounded-fan-out-on-runs-all.md).
 
-This repository ships the cap explicitly anyway, in `config/subagent.json` (generated at install
-time from `config/subagent.default.json`, git-ignored like the rest of the personal config — see
+A chain step's `parallel: [...]` group that names no `concurrency` of its own takes
+`MAX_PARALLEL_CONCURRENCY = 4` (`parallel-utils.ts:265`), not `globalConcurrencyLimit`.
+
+### The three spawn budgets — cumulative spend, not width
+
+New in 0.57.0, live at their defaults whether or not you set them:
+
+| Key | Default | Bounds |
+|---|---|---|
+| `maxSubagentSpawnsPerRun` | 64 | every child one top-level run has **ever** started |
+| `maxSubagentSpawnsPerSession` | 100 | the same, counted across the session |
+| `maxActiveAsyncRunsPerSession` | 4 | top-level async runs in flight **right now** |
+
+The first two are cumulative and their claims are never released or refunded, so a long-lived
+workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
+a concurrency one. A batch that does not fit is rejected **whole**, with none of its children
+started:
+
+```text
+Run fan-out limit reached at <path> (64/64 used; 4 requested, 0 remaining). No children from this
+admission group were started. Start a new top-level run or raise config.maxSubagentSpawnsPerRun.
+```
+
+`maxActiveAsyncRunsPerSession` is the only one of the three that counts anything simultaneous, and it
+counts top-level async runs — not the children inside one of them.
+
+### `parallel.maxTasks` and `parallel.concurrency` — dormant
+
+These were the caps for the package's legacy top-level `tasks: [...]` dispatch path. As of 0.57.0
+their resolvers (`src/shared/types.ts:2411` and `:2415`) are exported and imported but **called
+nowhere in the package**, so neither key bounds anything today. This repository keeps them set for
+the same reason it set them originally: they cost nothing, and a key that reappears in a later
+release should find the conservative value already there rather than the package default.
+
+### What this repository ships
+
+`config/subagent.json`, generated at install time from `config/subagent.default.json` and git-ignored
+like the rest of the personal config (see
 [Generated vs tracked](../configuration/index.md#fact-2-generated-vs-tracked)):
 
 ```json
@@ -243,11 +272,8 @@ keep it no higher than the tightest `concurrency` entry in
 treat it as protection against a wide `runs.all`; for that, keep the width in the script itself
 inside the provider's budget, which is what the working rules in `AGENTS.md` ask a model to do.
 
-`parallel.concurrency` is the same cap for the package's legacy top-level `tasks: [...]` dispatch
-path; `parallel.maxTasks` bounds how many tasks a single call may *carry*, not how many run at
-once, and is left at the package's own default. Installed at
-`~/.pi/agent/extensions/subagent/config.json` — the one path `pi-subagents` reads its own config
-from, and the one nested symlink the installer makes; see
+The file is installed at `~/.pi/agent/extensions/subagent/config.json` — the one path `pi-subagents`
+reads its own config from, and the one nested symlink the installer makes; see
 [Configuration layout](../getting-started/config-layout.md).
 
 ---

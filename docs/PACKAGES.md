@@ -22,7 +22,7 @@ every session. The rest are reviewed and pinned but not loaded.
 
 | Package | Version | Licence | Status | Wired | Role |
 |---|---|---|---|---|---|
-| `pi-subagents` | 0.41.0 | MIT | adopted | yes | sub-agent runtime |
+| `pi-subagents` | 0.57.0 | MIT | adopted | yes | sub-agent runtime |
 | `pi-sandbox` | 0.6.2 | MIT | adopted-vendored | — | OS-level containment (reviewed, not wired) |
 | `pi-mcp-adapter` | 2.20.1 | MIT | adopted-vendored | yes | MCP bridge (vendored and patched) |
 | `pi-web-access` | 0.18.0 | MIT | adopted | yes | web search and fetch |
@@ -62,17 +62,43 @@ would let them change under a package that was reviewed at one version.
 One section per pinned package. The heading carries the pinned version, and **PC-18**
 checks it against `config/packages.lock.json` on every run.
 
-## `pi-subagents` 0.41.0
+## `pi-subagents` 0.57.0
 
 | | |
 |---|---|
-| **Pinned version** | 0.41.0 |
+| **Pinned version** | 0.57.0 |
 | **Licence** | MIT |
 | **Upstream** | <https://github.com/nicobailon/pi-subagents> |
-| **Reviewed** | 2026-08-06 |
+| **Reviewed** | 2026-08-06; re-reviewed at 0.57.0 on 2026-08-26 |
 | **Status** | `adopted` — wired and in use |
 | **Role** | sub-agent runtime |
-| **Tarball sha256** | `f433f7b1dcc252318e9960276e2e2696a1001ec46c7f82b29a5d100fe94252bc` |
+| **Tarball sha256** | `399689b0b17c0d9e079388280775d76d7fe9d32bd9d2aa0011fa7910a6572cc6` |
+
+**0.41.0 → 0.57.0, re-reviewed 2026-08-26.** The dependency set grows from three pure-JS packages to
+four: `acorn` 8.18.0 joins `jiti`, `typebox` and `yaml`. It is MIT, ships its `LICENSE`, and the
+package still declares no install-time scripts. It backs the tightened `workflowScript` validation —
+scripts are now parsed rather than pattern-matched, which is why a parser appeared in a runtime that
+previously needed none.
+
+Three changes reach this repository's own documentation rather than only its lock file:
+
+- The `runs.all` fan-out is still not width-capped, and upstream now says so in its own words:
+  `globalConcurrencyLimit` "Caps simultaneously running children inside existing durable legacy
+  multi-child runs. New orchestration uses `workflowScript` and `runs.all`"
+  (`docs/configuration.md:244`). What [ADR 0005](adr/0005-unbounded-fan-out-on-runs-all.md)
+  established by measurement is now the vendor's own statement.
+- Three spawn budgets exist and are live at their defaults — `maxSubagentSpawnsPerRun` (64),
+  `maxSubagentSpawnsPerSession` (100) and `maxActiveAsyncRunsPerSession` (4). The first two are
+  cumulative and the third bounds current async load; none is a width cap. See
+  [Sub-agents](extending/subagents.md#concurrency-limits-what-each-one-actually-bounds).
+- `parallel.maxTasks` and `parallel.concurrency` are now **dormant**: their resolvers
+  (`src/shared/types.ts:2411` and `:2415`) are exported and imported but called nowhere in the
+  package.
+
+Upstream's own documentation moved in this release too: `README.md` went from roughly 1600 lines to
+126, with the content split into `docs/agents.md`, `configuration.md`, `extension-api.md`,
+`missions.md`, `models.md`, `observability.md`, `tool-reference.md`, `watchdog.md` and
+`workflows.md`. Any note citing a `README.md` line from an earlier release is pointing at nothing.
 
 ## `pi-sandbox` 0.6.2
 

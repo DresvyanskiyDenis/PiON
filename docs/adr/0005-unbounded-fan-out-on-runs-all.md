@@ -1,7 +1,40 @@
 # ADR 0005: A wide `runs.all` fan-out is not width-capped, and that is accepted
 
-- **Status:** accepted
+- **Status:** accepted, amended 2026-08-26 (evidence re-verified at `pi-subagents` 0.57.0)
 - **Date:** 2026-08-26
+
+!!! note "Amendment, 2026-08-26 — the decision is unchanged; its evidence moved"
+    The upgrade from `pi-subagents` 0.41.0 to 0.57.0 changed where the mechanism lives without
+    changing what it does. `runs.all` still launches N independent children with nothing bounding N
+    (`src/workflows/scripted-workflow.ts:374`), so the decision below stands exactly as written.
+    Three corrections to the evidence, and one addition:
+
+    - **The semaphore is now built at one site, not three.** It is constructed inside `runSubagent()`
+      at `src/runs/background/subagent-runner.ts:2452`, and that is the only `new Semaphore(...)` in
+      the package. `src/runs/foreground/subagent-executor.ts:82` still imports `Semaphore` and
+      `DEFAULT_GLOBAL_CONCURRENCY_LIMIT` and constructs neither.
+    - **`src/runs/foreground/chain-execution.ts` was deleted outright.** A chain step's parallel
+      group now takes `MAX_PARALLEL_CONCURRENCY = 4` (`src/runs/shared/parallel-utils.ts:265`) when
+      the step names no `concurrency` of its own. `DEFAULT_GLOBAL_CONCURRENCY_LIMIT` is still 20 and
+      moved to `parallel-utils.ts:137`; `mapConcurrent` still acquires and releases around one
+      batch, now at `:200` and `:204`.
+    - **Upstream now documents the limitation in its own words**, which strengthens the argument
+      below rather than weakening it: what this ADR established by measurement is now the vendor's
+      own statement. `docs/configuration.md:244` — `globalConcurrencyLimit` "Caps simultaneously
+      running children inside existing durable legacy multi-child runs. New orchestration uses
+      `workflowScript` and `runs.all`."
+    - **Three spawn budgets are new, and none of them reopens this decision.**
+      `maxSubagentSpawnsPerRun` (default 64) and `maxSubagentSpawnsPerSession` (default 100) are
+      *cumulative* — they count every child a run or a session has ever started, and
+      `docs/configuration.md:264` states claims are "never released or refunded", so they bound total
+      spend rather than instantaneous width. `maxActiveAsyncRunsPerSession` (default 4) bounds
+      concurrent *top-level async runs* per session, not the children inside one `runs.all`. A
+      twelve-wide fan-out inside one run still opens twelve concurrent provider calls; it now also
+      consumes twelve of that run's 64 claims. The **Reopen this if** section below is unaffected —
+      none of these is the process-wide or workflow-wide *width* limit it names.
+
+    Read the line references in **Context** as the 0.41.0 evidence they were, and these as their
+    0.57.0 equivalents.
 
 ## Context
 
@@ -89,5 +122,4 @@ the old claim.
 
 - [Sub-agents](../extending/subagents.md) — what each concurrency setting bounds
 - [Routing](../configuration/routing.md#concurrency) — the per-provider budget this defers to
-- [Package ledger](../PACKAGES.md) — `pi-subagents` 0.41.0, the version every line reference above
-  was verified against
+- [Package ledger](../PACKAGES.md) — `pi-subagents`, and what the 0.57.0 upgrade changed

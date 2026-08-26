@@ -141,7 +141,7 @@ installed.
 
 | Package | Version | Licence | Author / org | Role here |
 |---|---|---|---|---|
-| `pi-subagents` | 0.41.0 | MIT | Nico Bailon | the sub-agent runtime under [dispatch](../extensions/dispatch.md) |
+| `pi-subagents` | 0.57.0 | MIT | Nico Bailon | the sub-agent runtime under [dispatch](../extensions/dispatch.md) |
 | `pi-web-access` | 0.18.0 | MIT | Nico Bailon | `web_search` / `web_fetch` under [web](../extensions/web.md) |
 | `@juicesharp/rpiv-todo` | 2.4.0 | MIT | juicesharp | the task list under [tasks](../extensions/tasks.md) |
 | `@mrclrchtr/supi-bash-timeout` | 4.6.0 | MIT | mrclrchtr | default bash timeout, under [bash](../extensions/bash.md) |

@@ -62,9 +62,10 @@ export interface DispatchConfig {
    * `pi-subagents`' own default for a fanout with no `concurrency` argument. Must mirror the
    * *widest* default the package can pick, because `clampConcurrency` only writes an explicit
    * width when the provider cap is below it: mirroring a smaller number silently stops the cap
-   * biting. That widest default is `config/subagent.json`'s `parallel.concurrency` for the
-   * top-level `tasks` fanout — raise this key with that one, never separately. A chain step still
-   * defaults to the package's own built-in 4.
+   * biting. As of `pi-subagents` 0.57.0 that widest default is the package's own built-in
+   * `MAX_PARALLEL_CONCURRENCY` (4), which a chain step or parallel group takes when it names no
+   * `concurrency` of its own. It used to be `config/subagent.json`'s `parallel.concurrency`; that
+   * key is dormant now — its resolver is never called — so this key no longer tracks it.
    */
   readonly packageDefaultConcurrency: number;
   /** Tokens `<repo>`, `<agentDir>`, `<cwd>` are expanded at load time. */

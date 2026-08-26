@@ -4,13 +4,13 @@
   "packages": [
     {
       "name": "pi-subagents",
-      "version": "0.41.0",
-      "tarball": "https://registry.npmjs.org/pi-subagents/-/pi-subagents-0.41.0.tgz",
-      "sha256": "f433f7b1dcc252318e9960276e2e2696a1001ec46c7f82b29a5d100fe94252bc",
-      "npm_dist_shasum_sha1": "401d86f0ace06557a77c5cedc8af448e314ad174",
+      "version": "0.57.0",
+      "tarball": "https://registry.npmjs.org/pi-subagents/-/pi-subagents-0.57.0.tgz",
+      "sha256": "399689b0b17c0d9e079388280775d76d7fe9d32bd9d2aa0011fa7910a6572cc6",
+      "npm_dist_shasum_sha1": "3962b61e1906b76d0807bfd0956f2afa5e1eaa8c",
       "license": "MIT",
       "repository": "https://github.com/nicobailon/pi-subagents",
-      "reviewed": "2026-08-06",
+      "reviewed": "2026-08-26",
       "status": "adopted",
       "role": "EXT-05/24/25 sub-agent runtime",
       "vendor": false
