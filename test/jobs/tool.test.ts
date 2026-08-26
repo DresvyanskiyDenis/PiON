@@ -10,6 +10,8 @@ import {
   watchIntervalMs,
   DEFAULT_WATCH_INTERVAL_MS,
   WATCH_INTERVAL_ENV,
+  wakeOnIdle,
+  WAKE_ENV,
   __resetForTests,
 } from "../../extensions/jobs/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
@@ -21,6 +23,7 @@ interface SentMessage {
   customType: string;
   text: string;
   deliverAs?: string;
+  triggerTurn?: boolean;
 }
 
 function fakePi(): {
@@ -37,12 +40,13 @@ function fakePi(): {
     registerTool: (tool: ToolDefinition) => void tools.set(tool.name, tool),
     sendMessage: (
       message: { customType: string; content: Array<{ text?: string }> },
-      options?: { deliverAs?: string },
+      options?: { deliverAs?: string; triggerTurn?: boolean },
     ) => {
       sent.push({
         customType: message.customType,
         text: message.content.map((part) => part.text ?? "").join(""),
         deliverAs: options?.deliverAs,
+        triggerTurn: options?.triggerTurn,
       });
     },
   } as unknown as ExtensionAPI;
@@ -233,7 +237,8 @@ describe("job tool (EXT-24)", () => {
     await harness.handlers.get("turn_end")!({}, ctx);
     assert.equal(harness.sent.length, 1);
     assert.equal(harness.sent[0]!.customType, "job-done");
-    assert.equal(harness.sent[0]!.deliverAs, "nextTurn");
+    assert.equal(harness.sent[0]!.deliverAs, "followUp");
+    assert.equal(harness.sent[0]!.triggerTurn, true);
     assert.match(harness.sent[0]!.text, new RegExp(`${freshId} \\(done exit 0\\)`));
     assert.equal(status.get("jobs"), undefined, "the footer clears when nothing is running");
 
@@ -253,11 +258,51 @@ describe("job tool (EXT-24)", () => {
 
     await harness.handlers.get("agent_settled")!({}, ctx);
     assert.equal(harness.sent.length, 1);
-    assert.equal(
-      harness.sent[0]!.deliverAs,
-      undefined,
-      "no deliverAs takes sendCustomMessage's final branch, which renders now",
-    );
+    // Both options always go out and PI picks the branch: `triggerTurn` is what makes an idle
+    // session act, `followUp` is what stops a running one from being steered.
+    assert.equal(harness.sent[0]!.triggerTurn, true);
+    assert.equal(harness.sent[0]!.deliverAs, "followUp");
+    assert.match(harness.sent[0]!.text, /job\(action="output"\)/);
+    assert.match(harness.sent[0]!.text, /say so and stop/, "the wake states its own exit");
+  });
+
+  it("stays passive when the wake is switched off", async () => {
+    const prev = process.env[WAKE_ENV];
+    process.env[WAKE_ENV] = "0";
+    try {
+      const ctx = fakeCtx("sess-1");
+      await harness.handlers.get("agent_start")!({}, ctx);
+      const started = await call({ action: "start", command: "exit 0" }, ctx);
+      const id = (started.details as { id: string }).id;
+      await until(async () => {
+        const { jobs } = await listJobs(root);
+        return jobs.find((job) => job.id === id)?.status === "done";
+      });
+
+      await harness.handlers.get("turn_end")!({}, ctx);
+      assert.equal(harness.sent.length, 1);
+      assert.equal(harness.sent[0]!.triggerTurn, undefined);
+      assert.equal(harness.sent[0]!.deliverAs, "nextTurn", "mid-run, the old parking behaviour");
+
+      await harness.handlers.get("agent_settled")!({}, ctx);
+      assert.equal(harness.sent.length, 1, "and still announced only once");
+    } finally {
+      if (prev === undefined) delete process.env[WAKE_ENV];
+      else process.env[WAKE_ENV] = prev;
+    }
+  });
+
+  it("reads the wake switch from the environment, and refuses a malformed one", () => {
+    assert.equal(wakeOnIdle({}), true);
+    for (const on of ["1", "true"]) assert.equal(wakeOnIdle({ [WAKE_ENV]: on }), true);
+    for (const off of ["0", "false"]) assert.equal(wakeOnIdle({ [WAKE_ENV]: off }), false);
+    for (const bad of ["off", "no", "TRUE", "2", ""]) {
+      assert.throws(
+        () => wakeOnIdle({ [WAKE_ENV]: bad }),
+        new RegExp(WAKE_ENV),
+        `${JSON.stringify(bad)} should be refused, not read as a default`,
+      );
+    }
   });
 
   it("reads the poll interval from the environment, and refuses a malformed one", () => {
@@ -272,7 +317,7 @@ describe("job tool (EXT-24)", () => {
     }
   });
 
-  it("announces a job that died while the session sat idle, with no turn at all", async () => {
+  it("wakes the agent for a job that died while the session sat idle", async () => {
     // The case the watcher exists for: a detached job is started and nobody comes back. No turn
     // ends, so the only notification path never fires and the footer keeps claiming `1 bg`.
     //
@@ -290,7 +335,7 @@ describe("job tool (EXT-24)", () => {
 
       await until(() => harness.sent.length === 1);
       assert.equal(harness.sent[0]!.customType, "job-done");
-      assert.equal(harness.sent[0]!.deliverAs, undefined);
+      assert.equal(harness.sent[0]!.triggerTurn, true, "nobody else was going to start a turn");
       assert.match(harness.sent[0]!.text, /failed exit 3/);
       assert.equal(status.get("jobs"), undefined, "and the footer stops claiming it is running");
     } finally {

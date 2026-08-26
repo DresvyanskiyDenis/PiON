@@ -35,12 +35,19 @@ How the notice reaches you depends on what the session is doing:
 
 | Session state | Delivery |
 | --- | --- |
-| An agent run is in flight | Queued for the next turn, so the notice does not steer the turn already running |
-| Idle | Rendered straight away |
+| An agent run is in flight | Queued behind the current turn, so the notice does not steer the turn already running |
+| Idle | Starts a turn of its own, so the agent picks the job up without being asked |
 
-It never starts a turn by itself. A finished job is news, not an instruction, and waking the model
-unprompted spends tokens you did not ask to spend — `job(action="output")` is one call away when
-you want the log.
+The idle case is the one worth stating plainly: **a finished job wakes the agent.** Something
+started that job on purpose, and a report nobody is awake to read is not a report — the alternative
+is a notice sitting in a transcript until a human happens to type. The cost is bounded: one wake per
+job, several jobs finishing together are a single message, and the notice tells the agent it may
+stop straight away when there is nothing to do.
+
+Set `PI_JOBS_WAKE=0` if you would rather it stayed quiet. The notice still renders, it simply never
+starts a turn, and `job(action="output")` is one call away when you come back. Anything other than
+`0`, `1`, `false` or `true` is an error rather than a guess — a mistyped `PI_JOBS_WAKE=off` should
+not silently leave the wake switched on.
 
 `state.json`'s `finishedAt` is the process's real exit time, read from the `exit` file's mtime, not
 the moment something got round to looking.

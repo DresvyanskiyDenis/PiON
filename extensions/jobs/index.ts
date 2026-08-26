@@ -108,6 +108,31 @@ export function watchIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
   return parsed;
 }
 
+/** Whether a finished-job notice may start a turn of its own when the session is idle. */
+export const DEFAULT_WAKE_ON_IDLE = true;
+
+/** Set to `0` to make the notice passive again: it still renders, but never starts a turn. */
+export const WAKE_ENV = "PI_JOBS_WAKE";
+
+/**
+ * Whether this session wakes itself for a finished job.
+ *
+ * On by default, because without it the notice arrives somewhere nobody is looking — see
+ * `announce()`. Off restores the passive behaviour: mid-run the notice parks for the next
+ * prompt, idle it renders and waits for a human. Malformed input throws rather than being read
+ * as a default, matching `watchIntervalMs` and `autoPruneRetentionHours` — `PI_JOBS_WAKE=off`
+ * is a typo, not an opt-out, and quietly reading it as "on" would be the worst of both.
+ */
+export function wakeOnIdle(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env[WAKE_ENV];
+  if (raw === undefined) return DEFAULT_WAKE_ON_IDLE;
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+  throw new Error(
+    `${WAKE_ENV} is ${JSON.stringify(raw)}, which is not one of "0", "1", "false", "true"`,
+  );
+}
+
 /** Every live watcher's stop function, so the test seam can disarm registrations it replaced. */
 const watchers = new Set<() => void>();
 
@@ -204,19 +229,34 @@ export function register(pi: ExtensionAPI): void {
   watchers.add(stopWatch);
 
   /**
-   * Delivery depends on whether an agent run is in flight, because `sendMessage`'s branches are
-   * not interchangeable (`dist/core/agent-session.js`'s `sendCustomMessage`):
+   * Announces the jobs this sweep found terminal, and — by default — wakes the agent to deal
+   * with them.
    *
-   *   - mid-run, `deliverAs: "nextTurn"` parks the notice on the session's pending-next-turn
-   *     queue, so the agent picks it up at the next turn instead of being steered off the
-   *     current one. Passing no options there would fall through to `agent.steer()`, since
-   *     `turn_end` fires *inside* the run and `isStreaming` is still true at that point.
-   *   - idle, passing no options takes the final branch, which appends the entry and emits
-   *     `message_start`/`message_end` — it renders *now*. An idle session is exactly the case
-   *     `nextTurn` strands: the notice waits for a turn only a human can start.
+   * Which branch of `sendCustomMessage` runs is left to PI, which decides on its own
+   * `isStreaming` rather than on anything this extension tracks:
    *
-   * Never `triggerTurn`: a finished job is news, not an instruction, and waking the model by
-   * itself spends tokens nobody asked for.
+   *   - idle, `triggerTurn` runs the notice as a prompt in its own right. That is the point of
+   *     the whole watcher: a job that dies while nobody is typing has no other way to be heard.
+   *   - mid-run, `deliverAs: "followUp"` queues the notice behind the current turn, so the agent
+   *     reads it when the turn ends and keeps going, rather than being steered off what it is
+   *     doing. `triggerTurn` is ignored on that branch, which is why one option object can cover
+   *     both cases and no locally-tracked flag can pick the wrong one.
+   *
+   * Turns cannot stack. Starting a prompt marks the run active as its first act, before it
+   * awaits anything, so a second announcement racing the first finds a live run and takes the
+   * `followUp` branch instead. Several jobs found in one sweep were already a single message.
+   *
+   * `deliverAs: "nextTurn"` was the original choice here and survives only as what
+   * `PI_JOBS_WAKE=0` falls back to. It is not really a mid-run delivery: pending `nextTurn`
+   * messages are injected when a *new prompt* starts, not between the turns of a run already in
+   * flight. A job finishing during a run's last turn therefore stayed silent until a human typed
+   * — the same silence the exit watcher exists to remove, moved one boundary along.
+   *
+   * The rule this replaces read "never `triggerTurn`: a finished job is news, not an
+   * instruction." The tokens are not unasked-for: something started the job deliberately, and a
+   * report nobody is awake to read is not a report. The cost is bounded instead — one wake per
+   * job, coalesced per sweep — and the text says plainly that the agent may stop at once if
+   * there is nothing to do.
    */
   function announce(finished: readonly JobState[]): void {
     if (finished.length === 0) return;
@@ -229,12 +269,18 @@ export function register(pi: ExtensionAPI): void {
         content: [
           {
             type: "text",
-            text: `Background job(s) finished: ${summary}. Use job(action="output") to read them.`,
+            text:
+              `Background job(s) finished: ${summary}. Read them with job(action="output") and ` +
+              `carry on with what they were started for; if nothing is needed, say so and stop.`,
           },
         ],
         display: true,
       },
-      streaming ? { deliverAs: "nextTurn" } : undefined,
+      wakeOnIdle()
+        ? { deliverAs: "followUp" as const, triggerTurn: true }
+        : streaming
+          ? { deliverAs: "nextTurn" as const }
+          : undefined,
     );
   }
 
