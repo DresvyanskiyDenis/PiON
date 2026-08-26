@@ -5106,9 +5106,13 @@ previously needed none.</p>
 </table>
 <p>Two operational caveats, both measured on 2026-08-15 against binary 3.9.13.</p>
 <p><strong>Install the binary at 3.9.13, not latest.</strong> The npm package shells out to a Rust binary of the same
-name. Versions 3.9.14 through 3.9.18 fail to compile — they declare <code>lean-ctx-ocla = "^1.0.0"</code> and the
-only published version of that crate lacks fields the code references, so the build ends in 17 errors
-regardless of <code>--locked</code>. <code>cargo install lean-ctx --version 3.9.13</code> is the last release that builds.
+name. Versions 3.9.14 through 3.9.18 failed to compile when this was measured on 2026-08-15 — they
+declare <code>lean-ctx-ocla = "^1.0.0"</code>, the sole version of that crate published at the time lacked fields
+the code references, and the build ended in 17 errors regardless of <code>--locked</code>.</p>
+<p>That cause no longer describes the registry. <code>lean-ctx-ocla 1.0.1</code> was published on 2026-08-26 and
+<code>lean-ctx 3.9.20</code> pins it exactly, so the missing-dependency explanation has expired. Nothing has been
+rebuilt to check whether those versions compile now, and 3.9.13 remains the only release measured to
+build here: <code>cargo install lean-ctx --version 3.9.13</code>.
 The npm side at 3.9.17 was checked call-by-call against 3.9.13's surface and passes no flag the older
 binary rejects.</p>
 <p><strong>Leave <code>enableMcp</code> true.</strong> lean-ctx collapses a repeat full read of an unchanged file to a ~13-token
@@ -5157,7 +5161,29 @@ wrong readout sits next to something consequential.</p>
 passes a bare <code>always: true</code> on all four tools. It is not patched here either, and deliberately so —
 this repository has no patch mechanism, and adding one that every <code>npm ci</code> would have to honour
 forever is a bad trade for a footer worth roughly ten tokens a call. Recorded as a known cosmetic
-defect. Revisit if the <code>verbatim truncated</code> case is ever shown to hide real data loss.</p>
+defect until the upstream fix ships, below. Revisit sooner if the <code>verbatim truncated</code> case is ever
+shown to hide real data loss.</p>
+<p>Fixed upstream on 2026-08-26, but not in any published release. Commit <code>6d32b767</code> (PR #1580, merged
+09:59Z) moves the extension's footer logic into a new <code>extensions/footer.ts</code>, adds a <code>bannerMatch</code>
+regex for the <code>─── N → M tok (↓~P%) ───</code> banner — including the abbreviated, comma-separated counts the
+binary's <code>format_number()</code> produces — and deletes the <code>always</code> self-measure fallback outright: with no
+parsed marker and no original text it now emits no footer at all. npm 3.9.20 was cut at 08:40Z, roughly
+eighty minutes earlier, so the changelog entry sits under <code>Unreleased</code> and no published version carries
+the fix.</p>
+<p>The pin therefore stays at 3.9.17 pending 3.9.21. Moving to 3.9.20 would record a dependency change
+whose entry does not address the defect it names — the two regexes and all five bare <code>always: true</code>
+callsites are byte-identical between the two tarballs. One honest lockfile change is worth more than
+two, and the second would have to be made anyway.</p>
+<p>When that release lands, check the shipped tarball rather than the version number. Unpack it and verify
+both that <code>extensions/footer.ts</code> exists and carries the <code>bannerMatch</code> regex, and that the self-measure
+fallback — <code>stats = clampStats(estimateTokens(text), estimateTokens(text))</code> — is gone. A release cut
+from a commit older than <code>6d32b767</code> would carry the bump without the fix.</p>
+<p>It will also fold in the 3.9.20 changes, none of which touch this footer: <code>shellPath</code> forwarded to the
+extension's private bash tools, <code>ctx_grep</code> exit code 1 with non-empty stderr now throwing instead of
+returning <code>(no matches)</code>, an awaited MCP bridge startup with a 10 s timeout, a <code>PI_CODING_AGENT_DIR</code>
+path fallback, and a widened <code>ctx_read</code> mode union (<code>auto</code> / <code>anchored</code> / <code>diff</code> / <code>raw</code> / <code>reference</code> /
+<code>task</code> / <code>lines:N-M</code>). The <code>ctx_grep</code> change is a behaviour change, not a fix to anything described
+here — noted so it does not later look unexplained.</p>
 <h2 id="pi-opa-net-060"><code>pi-opa-net</code> 0.6.0<a class="headerlink" href="#pi-opa-net-060" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
