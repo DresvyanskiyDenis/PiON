@@ -104,6 +104,15 @@ Duplication was chosen over silence: if the package's own notification does arri
 about a finished run twice. Being told twice is a nuisance; not being told is a wrong answer. The
 upstream delivery failure is routed around, not repaired.
 
+That trade does **not** extend to your own reads. A run you waited on, polled, or read the artifact
+of is marked consumed and never announced — the announcement is for the run nobody told you about.
+Measured 2026-08-26: one run was waited on, polled, read and its todo closed, and the announcement
+arrived two minutes later saying "read the artifact above". That is not a doubled report, it is a
+stale instruction to reconcile against work already done. Consumption requires the run's own
+`status.json` to be terminal at the moment you looked: polling a run that is still running says
+nothing about how it ends, so it does not spend the announcement, and neither does reading a run
+that never wrote a `status.json` — "never started" still gets said.
+
 The block is built once at `session_start` and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. `/agents` prints the same text **verbatim** — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.
