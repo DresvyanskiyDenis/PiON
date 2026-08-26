@@ -3782,10 +3782,10 @@ copied, it is symlinked.</strong> <code>~/.pi/agent/settings.json</code> is a li
 clone. Editing the file in the repository changes the live agent. There is no build step and no
 second copy to keep in sync.</p>
 <h2 id="the-picture">The picture<a class="headerlink" href="#the-picture" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/.pi/agent/                          PI&#39;s config root ($PI_CODING_AGENT_DIR)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/.pi/agent/                          PI's config root ($PI_CODING_AGENT_DIR)
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── settings.json      -&gt; ~/pi-config/config/settings.json     global agent behaviour
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── models.json        -&gt; ~/pi-config/config/models.json       providers, credential *references*
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── routing.json       -&gt; ~/pi-config/config/routing.json      tiers / egress / concurrency (ours, not PI&#39;s)
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── routing.json       -&gt; ~/pi-config/config/routing.json      tiers / egress / concurrency (ours, not PI's)
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── AGENTS.md          -&gt; ~/pi-config/AGENTS.md                the standing instructions
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>├── prompts            -&gt; ~/pi-config/prompts/
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>├── hooks.yaml         -&gt; ~/pi-config/config/hooks.yaml
@@ -3798,7 +3798,7 @@ second copy to keep in sync.</p>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>├── agents             -&gt; ~/pi-config/agents/                  sub-agent definitions
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>├── agents-private     -&gt; ~/pi-config/agents-private/          yours, git-ignored (if it exists)
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>├── auth.json                                                  0600, written by /login — never committed
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── trust.json                                                 PI&#39;s own project-trust decisions
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── trust.json                                                 PI's own project-trust decisions
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>├── install-manifest.tsv                                       what the installer created; uninstall reads it
 </span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>└── sessions/  models-store.json                               PI-owned, never linked
 </span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>

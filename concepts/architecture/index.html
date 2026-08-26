@@ -3802,7 +3802,7 @@
 <h2 id="one-extension-twenty-six-modules">One extension, twenty-six modules<a class="headerlink" href="#one-extension-twenty-six-modules" title="Permanent link">&para;</a></h2>
 <p>PI discovers extensions by scanning <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code>. This
 repository deliberately does <strong>not</strong> use that. <code>config/settings.json</code> names exactly one file:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">&quot;extensions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;~/pi-config/extensions/index.ts&quot;</span><span class="p">]</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">]</span>
 </span></code></pre></div>
 <p><code>extensions/index.ts</code> is the composition root. Every other module exports <code>id</code> and
 <code>register(pi)</code> — not a default export — and is imported and invoked here in a fixed order.</p>

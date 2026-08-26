@@ -3757,7 +3757,7 @@
 <h1 id="internal-identifiers">Internal identifiers<a class="headerlink" href="#internal-identifiers" title="Permanent link">&para;</a></h1>
 <p>Run <code>bin/pi-check</code> or read almost any source file here and you will meet identifiers like <code>EXT-05</code>,
 <code>REQ-PRV-56</code> or <code>VP-10</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&quot;fallback&quot; key found — provider failover is cancelled (EXT-08); a re-introduced
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>"fallback" key found — provider failover is cancelled (EXT-08); a re-introduced
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>fallback is a silent-degradation channel
 </span></code></pre></div>
 <p>They are not dead comments left over from a template. They come from the design record this harness
@@ -3807,7 +3807,7 @@ you are expected to follow somewhere — this page is the whole lookup table.</p
 prints every rule it ran under <code>rulesRun</code>, and each rule file in <code>bin/rules/</code> exports both a <code>title</code>
 and a <code>closes</code> array naming the requirements it enforces. That <code>closes</code> export is the shortest path
 from any id in this page back to running code:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>grep<span class="w"> </span>-rl<span class="w"> </span><span class="s1">&#39;REQ-PRV-56&#39;</span><span class="w"> </span>bin/rules/
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>grep<span class="w"> </span>-rl<span class="w"> </span><span class="s1">'REQ-PRV-56'</span><span class="w"> </span>bin/rules/
 </span></code></pre></div>
 <h2 id="ext-nn-what-it-actually-is"><code>EXT-NN</code> → what it actually is<a class="headerlink" href="#ext-nn-what-it-actually-is" title="Permanent link">&para;</a></h2>
 <p>Where a page exists, it is linked; the rest name their entry point in the tree.</p>

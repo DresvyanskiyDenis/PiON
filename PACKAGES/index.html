@@ -4325,7 +4325,7 @@ every session. The rest are reviewed and pinned but not loaded.</p>
 </tbody>
 </table>
 <p>Verification of the hashes themselves:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>npm pack --ignore-scripts, then shasum -a 256 on the resulting tarball. The npm_dist_shasum_sha1 field is npm&#39;s own SHA-1 and is recorded only as a cross-check.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>npm pack --ignore-scripts, then shasum -a 256 on the resulting tarball. The npm_dist_shasum_sha1 field is npm's own SHA-1 and is recorded only as a cross-check.
 </span></code></pre></div>
 <h2 id="transitive-pins">Transitive pins<a class="headerlink" href="#transitive-pins" title="Permanent link">&para;</a></h2>
 <p>Dependencies of the above that are pinned in their own right, because a floating range

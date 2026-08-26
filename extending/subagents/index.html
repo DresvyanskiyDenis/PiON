@@ -4155,7 +4155,7 @@ Use the default <code>text</code> when a human reads it.</p>
 <hr />
 <h2 id="where-agents-are-discovered">Where agents are discovered<a class="headerlink" href="#where-agents-are-discovered" title="Permanent link">&para;</a></h2>
 <p><code>config/dispatch.json</code>'s <code>registryDirs</code>, in order:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">[</span><span class="s2">&quot;&lt;repo&gt;/agents&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&lt;repo&gt;/agents-private&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&lt;agentDir&gt;/agents&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;&lt;cwd&gt;/.pi/agents&quot;</span><span class="p">]</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">[</span><span class="s2">"&lt;repo&gt;/agents"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;repo&gt;/agents-private"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;agentDir&gt;/agents"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;cwd&gt;/.pi/agents"</span><span class="p">]</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -4206,10 +4206,10 @@ enough that a broad fan-out can open 20 concurrent provider calls at once, regar
 from <code>config/subagent.default.json</code>, git-ignored like the rest of the personal config — see
 <a href="../../configuration/#fact-2-generated-vs-tracked">Generated vs tracked</a>):</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;globalConcurrencyLimit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;parallel&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">&quot;maxTasks&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">&quot;concurrency&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"globalConcurrencyLimit"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"parallel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">"maxTasks"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="p">}</span>
 </span></code></pre></div>

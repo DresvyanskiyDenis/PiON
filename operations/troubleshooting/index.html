@@ -4656,7 +4656,7 @@ incident.</p>
 <p>Check that <code>config/settings.json</code>'s <code>extensions</code> array names <strong>one file</strong>, the composition root, and
 that <code>~/.pi/agent/extensions</code> is <strong>not</strong> a symlink to the <code>extensions/</code> directory.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ls<span class="w"> </span>-l<span class="w"> </span>~/.pi/agent/extensions<span class="w">        </span><span class="c1"># should not exist as a link to extensions/</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./scripts/postinstall-verify.sh<span class="w">     </span><span class="c1"># the &quot;extensions not linked&quot; check</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./scripts/postinstall-verify.sh<span class="w">     </span><span class="c1"># the "extensions not linked" check</span>
 </span></code></pre></div>
 <p>PI would load all 26 modules independently, in <code>readdir</code> order, and fail every one — none has a
 default export.</p>
@@ -4664,7 +4664,7 @@ default export.</p>
 <p>Its <code>apiKey</code> is absent or does not resolve. PI drops the <strong>whole catalogue</strong> for a provider whose
 key does not resolve, even for an endpoint that checks nothing.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>config/bin/pi-tier<span class="w"> </span>--list
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">MY_TOKEN</span><span class="k">:-</span><span class="nv">UNSET</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">MY_TOKEN</span><span class="k">:-</span><span class="nv">UNSET</span><span class="si">}</span><span class="s2">"</span>
 </span></code></pre></div>
 <p>See <a href="../../configuration/models/#apikey"><code>models.json</code> → <code>apiKey</code></a>.</p>
 <h3 id="an-oauth-provider-suddenly-asks-to-log-in-again">An OAuth provider suddenly asks to log in again<a class="headerlink" href="#an-oauth-provider-suddenly-asks-to-log-in-again" title="Permanent link">&para;</a></h3>
@@ -4766,7 +4766,7 @@ name, and everything settings-driven resolves before anything contributed by an 
 <a href="../../extending/skills/#where-skills-are-found-and-in-what-order">Adding skills</a>.</p>
 <h3 id="a-skill-silently-fails-to-load">A skill silently fails to load<a class="headerlink" href="#a-skill-silently-fails-to-load" title="Permanent link">&para;</a></h3>
 <p>Its frontmatter did not parse. The usual cause is an <strong>unquoted colon</strong> in <code>description</code>:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Default</span><span class="nv"> </span><span class="s">output</span><span class="nv"> </span><span class="s">dir:</span><span class="nv"> </span><span class="s">./out&quot;</span><span class="w">     </span><span class="c1"># quote it</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Default</span><span class="nv"> </span><span class="s">output</span><span class="nv"> </span><span class="s">dir:</span><span class="nv"> </span><span class="s">./out"</span><span class="w">     </span><span class="c1"># quote it</span>
 </span></code></pre></div>
 <h3 id="allowed-tools-in-my-skill-is-being-ignored"><code>allowed-tools</code> in my skill is being ignored<a class="headerlink" href="#allowed-tools-in-my-skill-is-being-ignored" title="Permanent link">&para;</a></h3>
 <p>It is inert. PI parses exactly three frontmatter fields. Use a
@@ -4827,7 +4827,7 @@ diff <code>pi-mcp-approve</code> prints, then re-approve.</p>
 <h3 id="a-stdio-mcp-server-starts-by-hand-but-not-under-pi">A stdio MCP server starts by hand but not under <code>pi</code><a class="headerlink" href="#a-stdio-mcp-server-starts-by-hand-but-not-under-pi" title="Permanent link">&para;</a></h3>
 <p><code>mcp-stdio-guard</code> stripped an environment variable it needs. Name it in that server's own
 <code>MCP_STDIO_EXTRA_ENV</code>:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;MCP_STDIO_EXTRA_ENV&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MY_VAR&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;MY_VAR&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;value&quot;</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"MCP_STDIO_EXTRA_ENV"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MY_VAR"</span><span class="p">,</span><span class="w"> </span><span class="nt">"MY_VAR"</span><span class="p">:</span><span class="w"> </span><span class="s2">"value"</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>This is the single most common MCP failure here, and the least obvious.</p>
 <h3 id="a-server-another-tool-on-this-machine-declares-does-not-appear">A server another tool on this machine declares does not appear<a class="headerlink" href="#a-server-another-tool-on-this-machine-declares-does-not-appear" title="Permanent link">&para;</a></h3>

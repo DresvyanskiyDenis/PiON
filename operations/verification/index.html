@@ -4104,7 +4104,7 @@ than passing silently when it cannot enumerate the tracked tree — an unknown i
 <h2 id="when-pi-itself-updates">When PI itself updates<a class="headerlink" href="#when-pi-itself-updates" title="Permanent link">&para;</a></h2>
 <p>This repository is pinned to one PI version, and it depends on roughly 33 lifecycle events plus an
 extension API that has moved fast.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>--check
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--check
 </span></code></pre></div>
 <p>Non-zero means something depended on has been <strong>removed or renamed</strong>. Read the diff before
 upgrading; several behaviours documented here were established by reading the shipped code, and a

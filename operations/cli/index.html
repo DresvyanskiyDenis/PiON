@@ -4015,7 +4015,7 @@ and the slash commands the extensions register inside a session.</p>
 <h2 id="pi-run"><code>bin/pi-run</code><a class="headerlink" href="#pi-run" title="Permanent link">&para;</a></h2>
 <p><strong>The single most important operational rule in this repository: never use bare <code>pi -p</code>
 unattended. Use <code>pi-run</code>.</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>bin/pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;summarise the diff on this branch&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>bin/pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">"summarise the diff on this branch"</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>bin/pi-run<span class="w"> </span>--help<span class="w">          </span><span class="c1"># the exit-code table, from the source of truth</span>
 </span></code></pre></div>
 <h3 id="why-it-exists">Why it exists<a class="headerlink" href="#why-it-exists" title="Permanent link">&para;</a></h3>
@@ -4174,7 +4174,7 @@ that moves fast — 0.84.1 shipped the day after 0.84.0.</p>
 <p>It reads that surface <strong>straight from the installed package's shipped <code>.d.ts</code> files</strong> — never from
 documentation, never from memory — and either records it or diffs the current surface against a
 previously recorded lock, exiting non-zero when something depended on has been removed or renamed.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>--check
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--check
 </span></code></pre></div>
 <p>The recorded surface lives in <code>config/api-surface.lock.json</code>, which is
 <a href="../../configuration/not-editable/">not hand-editable</a>.</p>
