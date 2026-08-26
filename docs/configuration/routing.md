@@ -75,6 +75,18 @@ outranks both the agent file's own `thinking:` and any per-call override. So res
 its declared `thinkingLevel` into the resolved id: `model: strong` dispatches on
 `github-copilot/claude-opus-5:high`, not on the bare id.
 
+!!! warning "Your gateway may cap effort below what the model advertises"
+    A `thinkingLevel` is a request, and the endpoint serving the model decides whether to honour it.
+    A gateway in front of a model family can refuse the top levels for the whole family — the
+    request comes back `400`, and because the level is carried *inside the model id*, the dispatch
+    aborts rather than thinking less hard. That is the correct behaviour and the harness does not
+    soften it: silently downgrading `max` to `high` would mean a tier whose declared effort is
+    fiction.
+
+    So the ceiling that matters is the one **your** endpoint actually serves, not the one the model
+    card claims. Probe it once with a throwaway call per level before writing a level into
+    `routing.json`, and set the tier to the highest that answers `200`.
+
 Two consequences worth knowing:
 
 - **A suffix already written into `model` wins.** `"model": "github-copilot/gpt-5.4:max"` together
