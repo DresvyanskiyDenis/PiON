@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -2960,10 +2990,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-installer-offers-those-same-two" class="md-nav__link">
+  <a href="#the-installer-offers-two-of-the-three" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The installer offers those same two
+        The installer offers two of the three
       
     </span>
   </a>
@@ -3780,10 +3810,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-installer-offers-those-same-two" class="md-nav__link">
+  <a href="#the-installer-offers-two-of-the-three" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The installer offers those same two
+        The installer offers two of the three
       
     </span>
   </a>
@@ -3949,13 +3979,17 @@ password manager, and shipping one as a default would be shipping someone else's
 <p>The machinery around them does ship, and it is worth understanding before you add the first one:
 default-deny for project-declared servers, an environment-minimising wrapper for stdio servers, and
 host discovery turned off so nothing arrives that you did not write down.</p>
-<p><code>config/mcp.example.json</code> is a template that is <strong>never loaded</strong>. It carries two worked entries —
-<code>context7</code> (HTTP, header credential) and <code>playwright</code> (stdio, wrapped) — chosen because they are
-public and self-explanatory, not because you need them. Copy from it.</p>
+<p><code>config/mcp.example.json</code> is a template that is <strong>never loaded</strong>. It carries three worked entries —
+<code>context7</code> (HTTP, header credential), <code>playwright</code> (stdio, wrapped) and <code>lightpanda</code> (stdio, the
+text-only browser lane) — chosen because they are public and self-explanatory, not because you need
+them. Copy from it.</p>
 <hr />
-<h2 id="the-installer-offers-those-same-two">The installer offers those same two<a class="headerlink" href="#the-installer-offers-those-same-two" title="Permanent link">&para;</a></h2>
+<h2 id="the-installer-offers-two-of-the-three">The installer offers two of the three<a class="headerlink" href="#the-installer-offers-two-of-the-three" title="Permanent link">&para;</a></h2>
 <p>The install's MCP step (section 8) reads <code>config/mcp.example.json</code> and offers <code>context7</code> and
-<code>playwright</code> by number. <strong>The default answer is none</strong>, and blank means none. If you took it, or if
+<code>playwright</code> by number. <code>lightpanda</code> is left out on purpose — it is the one entry that needs a
+binary you have to install yourself, and offering it would let the installer write a server that
+cannot start. See <a href="../../configuration/mcp/#two-browser-lanes-split-by-output">Two browser lanes</a>
+for why you probably still want it. <strong>The default answer is none</strong>, and blank means none. If you took it, or if
 you want to change your mind, re-run just that step:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>tools
 </span></code></pre></div>
@@ -4030,7 +4064,10 @@ needs it. Naming a variable there is a decision you can see in a diff; inheritin
 <h3 id="2-lifecycle-lazy-unless-you-have-a-reason">2. <code>lifecycle</code> — <code>lazy</code> unless you have a reason<a class="headerlink" href="#2-lifecycle-lazy-unless-you-have-a-reason" title="Permanent link">&para;</a></h3>
 <p><code>lazy</code> starts the server on first use. The default starts it at session start, which means every
 session pays its startup cost and holds its process, whether or not you touch it.</p>
-<p>A server with an expensive start (a browser, a container) should always be <code>lazy</code>.</p>
+<p>A server with an expensive start (a browser, a container) should always be <code>lazy</code>. This is also
+what makes it cheap to declare <strong>both</strong> browser lanes — a text-only headless-JS server and a full
+browser — instead of picking one: two <code>lazy</code> entries are two config blocks and zero processes until
+a tool is called. See <a href="../../configuration/mcp/#two-browser-lanes-split-by-output">Two browser lanes</a>.</p>
 <h3 id="3-directtools-per-server-never-globally">3. <code>directTools</code> — per server, never globally<a class="headerlink" href="#3-directtools-per-server-never-globally" title="Permanent link">&para;</a></h3>
 <p><code>false</code> (the shipped global default) puts a server's tools behind one namespaced entry point.
 <code>true</code> flattens them into the top-level tool list.</p>

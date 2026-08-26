@@ -1962,6 +1962,8 @@
       
         
       
+        
+      
     
     
     
@@ -2042,6 +2044,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2077,7 +2107,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3819,7 +3849,7 @@ link above goes through it, and so do <code>config/settings.json</code>'s own <c
 entries, so you can move or rename the checkout without editing anything.</p>
 <div class="admonition warning">
 <p class="admonition-title">Two things are deliberately <strong>not</strong> linked</p>
-<p><strong><code>extensions/</code>.</strong> PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and would load all 26 modules as
+<p><strong><code>extensions/</code>.</strong> PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and would load all 27 modules as
 separate extensions in <code>readdir</code> order — breaking the fixed load order and failing every module
 that has no default export. <code>config/settings.json</code> names the single file
 <code>~/pi-config/extensions/index.ts</code> instead.</p>
@@ -3828,9 +3858,10 @@ package reads its own config from exactly one path,
 <code>~/.pi/agent/extensions/subagent/config.json</code>, and nothing else. The installer <code>mkdir -p</code>s that
 one subdirectory and links only the single file into it — never <code>~/.pi/agent/extensions</code>
 itself, which is what would hand PI the extension source tree above.</p>
-<p><strong><code>skills/</code>.</strong> There is no <code>skills/</code> directory in this repository and there never will be; the
-link is made only by a fork that adds one. Your own skills live in the git-ignored
-<code>skills-private/</code>, which <code>settings.json</code> lists as a search path directly. See
+<p><strong><code>skills/</code>.</strong> Nothing is tracked in this directory — the one worked example lives under
+<code>examples/skills/</code>, outside every search path — but the
+directory itself is the one place your own skills go: it is git-ignored, and the installer
+links it to <code>~/.pi/agent/skills</code>, the single search path <code>settings.json</code> names. See
 <a href="../../extending/skills/">Writing a skill</a>.</p>
 </div>
 <h2 id="which-process-reads-what">Which process reads what<a class="headerlink" href="#which-process-reads-what" title="Permanent link">&para;</a></h2>

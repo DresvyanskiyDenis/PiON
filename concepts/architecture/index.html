@@ -1973,6 +1973,8 @@
       
         
       
+        
+      
     
     
     
@@ -2053,6 +2055,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2088,7 +2118,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3826,7 +3856,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
     end
     subgraph capconf["2 — capability configuration"]
         direction LR
-        pd["path-defaults"] --&gt; se["skills-env"] --&gt; sm["skill-mask"]
+        pd["path-defaults"] --&gt; pr["path-rules"] --&gt; se["skills-env"] --&gt; sm["skill-mask"]
     end
     subgraph tools["3 — tool providers and input mutators"]
         direction LR
@@ -3863,8 +3893,8 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
 <td>Hooks stack on the guard and may only <em>add</em> denial, never remove it.</td>
 </tr>
 <tr>
-<td><strong><code>path-defaults</code>, <code>skills-env</code>, <code>skill-mask</code> come before their readers</strong></td>
-<td>They publish configuration later modules read.</td>
+<td><strong><code>path-defaults</code>, <code>path-rules</code> and <code>skills-env</code> come before their readers</strong></td>
+<td>They publish configuration later modules read. <code>skill-mask</code> keeps its slot beside them; it registers nothing now, and moving a registered id is a bigger change than leaving it in place.</td>
 </tr>
 <tr>
 <td><strong><code>dispatch</code> precedes <code>teammates</code> / <code>worktree</code> / <code>jobs</code></strong></td>
@@ -3895,7 +3925,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 <pre class="mermaid"><code>flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),&lt;br/&gt;rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 26 modules + config + bin/"]
+    OURS["this repository — 27 modules + config + bin/"]
     PI --- PKG --- OURS</code></pre>
 <p>The rule this project follows is <strong>package-first</strong>: adopt a community package where one exists and
 survives review, and write custom code only for the remainder. Dependency count is not a

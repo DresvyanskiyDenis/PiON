@@ -2095,6 +2095,8 @@
       
         
       
+        
+      
     
     
     
@@ -2175,6 +2177,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2210,7 +2240,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -4184,10 +4214,12 @@ unattended-execution mode. Everything else runs, headless included, with no prom
 <a href="../../configuration/guard/"><code>guard.json</code></a> spells out exactly what still blocks and what does not.</p>
 </div>
 <h3 id="section-7-also-asks-where-your-skills-go">Section 7 also asks where your skills go<a class="headerlink" href="#section-7-also-asks-where-your-skills-go" title="Permanent link">&para;</a></h3>
-<p>This repository ships <strong>zero skills</strong> — only the machinery that loads them. So the only skill question
-at install time is where yours will live, and the answer offered is <code>skills-private/</code> inside the
-checkout: git-ignored, and already a search path in <code>settings.json</code>. Say yes and the directory is
-created empty. Writing a skill can then never turn into committing one.</p>
+<p>This repository loads <strong>zero skills</strong> — only the machinery that finds them, plus one worked example
+under <code>examples/skills/</code> that no search path reaches. So the only skill question
+at install time is where yours will live, and the answer offered is <code>skills/</code> inside the checkout:
+git-ignored, and symlinked to <code>~/.pi/agent/skills</code>, which is the one search path <code>settings.json</code>
+names. Say yes and the directory is created empty. Writing a skill can then never turn into
+committing one.</p>
 <p>How to actually write one: <a href="../../extending/skills/">Writing a skill</a>.</p>
 <h3 id="section-8-mcp-servers">Section 8: MCP servers<a class="headerlink" href="#section-8-mcp-servers" title="Permanent link">&para;</a></h3>
 <p>An MCP server is third-party code started on your machine and reached with your credentials, so this
@@ -4262,7 +4294,7 @@ model — became the next commit in anybody's fork.</p>
 <strong>Nothing is copied.</strong></p>
 <div class="admonition warning">
 <p class="admonition-title"><code>extensions/</code> is deliberately NOT linked</p>
-<p>PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and would load all 26 modules as separate extensions
+<p>PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and would load all 27 modules as separate extensions
 in <code>readdir</code> order — breaking the fixed load order that puts <code>guard</code> before <code>bash</code>, and failing
 every module that has no default export.</p>
 <p><code>config/settings.json</code> names one file, <code>extensions/index.ts</code>, explicitly instead.</p>

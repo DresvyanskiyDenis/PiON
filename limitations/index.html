@@ -2233,6 +2233,8 @@
       
         
       
+        
+      
     
     
     
@@ -2313,6 +2315,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2348,7 +2378,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -4509,9 +4539,10 @@ Nothing is lost, but nothing ports byte-for-byte either.</p>
 <hr />
 <h2 id="things-that-are-just-missing">Things that are just missing<a class="headerlink" href="#things-that-are-just-missing" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>No skills ship.</strong> The discovery mechanism, the precedence ranks, the lint and the env shim all
-  ship; the content does not. <a href="../extending/skills/">Adding your own</a> is a documented first-class
-  path.</li>
+<li><strong>No skill is loaded by default.</strong> The discovery mechanism, the precedence ranks, the lint and the
+  env shim all ship; the loaded roster is empty. One worked example is tracked under
+  <code>examples/skills/</code>, outside every search path, and
+  <a href="../extending/skills/">adding your own</a> is a documented first-class path.</li>
 <li><strong>No MCP servers ship.</strong> Same reasoning, same answer:
   <a href="../extending/mcp-servers/">add your own</a>.</li>
 <li><strong><code>keybindings.json</code> is empty.</strong> PI's defaults, unmodified.</li>

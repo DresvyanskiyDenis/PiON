@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -4024,7 +4054,7 @@ the report — it is never silently skipped.</p>
 <tr>
 <td><code>model</code></td>
 <td>no</td>
-<td>a tier name (<code>strong</code>, <code>light</code>, <code>confidential</code>) or an explicit <code>provider/model</code>. Defaults to <code>dispatch.json</code>'s <code>defaultTier</code></td>
+<td>a tier name (<code>strong</code>, <code>light</code>, <code>confidential</code>) or an explicit <code>provider/model</code>. Omitted means <code>dispatch.json</code>'s <code>defaultTier</code>, which ships <code>strong</code> — so leaving it out is not a downgrade</td>
 </tr>
 <tr>
 <td><code>tools</code></td>
@@ -4112,7 +4142,7 @@ falling back to a generic agent.</p>
 </tr>
 <tr>
 <td><code>light</code></td>
-<td>everything else: docs, mechanical multi-file edits, scaffolding, classification, summarising, grep-and-report. The default</td>
+<td>the opt-in tier for mechanical work: docs, multi-file edits, scaffolding, classification, summarising, grep-and-report</td>
 </tr>
 <tr>
 <td><code>confidential</code></td>

@@ -1962,6 +1962,8 @@
       
         
       
+        
+      
     
     
     
@@ -2042,6 +2044,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2077,7 +2107,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3860,8 +3890,10 @@ load-bearing:</p>
 <li><code>shouldCompact</code> is <code>contextTokens &gt; contextWindow - reserveTokens</code>, and <code>reserveTokens</code> is a
   <strong>global scalar</strong>, not per-model. The whole <a href="../../concepts/context-windows/">context-window rule</a>
   follows from that one fact.</li>
-<li><code>resources_discover</code> is <strong>additive only</strong> — a handler can add skill roots, never remove them. So
-  <a href="../../extensions/skill-mask/"><code>skill-mask</code></a> is an allow-list widener despite its name.</li>
+<li><code>resources_discover</code> is <strong>additive only</strong> — a handler can add skill roots, never remove them, and
+  what it adds is appended behind every settings-declared root. So
+  <a href="../../extensions/skill-mask/"><code>skill-mask</code></a> could never mask, and the roots it once contributed
+  were collapsed into the single one <code>settings.json</code> declares.</li>
 <li>PI's skill frontmatter reader parses exactly three fields; <code>allowed-tools</code> is read by nothing.
   Hence <a href="../../extensions/skills-lint/"><code>skills-lint</code></a> warns instead of enforcing.</li>
 <li>An extension <strong>cannot</strong> abort a headless run from the inside. Hence

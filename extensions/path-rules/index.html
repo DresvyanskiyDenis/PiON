@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/extensions/compaction/">
+        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/extensions/path-rules/">
       
       
-        <link rel="prev" href="../digest/">
+        <link rel="prev" href="../path-defaults/">
       
       
-        <link rel="next" href="../context-report/">
+        <link rel="next" href="../skills-env/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>compaction — loop guard, keep/drop, pinning, threshold - PiON</title>
+        <title>path-rules — context rules scoped to a path glob - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#compaction-loop-guard-keepdrop-pinning-threshold" class="md-skip">
+        <a href="#path-rules-context-rules-scoped-to-a-path-glob" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              compaction — loop guard, keep/drop, pinning, threshold
+              path-rules — context rules scoped to a path glob
             
           </span>
         </div>
@@ -1850,6 +1850,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1877,11 +1879,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" checked>
         
           
           <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
@@ -1902,7 +1904,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1945,10 +1947,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../path-rules/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1964,6 +1993,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-rules-live-and-why-not-in-this-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the rules live, and why not in this repo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-is-four-mechanisms-and-not-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this is four mechanisms and not one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-startup-scan-is-bounded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The startup scan is bounded
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-glob-syntax-and-nothing-more" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported glob syntax, and nothing more
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2495,8 +2599,6 @@
                 
   
   
-    
-  
   
   
     
@@ -2530,11 +2632,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
         
           
           <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
@@ -2555,7 +2657,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2626,37 +2728,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    compaction — loop guard, keep/drop, pinning, threshold
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../compaction/" class="md-nav__link">
         
   
   
@@ -2672,92 +2747,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#1-the-loop-guard" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. The loop guard
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-the-keepdrop-contract" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. The keep/drop contract
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-pinned-block-regeneration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Pinned-block regeneration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-threshold-reporting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Threshold reporting
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#an-extension-cannot-abort-a-headless-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        An extension cannot abort a headless run
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -3755,10 +3744,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-the-loop-guard" class="md-nav__link">
+  <a href="#where-the-rules-live-and-why-not-in-this-repo" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. The loop guard
+        Where the rules live, and why not in this repo
       
     </span>
   </a>
@@ -3766,10 +3755,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-the-keepdrop-contract" class="md-nav__link">
+  <a href="#why-this-is-four-mechanisms-and-not-one" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. The keep/drop contract
+        Why this is four mechanisms and not one
       
     </span>
   </a>
@@ -3777,10 +3766,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-pinned-block-regeneration" class="md-nav__link">
+  <a href="#the-startup-scan-is-bounded" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Pinned-block regeneration
+        The startup scan is bounded
       
     </span>
   </a>
@@ -3788,21 +3777,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-threshold-reporting" class="md-nav__link">
+  <a href="#supported-glob-syntax-and-nothing-more" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Threshold reporting
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#an-extension-cannot-abort-a-headless-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        An extension cannot abort a headless run
+        Supported glob syntax, and nothing more
       
     </span>
   </a>
@@ -3837,7 +3815,7 @@
 
 
   
-    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/extensions/compaction.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/extensions/path-rules.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -3845,67 +3823,96 @@
   
 
 
-<h1 id="compaction-loop-guard-keepdrop-pinning-threshold"><code>compaction</code> — loop guard, keep/drop, pinning, threshold<a class="headerlink" href="#compaction-loop-guard-keepdrop-pinning-threshold" title="Permanent link">&para;</a></h1>
-<p>Four parts, in the order they matter. Configured by
-<a href="../../configuration/sessions/#compactionjson"><code>config/compaction.json</code></a>; PI's own three keys are in
-<a href="../../configuration/settings/#compaction"><code>settings.json</code></a>.</p>
-<p>Registers <code>/compaction-status</code>.</p>
-<h2 id="1-the-loop-guard">1. The loop guard<a class="headerlink" href="#1-the-loop-guard" title="Permanent link">&para;</a></h2>
-<p>N consecutive non-reducing automatic compaction passes abort the run with a typed error. Shipped:
-three passes, a 15 % minimum reduction ratio, and a minimum gap of two entries between passes.</p>
-<p>The failure it prevents is compaction firing, reclaiming nothing, and firing again — burning a
-summarisation call each time, forever.</p>
-<h2 id="2-the-keepdrop-contract">2. The keep/drop contract<a class="headerlink" href="#2-the-keepdrop-contract" title="Permanent link">&para;</a></h2>
-<p>Reaches PI's summariser as <code>customInstructions</code>, <strong>appended</strong> to PI's structured template, never
-replacing it. Replacing it would discard PI's own knowledge of its transcript format in order to add
-an opinion about content.</p>
-<h2 id="3-pinned-block-regeneration">3. Pinned-block regeneration<a class="headerlink" href="#3-pinned-block-regeneration" title="Permanent link">&para;</a></h2>
-<p>Instruction sources — <code>AGENTS.md</code> and friends — are <strong>regenerated</strong> after a compaction rather than
-protected in place. Regeneration is the only honest reading of "pin a region": PI's summariser
-rewrites the transcript, and a region you asked it not to touch is a request, not a guarantee.
-Regenerating is a guarantee.</p>
-<p>Capped at 4 KB per source and 16 KB total, because the budget being re-spent is the one compaction
-just reclaimed.</p>
-<h2 id="4-threshold-reporting">4. Threshold reporting<a class="headerlink" href="#4-threshold-reporting" title="Permanent link">&para;</a></h2>
-<p>PI has <strong>no absolute-count key</strong>. The effective trigger is <code>contextWindow − reserveTokens</code>, which is
-per-model. <code>threshold.ts</code> computes it for the active model, classifies the gap against your declared
-<code>absoluteTokens</code>, and says so <strong>once ever</strong> per <code>(model, window, reserve, absolute)</code> tuple rather
-than once per session.</p>
-<div class="admonition danger">
-<p class="admonition-title">Read this module's own history before changing a number</p>
-<p>An earlier version printed advice recommending a <code>reserveTokens</code> value that, applied globally,
-would have broken three of five providers. Three faults were stacked: a <strong>hard-coded PI default
-printed as a measurement</strong>, a <strong>global scalar treated as per-model</strong>, and a coverage record
-marking a non-implementable approach as applied.</p>
-<p>The fix is not the arithmetic. The module now resolves the reserve exactly the way PI does —
-compaction event → project settings → global settings → PI default — and <strong>carries the source
-alongside the value</strong>, so a default can never again be printed as a measurement.</p>
-<p>The only honest per-model lever is
-<a href="../../configuration/models/#modeloverrides"><code>modelOverrides.&lt;id&gt;.contextWindow</code></a>. Full argument:
-<a href="../../concepts/context-windows/">Context windows</a>.</p>
+<h1 id="path-rules-context-rules-scoped-to-a-path-glob"><code>path-rules</code> — context rules scoped to a path glob<a class="headerlink" href="#path-rules-context-rules-scoped-to-a-path-glob" title="Permanent link">&para;</a></h1>
+<p><code>AGENTS.md</code> and <code>PRIVATE.md</code> are flat. A rule written there is in the system prompt on every turn of
+every session, or it is nowhere — there is no way to say "this applies once the agent is working on
+a Terraform file." That is the gap this module closes.</p>
+<p>A rule is one Markdown file in a <code>rules/</code> directory, with an optional <code>paths:</code> list in its
+frontmatter:</p>
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>---
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>paths:
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>"**/*.py"
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gu">  - "**/pyproject.toml"</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gu">---</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>Use <span class="sb">`uv`</span> for every Python invocation in this project. Never <span class="sb">`pip`</span>, never a bare <span class="sb">`python`</span>.
+</span></code></pre></div>
+<p>No <code>paths:</code> key at all means unconditional — always injected, exactly like a line in <code>AGENTS.md</code>.</p>
+<h2 id="where-the-rules-live-and-why-not-in-this-repo">Where the rules live, and why not in this repo<a class="headerlink" href="#where-the-rules-live-and-why-not-in-this-repo" title="Permanent link">&para;</a></h2>
+<p><code>~/.pi/agent/rules</code>, or wherever <code>$PI_CONFIG_RULES_DIR</code> points. Deliberately <strong>outside</strong> the
+repository: the format is Claude Code's own, so the same directory can be symlinked into both
+harnesses instead of maintaining two copies of the same rule text. Nothing here is added to
+<code>.gitignore</code> and nothing is added to <code>config/settings.json</code>; if you want your rules tracked, you
+symlink your own directory in.</p>
+<p>An absent directory is a normal, unconfigured install — zero rules, no warning. A single rule file
+with a bad <code>---</code> block, invalid YAML or an unsupported glob is dropped with a loud warning and
+<strong>every other file still loads</strong>: a typo in one rule must not disable the rest.</p>
+<h2 id="why-this-is-four-mechanisms-and-not-one">Why this is four mechanisms and not one<a class="headerlink" href="#why-this-is-four-mechanisms-and-not-one" title="Permanent link">&para;</a></h2>
+<p>The obvious design is to watch <code>tool_call</code> and inject the matching rule lazily. It has a hole that
+does not show up until the <em>following</em> turn, and both halves of it were traced against the pinned
+0.84.0 package rather than assumed:</p>
+<p><strong><code>tool_call</code> can only block, never inject.</strong> Its result type carries a veto and nothing else.
+There is no field on it that adds text to the turn — and by the time it fires, the turn's context is
+already assembled. A rule matched there arrives after the edit it was meant to govern.</p>
+<p><strong><code>before_agent_start</code> fires once, before the turn loop starts.</strong> So it cannot see a file the model
+touches partway through a turn. "Read a file, then edit it, same turn" is not one round trip late
+under a <code>before_agent_start</code>-only design — it is invisible until the next turn.</p>
+<p>The detection point and the injection point are therefore different events, which is what the four
+layers are for:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Event</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>session_start</code></td>
+<td>A bounded walk of the project seeds the rule set from files that <strong>already exist</strong>. The primary path: the rule is in the system prompt before the model's first token.</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>tool_call</code> on <code>read</code>/<code>edit</code>/<code>write</code></td>
+<td>Detects a file the startup scan could not have seen. Observes only — it always returns <code>undefined</code> and must never become a second way to block a call.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>context</code></td>
+<td>Fires before <strong>every</strong> LLM call within a turn, including mid-turn after a tool result. This is what actually delivers a rule detected by (2) before the model's next action.</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>before_agent_start</code></td>
+<td>The durable net, recomputed live each turn, so the block survives compaction, <code>/reload</code> and fork.</td>
+</tr>
+</tbody>
+</table>
+<p>Layers 3 and 4 do not double-inject: <code>before_agent_start</code> clears the pending set the moment it folds
+it into the system prompt, so <code>context</code> only ever carries what surfaced <em>after</em> that point.</p>
+<div class="admonition note">
+<p class="admonition-title">The <code>context</code> injection appends at the tail, on purpose</p>
+<p>Prompt caching is prefix-based. A tail append after the real conversation costs nothing against
+the cache; a mid-array insert nearer whatever the note is about would invalidate every cached
+prefix behind it. The placement is load-bearing, not an oversight.</p>
 </div>
-<h2 id="an-extension-cannot-abort-a-headless-run">An extension cannot abort a headless run<a class="headerlink" href="#an-extension-cannot-abort-a-headless-run" title="Permanent link">&para;</a></h2>
-<p>Answered against the shipped code of 0.84.0 rather than the docs. Both documented candidates fail,
-and the second fails for a reason the runbook did not anticipate:</p>
-<ul>
-<li><strong><code>ctx.shutdown()</code></strong> resolves to an optional handler that print mode's <code>bindExtensions()</code> call
-  never passes. It is a no-op under <code>-p</code> and <code>--mode json</code>. Interactive mode does bind one.</li>
-<li><strong><code>ctx.abort()</code></strong> falls through to <code>this.activeRun?.abortController.abort()</code>. The pre-compaction
-  event is emitted from <code>_runAutoCompaction()</code>, called by <code>_handlePostAgentRun()</code> — <em>between</em>
-  <code>prompt()</code> and <code>continue()</code> — and <code>finishRun()</code> has already cleared <code>activeRun</code> by then. So on the
-  automatic paths <strong><code>ctx.abort()</code> is a no-op in every mode</strong>, not only headless.</li>
-</ul>
-<p>The only working exit is <code>process.exit()</code> from inside the handler, and that is immediate: PI's own
-teardown event never fires and no other extension gets to clean up.</p>
-<p>So the guard is split across the process boundary. It writes a sentinel <strong>and</strong> appends a session
-entry, and <a href="../../operations/cli/#pi-run"><code>bin/pi-run</code></a> watches for either and exits <strong>23</strong>. Two
-signals rather than one, because writing the sentinel is best-effort and returns null when the state
-root is unwritable — a sentinel-only wrapper would report success in exactly the case where the
-guard could not speak.</p>
+<h2 id="the-startup-scan-is-bounded">The startup scan is bounded<a class="headerlink" href="#the-startup-scan-is-bounded" title="Permanent link">&para;</a></h2>
+<p><code>.git</code>, <code>node_modules</code>, <code>.venv</code>, <code>dist</code> and <code>__pycache__</code> are skipped outright, depth and total
+files visited are both capped, and the walk stops the moment every conditional rule has activated —
+a repository where everything matches early costs nothing to keep scanning. If the scan truncates or
+runs over its 100 ms reporting budget it says so; it never silently gives up.</p>
+<h2 id="supported-glob-syntax-and-nothing-more">Supported glob syntax, and nothing more<a class="headerlink" href="#supported-glob-syntax-and-nothing-more" title="Permanent link">&para;</a></h2>
+<p><code>**</code>, <code>*</code>, <code>?</code>, and one level of <code>{a,b,c}</code> brace expansion. Character classes, extglob, negation and
+nested braces throw at load time, naming the offending pattern.</p>
+<p>That refusal is the point. A pattern that silently failed to match would be strictly worse than one
+that refuses to load, because you would never find out your rule stopped firing. Brace expansion
+happens once, at compile time, into a flat pattern list — the same internal shape Claude Code's own
+engine derives from a <code>paths:</code> list.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<p><a href="../../concepts/context-windows/">Context windows</a> ·
-<a href="../../configuration/sessions/#compactionjson"><code>compaction.json</code></a> ·
-<a href="../../reference/exit-codes/">Exit codes</a> · <a href="../context-report/">context-report</a></p>
+<p><a href="../../configuration/settings/"><code>AGENTS.md</code> and instruction files</a> · <a href="../path-defaults/">path-defaults</a> ·
+<a href="../session-context/">session-context</a> · <a href="../../concepts/architecture/">Architecture</a></p>
 
 
 

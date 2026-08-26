@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3796,7 +3826,7 @@ reasons.</p>
 <h2 id="where-your-additions-live">Where your additions live<a class="headerlink" href="#where-your-additions-live" title="Permanent link">&para;</a></h2>
 <p>Two directories exist <strong>specifically</strong> for content you do not want to publish, and both are in
 <code>.gitignore</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;repo&gt;/skills-private/     your skills
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;repo&gt;/skills/             your skills
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>&lt;repo&gt;/agents-private/     your sub-agents
 </span></code></pre></div>
 <p>They are discovered at runtime and can never be part of a commit. If you fork this repository and
@@ -3835,7 +3865,8 @@ returns on the first <code>{block: true}</code>. The invariants, restated:</p>
 <li><code>trust</code> is <strong>second</strong>, so its <code>session_start</code> deadman reads a registry in which <code>guard</code>'s entry is
   already written.</li>
 <li><code>hooks</code> follows the guard, because it may only <em>add</em> denial.</li>
-<li><code>path-defaults</code>, <code>skills-env</code> and <code>skill-mask</code> publish configuration that later modules read.</li>
+<li><code>path-defaults</code>, <code>path-rules</code> and <code>skills-env</code> publish configuration that later modules read; <code>skill-mask</code> keeps
+  its slot beside them although it registers nothing.</li>
 <li><code>dispatch</code> precedes <code>teammates</code>, <code>worktree</code> and <code>jobs</code> — those register into registries it owns.</li>
 <li><code>doctor</code> is <strong>last</strong>, so its session-start pass observes everything above it.</li>
 </ul>
@@ -3888,7 +3919,7 @@ is the point: a guardrail module that quietly stopped loading is the failure mod
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../concepts/architecture/">Architecture</a> — why the composition root exists</li>
-<li><a href="../extensions/">Extensions reference</a> — all 26 modules</li>
+<li><a href="../extensions/">Extensions reference</a> — all 27 modules</li>
 <li><a href="../configuration/">Configuration reference</a> — the knobs before the code</li>
 </ul>
 

@@ -1163,6 +1163,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#two-browser-lanes-split-by-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two browser lanes, split by output
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2040,6 +2051,8 @@
       
         
       
+        
+      
     
     
     
@@ -2120,6 +2133,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2155,7 +2196,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3808,6 +3849,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#two-browser-lanes-split-by-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two browser lanes, split by output
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3931,7 +3983,10 @@ the project trust gate, the environment-minimising stdio wrapper, and the approv
 this page before you expect a server to start, because the defaults are deny-shaped and that is
 intentional.</p>
 <p>The installer's MCP step offers exactly two servers from <code>config/mcp.example.json</code> — <code>context7</code> and
-<code>playwright</code> — and <strong>defaults to neither</strong>. Whatever you pick is written here. If <code>config/mcp.json</code>
+<code>playwright</code> — and <strong>defaults to neither</strong>. The example file carries a third entry, <code>lightpanda</code>,
+which the installer deliberately does not offer: unlike the other two it needs its own binary on
+<code>PATH</code>, and a numbered option that writes a server entry pointing at a command you do not have
+produces a broken roster rather than a working one. Install it yourself, then copy the entry. Whatever you pick is written here. If <code>config/mcp.json</code>
 already exists when you re-run, the step stands down entirely and says so: the file is yours and the
 installer will not edit it.</p>
 <p>Hand edits are therefore safe. What a hand edit does not survive is a fresh clone, where only the
@@ -3956,8 +4011,46 @@ installer will not edit it.</p>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">"MCP_STDIO_EXTRA_ENV"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PLAYWRIGHT_BROWSERS_PATH"</span><span class="p">,</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">"PLAYWRIGHT_BROWSERS_PATH"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${HOME}/.cache/ms-playwright"</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">},</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">"lifecycle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"lazy"</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">}</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">"lifecycle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"lazy"</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="nt">"directTools"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="two-browser-lanes-split-by-output">Two browser lanes, split by output<a class="headerlink" href="#two-browser-lanes-split-by-output" title="Permanent link">&para;</a></h3>
+<p>A headless-JS server and a full browser look like two ways to do one job, and declaring only the
+second looks like sensible deduplication. It is not: it deletes the cheap lane and makes every
+JavaScript-for-text page pay for a Chromium spawn.</p>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th>Example server</th>
+<th>Answers</th>
+<th>Cannot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>text</td>
+<td><code>lightpanda</code></td>
+<td><code>goto</code>, then <code>markdown</code> / <code>tree</code> / <code>links</code> / <code>extract</code> — real V8, no rendering</td>
+<td>produce a screenshot, ever; it draws nothing</td>
+</tr>
+<tr>
+<td>visual</td>
+<td><code>playwright</code></td>
+<td>screenshots, layout checks, visual diffs, full interaction</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Split them by <strong>output</strong>, not by capability, and say so in <code>AGENTS.md</code> — otherwise a model with both
+enabled will pick whichever tool name it saw first. Both should be <code>lazy</code>: declaring the pair costs
+one config block and zero processes until a tool is actually called.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"lightpanda"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mcp-stdio-guard"</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"lightpanda"</span><span class="p">,</span><span class="w"> </span><span class="s2">"mcp"</span><span class="p">],</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"lifecycle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"lazy"</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -3998,8 +4091,8 @@ installer will not edit it.</p>
 <p>A stdio MCP server is a <strong>child process that inherits your environment</strong> — every API key,
 every token you have exported for anything else. <code>config/bin/mcp-stdio-guard</code> re-execs the real
 command through <code>env -i</code> with an explicit baseline allowlist:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>HOME LOGNAME PATH SHELL TERM USER LANG LC_ALL TMPDIR
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>NODE_EXTRA_CA_CERTS HTTPS_PROXY HTTP_PROXY NO_PROXY https_proxy http_proxy no_proxy
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>HOME LOGNAME PATH SHELL TERM USER LANG LC_ALL TMPDIR
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>NODE_EXTRA_CA_CERTS HTTPS_PROXY HTTP_PROXY NO_PROXY https_proxy http_proxy no_proxy
 </span></code></pre></div>
 <p>Anything else the server genuinely needs is named explicitly in <code>MCP_STDIO_EXTRA_ENV</code>, as the
 <code>playwright</code> example does. That is the whole mechanism: an allowlist you can read in one line,
@@ -4032,10 +4125,10 @@ notice as a mysteriously large preamble in <code>/context</code>. Per-server, no
 <p>The vendored adapter carries a <strong>local patch at <code>getConfigSources()</code></strong>: a server defined by a
 <em>project</em> — <code>.mcp.json</code> or <code>.pi/mcp.json</code> inside a repository you opened — is <strong>dropped unless it
 has been approved</strong>, keyed on the project path <strong>and</strong> the sha256 digest of those files.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pi-mcp-approve<span class="w"> </span>&lt;project-dir&gt;<span class="w">            </span><span class="c1"># show the config, then confirm interactively</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pi-mcp-approve<span class="w"> </span>&lt;project-dir&gt;<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># approve without the prompt, for a scripted install</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pi-mcp-approve<span class="w"> </span>--list<span class="w">                   </span><span class="c1"># print the ledger</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pi-mcp-approve<span class="w"> </span>--status<span class="w"> </span>&lt;project-dir&gt;<span class="w">   </span><span class="c1"># current verdict, changes nothing</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pi-mcp-approve<span class="w"> </span>&lt;project-dir&gt;<span class="w">            </span><span class="c1"># show the config, then confirm interactively</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pi-mcp-approve<span class="w"> </span>&lt;project-dir&gt;<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># approve without the prompt, for a scripted install</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pi-mcp-approve<span class="w"> </span>--list<span class="w">                   </span><span class="c1"># print the ledger</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>pi-mcp-approve<span class="w"> </span>--status<span class="w"> </span>&lt;project-dir&gt;<span class="w">   </span><span class="c1"># current verdict, changes nothing</span>
 </span></code></pre></div>
 <p>The ledger is <code>~/.config/pi-config/mcp-approvals.jsonl</code>, mode <code>0600</code>, append-only; the last line for
 a directory wins. To revoke, delete the matching line.</p>
@@ -4059,7 +4152,7 @@ being a <code>postinstall</code> script rewriting somebody else's code. Full att
 patch's behavioural difference from upstream: <a href="../../reference/third-party/">Third-party components</a>.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pi-mcp-approve<span class="w"> </span>--list<span class="w">        </span><span class="c1"># what the ledger says</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-mcp-approve<span class="w"> </span>--list<span class="w">        </span><span class="c1"># what the ledger says</span>
 </span></code></pre></div>
 <p>In a session, <code>/doctor</code>'s <code>D-07</code> reports any MCP server name mentioned in instruction text that is
 not declared in <code>config/mcp.json</code> — the usual cause of "why can't the agent see my server".</p>

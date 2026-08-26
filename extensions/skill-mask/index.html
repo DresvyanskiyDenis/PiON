@@ -27,7 +27,7 @@
     
     
       
-        <title>skill-mask — extra skill roots (and why it cannot mask) - PiON</title>
+        <title>skill-mask — a registered no-op (and why it cannot mask) - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#skill-mask-extra-skill-roots-and-why-it-cannot-mask" class="md-skip">
+        <a href="#skill-mask-a-registered-no-op-and-why-it-cannot-mask" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              skill-mask — extra skill roots (and why it cannot mask)
+              skill-mask — a registered no-op (and why it cannot mask)
             
           </span>
         </div>
@@ -1865,6 +1865,8 @@
       
         
       
+        
+      
     
     
     
@@ -1948,6 +1950,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../skills-env/" class="md-nav__link">
         
   
@@ -1992,7 +2022,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -2010,7 +2040,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -2047,10 +2077,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-contributing-a-root-here-does-not-buy" class="md-nav__link">
+  <a href="#why-contributing-a-root-here-bought-nothing-either" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What contributing a root here does not buy
+        Why contributing a root here bought nothing either
       
     </span>
   </a>
@@ -3703,10 +3733,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-contributing-a-root-here-does-not-buy" class="md-nav__link">
+  <a href="#why-contributing-a-root-here-bought-nothing-either" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What contributing a root here does not buy
+        Why contributing a root here bought nothing either
       
     </span>
   </a>
@@ -3749,10 +3779,14 @@
   
 
 
-<h1 id="skill-mask-extra-skill-roots-and-why-it-cannot-mask"><code>skill-mask</code> — extra skill roots (and why it cannot mask)<a class="headerlink" href="#skill-mask-extra-skill-roots-and-why-it-cannot-mask" title="Permanent link">&para;</a></h1>
-<p>Adds extra skill roots to every session via <code>resources_discover</code>. That is the whole module.
-<strong>Despite the name it masks nothing</strong>, and the name survives only because <code>config/settings.json</code> and
-the install symlinks refer to it.</p>
+<h1 id="skill-mask-a-registered-no-op-and-why-it-cannot-mask"><code>skill-mask</code> — a registered no-op (and why it cannot mask)<a class="headerlink" href="#skill-mask-a-registered-no-op-and-why-it-cannot-mask" title="Permanent link">&para;</a></h1>
+<p>This module registers nothing. It used to add extra skill roots to every session via
+<code>resources_discover</code>; both the masking it is named for and the extra roots it contributed turned out
+to be the wrong mechanism, and the roots were collapsed into the single one <code>config/settings.json</code>
+declares. <strong>Despite the name it masks nothing</strong>, and it never did.</p>
+<p>The id survives because removing it is a bigger change than keeping it: <code>extensions/index.ts</code>, the
+extension manifest, the trust deadman list and <code>/doctor</code>'s load registry all expect to find it, and
+a module that registers no handler is not the same thing as a module that is absent.</p>
 <h2 id="why-it-cannot-mask-measured-not-assumed">Why it cannot mask — measured, not assumed<a class="headerlink" href="#why-it-cannot-mask-measured-not-assumed" title="Permanent link">&para;</a></h2>
 <p>In the pinned 0.84.0 package, <code>extendResourcesFromExtensions()</code> calls the resource loader's
 <code>extendResources()</code>, which does <code>mergePaths(existing, contributed)</code> — a <strong>union</strong> with whatever the
@@ -3762,7 +3796,7 @@ settings-driven scan already found. No path in that chain removes a root.</p>
 </blockquote>
 <p>If you need a skill <em>not</em> to load, do not look for a mask. Remove the root from
 <code>config/settings.json</code>, or remove the skill.</p>
-<h2 id="what-contributing-a-root-here-does-not-buy">What contributing a root here does not buy<a class="headerlink" href="#what-contributing-a-root-here-does-not-buy" title="Permanent link">&para;</a></h2>
+<h2 id="why-contributing-a-root-here-bought-nothing-either">Why contributing a root here bought nothing either<a class="headerlink" href="#why-contributing-a-root-here-bought-nothing-either" title="Permanent link">&para;</a></h2>
 <p>Additive means <strong>appended</strong>. <code>extendResources</code> merges contributed paths onto the <strong>end</strong> of the
 already-resolved list, and <code>loadSkills</code> keeps the <strong>first</strong> loader of each skill name, reporting
 every later one as a collision.</p>
@@ -3801,17 +3835,14 @@ every later one as a collision.</p>
 </tr>
 </tbody>
 </table>
-<p>So a root contributed <strong>only</strong> from here sits behind everything and loses every name collision.
+<p>So a root contributed <strong>only</strong> from here sat behind everything and lost every name collision.
 Measured, not theorised: two skills contributed only from here were silently shadowed by stale
 same-named copies in the standard tree, and never ran.</p>
 <div class="admonition warning">
-<p class="admonition-title">The fix is not in this module and cannot be</p>
-<p><strong>Name your skill roots in <code>config/settings.json</code>.</strong> This handler then becomes a harmless
-duplicate — <code>loadSkills</code> dedupes by canonical path before the name check — and remains as a
-fallback for an install whose settings file is not this repository's.</p>
+<p class="admonition-title">The fix was never in this module and could not be</p>
+<p><strong>Name your skill root in <code>config/settings.json</code>.</strong> That is what the shipped array does, with
+one entry, and it is why this module has nothing left to contribute.</p>
 </div>
-<p>A missing directory is a silent no-op rather than an error, so a clone without the optional roots
-works unchanged.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../extending/skills/">Adding a skill</a> · <a href="../../configuration/settings/#resource-paths"><code>settings.json</code></a> ·
 <a href="../skills-env/">skills-env</a></p>

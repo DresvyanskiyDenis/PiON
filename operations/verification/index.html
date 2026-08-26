@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -4017,7 +4047,7 @@ again after any change to the symlink layout, the pinned binary or the guardrail
 <div class="admonition danger">
 <p class="admonition-title">The <code>extensions not linked</code> check is not pedantry</p>
 <p>PI discovers <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code> and loads each as a <strong>separate</strong>
-extension in <code>readdir</code> order. A symlinked directory would therefore try to load all 26 modules
+extension in <code>readdir</code> order. A symlinked directory would therefore try to load all 27 modules
 independently, fail every one that has no default export, and destroy the load order the
 <a href="../../concepts/safety-model/">safety model</a> depends on.</p>
 <p><code>config/settings.json</code> names <strong>one file</strong> — the composition root — on purpose.</p>

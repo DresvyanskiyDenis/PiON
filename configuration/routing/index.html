@@ -2034,6 +2034,8 @@
       
         
       
+        
+      
     
     
     
@@ -2114,6 +2116,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2149,7 +2179,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3973,12 +4003,12 @@ the predecessor harness hard-coded one model id into fourteen agent files.</p>
 <tbody>
 <tr>
 <td><code>strong</code></td>
-<td>main loop, architecture, hard debugging</td>
+<td>main loop, architecture, hard debugging — <strong>and the sub-agent default</strong> (<code>dispatch.json</code>'s <code>defaultTier</code>)</td>
 <td><code>high</code></td>
 </tr>
 <tr>
 <td><code>light</code></td>
-<td>everything else: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report. The sub-agent default</td>
+<td>the opt-in tier for mechanical work, named on the call rather than inherited: multi-file edits, summaries, digests, classification, grep-and-report</td>
 <td><code>medium</code></td>
 </tr>
 <tr>
@@ -3998,6 +4028,9 @@ differed only in which model they happened to point at, and agents choosing betw
 vibes. <code>light</code> is the single delegation tier; when one particular call genuinely needs a
 different model, pin <code>provider/id</code> on that call rather than adding a vocabulary word every
 consumer then has to learn.</p>
+<p>Which tier a delegated call <em>lands</em> on if nobody chooses is a separate question, answered by
+<a href="../dispatch/#defaulttier-and-defaultegress"><code>dispatch.json</code>'s <code>defaultTier</code></a> — and the answer is
+<code>strong</code>. Two roles, two tiers; the default is the careful one.</p>
 </div>
 <h3 id="how-thinkinglevel-reaches-the-child">How <code>thinkingLevel</code> reaches the child<a class="headerlink" href="#how-thinkinglevel-reaches-the-child" title="Permanent link">&para;</a></h3>
 <p>PI carries a child's reasoning effort <strong>inside the model string</strong>, as a <code>:&lt;level&gt;</code> suffix
@@ -4005,6 +4038,18 @@ consumer then has to learn.</p>
 outranks both the agent file's own <code>thinking:</code> and any per-call override. So resolving a tier moves
 its declared <code>thinkingLevel</code> into the resolved id: <code>model: strong</code> dispatches on
 <code>github-copilot/claude-opus-5:high</code>, not on the bare id.</p>
+<div class="admonition warning">
+<p class="admonition-title">Your gateway may cap effort below what the model advertises</p>
+<p>A <code>thinkingLevel</code> is a request, and the endpoint serving the model decides whether to honour it.
+A gateway in front of a model family can refuse the top levels for the whole family — the
+request comes back <code>400</code>, and because the level is carried <em>inside the model id</em>, the dispatch
+aborts rather than thinking less hard. That is the correct behaviour and the harness does not
+soften it: silently downgrading <code>max</code> to <code>high</code> would mean a tier whose declared effort is
+fiction.</p>
+<p>So the ceiling that matters is the one <strong>your</strong> endpoint actually serves, not the one the model
+card claims. Probe it once with a throwaway call per level before writing a level into
+<code>routing.json</code>, and set the tier to the highest that answers <code>200</code>.</p>
+</div>
 <p>Two consequences worth knowing:</p>
 <ul>
 <li><strong>A suffix already written into <code>model</code> wins.</strong> <code>"model": "github-copilot/gpt-5.4:max"</code> together

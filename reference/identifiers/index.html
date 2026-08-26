@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3803,6 +3833,12 @@ you are expected to follow somewhere — this page is the whole lookup table.</p
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title"><code>PC-NN</code> numbers are local to this repository</p>
+<p>They are allocated in the order rules land here, and a rule with the same number in a fork or a
+sibling configuration is a <strong>different rule</strong>. There is nothing to reconcile and reconciling
+them would break every reference on this page. Match rules by <code>title</code>, never by number.</p>
+</div>
 <p><code>PC-NN</code> is the only family that is fully self-describing at runtime — <code>bin/pi-check --all --json</code>
 prints every rule it ran under <code>rulesRun</code>, and each rule file in <code>bin/rules/</code> exports both a <code>title</code>
 and a <code>closes</code> array naming the requirements it enforces. That <code>closes</code> export is the shortest path

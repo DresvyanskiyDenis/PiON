@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -5037,6 +5067,43 @@ per-session, which is the scope the design assumes. The full reasoning is record
 That is disclosed in the tool description and is the package's purpose, but it means an exact-match edit
 needs either <code>mode=full</code>, an explicit line range, or the native <code>read</code> builtin — which stays available,
 since the package runs in <code>additive</code> mode.</p>
+<p><strong>The <code>Compressed N → N tokens (0%)</code> footer is a broken readout, not a decision</strong> (measured
+2026-08-26 against the pinned 3.9.17). A <code>ctx_shell</code> result carries two footers and only the first
+one measures anything:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>─── 917 → 239 tok (↓~70%) ───
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Compressed 333 → 333 tokens (0%)
+</span></code></pre></div>
+<p>The first comes from the Rust binary (<code>src/core/savings_footer.rs</code>) and is accurate — compression is
+working. The second comes from the npm extension (<code>formatFooter</code>, <code>extensions/index.ts:233</code>) and is
+arithmetically incapable of reporting anything but <code>0%</code> on the shell and search tools.</p>
+<p><code>ctx_shell</code> does not run bash and then compress it. <code>baseBashTool</code> (<code>:407</code>) installs a <code>spawnHook</code>
+that rewrites every command to <code>lean-ctx -c '&lt;command&gt;'</code>, so the extension's only remaining job is to
+parse the binary's marker back out. <code>parseLeanCtxOutput</code> (<code>:200-231</code>) accepts exactly two shapes —
+<code>[lean-ctx: N → M tok, -P%]</code> at <code>:208</code> and <code>[N tok saved (P%)]</code> at <code>:214</code> — and binary 3.9.13 emits
+neither. It emits <code>[lean-ctx: 17001→1474 tok, verbatim truncated]</code>, a reason string where the regex
+demands a percentage, or the <code>─── … ───</code> banner above, which the regex does not model at all. A sweep
+of a 141 MB session corpus under <code>~/.pi/agent/sessions</code> finds <strong>zero</strong> occurrences of either accepted
+shape: never matched, not rarely.</p>
+<p>With nothing parsed, the bare <code>always: true</code> branch of <code>withFooter</code> measures the <em>already-compressed</em>
+text against itself, so <code>original === compressed</code> by construction. Its estimator is <code>ceil(length / 4)</code>
+over JS UTF-16 units, which is why the number agrees with neither side of the real footer — the body
+above is 1329 UTF-16 units, and <code>ceil(1329 / 4)</code> is exactly 333.</p>
+<p>Affected: <code>ctx_shell</code> (<code>:477</code>, <code>:486</code>) and <code>ctx_ls</code> / <code>ctx_find</code> / <code>ctx_grep</code> (<code>:691</code>, <code>:715</code>, <code>:764</code>),
+which pass a bare <code>always: true</code>. Eleven of eleven samples in the session corpus are exactly
+<code>N → N (0%)</code>, with no counter-example. <strong><code>ctx_read</code> is unaffected</strong> (<code>:594</code>, <code>:607</code>, <code>:645</code>, <code>:658</code>):
+it passes <code>originalText</code> with <code>preferEstimate</code> and <code>suppressIfNoSaving</code>, which is where the genuine
+<code>-47%</code> / <code>-99%</code> / <code>-100%</code> footers come from. So a non-zero percentage always means <code>ctx_read</code>.</p>
+<p>The one case where this matters: <code>verbatim truncated</code> means output was <em>dropped</em> and teed to
+<code>~/.local/state/lean-ctx/tee/</code>, and the <code>0%</code> footer then sits directly beneath a marker saying content
+is missing. Nothing is lost silently — the binary's marker survives in the body precisely because the
+parser fails to strip it — but the footer actively contradicts it, and that is the only place the
+wrong readout sits next to something consequential.</p>
+<p>Upgrading does not fix it: npm 3.9.20 carries the identical two regexes at <code>:218</code> and <code>:224</code> and still
+passes a bare <code>always: true</code> on all four tools. It is not patched here either, and deliberately so —
+this repository has no patch mechanism, and adding one that every <code>npm ci</code> would have to honour
+forever is a bad trade for a footer worth roughly ten tokens a call. Recorded as a known cosmetic
+defect. Revisit if the <code>verbatim truncated</code> case is ever shown to hide real data loss.</p>
 <h2 id="pi-opa-net-060"><code>pi-opa-net</code> 0.6.0<a class="headerlink" href="#pi-opa-net-060" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

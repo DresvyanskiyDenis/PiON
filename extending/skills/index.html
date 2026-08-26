@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -2915,6 +2945,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#examplesskills-a-real-one-you-can-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        examples/skills/ — a real one you can read
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#a-complete-worked-example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3769,6 +3810,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#examplesskills-a-real-one-you-can-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        examples/skills/ — a real one you can read
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#a-complete-worked-example" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3914,12 +3966,12 @@ an appendix.</p>
 <hr />
 <h2 id="the-five-minute-version">The five-minute version<a class="headerlink" href="#the-five-minute-version" title="Permanent link">&para;</a></h2>
 <p>A skill is two things: a directory and a Markdown file with three lines of front matter.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/pi-config/skills-private/
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>~/pi-config/skills/
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>└── release-notes/
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    └── SKILL.md
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/pi-config/skills-private/release-notes
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>~/pi-config/skills-private/release-notes/SKILL.md<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/pi-config/skills/release-notes
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>~/pi-config/skills/release-notes/SKILL.md<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s">---</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">name: release-notes</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">description: Use when asked to write release notes from a git range. Groups commits by type, drops noise, writes Markdown. Not for PR descriptions.</span>
@@ -3942,15 +3994,39 @@ an appendix.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/skill:release-notes     # the command exists → PI discovered it
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>/doctor                  # D-02 reports skills named in your instructions vs skills found
 </span></code></pre></div>
-<p><code>skills-private/</code> is git-ignored, so nothing you put there can be committed by accident. That makes
-it the right place for anything with a client name, an internal URL or a personal workflow in it —
-and it is why the installer offers to create it for you at the tools step, empty, rather than leaving
-you to invent a location.</p>
+<p><code>skills/</code> is git-ignored, so nothing you put there can be committed by accident. That makes it the
+right place for anything with a client name, an internal URL or a personal workflow in it — and it
+is why the installer offers to create it for you at the tools step, empty, rather than leaving you
+to invent a location. The installer also links it to <code>~/.pi/agent/skills</code>, so the path you write
+into and the path <code>settings.json</code> searches are one directory.</p>
+<hr />
+<h2 id="examplesskills-a-real-one-you-can-read"><code>examples/skills/</code> — a real one you can read<a class="headerlink" href="#examplesskills-a-real-one-you-can-read" title="Permanent link">&para;</a></h2>
+<p><code>examples/skills/report-generation/</code> is a complete, non-trivial skill: frontmatter, reference
+documents, a <code>uv</code>-run Python renderer, a CSS visual system and a vendored charting library. It is
+<strong>tracked</strong> and it is <strong>outside every search path</strong>, so PI never loads it. Copy the directory into
+your <code>skills/</code> to use it.</p>
+<p>That split is deliberate. The loaded roster staying empty is a privacy property, not an aesthetic
+one; a worked example you can read is a documentation property. Putting the example under
+<code>examples/</code> gets both, and nothing has to be un-ignored.</p>
+<div class="admonition note">
+<p class="admonition-title">What ships with it, and what was left out</p>
+<p>Its palette is unbranded on purpose — two identity colours, a slate scale, and semantic and
+categorical token sets, all defined in the four <code>:root</code> blocks of <code>assets/report.css</code>. Re-skin by
+redefining those tokens; every rule beneath them reads a token, so a house style never has to
+touch a selector.</p>
+<p>Its vendored <code>echarts.min.js</code> carries <code>assets/vendor/SOURCE.txt</code>: upstream URL, exact version,
+licence, fetch date, and an explicit "byte-identical, no local changes" claim. Copy that pattern
+for anything you vendor. A second candidate skill was reviewed for publication here and
+<strong>rejected</strong> precisely because it could not satisfy it — it vendors a third-party <code>data/</code>,
+<code>references/</code> and <code>scripts/</code> tree with no licence file anywhere in it, and unlicensed
+third-party content must not reach a public repository. That decision reverses only if the
+upstream licence is confirmed to permit redistribution.</p>
+</div>
 <hr />
 <h2 id="a-complete-worked-example">A complete worked example<a class="headerlink" href="#a-complete-worked-example" title="Permanent link">&para;</a></h2>
 <p>The five-minute version is a prompt in a directory. This one ships a script alongside it, which is
 where the environment shim earns its place.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>~/pi-config/skills-private/
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>~/pi-config/skills/
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>└── coverage-report/
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    ├── SKILL.md
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    └── scripts/
@@ -4094,29 +4170,30 @@ runs — and nothing about the session looks broken.</p>
 </table>
 <p>The shipped array is:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">"skills"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="s2">"~/.pi/agent/skills"</span><span class="p">,</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="s2">"~/pi-config/skills-private"</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">]</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="s2">"~/.pi/agent/skills"</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">]</span>
 </span></code></pre></div>
-<p>Add your own root by adding a line there — see
+<p>One entry, and the installer points it at the clone's git-ignored <code>skills/</code>. Add your own root by
+adding a line there — see
 <a href="../../configuration/settings/#resource-paths"><code>config/settings.json</code></a>. A root that does not exist is
-skipped without complaint, which is why a fresh clone with no <code>skills-private/</code> starts cleanly.</p>
+skipped without complaint, which is why a fresh clone with no <code>skills/</code> starts cleanly.</p>
 <div class="admonition danger">
 <p class="admonition-title">Name your root in <code>config/settings.json</code>, not only from an extension</p>
 <p>A root contributed <em>only</em> from a <code>resources_discover</code> handler sits behind <strong>every</strong> rank above,
 including <code>~/.agents/skills</code>. Measured, not theorised: two skills contributed that way were
 silently shadowed by stale same-named copies in <code>~/.agents/skills</code> and never ran once.</p>
-<p><a href="../../extensions/skill-mask/"><code>skill-mask</code></a> contributes <code>skills-private/</code> and <code>skills-work/</code> from
-a handler as a fallback for an install whose settings file is not this repository's. It is a
-safety net, <strong>not</strong> a substitute for the settings entry.</p>
+<p>This is also why the three-way <code>skills/</code> + <code>skills-work/</code> + <code>skills-private/</code> split was
+collapsed into the one root above: two of its three directories were contributed from a handler
+and never named in <code>settings.json</code>, so they sat behind <code>~/.agents/skills</code> the whole time.</p>
 </div>
 <div class="admonition info">
 <p class="admonition-title"><code>skill-mask</code> masks nothing, despite the name</p>
 <p><code>extendResources</code> performs a <strong>union</strong> with what the settings-driven scan already found. No path
 in that chain removes a root, so a <code>resources_discover</code> handler can only ever <em>add</em> skills, never
 subtract them. There is no default-deny skill mask in this harness and one cannot be built at
-that seam. The module keeps its name only because <code>config/settings.json</code> and the install symlinks
-already refer to it. See <a href="../../limitations/">Known limitations</a>.</p>
+that seam. The module is now a registered no-op — it keeps its id only because
+<code>extensions/index.ts</code>, the manifest and <code>/doctor</code>'s load registry all expect to find it. See
+<a href="../../limitations/">Known limitations</a>.</p>
 <p>The control you <em>do</em> have over what a skill may do is the model's own judgement plus the
 <a href="../../extensions/guard/">guard</a>, which sees every tool call a skill causes.</p>
 </div>

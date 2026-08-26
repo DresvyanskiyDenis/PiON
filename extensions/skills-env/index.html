@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/extensions/skills-env/">
       
       
-        <link rel="prev" href="../path-defaults/">
+        <link rel="prev" href="../path-rules/">
       
       
         <link rel="next" href="../skill-mask/">
@@ -1865,6 +1865,8 @@
       
         
       
+        
+      
     
     
     
@@ -1928,6 +1930,34 @@
     
   
     path-defaults — default tier and egress policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
   
 
     
@@ -2074,7 +2104,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3815,8 +3845,9 @@ of finding that is cheap to write down and expensive to rediscover.</p>
 <h2 id="a-skill-contributed-by-an-extension-needs-a-second-pass">A skill contributed by an extension needs a second pass<a class="headerlink" href="#a-skill-contributed-by-an-extension-needs-a-second-pass" title="Permanent link">&para;</a></h2>
 <p><code>resources_discover</code> fires once per session for <em>this</em> module too, and PI collects every handler's
 return value before it applies any of them: a skill root contributed by another <code>resources_discover</code>
-handler — <a href="../skill-mask/"><code>skill-mask</code></a>, concretely — is only added to the resolved skill list
-<em>after</em> every <code>resources_discover</code> handler, this one included, has already returned. So on the very
+handler — <a href="../skill-mask/"><code>skill-mask</code></a> did exactly this before it was emptied — is only added to
+the resolved skill list <em>after</em> every <code>resources_discover</code> handler, this one included, has already
+returned. So on the very
 first pass, <code>pi.getCommands()</code> cannot see a skill that reached the roster this way, and its
 <code>PI_SKILL_DIR_&lt;NAME&gt;</code> would silently never be set.</p>
 <p>PI exposes no event that fires strictly after that resolution step, so this module registers a

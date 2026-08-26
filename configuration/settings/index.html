@@ -2051,6 +2051,8 @@
       
         
       
+        
+      
     
     
     
@@ -2131,6 +2133,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
@@ -2166,7 +2196,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -4190,7 +4220,7 @@ wait than see the abort.</p>
 <hr />
 <h2 id="resource-paths">Resource paths<a class="headerlink" href="#resource-paths" title="Permanent link">&para;</a></h2>
 <p>These four arrays are how PI finds everything this repository adds.</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"skills"</span><span class="p">:</span><span class="w">     </span><span class="p">[</span><span class="s2">"~/.pi/agent/skills"</span><span class="p">,</span><span class="w"> </span><span class="s2">"~/pi-config/skills-private"</span><span class="p">],</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"skills"</span><span class="p">:</span><span class="w">     </span><span class="p">[</span><span class="s2">"~/.pi/agent/skills"</span><span class="p">],</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">"prompts"</span><span class="p">:</span><span class="w">    </span><span class="p">[</span><span class="s2">"~/.pi/agent/prompts"</span><span class="p">],</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">],</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nt">"themes"</span><span class="p">:</span><span class="w">     </span><span class="p">[],</span>
@@ -4207,16 +4237,27 @@ wait than see the abort.</p>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>extensions</code> names exactly one file, on purpose</p>
-<p><code>extensions/index.ts</code> is a composition root that imports and registers 26 modules in a fixed
+<p><code>extensions/index.ts</code> is a composition root that imports and registers 27 modules in a fixed
 order. Pointing PI at the <em>directory</em> instead would load 26 separate extensions in <code>readdir</code>
 order, fail every one that has no default export, and let <code>readdir</code> decide the <code>tool_call</code>
 chaining order — which decides whether <code>guard</code> sees a call before <code>bash</code> rewrites it. Do not
 "simplify" this line. <a href="../../concepts/architecture/">Architecture</a> has the full argument.</p>
 </div>
-<p><code>skills</code> is the array you extend to add your own skills. <strong>No skills ship with this repository, and
-none ever will</strong> — the loading mechanism does, the content does not. <code>~/pi-config/skills-private</code> is
-a git-ignored path; the installer offers to create it empty, and PI tolerates it being absent. See
-<a href="../../extending/skills/">Writing a skill</a> for the precedence ranks and a worked example.</p>
+<p><code>skills</code> is the array you extend to add your own skills. <strong>Nothing on this path ships populated</strong> —
+the loading mechanism ships, the content does not, and the one worked example under
+<code>examples/skills/</code> is deliberately outside every search path. The one entry is where the
+installer symlinks the clone's git-ignored <code>skills/</code>, so the directory you write into and the path
+PI searches are the same directory under two names; PI tolerates it being absent.</p>
+<div class="admonition note">
+<p class="admonition-title">One root, declared once</p>
+<p>An earlier layout split user skills across three sibling directories. That split looked like a
+privacy boundary and was not one: a single <code>.gitignore</code> line was doing the whole job, and two of
+the three roots were never in this array at all — an extension contributed them at runtime, and
+PI merges contributed roots <strong>last</strong>, so every skill in them silently lost a name collision to
+<code>~/.agents/skills</code>. Adding a root here is the only way to make one win. One root, declared in
+the array, is the honest shape.</p>
+</div>
+<p>See <a href="../../extending/skills/">Writing a skill</a> for the precedence ranks and a worked example.</p>
 <p><code>packages</code> is a list of directories, one per adopted community package. <code>pi-mcp-adapter</code> points at
 <code>pi-packages/</code> rather than <code>node_modules/</code> because it is <strong>vendored in-tree and locally patched</strong> —
 see <a href="../../concepts/safety-model/#why-some-code-is-in-tree">Safety model</a> and

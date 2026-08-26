@@ -1855,6 +1855,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensions/path-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    path-rules — context rules scoped to a path glob
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../extensions/skills-env/" class="md-nav__link">
         
   
@@ -1970,7 +2000,7 @@
   <span class="md-ellipsis">
     
   
-    skill-mask — extra skill roots (and why it cannot mask)
+    skill-mask — a registered no-op (and why it cannot mask)
   
 
     
@@ -3065,6 +3095,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#skills-that-are-deliberately-absent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skills that are deliberately absent
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3685,6 +3726,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#skills-that-are-deliberately-absent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skills that are deliberately absent
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3760,15 +3812,37 @@ is the list of them, plus a generated table of what is actually on your disk.</p
 not. <a href="../extensions/skills-lint/"><code>skills-lint</code></a> warns once per skill, at session start, for exactly
 that reason. For a real tool restriction, use a <a href="../extending/subagents/">sub-agent</a>.</p>
 <h2 id="generated-matrix">Generated matrix<a class="headerlink" href="#generated-matrix" title="Permanent link">&para;</a></h2>
-<p>The table below is produced from the skills present in <code>skills/</code>, <code>skills-work/</code> and
-<code>skills-private/</code> on this machine. Regenerate it after changing any skill's frontmatter:</p>
+<p>The table below is produced from the skills present in <code>skills/</code> on this machine. Regenerate it
+after changing any skill's frontmatter:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>node<span class="w"> </span>scripts/gen-skills-lint-matrix.mjs<span class="w">          </span><span class="c1"># rewrites the block below</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>node<span class="w"> </span>scripts/gen-skills-lint-matrix.mjs<span class="w"> </span>--check<span class="w">  </span><span class="c1"># exits non-zero if it is stale</span>
 </span></code></pre></div>
-<p>A clean clone ships <strong>no skills</strong>, so the block is empty until you
-<a href="../extending/skills/">add your own</a>.</p>
+<p>A clean clone loads <strong>no skills</strong>, so the block is empty until you
+<a href="../extending/skills/">add your own</a>. The one worked example this repository ships lives outside every
+search path and is deliberately not in the matrix.</p>
 <!-- GENERATED:skills-lint:start -->
 <!-- GENERATED:skills-lint:end -->
+
+<h2 id="skills-that-are-deliberately-absent">Skills that are deliberately absent<a class="headerlink" href="#skills-that-are-deliberately-absent" title="Permanent link">&para;</a></h2>
+<p>Some skills exist in the private configuration this repository is ported from and are never ported
+here. Two reasons account for all of them: a tree of third-party material with no licence file, which
+must not be redistributed at all; and workflows built around a specific employer, tax year or
+household, which would be noise to everyone else and identifying for one person.</p>
+<p>Their names are not on this page, and not anywhere else in the repository either. A list of things
+too sensitive to publish, published, is the leak it was meant to prevent — so the names are held as
+salted digests in <code>config/do-not-publish.digests.txt</code> and enforced by
+<a href="../operations/cli/#binpi-check"><code>PC-25</code></a>, which fails the build if one of them turns up as a directory,
+as a file name, in git history, or in the text of a tracked file. It fails closed: a missing or
+unparsable digest file is a finding, never a quiet pass.</p>
+<p>Two limits are worth stating plainly. The salt is a constant in the rule, not a secret — it cannot
+be one, since the check has to run in any clone — so it defeats a generic wordlist but not someone
+who already guessed a name and wants confirmation. And the content scan skips single-word names,
+because one of them is an ordinary English word that appears in this repository's own prose; for
+those, only paths and history are checked. Both are deliberate. The rule's job is that reading this
+repository does not <em>tell</em> you the names.</p>
+<p>Regenerate the digest file from a list supplied on standard input, never from anything on disk here:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s\n'</span><span class="w"> </span>name-one<span class="w"> </span>name-two<span class="w"> </span><span class="p">|</span><span class="w"> </span>node<span class="w"> </span>scripts/gen-do-not-publish-digests.mjs<span class="w"> </span>&gt;<span class="w"> </span>config/do-not-publish.digests.txt
+</span></code></pre></div>
 
 
 
