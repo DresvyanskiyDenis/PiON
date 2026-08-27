@@ -11,7 +11,7 @@
   "hideThinkingBlock": false,
   "showCacheMissNotices": true,
   "defaultProjectTrust": "ask",
-  "theme": "dark",
+  "theme": "Tokyo Night",
   "quietStartup": false,
   "externalEditor": "code --wait",
   "doubleEscapeAction": "tree",
@@ -68,7 +68,9 @@
   "extensions": [
     "~/pi-config/extensions/index.ts"
   ],
-  "themes": [],
+  "themes": [
+    "~/pi-config/themes"
+  ],
   "packages": [
     "~/pi-config/pi-packages/pi-mcp-adapter",
     "~/pi-config/node_modules/pi-subagents",

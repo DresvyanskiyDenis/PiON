@@ -119,6 +119,7 @@ nav:
           - configuration/mcp.md
           - configuration/environment.md
       - Tune later:
+          - configuration/themes.md
           - configuration/dispatch.md
           - configuration/sessions.md
           - configuration/tools.md

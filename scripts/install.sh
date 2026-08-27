@@ -306,7 +306,7 @@ validate() { # validate <type> <value> <choices-csv>
     path) case "$val" in "") _verr "cannot be empty"; return 1 ;; esac ;;
     enum)
       case ",$choices," in *",$val,"*) : ;;
-        *) _verr "must be one of: $(printf '%s' "$choices" | tr ',' ' ')"; return 1 ;; esac ;;
+        *) _verr "must be one of: $(printf '%s' "$choices" | sed 's/,/, /g')"; return 1 ;; esac ;;
     *) : ;;
   esac
   return 0
@@ -986,7 +986,8 @@ if ask_section agent && [ "$EXPRESS" = 0 ]; then
     "The model that provider opens with. It must be one that provider actually serves." >/dev/null
   ask settings.defaultThinkingLevel "default thinking level" medium enum 1 "minimal,low,medium,high" \
     "How much reasoning budget every turn gets before you ask for more. medium is a good default." >/dev/null
-  ask settings.theme "theme" dark enum 1 "dark,light" "Colour scheme of the terminal UI." >/dev/null
+  ask settings.theme "theme" "Tokyo Night" enum 1 "Tokyo Night,Tokyo Night Day,dark,light" \
+    "Colour scheme of the terminal UI. The two Tokyo Night variants ship in themes/; dark and light are PI's own." >/dev/null
   ask settings.externalEditor "external editor command" "$EDITOR_GUESS" string 1 "" \
     "Used when you press the edit key on a long prompt. It must block until the file is closed (hence --wait)." >/dev/null
   ask settings.tuiMode "TUI mode" regular enum 1 "regular,compact" \
@@ -995,7 +996,7 @@ else
   ans_has settings.defaultProvider || ans_set settings.defaultProvider "$DEF_PROVIDER"
   ans_has settings.defaultModel || ans_set settings.defaultModel "$DEF_MODEL_GUESS"
   ans_has settings.defaultThinkingLevel || ans_set settings.defaultThinkingLevel medium
-  ans_has settings.theme || ans_set settings.theme dark
+  ans_has settings.theme || ans_set settings.theme "Tokyo Night"
   ans_has settings.externalEditor || ans_set settings.externalEditor "$EDITOR_GUESS"
   ans_has settings.tuiMode || ans_set settings.tuiMode regular
   ok "defaults kept: $(ans_get settings.defaultProvider)/$(ans_get settings.defaultModel), thinking=$(ans_get settings.defaultThinkingLevel), theme=$(ans_get settings.theme)"
@@ -1542,7 +1543,7 @@ cfg_set "$SETTINGS_FILE" \
   "defaultProvider=$(ans_get settings.defaultProvider)" \
   "defaultModel=$(ans_get settings.defaultModel)" \
   "defaultThinkingLevel=$(ans_get settings.defaultThinkingLevel)" \
-  "theme=$(ans_get settings.theme)" \
+  "theme=str:$(ans_get settings.theme)" \
   "externalEditor=str:$(ans_get settings.externalEditor)" \
   "tuiMode=$(ans_get settings.tuiMode)"
 

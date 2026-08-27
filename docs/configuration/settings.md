@@ -161,13 +161,13 @@ compaction fires, which is why [first run](../getting-started/first-run.md) tell
 
 ## Resource paths
 
-These four arrays are how PI finds everything this repository adds.
+These five arrays are how PI finds everything this repository adds.
 
 ```json
 "skills":     ["~/.pi/agent/skills"],
 "prompts":    ["~/.pi/agent/prompts"],
 "extensions": ["~/pi-config/extensions/index.ts"],
-"themes":     [],
+"themes":     ["~/pi-config/themes"],
 "packages":   [
   "~/pi-config/pi-packages/pi-mcp-adapter",
   "~/pi-config/node_modules/pi-subagents",
@@ -227,7 +227,7 @@ for them elsewhere.
 
 | Key | Ships | Notes |
 |---|---|---|
-| `theme` | `"dark"` | |
+| `theme` | `"Tokyo Night"` | Selects by the `name` inside a theme file, not by filename. See [Themes](themes.md) |
 | `tuiMode` | `"regular"` | |
 | `quietStartup` | `false` | `true` suppresses the banner |
 | `externalEditor` | `"code --wait"` | **Must block until the editor exits.** A non-blocking command returns an empty buffer instantly, which looks like the editor failing to open. `vim`, `nano`, `"code --wait"`, `"subl -w"` are fine |
