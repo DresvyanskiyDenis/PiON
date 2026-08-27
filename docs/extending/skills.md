@@ -136,6 +136,20 @@ Two rules for skills that ship code:
 - **Keep the script small and boring.** A skill that shells out to four hundred lines of Python is a
   program with a Markdown wrapper; give it a repository and let the skill call its CLI.
 
+!!! warning "An environment variable is for your script, not for the model"
+
+    `PI_SKILL_DIR_*` and `PI_SKILLS_ROOT` are expanded by the shell that runs your skill's script.
+    Nothing expands them for the *model*: a `read` call receives the string you wrote, so a skill
+    whose Markdown points the model at `$PI_SKILLS_ROOT/../assets/notes.md` sends that token
+    through verbatim and the read fails. If a skill's instructions have to name a file the model
+    itself will open — a bundle of sub-skills reached on demand, say — write the path relative to
+    the skill's own directory and say in one sentence that the model must substitute it, using a
+    spelling that cannot be mistaken for a shell variable. Keep the environment variable as the
+    recovery route: "if the read fails, run `echo "$PI_SKILLS_ROOT"` once and use that".
+
+    The two are not interchangeable, and the failure is quiet — an `ENOENT` on a path that looks
+    plausible, with nothing to say the variable was the problem.
+
 !!! note "The exported directory is the *real* path, symlinks resolved"
     `~/.pi/agent/skills` is an install symlink. Left unresolved, every exported directory would
     contain the literal `.pi/agent/`, and the guard's `SEC-PI-STATE` rule matches any path built

@@ -181,12 +181,24 @@ describe("the shipped settings template declares the skill root users are told t
     );
   });
 
-  it("names the install-managed root ~/.pi/agent/skills", () => {
+  it("names the install-managed root ~/pi-config/skills", () => {
     assert.ok(
-      declared.has(join(homedir(), ".pi", "agent", "skills")),
-      `the settings template's "skills" array must contain "~/.pi/agent/skills" — the root ` +
+      declared.has(join(homedir(), "pi-config", "skills")),
+      `the settings template's "skills" array must contain "~/pi-config/skills" — the root ` +
         `docs/extending/skills.md tells users to drop a SKILL.md into. Declared today: ` +
         `${JSON.stringify(settings.skills ?? [])}`,
+    );
+  });
+
+  it("declares no root inside the ~/.pi/agent state tree", () => {
+    // The same directory is reachable as `~/.pi/agent/skills`, which the installer symlinks. Naming
+    // it that way is what makes `sourceInfo.path` — and therefore every path the model sees for a
+    // skill — sit under the agent's state directory, so a skill reaching a sibling tree with `..`
+    // normalizes into it. `SEC-PI-STATE` records a finding for the result and the file is not there
+    // anyway. Naming the physical root costs nothing and the arithmetic lands in the checkout.
+    assert.deepEqual(
+      (settings.skills ?? []).filter((root: string) => root.includes(".pi/agent")),
+      [],
     );
   });
 });
