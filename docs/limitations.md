@@ -96,6 +96,42 @@ session start (`@narumitw/pi-usage`, `pi-lean-ctx`, `pi-hermes-memory`, `pi-sand
 packages already adopted before this review) — the five above are reviewed and pinned but **not** in
 `settings.default.json`'s `packages[]`, precisely because wiring any one of them breaks every session.
 
+### An interactive dialog cannot tell you *why* it got no answer
+
+`ctx.ui.select` and `ctx.ui.input` resolve `undefined` on a dismissal, on an aborted `AbortSignal`,
+and on `ExtensionUIDialogOptions.timeout` alike — one `defaultValue` for all three, in the same
+`createDialogPromise` (`modes/rpc/rpc-mode.js:47-69`). Nothing throws, so the three causes arrive
+indistinguishable.
+
+**Consequence:** an extension that needs to know which one happened has to record it *before* it
+aborts, not read it afterwards. A flag set ahead of `signal.abort()` is the only thing at that call
+site that carries a reason.
+
+### `pi-subagents`' supervisor channel bounds the request and not the reply
+
+A child's `contact_supervisor` request is size-checked against `MAX_MESSAGE_BYTES` (64 KiB) at
+`intercom/native-supervisor-channel.ts:264`. The reply travelling the other way is not: `writeReply`
+(`:541-551`) rejects an empty or whitespace-only message and checks nothing else.
+
+**Consequence:** an empty reply fails loudly with no help from you; an oversized one does not fail at
+all. Anything composing a reply owns its own size bound, and 64 KiB is not the number to copy — that
+one bounds a machine-composed request, not whatever the reply path is fed.
+
+### An extension cannot make a tool it does not own run sequentially
+
+`executeToolCallsParallel` is the default (`agent-loop.js:290-294`); the loop serializes a batch only
+when `config.toolExecution === "sequential"` or when some tool **in that batch** declares
+`executionMode: "sequential"`. That flag lives on the tool definition, so it is available for a tool
+you register and unavailable for one shipped by a package.
+
+Concurrency of that kind is not exotic. `sendCustomMessage` (`core/agent-session.js:1081-1088`)
+*steers* a custom message arriving mid-stream into the **running** turn rather than queueing it for a
+later one, so two independently-arriving requests routinely land in a single assistant message.
+
+**Consequence:** if you are wrapping a package-owned tool in a `tool_call` handler and that handler
+must not run twice at once, the mutex is yours to write. The agent loop does not provide one and
+cannot be asked to.
+
 ---
 
 ## Design limits — deliberate non-goals
