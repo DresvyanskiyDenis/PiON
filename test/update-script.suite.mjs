@@ -439,4 +439,29 @@ describe("scripts/update.sh", () => {
       assert.match(c, /"PI-UPDATE-E\d\d"/, `uncoded failure: ${c}`);
     }
   });
+
+  test("a failing verification is never summarised as 'nothing left to do'", () => {
+    // The two lines contradicted each other: exit 4 means "the update landed, read the
+    // verification table", while the summary printed "Nothing is left for you to do by hand"
+    // immediately below that table. MANUAL_TODO is empty in that case — correctly, the UPDATE has
+    // no leftover step — but the reader trusts the last line printed, and the last line said the
+    // failures were not their problem.
+    const fx = makeFixture();
+    pushUpstream(
+      fx,
+      (dir) => {
+        writeFileSync(
+          join(dir, "scripts", "postinstall-verify.sh"),
+          "#!/usr/bin/env bash\nprintf '  FAIL   a real check   it did not pass\\n'\nexit 1\n",
+          { mode: 0o755 },
+        );
+      },
+      "add a verifier that fails",
+    );
+
+    const r = update(fx, "--yes");
+    assert.equal(r.status, 4, `expected exit 4 from a failed verification:\n${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, /a real check/, "the verifier's own table should still be shown");
+    assert.doesNotMatch(r.stdout, /Nothing is left for you to do by hand/);
+  });
 });

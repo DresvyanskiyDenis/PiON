@@ -705,6 +705,13 @@ if [ -n "$MANUAL_TODO" ]; then
     _n=$((_n + 1))
     printf '  %d. %s\n' "$_n" "$(printf '%s' "$t" | sed 's/^ *//')"
   done
+elif [ "$FINAL_EXIT" = 4 ]; then
+  # The update itself left no manual step — MANUAL_TODO is genuinely empty — but printing "nothing
+  # is left for you to do" directly beneath a verification table with failures in it contradicts
+  # the exit code this run is about to return (4: "read its table"). The reader trusts the last
+  # line, so the last line has to agree with the code.
+  printf '\n%sThe update left nothing for you to do by hand — but verification above reported\n' "$C_CH"
+  printf 'failures. Work through that table before starting pi; this run exits 4 for that reason.%s\n' "$C_0"
 else
   printf '\n%sNothing is left for you to do by hand.%s\n' "$C_OK" "$C_0"
 fi
