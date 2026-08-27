@@ -187,6 +187,14 @@ describe("scripts/update.sh", () => {
       // from used to stop one line short of 130 and four short of the docs links.
       assert.match(r.stdout, /130\s+interrupted/);
       assert.match(r.stdout, /getting-started\/update/);
+      // Self-terminating rather than a line range: it must stop at the end of the header block
+      // and never bleed into the code, whatever a later edit does to the header's length.
+      assert.doesNotMatch(r.stdout, /set -euo pipefail/, "--help printed past the header block");
+      assert.match(
+        r.stdout.trimEnd().split("\n").at(-1),
+        /getting-started\/update\/$/,
+        "--help should end on the docs link — the last line of the header block",
+      );
     } finally {
       rmSync(fx.dir, { recursive: true, force: true });
     }

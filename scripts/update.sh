@@ -116,11 +116,13 @@ $*"; }
 report_add() { REPORTED="$REPORTED
      $*"; }
 
-# The range ends on the last comment line of the header block above, not a line or two past it.
-# It also does not end EARLY: it used to stop at exit code 4, so `--help` printed a table with 130
-# missing from it and no link to the docs — a help text that is wrong about the thing it exists to
-# be right about.
-usage() { sed -n '2,62p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
+# Prints the header block above: everything from the line after the shebang up to the first line
+# that is not a comment. Deliberately NOT a line range. The range this replaces was wrong twice in
+# one day — it stopped at exit code 4, so `--help` printed the exit-code table with 130 missing and
+# no link to the docs, and then adding one line to the --check note moved the end again. A help
+# text whose correctness depends on someone remembering to renumber it is a help text that will be
+# wrong, and being wrong about the exit codes is being wrong about the thing --help is for.
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"; exit 0; }
 
 # ============================================================================ argument parse ===
 while [ $# -gt 0 ]; do
