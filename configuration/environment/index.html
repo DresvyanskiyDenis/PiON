@@ -4258,7 +4258,7 @@ directly (<code>:191-193</code>), which is why the value lives in this file rath
 composed by the <strong>parent agent</strong>, not typed by you — so the wait is sizing a model's turn, and a
 turn that includes reading code and thinking about an answer is not a ten-minute event. Erring long
 is also the cheaper mistake: while a child waits it holds whatever concurrency slot it occupies, and
-the cumulative spawn claim it already spent is <a href="../../extending/subagents/#the-three-spawn-budgets--cumulative-spend-not-width">never refunded</a>,
+the cumulative spawn claim it already spent is <a href="../../extending/subagents/#the-three-spawn-budgets-cumulative-spend-not-width">never refunded</a>,
 so an expiry costs the claim and returns nothing.</p>
 <p><strong>Lower it</strong> if you would rather a stuck child fail fast than sit on a slot. <strong>Raise it</strong> and you are
 betting that the parent will eventually get round to the request; nothing wakes it on your behalf.</p>

@@ -4404,7 +4404,7 @@ whole argument. The full reasoning, the measurement recipe and the <code>/contex
 </tr>
 <tr>
 <td><code>thinkingLevelMap</code></td>
-<td>which reasoning efforts this model actually serves. See the warning below — the default when you omit it is not "all of them"</td>
+<td>which reasoning efforts this model actually serves. See the warnings below — the default when you omit it is not "all of them", and a refusal is not proof of absence</td>
 </tr>
 <tr>
 <td><code>input</code></td>
@@ -4508,6 +4508,27 @@ sends no parameter at all. That is the same wire as an absent map, correctly des
 endpoint <em>accepts</em> is not what your provider <em>sends</em>. When a level is requested that the map
 does not serve, the dispatch says so — see
 <a href="../dispatch/#onthinkingclamp"><code>onThinkingClamp</code></a>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">A 400 is not proof the model lacks that level</p>
+<p>Behind a proxy, a refused <code>reasoning_effort</code> has two possible authors and they look alike from
+where you are standing. The proxy can reject a value its own per-model table does not list,
+before anything is forwarded. Or the upstream provider can reject it, and the proxy passes the
+exception back. A stale table on the proxy therefore hides levels the deployment genuinely
+serves, and a <code>null</code> written from that refusal is a claim you could have checked and did not.</p>
+<p>They are distinguishable, and cheaply. A proxy-origin refusal names the proxy's <strong>own</strong> error
+class — an unsupported-parameter error raised locally — and mentions no upstream at all. An
+upstream refusal carries the provider's exception, and on Azure OpenAI that message enumerates
+what the deployment does serve: <em>Supported values are: <code>none</code>, <code>low</code>, <code>medium</code>, <code>high</code>, and
+<code>xhigh</code></em>. Read that list before writing a <code>null</code>. It is the endpoint answering the exact
+question you are probing, and it can contradict the proxy that just refused you.</p>
+<p>Then confirm, because accepting a level is not the same as honouring it: send the same prompt at
+two levels and watch the <strong>reasoning-token count</strong> move. A level that steers nothing reports the
+same count as its neighbour, and a 200 tells you only that nothing objected.</p>
+<p>When the proxy is the one refusing, the map cannot route around it. PI writes <code>reasoning_effort</code>
+as a top-level parameter (<code>pi-ai/dist/api/openai-completions.js:659</code>) and has no generic
+request-body merge, so a level the proxy will not pass is one no entry in this file can reach.
+That one is fixed in the proxy's per-model allowlist, server-side, or not at all.</p>
 </div>
 <hr />
 <h2 id="provider-fragments-the-installers-source-of-truth">Provider fragments — the installer's source of truth<a class="headerlink" href="#provider-fragments-the-installers-source-of-truth" title="Permanent link">&para;</a></h2>
