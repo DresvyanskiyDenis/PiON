@@ -4275,6 +4275,10 @@ whole argument. The full reasoning, the measurement recipe and the <code>/contex
 <td>output cap</td>
 </tr>
 <tr>
+<td><code>cost</code></td>
+<td>the four rates for this model, in <strong>dollars per million tokens</strong> — <code>input</code>, <code>output</code>, <code>cacheRead</code>, <code>cacheWrite</code>. Omitting it is a claim, not a blank; see below</td>
+</tr>
+<tr>
 <td><code>reasoning</code></td>
 <td><code>true</code> for a thinking model</td>
 </tr>
@@ -4296,12 +4300,63 @@ whole argument. The full reasoning, the measurement recipe and the <code>/contex
 </tr>
 </tbody>
 </table>
+<div class="admonition danger">
+<p class="admonition-title">An omitted <code>cost</code> is a claim of zero, and nothing tells you so</p>
+<p><code>cost</code> is required on PI's runtime model type and optional in this schema, and the gap is closed
+silently: the provider composer substitutes
+<code>{ "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }</code> for any model that omits it.
+Nothing warns and nothing fails. The status line reads a flat <code>$0.000</code> for the whole session, on
+a provider that may be charging real money, and at runtime a forgotten field is indistinguishable
+from a deliberate zero — only the config can tell them apart, and only if somebody wrote it down.</p>
+<p>The rates are <strong>dollars per million tokens</strong>. PI divides each by 1,000,000 before multiplying by
+the usage counter, so a per-token figure pasted out of a price page is wrong by six orders of
+magnitude and still renders happily.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">On a gateway, probe the rate — do not copy the upstream vendor's price page</p>
+<p>A model id behind a gateway is not the vendor's direct model. You are billed whatever the gateway
+operator configured for that model group, in front of whatever deployment they chose, and that can
+change under you without a line of your configuration changing — including from <em>free</em> to <em>not
+free</em>, which presents as nothing at all.</p>
+<p>If the gateway reports a per-response cost (LiteLLM returns one in
+<code>x-litellm-response-cost-original</code>), two calls with opposite input/output ratios — a long prompt
+with a tiny reply, then a tiny prompt with a long reply — give you two equations and solve exactly
+for <code>input</code> and <code>output</code>. Vary the prompt text between calls or the second one is served from
+cache and measures the wrong thing. One prompt sent twice, deliberately cached, gives you
+<code>cacheRead</code>. Check your arithmetic reproduces the gateway's own figure to the last digit before
+you believe it, and <strong>date the note</strong>: it is a measurement, and it expires.</p>
+</div>
+<div class="admonition danger">
+<p class="admonition-title">If the endpoint reports cache-write tokens, <code>cacheWrite: 0</code> under-reports by orders of magnitude</p>
+<p>Two facts combine here, and neither is alarming alone.</p>
+<p>First, PI does not leave cache-write tokens in the input bucket. When a response carries
+<code>prompt_tokens_details.cache_write_tokens</code>, PI computes
+<code>input = promptTokens - cacheReadTokens - cacheWriteTokens</code> and prices what it moved out at
+<code>cacheWrite</code>. On the first turn of a session nearly the whole prompt <em>is</em> a cache write, so nearly
+the whole prompt is priced at that rate and almost none of it at <code>input</code>.</p>
+<p>Second, a gateway may bill a cache write at the plain input rate with no surcharge. Vendor price
+pages routinely quote a premium; the gateway in front of them does not necessarily apply one.
+Measure yours rather than assuming either way.</p>
+<p>Where both hold, <code>cacheWrite</code> equals <code>input</code> — which contradicts every price page you will find
+and is still correct, because the number is what makes PI's arithmetic reproduce the invoice given
+how PI partitions the counters, not a claim about vendor policy. Leave the zero in instead and a
+turn billed at $0.015 renders as $0.00006. Whatever you write, write <em>why</em> beside it in <code>notes[]</code>:
+a rate that looks wrong without its mechanism does not survive the next reader.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title"><code>cacheWrite1h</code> is priced at <code>input × 2</code>, and never at your <code>cacheWrite</code></p>
+<p>PI prices the long-lived (1-hour) cache-write bucket at twice the <code>input</code> rate and does not
+consult <code>cacheWrite</code> for it at all. If your endpoint ever begins reporting that bucket, the price
+it produces is one nobody chose. Do not assume it stays absent — re-probe.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Model ids are not guessable</p>
 <p>On a self-hosted serving platform they are your own endpoint names. On llama.cpp they are
 usually the model filename; on a swapping router, its alias; on Ollama, <code>name:tag</code>. Ask the
 server:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">"&lt;your-base-url&gt;/models"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[].id'</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">"&lt;your-base-url&gt;/models"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[].id'</span>
 </span></code></pre></div>
 <p>Do not copy ids out of anyone else's configuration — including the examples shipped in
 <code>config/providers/openai-compatible.json</code>, which are labelled <code>example-…</code> precisely because they
@@ -4370,15 +4425,28 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title">A fragment that defines models must price them or explain the zero</p>
+<p><code>test/providers-cost.test.ts</code> fails the build when a fragment that is not <code>builtIn</code> defines models
+with an incomplete <code>cost</code> block and no <code>notes[]</code> entry naming <code>cost</code>. The rule is not "every model
+must be priced" — this repository ships templates and cannot know anybody's rates — it is that the
+zero must be <em>accounted for</em>: unmetered, unpriced, or simply not established. Zero is a legal
+answer; "nobody has measured it" is a legal answer; silence is not.</p>
+<p>Such a note must also state the units in the literal words <code>DOLLARS PER MILLION TOKENS</code>, which the
+test greps for, because the units are the easy thing to get wrong and the wrong ones render
+without complaint.</p>
+<p><code>builtIn</code> fragments are exempt by construction: they override PI's own catalogues, which already
+carry complete non-zero costs.</p>
+</div>
 <p>The fragment schema, the substitution rules and the merge algorithm are documented in
 <code>config/providers/README.md</code>, which is the contract between the fragments and the installer. To
 add a fourth provider, see <a href="../../extending/providers/">Adding a provider</a> — but check first
 whether <a href="../openai-compatible/"><code>openai-compatible</code></a> already covers your endpoint.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">             </span><span class="c1"># PC-01 qualified ids, PC-02 tier resolution, PC-06 no keys, PC-10 no placeholders</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pi<span class="w"> </span>--list-models<span class="w">               </span><span class="c1"># does the provider appear at all?</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span><span class="s1">'&lt;provider&gt;/&lt;id&gt;'</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">             </span><span class="c1"># PC-01 qualified ids, PC-02 tier resolution, PC-06 no keys, PC-10 no placeholders</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pi<span class="w"> </span>--list-models<span class="w">               </span><span class="c1"># does the provider appear at all?</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span><span class="s1">'&lt;provider&gt;/&lt;id&gt;'</span>
 </span></code></pre></div>
 <p>Then, inside an interactive session, <code>/context</code> — it prints the resolved <code>contextWindow</code> <strong>and
 where that number came from</strong>, which is how you confirm an override landed.</p>

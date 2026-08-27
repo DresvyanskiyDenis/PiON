@@ -3189,6 +3189,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#fleetkeybindings-one-block-two-views" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fleetKeybindings — one block, two views
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4072,6 +4083,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#fleetkeybindings-one-block-two-views" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fleetKeybindings — one block, two views
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4439,11 +4461,22 @@ inside the provider's budget, which is what the working rules in <code>AGENTS.md
 <p>The file is installed at <code>~/.pi/agent/extensions/subagent/config.json</code> — the one path <code>pi-subagents</code>
 reads its own config from, and the one nested symlink the installer makes; see
 <a href="../../getting-started/config-layout/">Configuration layout</a>.</p>
+<h3 id="fleetkeybindings-one-block-two-views"><code>fleetKeybindings</code> — one block, two views<a class="headerlink" href="#fleetkeybindings-one-block-two-views" title="Permanent link">&para;</a></h3>
+<p>The same file takes an optional <code>fleetKeybindings</code> block, which is <code>pi-subagents</code>' escape hatch for
+a terminal that swallows a named key — <code>PgUp</code> and <code>PgDn</code> are the usual casualties:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"fleetKeybindings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"pageUp"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ctrl+b"</span><span class="p">],</span><span class="w"> </span><span class="nt">"pageDown"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ctrl+f"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>It retunes <strong>both</strong> navigable views: the package's own <code>/subagents-fleet</code> and this repository's
+<a href="../../extensions/jobs/#looking-through-them-yourself-jobs"><code>/jobs</code></a> browser, which spells its ten
+shared movements exactly as the package spells them so that one override reaches both. Only those
+ten are overridable from here; <code>/jobs</code>' three own actions are bound to bare letters no terminal
+intercepts, so they need no hatch. A malformed entry is ignored rather than applied — an override
+that silently unbound <code>close</code> would trap you inside an overlay.</p>
 <hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
 </span></code></pre></div>
 <p>An agent that appears as <strong>invalid</strong> carries its reason. An agent that appears as <strong>restricted</strong>
 resolved fine but names a model nothing is currently serving — usually an <code>optional</code> tier whose
