@@ -93,9 +93,12 @@ describe("builtinAgentsDir", () => {
       assert.ok(names.includes(internal), `${internal} must be in the builtin roster`);
       assert.equal(roster.find((e) => e.name === internal)?.runnerType, undefined);
     }
-    assert.ok(
-      roster.some((e) => e.runnerType === EXTERNAL_CLI_RUNNER),
-      "the package ships external-cli adapters; if none is seen, planCeiling's exclusion is untested",
-    );
+    // Named, not counted: "some entry carries external-cli" would still pass if the reader
+    // silently dropped two of the three adapters, which is the failure `planCeiling`'s exclusion
+    // exists to catch. All three are upstream `BUILTIN_AGENT_NAMES`, verified present in the
+    // installed package.
+    for (const cli of ["claude-code", "codex-exec", "cursor-agent"]) {
+      assert.equal(roster.find((e) => e.name === cli)?.runnerType, EXTERNAL_CLI_RUNNER, cli);
+    }
   });
 });
