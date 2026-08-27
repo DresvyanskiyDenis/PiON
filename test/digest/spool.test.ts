@@ -83,23 +83,56 @@ describe("spool — enqueueDigestJob", () => {
     // *.json file seen parses cleanly.
     const d = dir();
     let sawAny = false;
+    const inspect = async (): Promise<void> => {
+      const entries = (await readdir(d).catch(() => [])).filter((f) => f.endsWith(".json"));
+      for (const f of entries) {
+        const raw = await readFile(join(d, f), "utf8").catch(() => null);
+        if (raw === null) continue; // deleted between readdir and read — not what we're testing
+        sawAny = true;
+        assert.doesNotThrow(() => JSON.parse(raw), `observed a non-JSON job file: ${raw}`);
+      }
+    };
+
+    // The poller runs for exactly as long as the enqueue is in flight. It used to run for a fixed
+    // 200 event-loop turns, which is a budget with no relation to the work it is watching — and a
+    // self-defeating one: every iteration puts a readdir on the same libuv threadpool the enqueue's
+    // mkdir/write/rename must queue on, so the harder the poller looks the later the file lands.
+    // Measured under concurrent suite load the file first appeared as late as turn 121 of 200, a
+    // margin of 1.65x, and in-process repetition missed outright. Coupling the loop to the work
+    // removes the budget rather than enlarging it.
+    let enqueued = false;
+    let torn: unknown;
+    // The `.catch` is attached at construction rather than at the await below. `inspect()` rejects
+    // exactly when it finds a torn file — the failure this test exists to catch — and the enqueue
+    // does real I/O in between, so an unattached rejection would surface as an unhandledRejection
+    // crash instead of an assertion, on the one path that matters most.
     const poller = (async () => {
-      for (let i = 0; i < 200; i++) {
-        const entries = (await readdir(d).catch(() => [])).filter((f) => f.endsWith(".json"));
-        for (const f of entries) {
-          sawAny = true;
-          const raw = await readFile(join(d, f), "utf8").catch(() => null);
-          if (raw === null) continue; // deleted between readdir and read — not what we're testing
-          assert.doesNotThrow(() => JSON.parse(raw), `observed a non-JSON job file: ${raw}`);
-        }
+      while (!enqueued) {
+        await inspect();
         await new Promise((r) => setImmediate(r));
       }
-    })();
-    await enqueueDigestJob(
-      { sessionId: "atomic", sessionFile: "/tmp/a.jsonl", cwd: "/repo", reason: "shutdown:quit" },
-      d,
-    );
+    })().catch((err: unknown) => {
+      torn = err;
+    });
+
+    try {
+      await enqueueDigestJob(
+        { sessionId: "atomic", sessionFile: "/tmp/a.jsonl", cwd: "/repo", reason: "shutdown:quit" },
+        d,
+      );
+    } finally {
+      // The flag is the loop's only bound. A rejecting enqueue that skipped it would leave the
+      // poller spinning on setImmediate, holding the event loop open — `node --test` would hang
+      // with no failure and no output, which is worse than the flake this change removes.
+      enqueued = true;
+    }
     await poller;
+    if (torn !== undefined) throw torn;
+
+    // One deterministic read after the rename has certainly happened, so `sawAny` cannot be a
+    // statement about scheduling luck. The concurrent window above is still where a torn file
+    // would be caught; this only keeps the guard against a vacuously green run honest.
+    await inspect();
     assert.ok(sawAny, "the poller should have observed the published file at least once");
   });
 });

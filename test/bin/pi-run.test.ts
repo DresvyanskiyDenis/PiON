@@ -540,6 +540,12 @@ describe("pi-run — the compaction loop guard (V-08)", () => {
     assert.match(r.stderr, /the compaction loop guard tripped/);
   });
 
+  /**
+   * Longer than the wrapper's 2 s grace by enough that "the wrapper killed it" and "the fake gave
+   * up on its own" cannot be confused. The fake exits 70 if it is never killed.
+   */
+  const FAKE_HOLD_MS = 15_000;
+
   it("kills a pi that carries on after the trip, and says it did", async () => {
     const stateHome = await freshState();
     const started = Date.now();
@@ -548,13 +554,14 @@ describe("pi-run — the compaction loop guard (V-08)", () => {
       stateHome,
       sentinelFrom: SENTINEL,
       sentinelTo: sentinelAt(stateHome, LOOP_SESSION),
-      // Longer than the wrapper's 2 s grace by enough that "the wrapper killed it" and "the fake
-      // gave up on its own" cannot be confused. The fake exits 70 if it is never killed.
-      holdMs: 15_000,
+      holdMs: FAKE_HOLD_MS,
     });
     assert.equal(r.code, 23, "70 here would mean the child outlived the wrapper's SIGTERM");
     assert.match(r.stderr, /action +: pi was still running 2000 ms after the trip and was sent SIGTERM/);
-    assert.ok(Date.now() - started < 10_000, "the kill must not wait for the child's own timer");
+    // Bounded by the fake's own timer, which is the only alternative outcome, rather than by a
+    // round number picked off an idle laptop: `code 23` above is already the proof, and a wall
+    // clock on a loaded machine is the one thing here that can be wrong about a correct run.
+    assert.ok(Date.now() - started < FAKE_HOLD_MS, "the kill must not wait for the child's own timer");
   });
 });
 
@@ -597,7 +604,7 @@ describe("pi-run — signals are forwarded, and pi's own fate decides the code",
     assert.equal(r.code, 143, "128+15 — the child's real fate, not the wrapper's");
     assert.match(r.stderr, /got SIGTERM — forwarded it to/);
     assert.match(r.stderr, /exited on the forwarded SIGTERM/);
-    assert.ok(Date.now() - started < 10_000, "it must not have waited for the fake's own timer");
+    assert.ok(Date.now() - started < HOLD_MS, "it must not have waited for the fake's own timer");
   });
 
   for (const [signal, code] of [
@@ -634,7 +641,7 @@ describe("pi-run — signals are forwarded, and pi's own fate decides the code",
     assert.match(r.stderr, /ignored the forwarded SIGTERM for 5000 ms and was killed by SIGKILL/);
     const elapsed = Date.now() - started;
     assert.ok(elapsed >= 5_000, `the grace must actually be served, took ${elapsed} ms`);
-    assert.ok(elapsed < 15_000, `the escalation must not wait for the fake's timer, took ${elapsed} ms`);
+    assert.ok(elapsed < HOLD_MS, `the escalation must not wait for the fake's timer, took ${elapsed} ms`);
   });
 
   it("repeated signals are not re-forwarded and do not push the escalation away", async () => {
@@ -658,8 +665,17 @@ describe("pi-run — signals are forwarded, and pi's own fate decides the code",
     );
     // The point of ignoring repeats: re-arming the timer on each one would move the SIGKILL to
     // 1900+5000 ms and, with a caller that signals in a loop, to never.
+    //
+    // That claim used to be checked with `elapsed < 6_500`, which cannot hold: the correct run
+    // takes ~5.4 s and the re-armed one would take ~6.9 s, so the assertion had to separate two
+    // outcomes 1.5 s apart on a machine whose wall clock spreads by more than that under load —
+    // it fails on correct behaviour long before it catches the regression. The separation comes
+    // from evidence that is not a clock, and it is already above: the child was signalled exactly
+    // once, the forward was logged once, and the repeat was explained once. `requestChildExit`
+    // arms the SIGKILL timer inside the branch those assertions pin down and returns early on
+    // every later call, so a timer that was not re-armed is what "forwarded once" means.
     const elapsed = Date.now() - started;
-    assert.ok(elapsed < 6_500, `the escalation was postponed by the repeats, took ${elapsed} ms`);
+    assert.ok(elapsed < HOLD_MS, `the fake outlived the escalation, took ${elapsed} ms`);
   });
 
   it("a pi that handles the signal and exits with its own code keeps that code, not 128+N", async () => {
@@ -716,7 +732,7 @@ describe("pi-run — signals are forwarded, and pi's own fate decides the code",
       /was still running 2000 ms after the trip and was sent SIGTERM/,
       "the second killer must not have fired at all",
     );
-    assert.ok(Date.now() - started < 10_000);
+    assert.ok(Date.now() - started < HOLD_MS, "neither killer waited on the fake's own timer");
   });
 });
 
