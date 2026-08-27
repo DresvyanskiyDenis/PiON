@@ -117,6 +117,48 @@ The block is built once at `session_start` and is byte-identical for the rest of
 does not churn the prompt-cache prefix. `/agents` prints the same text **verbatim** — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.
 
+## The fleet is on screen, not behind a command
+
+The announcement above is written for the model. It fires once per run, and only after the run is
+over — so it is not the surface that answers *"is anything still running?"*.
+
+In the TUI, a panel above the editor carries that: every async run this session started, with the
+state its own `status.json` reports right now, present exactly while at least one run is tracked and
+gone the moment none is.
+
+```
+async subagents — 1 running · 1 done · 1 needs attention
+  ▸ data-engineer [66971211] running
+  ✓ code-reviewer [6e77fc27] complete
+  ? researcher   [a4c167dd] NEVER STARTED
+```
+
+Four glyphs, no colour: `▸` live, `✓` finished, `✗` failed, `?` never started. The distinction is
+shape rather than hue, so it survives a screenshot, a colour-blind reader and a terminal that has
+quantised the palette. `NEVER STARTED` is the case only this module can report — a run the package
+handed back an id for and then never recorded a start for, which a fleet view built on the
+package's own run list cannot show, because the run never registered.
+
+`/agents` is unchanged. It carries the dispatch registry as well — what *can* be dispatched, on what
+model — which is a catalogue, not live state, and would be wrong as a permanent panel; and it is the
+only fleet surface that exists outside the TUI. The panel makes the common case free; it does not
+take a diagnostic away.
+
+!!! note "Why it polls, and what that costs"
+    The state lives on disk and changes with no event reaching the process: a run completes while
+    the model is mid-stream, or while you are typing. Repainting only at the end of a turn would
+    produce a panel that is confidently wrong for exactly as long as you are looking at it;
+    repainting on a per-token event would re-read every status file per token.
+
+    So there is one interval — one `readFileSync` per tracked run per second — and it exists only
+    while a run is tracked. It is `unref()`d, so it can never hold the process open; it stops itself
+    on the first tick that finds nothing to show; and it is torn down at session shutdown. The tests
+    wrap `setInterval`/`clearInterval` and require zero timers created outside the TUI, zero while
+    the fleet is empty, exactly one across repeated refreshes, and zero still open afterwards.
+
+    Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
+    `hasUI` — `hasUI` is true in RPC mode too, where there is no editor for a widget to sit above.
+
 ## Load order
 
 [`guard`](guard.md) **must** load before this module. PI iterates `tool_call` handlers in load order

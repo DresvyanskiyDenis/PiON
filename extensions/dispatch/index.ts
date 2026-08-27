@@ -63,6 +63,7 @@ import {
   registryDirs,
   type DispatchSettings,
 } from "./config.ts";
+import { createFleetWidget } from "./fleet-widget.ts";
 import { applyMaxDepthEnv, currentDepth, evaluateDepth } from "./depth.ts";
 import { capFor, clampConcurrency, isFanoutCall } from "./concurrency.ts";
 import { ProviderSemaphoreSet } from "./semaphore.ts";
@@ -149,6 +150,9 @@ export function register(pi: ExtensionAPI): void {
   // and `State` is constructed by name in `test/dispatch/rules.test.ts`. See `async-fleet.ts` for
   // why it exists at all.
   const fleet = createAsyncFleet();
+  // The screen's view of that fleet. Owns one timer, only while a run is tracked — see
+  // `fleet-widget.ts` for why it polls and how the timer is bounded.
+  const fleetWidget = createFleetWidget(fleet);
   const settings = loadDispatchSettings();
   const state: State = {
     settings,
@@ -184,7 +188,8 @@ export function register(pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("session_shutdown", () => {
+  pi.on("session_shutdown", (_event, ctx) => {
+    fleetWidget.dispose(ctx);
     try {
       state.ceiling?.dispose();
     } catch {
@@ -229,13 +234,16 @@ export function register(pi: ExtensionAPI): void {
   // spawn time that "Pi will wake you on completion"; when its result-watcher does not deliver,
   // nothing enters the transcript and the orchestrator keeps calling a dead run active. These two
   // handlers close that gap without duplicating any lifecycle — see `async-fleet.ts`.
-  pi.on("tool_execution_end", (event) => {
+  pi.on("tool_execution_end", (event, ctx) => {
     try {
       if (state.settings.dispatch.dispatchTools.includes(event.toolName)) noteAsyncSpawn(fleet, event.result);
       // Every result, not just a dispatch tool's: the model inspects a finished run through
       // `subagent_wait` (not a dispatch tool) and through a read of the run's own artifact just as
       // often as through `subagent({action:"status"})`. Cheap when nothing is tracked.
       noteAsyncConsumption(fleet, event.result);
+      // A spawn is the moment the panel has to appear; waiting for `turn_end` would hide the
+      // fleet for exactly the stretch in which the user most wants to see it.
+      fleetWidget.refresh(ctx);
     } catch (err) {
       surfaceOnce(undefined, "dispatch:async-track", () => {
         pi.appendEntry("dispatch_problem", { phase: "async-track", problem: describeError(err) });
@@ -273,6 +281,7 @@ export function register(pi: ExtensionAPI): void {
 
   pi.on("turn_end", (_event, ctx) => {
     try {
+      fleetWidget.refresh(ctx);
       const announcement = formatAnnouncement(takeAnnouncements(fleet, reconcile(fleet)));
       if (announcement === undefined) return;
       pi.sendMessage(
@@ -300,8 +309,10 @@ export function register(pi: ExtensionAPI): void {
     description: "Sub-agent registry: what can be dispatched, on what model, and what cannot",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       const pointer =
-        "\n\nThis is a one-shot snapshot. For a live, navigable view: /subagents-fleet " +
-        "(subagents, running and past) or /jobs (detached background jobs).";
+        "\n\nThis is a one-shot snapshot. In the TUI the async section above is also a live panel " +
+        "over the editor whenever a run is in flight, so you rarely need to ask. For a live, " +
+        "navigable view: /subagents-fleet (subagents, running and past) or /jobs (detached " +
+        "background jobs).";
       ctx.ui.notify(`${renderStatus(state, ctx.cwd)}${renderAsyncFleet(fleet)}${pointer}`, "info");
     },
   });

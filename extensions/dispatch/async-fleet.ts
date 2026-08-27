@@ -345,7 +345,7 @@ export function takeAnnouncements(
   return due;
 }
 
-function shortId(runId: string): string {
+export function shortId(runId: string): string {
   return runId.length > 8 ? runId.slice(0, 8) : runId;
 }
 
