@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # pi-env.sh — environment for the pi coding agent.
-# Source from ~/.zshrc:   [ -f ~/.pi/agent/shell/pi-env.sh ] && . ~/.pi/agent/shell/pi-env.sh
+# Source from your shell rc — this is the line `scripts/install.sh` actually appends:
+#   [ -f "$HOME/pi-config/config/shell/pi-env.sh" ] && . "$HOME/pi-config/config/shell/pi-env.sh"
+# (a non-home `--prefix` substitutes its own stable link for `$HOME/pi-config`.) There is no
+# `~/.pi/agent/shell/` directory and the installer never creates one — an earlier version of this
+# header named one, so anyone who followed it sourced nothing at all, silently.
 #
 # This file contains NO SECRET VALUES. It only points at the places secrets live.
 # Committing it is safe; `git grep -nE '(sk-|dapi|gho_|ghp_)'` over the repo must stay
@@ -44,6 +48,53 @@ if [ -r "$HOME/.pi/secrets.env" ]; then
   . "$HOME/.pi/secrets.env"
   set +a
 fi
+
+# --- Per-invocation secret refresh --------------------------------------------
+# The block above runs once per SHELL START. A key you rotate in ~/.pi/secrets.env
+# after a terminal is already open therefore never reaches a `pi` launched from that
+# terminal: the old value is frozen in the shell's environment and inherited by every
+# child. The failure is silent by construction — a stale key is a well-formed key, so
+# it is the provider that rejects it, not this file, and nothing in the error says
+# "your shell is older than your credentials" (decision 2026-08-26: wrap it).
+#
+# The wrapper re-reads the file in a SUBSHELL immediately before exec'ing the real
+# binary, so the refresh granularity becomes one .env read per `pi` launch.
+#
+# That is NOT the pattern the keychain note below warns about. A `!command` credential
+# in models.json re-executes on every LLM CALL; this runs once when a session starts.
+# One file read per launch and one keychain round-trip per request are different
+# orders of magnitude.
+#
+# Properties this shape keeps deliberately:
+#   - subshell: the refreshed value never leaks into your interactive shell, and the
+#     `set -a` window cannot escape the invocation;
+#   - `unset -f pi` before `exec`: resolves to the real binary on PATH — no recursion,
+#     and no hard-coded path to go stale if pi moves;
+#   - the same `[ -r ]` guard as above, so an absent or unreadable secrets.env stays a
+#     silent no-op rather than an error;
+#   - `exec`, so the process tree keeps its shape and the exit status is pi's own;
+#   - `pil` / `pis` expand to `pi --model ...`, resolve to this function, and refresh
+#     along with everything else.
+#
+# The installer also sources this file from ~/.zshenv so that cron and launchd runs get
+# credentials, which means the wrapper covers headless callers too. That is the useful
+# direction: a scheduled run is exactly the case where the shell that started it may be
+# days old. A caller that wants the bare binary can still say `command pi`.
+#
+# It cannot rescue an already-running `pi`: a process environment is fixed at spawn, so
+# a session started before a rotation still has to be restarted.
+pi() {
+  (
+    if [ -r "$HOME/.pi/secrets.env" ]; then
+      set -a
+      # shellcheck disable=SC1091
+      . "$HOME/.pi/secrets.env"
+      set +a
+    fi
+    unset -f pi
+    exec pi "$@"
+  )
+}
 
 # Keychain alternative (macOS). Costs one keychain read per SHELL START, not per
 # request — do NOT put `!security find-generic-password` directly in models.json,

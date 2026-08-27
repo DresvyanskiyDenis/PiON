@@ -26,9 +26,12 @@ export const JOBS_STREAMS: readonly JobsStream[] = ["stdout", "stderr", "cmd"];
 /**
  * What the browser can be asked to do.
  *
- * The first ten names are spelled exactly as `pi-subagents`' `FleetKeybindingAction`
- * (`src/shared/types.ts:2159`, tabulated at `src/tui/fleet.ts:33-48`, version 0.57.0), so a
- * single `fleetKeybindings` block retunes this view and `/subagents-fleet` together. That block
+ * The first ten names are spelled exactly as `pi-subagents`' `FleetKeybindingAction` — the action
+ * *vocabulary*, which is `FLEET_KEYBINDING_ACTIONS` at `src/shared/types.ts:2159-2174` with the
+ * alias derived from it at `:2176` (0.57.0). The *table* that binds those actions to keys is a
+ * different symbol in a different file; see `JOBS_KEYBINDING_DEFAULTS` below. Sharing the
+ * vocabulary is what lets a single `fleetKeybindings` block retune this view and
+ * `/subagents-fleet` together. That block
  * is the escape hatch for a terminal that swallows `PgUp`/`PgDn`, and it would be useless here
  * if this view had invented its own names for the same movements.
  *
@@ -51,7 +54,7 @@ export type JobsKeyAction =
   | "back"
   | "cycleStream";
 
-/** Mirrors `pi-subagents` 0.57.0 `DEFAULT_FLEET_KEYBINDINGS` for every shared action. */
+/** Mirrors `pi-subagents` 0.57.0 `DEFAULT_FLEET_KEYBINDINGS` (`src/tui/fleet.ts:33-48`) for every shared action. */
 export const JOBS_KEYBINDING_DEFAULTS: Readonly<Record<JobsKeyAction, readonly string[]>> = {
   close: ["escape", "ctrl+c", "q"],
   selectUp: ["up", "k"],

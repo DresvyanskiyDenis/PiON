@@ -1,10 +1,15 @@
 # `config/shell/pi-env.sh` — environment, secrets, proxy, CA
 
-**Tracked in git. Edit in place.** Sourced from your shell profile:
+**Tracked in git. Edit in place.** Sourced from your shell profile — this is the line
+`scripts/install.sh` appends, and the path it appends is this repository's own:
 
 ```sh
-[ -f ~/.pi/agent/shell/pi-env.sh ] && . ~/.pi/agent/shell/pi-env.sh
+[ -f "$HOME/pi-config/config/shell/pi-env.sh" ] && . "$HOME/pi-config/config/shell/pi-env.sh"
 ```
+
+A non-home `--prefix` substitutes its own stable link for `$HOME/pi-config`; the installer prints
+the exact line before it writes it. There is no `~/.pi/agent/shell/` directory — this page and the
+file's own header used to name one, which sourced nothing and said nothing about it.
 
 !!! danger "This file contains NO secret values, and must not start to"
     It only points at the places secrets live. `bin/pi-check` rule `PC-06` greps the repository for
@@ -75,6 +80,46 @@ installed:
 
     Credentials that happen to already be exported for other tools will mask this problem until the
     one that is not costs you a debugging session.
+
+### A key you rotate mid-session
+
+The block above runs once per **shell start**. Rotate a key in `~/.pi/secrets.env` after a terminal
+is already open and that terminal never sees it: the old value sits in the shell's environment and
+is inherited by every `pi` launched from it. Nothing tells you — a stale key is a well-formed key,
+so the provider rejects it and the error talks about authentication, not about your shell being
+older than your credentials.
+
+So the shipped file also defines a wrapper that re-reads the secrets file in a subshell immediately
+before running the real binary:
+
+```sh
+pi() {
+  (
+    if [ -r "$HOME/.pi/secrets.env" ]; then
+      set -a
+      . "$HOME/.pi/secrets.env"
+      set +a
+    fi
+    unset -f pi
+    exec pi "$@"
+  )
+}
+```
+
+The refresh granularity is one file read per `pi` launch. The subshell keeps the refreshed value out
+of your interactive shell; `unset -f pi` before `exec` resolves to the binary on `PATH` rather than
+recursing, without hard-coding a path that would go stale if pi moves; `exec` keeps the process tree
+flat and the exit status pi's own; and the `[ -r ]` guard means an absent secrets file stays a silent
+no-op. `pil` and `pis` expand to `pi --model …`, so they refresh too. `command pi` reaches the bare
+binary if you ever want it.
+
+The installer also sources this file from `~/.zshenv` so cron and launchd runs get credentials, which
+means the wrapper covers headless callers as well — the case where the shell that started the job is
+most likely to be days old.
+
+!!! warning "It cannot rescue a session that is already running"
+    A process environment is fixed at spawn. A `pi` started before the rotation keeps the old key
+    until you restart it. The wrapper fixes the *next* launch, not the current one.
 
 ### Keychain instead of a file
 
