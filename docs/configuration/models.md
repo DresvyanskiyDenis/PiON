@@ -215,6 +215,22 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     `cacheRead`. Check your arithmetic reproduces the gateway's own figure to the last digit before
     you believe it, and **date the note**: it is a measurement, and it expires.
 
+!!! tip "How you find out: a corpus-wide zero is a broken instrument, not a discovery"
+    A price table that expires does not announce itself, and nothing downstream looks wrong — the
+    footer keeps showing a number, it is simply always `$0.000`. On one install this went unnoticed
+    for about two weeks of real, metered spend.
+
+    The check costs one command and no guesswork. Sweep your session files and count how many
+    assistant messages carry a **non-zero** cost. If the answer is zero across hundreds of
+    messages, the rates are gone; a live table produces a scatter, never a clean sweep. When the
+    rates on that install were restored, the boundary was visible to the second — every message
+    before it priced at zero, every message after it priced normally.
+
+    Treat "cost is exactly zero while tokens are not" as **unknown**, never as free, everywhere a
+    number is displayed. That is the discriminator the
+    [`subagent-cost`](../extensions/subagent-cost.md) status uses, and it is the one that makes the
+    display honest the next time a rate expires rather than only this time.
+
 !!! danger "If the endpoint reports cache-write tokens, `cacheWrite: 0` under-reports by orders of magnitude"
     Two facts combine here, and neither is alarming alone.
 
