@@ -150,6 +150,35 @@ function formatFindings(findings: Finding[]): string {
     .join("\n");
 }
 
+// A captured value is a placeholder, a reference, or nothing — never a leak:
+//   - empty, or a single character: this repo's own placeholder convention for a synthetic
+//     fixture value (test/guard/gates.test.ts's `"TOKEN=x"`) — no real credential is one char.
+//   - starts with `$`: a `$VAR`, `${VAR}`, or `$(command substitution)` reference, never
+//     resolved by this check (config/bin/dbx-token-cached, scripts/install.sh,
+//     scripts/uninstall.sh all assign this way).
+//   - starts with `{{`: an unrendered template token.
+//   - ends with `...`: this repo's own doc convention for "a real value goes here"
+//     (`sk-ant-...`, `gho_...`, `dapi...` across config/providers/*.json, config/shell/pi-env.sh).
+//   - purely digits: a count/flag/port (`DEL_SECRETS` set to `0` or `1` in scripts/uninstall.sh),
+//     never a credential shape. Spelled out rather than shown as an assignment for the same
+//     reason as the `.ghe.com` note in the enterprise-host check below — this file is tracked and
+//     scans itself.
+//   - trailing backticks: markdown inline code, not part of the value. A doc that writes a
+//     placeholder as `KEY=gho_...` reaches this predicate with the closing backtick attached,
+//     because the unquoted alternative in the pattern stops only at whitespace, `;`, `#` or a
+//     quote — so `endsWith("...")` stops matching and a correct sentence becomes a finding. The
+//     backtick is stripped below rather than added as a sixth rule: it is markup around the
+//     value, and every rule here should get to see the same string a reader sees.
+const isSafeValue = (raw: string): boolean => {
+  const v = raw.trim().replace(/`+$/, "");
+  if (v.length <= 1) return true;
+  if (v.startsWith("$")) return true;
+  if (v.startsWith("{{")) return true;
+  if (v.endsWith("...")) return true;
+  if (/^[0-9]+$/.test(v)) return true;
+  return false;
+};
+
 describe("publication gate — every git-tracked file, not just agents/", () => {
   it("no real home-directory path — only this repo's own documented placeholder names ship", () => {
     // Names this repo actually uses as a home-directory placeholder, read off the tree itself
@@ -274,27 +303,6 @@ describe("publication gate — every git-tracked file, not just agents/", () => 
     // sensitive word is a suffix there, not a prefix), which is exactly the shape a real leak
     // takes, so boundary-anchoring the key was the wrong lever; anchoring the `=` spacing is not.
     const ENV_ASSIGN = /(API_KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*=(?:"([^"]*)"|'([^']*)'|([^\s;#"']*))/g;
-    // A captured value is a placeholder, a reference, or nothing — never a leak:
-    //   - empty, or a single character: this repo's own placeholder convention for a synthetic
-    //     fixture value (test/guard/gates.test.ts's `"TOKEN=x"`) — no real credential is one char.
-    //   - starts with `$`: a `$VAR`, `${VAR}`, or `$(command substitution)` reference, never
-    //     resolved by this check (config/bin/dbx-token-cached, scripts/install.sh,
-    //     scripts/uninstall.sh all assign this way).
-    //   - starts with `{{`: an unrendered template token.
-    //   - ends with `...`: this repo's own doc convention for "a real value goes here"
-    //     (`sk-ant-...`, `gho_...`, `dapi...` across config/providers/*.json, config/shell/pi-env.sh).
-    //   - purely digits: a count/flag/port (`DEL_SECRETS` set to `0` or `1` in scripts/uninstall.sh),
-    //     never a credential shape. Spelled out rather than shown as an assignment for the same
-    //     reason as the `.ghe.com` note above — this file is tracked and scans itself.
-    const isSafeValue = (raw: string): boolean => {
-      const v = raw.trim();
-      if (v.length <= 1) return true;
-      if (v.startsWith("$")) return true;
-      if (v.startsWith("{{")) return true;
-      if (v.endsWith("...")) return true;
-      if (/^[0-9]+$/.test(v)) return true;
-      return false;
-    };
     const findings: Finding[] = [];
     for (const { file, line, text } of REPO_LINES) {
       ENV_ASSIGN.lastIndex = 0;
@@ -305,6 +313,22 @@ describe("publication gate — every git-tracked file, not just agents/", () => 
       }
     }
     assert.deepEqual(findings, [], `populated credential assignment(s) found:\n${formatFindings(findings)}`);
+  });
+
+  it("the credential predicate reads an inline-code placeholder the way a reader does", () => {
+    // Regression. A doc writing `COPILOT_GITHUB_TOKEN=gho_...` in backticks was a finding: the
+    // unquoted alternative stops at whitespace, `;`, `#` or a quote, so the closing backtick came
+    // along for the ride and the `...` convention no longer matched. It failed CLOSED, so it was
+    // never a hole — it was a gate that a correct document could not pass, which is worse in the
+    // long run than a noisy one: it teaches the next writer to reword around the gate, and a gate
+    // people route around stops being evidence of anything.
+    const placeholders = ["gho_...`", "sk-ant-...`", "$PI_COPILOT_BASE_URL`", "{{model1Id}}`", "x`", "8080`"];
+    for (const v of placeholders) {
+      assert.equal(isSafeValue(v), true, `${JSON.stringify(v)} is a placeholder in inline code, not a value`);
+    }
+    for (const v of ["hunter2", "correct-horse-battery-staple`"]) {
+      assert.equal(isSafeValue(v), false, `${JSON.stringify(v)} is populated and must stay a finding`);
+    }
   });
 
   it("$PI_PUBLICATION_DENY, when a fork sets it, gates the whole tracked tree the same way agents.test.ts's copy does", () => {
