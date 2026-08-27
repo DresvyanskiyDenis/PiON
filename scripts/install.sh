@@ -2024,7 +2024,20 @@ printf '\nWhat you now have:\n'
 printf '   providers    %s\n' "$SELECTED"
 printf '   pi           %s (%s), at %s/pi\n' "$PI_VERSION_EXPECTED" "$( [ "$SKIP_RUNTIME" = 1 ] && printf untouched || printf '%s' "$MODE" )" "$BIN_DIR"
 printf '   live config  %s -> %s\n' "$AGENT_DIR" "$STABLE_LINK"
-printf '   safety       DB-*/GIT-REWRITE/GIT-FORCE-PROTECTED always refuse; SEC-* records credential paths without refusing them; protected branches: %s\n' "$(ans_get guard.protectedBranches)"
+# Read back from the file, for the same reason as the MCP line below: section 6 asks for the
+# protected branches only on the long path, so on --express the ANSWER is empty while the tracked
+# template still ships main,master and the guard write correctly skips an empty value. Printing the
+# answer told the express user — the one most likely to be reading this line at all — that nothing
+# was protected, which was never true.
+_pb_now="$(ans_get guard.protectedBranches)"
+if [ -z "$_pb_now" ]; then
+  for _pb_file in "$GUARD_FILE" "$REPO_DIR/config/guard.default.json"; do
+    [ -f "$_pb_file" ] || continue
+    _pb_now="$(tr -d '\n' < "$_pb_file" | sed -n 's/.*"protectedBranches"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' | tr -d '" ')"
+    [ -n "$_pb_now" ] && break
+  done
+fi
+printf '   safety       DB-*/GIT-REWRITE/GIT-FORCE-PROTECTED always refuse; SEC-* records credential paths without refusing them; protected branches: %s\n' "${_pb_now:-none}"
 # Read back from the file rather than reported from the answer: on a re-run the MCP step stands
 # down (mcp.json is already yours), so $MCP_PICKED is empty even though servers are configured,
 # and a summary that then says "none" is simply wrong.

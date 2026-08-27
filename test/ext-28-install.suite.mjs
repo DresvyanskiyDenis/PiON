@@ -299,6 +299,23 @@ describe("install.sh", () => {
     assert.deepEqual(readdirSync(fixtureHome), []);
   });
 
+  test("--express: the summary names the branches actually protected, not the answer nobody was asked for", () => {
+    // Section 6 asks which branches are protected only on the LONG path. On --express the answer is
+    // therefore empty, the guard write correctly skips an empty value, and config/guard.default.json
+    // keeps shipping ["main","master"] — so the branches ARE protected. The summary printed the
+    // empty answer, which told the express user, the one most likely to read that line at all, that
+    // nothing was. Read back from the file, the same rule the MCP line beside it already follows.
+    const fixtureHome = freshDir("ext28-home-");
+    const res = runScript(
+      join(REAL_SCRIPTS, "install.sh"),
+      ["--dry-run", "--express", "--yes", "--providers", "github-copilot"],
+      baseEnv(fixtureHome),
+    );
+    assert.equal(res.status, 0, `express dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.match(`${res.stdout}${res.stderr}`, /protected branches: main,master/);
+    assert.deepEqual(readdirSync(fixtureHome), []);
+  });
+
   test("PI-INSTALL-E19: refuses when auth.json/trust.json/sessions is a symlink into the repo", () => {
     const repo = makeRepoSkeleton();
     const platform = platformAsset();
