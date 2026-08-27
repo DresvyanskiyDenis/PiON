@@ -30,7 +30,7 @@ Three reasons, all of them consequences of how PI behaves:
 flowchart TB
     subgraph safety["1 — safety and identity"]
         direction LR
-        guard --> trust --> sc["session-context"] --> cred["credentials"]
+        guard --> trust --> sc["session-context"] --> cred["credentials"] --> cg["cost-gate"]
     end
     subgraph capconf["2 — capability configuration"]
         direction LR

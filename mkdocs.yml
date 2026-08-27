@@ -137,6 +137,7 @@ nav:
           - extensions/trust.md
           - extensions/session-context.md
           - extensions/credentials.md
+          - extensions/cost-gate.md
       - Capability configuration:
           - extensions/path-defaults.md
           - extensions/path-rules.md

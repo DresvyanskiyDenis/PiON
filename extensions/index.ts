@@ -42,6 +42,7 @@ import { id as guardId, register as registerGuard } from "./guard.ts";
 import { id as trustId, register as registerTrust } from "./trust.ts";
 import { id as ctxId, register as registerSessionContext } from "./session-context.ts";
 import { id as credId, register as registerCredentials } from "./credentials.ts";
+import { id as costGateId, register as registerCostGate } from "./cost-gate/index.ts";
 import { id as pathDefaultsId, register as registerPathDefaults } from "./path-defaults/index.ts";
 import { id as pathRulesId, register as registerPathRules } from "./path-rules/index.ts";
 import { id as skillsEnvId, register as registerSkillsEnv } from "./skills-env.ts";
@@ -77,6 +78,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [trustId, registerTrust],
   [ctxId, registerSessionContext],
   [credId, registerCredentials],
+  [costGateId, registerCostGate],
   // capability configuration that later modules read
   [pathDefaultsId, registerPathDefaults],
   [pathRulesId, registerPathRules],

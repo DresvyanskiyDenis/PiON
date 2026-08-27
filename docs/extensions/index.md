@@ -11,7 +11,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 
 | # | Group | Modules |
 |---|---|---|
-| 1 | Safety and identity | [guard](guard.md), [trust](trust.md), [session-context](session-context.md), [credentials](credentials.md) |
+| 1 | Safety and identity | [guard](guard.md), [trust](trust.md), [session-context](session-context.md), [credentials](credentials.md), [cost-gate](cost-gate.md) |
 | 2 | Capability configuration | [path-defaults](path-defaults.md), [path-rules](path-rules.md), [skills-env](skills-env.md), [skill-mask](skill-mask.md), [skills-lint](skills-lint.md) |
 | 3 | Tools and input | [web](web.md), [bash](bash.md), [hooks](hooks.md), [input-transform](input-transform.md), [big-results](big-results.md) |
 | 4 | Orchestration | [dispatch](dispatch.md), [teammates](teammates.md), [worktree](worktree.md), [jobs](jobs.md), [tasks](tasks.md) |

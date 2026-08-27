@@ -41,6 +41,7 @@ export const DECLARED_MODULES = [
   "trust",
   "session-context",
   "credentials",
+  "cost-gate",
   // capability configuration that later modules read
   "path-defaults",
   "path-rules",
