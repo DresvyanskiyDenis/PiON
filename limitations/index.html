@@ -747,6 +747,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#an-interactive-dialog-cannot-tell-you-why-it-got-no-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An interactive dialog cannot tell you why it got no answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi-subagents' supervisor channel bounds the request and not the reply
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-extension-cannot-make-a-tool-it-does-not-own-run-sequentially" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An extension cannot make a tool it does not own run sequentially
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4250,6 +4283,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#an-interactive-dialog-cannot-tell-you-why-it-got-no-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An interactive dialog cannot tell you why it got no answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi-subagents' supervisor channel bounds the request and not the reply
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-extension-cannot-make-a-tool-it-does-not-own-run-sequentially" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An extension cannot make a tool it does not own run sequentially
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4565,6 +4631,32 @@ repository therefore ships only the four packages from this review that load cle
 session start (<code>@narumitw/pi-usage</code>, <code>pi-lean-ctx</code>, <code>pi-hermes-memory</code>, <code>pi-sandbox</code>, alongside the
 packages already adopted before this review) — the five above are reviewed and pinned but <strong>not</strong> in
 <code>settings.default.json</code>'s <code>packages[]</code>, precisely because wiring any one of them breaks every session.</p>
+<h3 id="an-interactive-dialog-cannot-tell-you-why-it-got-no-answer">An interactive dialog cannot tell you <em>why</em> it got no answer<a class="headerlink" href="#an-interactive-dialog-cannot-tell-you-why-it-got-no-answer" title="Permanent link">&para;</a></h3>
+<p><code>ctx.ui.select</code> and <code>ctx.ui.input</code> resolve <code>undefined</code> on a dismissal, on an aborted <code>AbortSignal</code>,
+and on <code>ExtensionUIDialogOptions.timeout</code> alike — one <code>defaultValue</code> for all three, in the same
+<code>createDialogPromise</code> (<code>modes/rpc/rpc-mode.js:47-69</code>). Nothing throws, so the three causes arrive
+indistinguishable.</p>
+<p><strong>Consequence:</strong> an extension that needs to know which one happened has to record it <em>before</em> it
+aborts, not read it afterwards. A flag set ahead of <code>signal.abort()</code> is the only thing at that call
+site that carries a reason.</p>
+<h3 id="pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply"><code>pi-subagents</code>' supervisor channel bounds the request and not the reply<a class="headerlink" href="#pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply" title="Permanent link">&para;</a></h3>
+<p>A child's <code>contact_supervisor</code> request is size-checked against <code>MAX_MESSAGE_BYTES</code> (64 KiB) at
+<code>intercom/native-supervisor-channel.ts:264</code>. The reply travelling the other way is not: <code>writeReply</code>
+(<code>:541-551</code>) rejects an empty or whitespace-only message and checks nothing else.</p>
+<p><strong>Consequence:</strong> an empty reply fails loudly with no help from you; an oversized one does not fail at
+all. Anything composing a reply owns its own size bound, and 64 KiB is not the number to copy — that
+one bounds a machine-composed request, not whatever the reply path is fed.</p>
+<h3 id="an-extension-cannot-make-a-tool-it-does-not-own-run-sequentially">An extension cannot make a tool it does not own run sequentially<a class="headerlink" href="#an-extension-cannot-make-a-tool-it-does-not-own-run-sequentially" title="Permanent link">&para;</a></h3>
+<p><code>executeToolCallsParallel</code> is the default (<code>agent-loop.js:290-294</code>); the loop serializes a batch only
+when <code>config.toolExecution === "sequential"</code> or when some tool <strong>in that batch</strong> declares
+<code>executionMode: "sequential"</code>. That flag lives on the tool definition, so it is available for a tool
+you register and unavailable for one shipped by a package.</p>
+<p>Concurrency of that kind is not exotic. <code>sendCustomMessage</code> (<code>core/agent-session.js:1081-1088</code>)
+<em>steers</em> a custom message arriving mid-stream into the <strong>running</strong> turn rather than queueing it for a
+later one, so two independently-arriving requests routinely land in a single assistant message.</p>
+<p><strong>Consequence:</strong> if you are wrapping a package-owned tool in a <code>tool_call</code> handler and that handler
+must not run twice at once, the mutex is yours to write. The agent loop does not provide one and
+cannot be asked to.</p>
 <hr />
 <h2 id="design-limits-deliberate-non-goals">Design limits — deliberate non-goals<a class="headerlink" href="#design-limits-deliberate-non-goals" title="Permanent link">&para;</a></h2>
 <h3 id="egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything">Egress classes are not a network boundary, and no longer refuse anything<a class="headerlink" href="#egress-classes-are-not-a-network-boundary-and-no-longer-refuse-anything" title="Permanent link">&para;</a></h3>
