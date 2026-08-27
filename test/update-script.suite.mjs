@@ -366,6 +366,48 @@ describe("scripts/update.sh", () => {
     }
   });
 
+  test("an up-to-date checkout still reports the links it never looked at", () => {
+    const fx = makeFixture();
+    try {
+      // Two cases the docs promise are always surfaced: a link somebody re-pointed, and a real
+      // file sitting where a link belongs. Neither is conditional on upstream having moved.
+      const foreign = join(fx.agentDir, "beta.json");
+      const mine = join(fx.dir, "my-own-beta.json");
+      writeFileSync(mine, '{"beta":"mine"}\n');
+      rmSync(foreign);
+      symlinkSync(mine, foreign);
+
+      const real = join(fx.agentDir, "alpha.json");
+      rmSync(real);
+      writeFileSync(real, '{"alpha":"hand written"}\n');
+
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, r.stderr);
+      // Still nobody else's decision to reverse.
+      assert.equal(readlinkSync(foreign), mine, "an up-to-date run re-pointed a link it did not own");
+      assert.equal(readFileSync(real, "utf8"), '{"alpha":"hand written"}\n');
+      assert.match(r.stdout, /points at .*my-own-beta\.json/);
+      assert.match(r.stdout, /alpha\.json is a real file/);
+      // "Nothing to do" is a claim about the install, not about the branch.
+      assert.doesNotMatch(r.stdout, /Nothing to do\./);
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an up-to-date checkout with a healthy install still says nothing is to do", () => {
+    const fx = makeFixture();
+    try {
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /Up to date — 0 step\(s\) changed/);
+      assert.match(r.stdout, /Nothing to do\./);
+      assert.doesNotMatch(r.stdout, /For you to look at/);
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
   test("an unchanged lockfile skips npm entirely", () => {
     const fx = makeFixture();
     try {

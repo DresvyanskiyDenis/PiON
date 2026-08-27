@@ -219,6 +219,76 @@ refuse_or_warn() { # refuse_or_warn <CODE> <cause> <action>
 }
 short() { printf '%s' "${1:0:7}"; }
 
+# Compares ~/.pi/agent against install.sh's link table and the manifest, and says what it found.
+#   reconcile_links 1  — after a fast-forward: a config path that is new in this update also gets
+#                        the symlink install.sh would have made, and a manifest row for it.
+#   reconcile_links 0  — read-only. Used when nothing arrived, where a link that is simply absent
+#                        is not "new in this update" but a gap in the install, which is
+#                        './scripts/install.sh --repair' to close, not this script's to close
+#                        silently. Report-only also keeps --check writing nothing.
+# Either way a link somebody re-pointed, and a real file where a link belongs, are reported and
+# left exactly as they are — that promise is in docs/getting-started/update.md and is not
+# conditional on upstream having moved.
+reconcile_links() { # reconcile_links <1 = may create missing links | 0 = report only>
+  local _apply="$1" LINKS req src name dst want have m_type m_path m_detail
+  # install.sh's link table, read out of install.sh. The alternative is a copy of the table here,
+  # which is the two-lists-that-drift failure the manifest design already rejected once.
+  LINKS="$SCRATCH/links.tsv"
+  awk '/^link_one[ \t]+(required|optional)[ \t]/ { print $2 "\t" $3 "\t" $4 }' \
+    "$REPO_DIR/scripts/install.sh" > "$LINKS"
+  [ -s "$LINKS" ] || die "PI-UPDATE-E14" "could not read the symlink table out of scripts/install.sh" \
+    "the checkout is updated but the reconcile step could not run — finish with ./scripts/install.sh --repair"
+
+  while IFS=$'\t' read -r req src name; do
+    [ -n "$name" ] || continue
+    dst="$AGENT_DIR/$name"
+    want="$STABLE_LINK/$src"
+    have="$(readlink "$dst" 2>/dev/null || true)"
+    if [ ! -e "$REPO_DIR/$src" ]; then
+      # `optional` entries are absent in a normal clone (the repo ships no skills, for one), so
+      # their absence is not news. A `required` one going missing is a broken checkout, and saying
+      # so here is cheaper than letting PI fail on a config file it cannot resolve.
+      if [ "$req" = "required" ]; then
+        report_add "config entry '$src' is required but is not in the repo — run ./scripts/install.sh --repair, and re-clone if it persists"
+        warn "$name — required, but '$src' is not in the repo (reported)"
+      elif [ -n "$have" ]; then
+        report_add "$dst points at $have, which is not in the repo — remove the link yourself if you agree it is dead"
+        warn "$name — its target is gone from the repo (reported, not removed)"
+      fi
+      continue
+    fi
+    if [ "$have" = "$want" ]; then
+      ok "$name"
+    elif [ -n "$have" ]; then
+      # A symlink pointing somewhere else is a decision somebody made. Re-pointing it silently is
+      # the same class of mistake as stashing: it discards a choice without recording that it did.
+      report_add "$dst points at $have, not at $want — left alone. './scripts/install.sh --repair' re-points it if that is what you want"
+      warn "$name — points elsewhere (reported, not changed)"
+    elif [ -e "$dst" ]; then
+      report_add "$dst is a real file or directory where a symlink to $want is expected — left alone"
+      warn "$name — a real path is in the way (reported, not changed)"
+    elif [ "$_apply" = 1 ]; then
+      run "ln -sfn '$want' '$dst'"
+      manifest_add LINK "$dst" "$want"
+      changed "$name -> $want (new in this update)"
+    else
+      report_add "$dst is missing — './scripts/install.sh --repair' creates the link to $want"
+      warn "$name — no link (reported; nothing arrived in this run that could have needed one)"
+    fi
+  done < "$LINKS"
+
+  # Anything the manifest recorded that the repo no longer has. This catches links whose repo path
+  # was removed or renamed upstream, including ones outside the link table above.
+  if [ -f "$MANIFEST" ]; then
+    while IFS=$'\t' read -r m_type m_path m_detail; do
+      [ "$m_type" = "LINK" ] || continue
+      [ -n "$m_detail" ] || continue
+      [ ! -e "$m_detail" ] || continue
+      report_add "$m_path -> $m_detail — the target no longer exists"
+    done < "$MANIFEST"
+  fi
+}
+
 # =================================================================================== step 1 ===
 section "Checking your checkout" \
   "An update must never be the thing that loses your work, so everything that could be lost is checked before anything moves."
@@ -315,9 +385,24 @@ fi
 
 if [ "$BEHIND" = "0" ]; then
   ok "already up to date — $BRANCH is $UPSTREAM"
+  # A converged branch says nothing about ~/.pi/agent, and the symlink report is promised
+  # unconditionally in docs/getting-started/update.md. Skipping it here used to let this script
+  # print "Nothing to do" over a re-pointed link — true about the branch, false about the install.
+  # Read-only: with nothing arriving, no link can be new, so there is nothing to create.
+  SECTIONS_TOTAL=3
+  section "Checking your install" \
+    "Nothing arrived, so nothing is linked here — this only names what does not match install.sh's table."
+  reconcile_links 0
+
   printf '\n%s\n' "-----------------------------------------------------------------------"
   printf '%s  Up to date — 0 step(s) changed%s\n\n' "$C_B" "$C_0"
-  printf 'Nothing to do. The checkout at %s matches %s.\n' "$REPO_DIR" "$UPSTREAM"
+  printf 'The checkout at %s matches %s.\n' "$REPO_DIR" "$UPSTREAM"
+  if [ -n "$REPORTED" ]; then
+    printf '\n%sFor you to look at — nothing here was changed:%s%s\n' "$C_CH" "$C_0" "$REPORTED"
+    printf '\n%s./scripts/install.sh --repair re-points a link or backs up a file in the way.%s\n' "$C_D" "$C_0"
+  else
+    printf '\nNothing to do.\n'
+  fi
   exit 0
 fi
 
@@ -596,59 +681,7 @@ changed "$BRANCH: $(short "$BASE") -> $(short "$TARGET") ($BEHIND commit(s))"
 section "Reconciling your install" \
   "New config files need the symlinks install.sh would have made; ones that went away are named, never deleted."
 
-# install.sh's link table, read out of install.sh. The alternative is a copy of the table here,
-# which is the two-lists-that-drift failure the manifest design already rejected once.
-LINKS="$SCRATCH/links.tsv"
-awk '/^link_one[ \t]+(required|optional)[ \t]/ { print $2 "\t" $3 "\t" $4 }' \
-  "$REPO_DIR/scripts/install.sh" > "$LINKS"
-[ -s "$LINKS" ] || die "PI-UPDATE-E14" "could not read the symlink table out of scripts/install.sh" \
-  "the checkout is updated but the reconcile step could not run — finish with ./scripts/install.sh --repair"
-
-while IFS=$'\t' read -r req src name; do
-  [ -n "$name" ] || continue
-  dst="$AGENT_DIR/$name"
-  want="$STABLE_LINK/$src"
-  have="$(readlink "$dst" 2>/dev/null || true)"
-  if [ ! -e "$REPO_DIR/$src" ]; then
-    # `optional` entries are absent in a normal clone (the repo ships no skills, for one), so
-    # their absence is not news. A `required` one going missing is a broken checkout, and saying
-    # so here is cheaper than letting PI fail on a config file it cannot resolve.
-    if [ "$req" = "required" ]; then
-      report_add "config entry '$src' is required but is not in the repo after this update — run ./scripts/install.sh --repair, and re-clone if it persists"
-      warn "$name — required, but '$src' is not in the repo (reported)"
-    elif [ -n "$have" ]; then
-      report_add "$dst points at $have, which this update removed from the repo — remove the link yourself if you agree it is dead"
-      warn "$name — its target is gone from the repo (reported, not removed)"
-    fi
-    continue
-  fi
-  if [ "$have" = "$want" ]; then
-    ok "$name"
-  elif [ -n "$have" ]; then
-    # A symlink pointing somewhere else is a decision somebody made. Re-pointing it silently is
-    # the same class of mistake as stashing: it discards a choice without recording that it did.
-    report_add "$dst points at $have, not at $want — left alone. './scripts/install.sh --repair' re-points it if that is what you want"
-    warn "$name — points elsewhere (reported, not changed)"
-  elif [ -e "$dst" ]; then
-    report_add "$dst is a real file or directory where a symlink to $want is expected — left alone"
-    warn "$name — a real path is in the way (reported, not changed)"
-  else
-    run "ln -sfn '$want' '$dst'"
-    manifest_add LINK "$dst" "$want"
-    changed "$name -> $want (new in this update)"
-  fi
-done < "$LINKS"
-
-# Anything the manifest recorded that the repo no longer has. This catches links whose repo path
-# was removed or renamed upstream, including ones outside the link table above.
-if [ -f "$MANIFEST" ]; then
-  while IFS=$'\t' read -r m_type m_path m_detail; do
-    [ "$m_type" = "LINK" ] || continue
-    [ -n "$m_detail" ] || continue
-    [ ! -e "$m_detail" ] || continue
-    report_add "$m_path -> $m_detail — the target no longer exists after this update"
-  done < "$MANIFEST"
-fi
+reconcile_links 1
 
 # =================================================================================== step 6 ===
 section "Packages and verification" \
