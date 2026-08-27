@@ -1,6 +1,6 @@
 # Architecture
 
-## One extension, twenty-six modules
+## One extension, thirty modules
 
 PI discovers extensions by scanning `extensions/*.ts` and `extensions/<dir>/index.ts`. This
 repository deliberately does **not** use that. `config/settings.json` names exactly one file:
@@ -38,7 +38,7 @@ flowchart TB
     end
     subgraph tools["3 — tool providers and input mutators"]
         direction LR
-        web --> bash --> hooks --> it["input-transform"] --> br["big-results"]
+        web --> bash --> hooks --> it["input-transform"] --> au["ask-user"] --> br["big-results"]
     end
     subgraph orch["4 — orchestration"]
         direction LR

@@ -146,6 +146,7 @@ nav:
           - extensions/skill-mask.md
           - extensions/skills-lint.md
       - Tools and input:
+          - extensions/ask-user.md
           - extensions/web.md
           - extensions/bash.md
           - extensions/hooks.md
