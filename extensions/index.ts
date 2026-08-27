@@ -51,6 +51,7 @@ import { id as webId, register as registerWeb } from "./web.ts";
 import { id as bashId, register as registerBash } from "./bash.ts";
 import { id as hooksId, register as registerHooks } from "./hooks/index.ts";
 import { id as inputTransformId, register as registerInputTransform } from "./input-transform.ts";
+import { id as askUserId, register as registerAskUser } from "./ask-user/index.ts";
 import { id as bigResultsId, register as registerBigResults } from "./big-results/index.ts";
 import { id as dispatchId, register as registerDispatch } from "./dispatch/index.ts";
 import { id as teammatesId, register as registerTeammates } from "./teammates/index.ts";
@@ -90,6 +91,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [bashId, registerBash],
   [hooksId, registerHooks],
   [inputTransformId, registerInputTransform],
+  [askUserId, registerAskUser],
   [bigResultsId, registerBigResults],
   // orchestration
   [dispatchId, registerDispatch],

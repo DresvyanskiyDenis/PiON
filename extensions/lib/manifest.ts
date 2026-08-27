@@ -52,6 +52,7 @@ export const DECLARED_MODULES = [
   "bash",
   "hooks",
   "input-transform",
+  "ask-user",
   "big-results",
   // orchestration
   "dispatch",
