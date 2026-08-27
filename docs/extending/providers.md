@@ -1,14 +1,23 @@
 # Adding a provider
 
-Three provider fragments ship: `github-copilot`, `databricks` and `openai-compatible`. Adding a
-fourth is a JSON file, and the installer picks it up with no code change.
+Four provider fragments ship: `github-copilot`, `litellm`, `databricks` and `openai-compatible`.
+Adding a fifth is a JSON file, and the installer picks it up with no code change.
 
 !!! tip "Check `openai-compatible` first"
 
-    If your endpoint speaks `/v1/chat/completions` under its own model names — LiteLLM, vLLM,
-    OpenRouter, an in-house router — it is already covered by
+    If your endpoint speaks `/v1/chat/completions` under its own model names — vLLM, OpenRouter, an
+    in-house router — it is already covered by
     [`openai-compatible`](../configuration/openai-compatible.md), answered differently. Writing a
     new fragment buys you a second entry in the provider menu and nothing else.
+
+!!! note "The one thing that does justify a new file"
+
+    Knowledge the interview cannot carry. `compat`, `reasoning` and `thinkingLevelMap` may not be
+    deferred to a prompt — only `egress`, `concurrency` and a `requires[].name` may — so wire
+    behaviour that is knowable for a **named** product can only be stated as a literal by a fragment
+    that names it. That is why [`litellm`](../configuration/litellm.md) exists beside
+    `openai-compatible` although both fit a LiteLLM proxy: they differ in no answer, and in four
+    fields nobody can be asked about.
 
 There are two ways in, and they are not equivalent:
 

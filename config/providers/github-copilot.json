@@ -126,7 +126,7 @@
   "verify": [
     {
       "label": "the endpoint answers with your token",
-      "command": "curl -sS -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $COPILOT_GITHUB_TOKEN\" \"$PI_COPILOT_BASE_URL/models\""
+      "command": "curl -sS -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $COPILOT_GITHUB_TOKEN\" \"{{baseUrl}}/models\""
     },
     {
       "label": "PI can complete one turn",

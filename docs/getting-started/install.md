@@ -59,6 +59,24 @@ To try it without touching your real setup:
 ./scripts/install.sh --prefix /tmp/pi-test --yes
 ```
 
+!!! warning "`--prefix` isolates the install, not the checkout"
+
+    `--prefix` moves `bin/`, `.pi/` and the whole runtime tree. It does **not** move the generated
+    config: `config/models.json`, `config/routing.json`, `config/settings.json` and their siblings
+    are always written into the clone you ran the script from, next to the `*.default.json` they
+    are generated from, because the live config is a symlink back into the repo by design.
+
+    So a throwaway install overwrites the real one's generated config, and the previous contents
+    are left beside them as `*.bak.<timestamp>`. They are gitignored, so nothing can reach a
+    commit — but a repo whose test suite reads `config/routing.json` will start failing against
+    the throwaway's answers. After a test install, from the clone:
+
+    ```bash
+    rm -f $(git status --porcelain --ignored config/ | awk '$1=="!!"{print $2}') config/*.bak.*
+    ```
+
+    Then re-run your real install, or `./scripts/install.sh --repair`.
+
 ---
 
 ## The nine sections
@@ -239,7 +257,7 @@ Other useful flags:
 | `--skip-packages` | do not `npm install` the packaged extensions |
 | `--no-shell` | do not modify any shell rc file |
 | `--no-verify` | skip the post-install verification step |
-| `--prefix DIR` | install root instead of `$HOME` |
+| `--prefix DIR` | install root instead of `$HOME`. Does **not** relocate the generated `config/*.json` — see [the warning under "Look before you leap"](#look-before-you-leap) |
 
 ---
 

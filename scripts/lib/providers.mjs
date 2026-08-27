@@ -14,8 +14,8 @@
 // Subcommands, all line-oriented TSV so bash can read them with `while IFS=$'\t' read`:
 //
 //   list     <dir>                        ID  DISPLAY  EGRESS  DEFAULT  SUMMARY   (one per fragment)
-//   describe <dir> <id>                   META / NOTE / REQ / PROMPT / VERIFY — what to ask
-//   resolve  <dir> <id> <answers>         MODEL / TIER / ENV — needs the answers
+//   describe <dir> <id>                   META / NOTE / REQ / PROMPT — what to ask
+//   resolve  <dir> <id> <answers>         MODEL / TIER / CRED / ENV / VERIFY — needs the answers
 //   match    <pattern> <value>            exit 0 if the ECMAScript regex matches (prompt validate)
 //   tiers    <routing.default.json>       NAME  OPTIONAL  PURPOSE  MODEL  THINKING
 //   generate --providers-dir D --select a,b --answers F
@@ -433,7 +433,6 @@ switch (cmd) {
         )}\n`,
       );
     }
-    for (const v of f.verify ?? []) process.stdout.write(`${tsv("VERIFY", v.label, v.command)}\n`);
     break;
   }
 
@@ -480,6 +479,16 @@ switch (cmd) {
       if (!name) continue; // the prompt was skipped or left blank — there is no credential to ask for
       process.stdout.write(
         `${tsv("CRED", r.kind, name, r.required ? "1" : "0", r.secret ? "1" : "0", r.description, r.howTo)}\n`,
+      );
+    }
+
+    // README §2.7: the verification one-liners. They are emitted HERE rather than by `describe`
+    // because a fragment writes them against its own tokens ({{baseUrl}}, the credential variable
+    // the user named), and describe runs before the first question — printing them there would
+    // hand the operator a command with {{placeholders}} still in it.
+    for (const v of f.verify ?? []) {
+      process.stdout.write(
+        `${tsv("VERIFY", substituteString(f, String(v.label), tokens), substituteString(f, String(v.command), tokens))}\n`,
       );
     }
 

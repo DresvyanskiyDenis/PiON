@@ -1,9 +1,17 @@
 # `openai-compatible` — gateways (LiteLLM, vLLM, OpenRouter, in-house)
 
-The sixth provider fragment. Use it for **any endpoint that speaks `/v1/chat/completions` and serves
-its own model names**: a LiteLLM proxy, a vLLM server, OpenRouter, or a router someone in your
-organisation runs. You supply the base URL, the model ids and the context windows; the fragment
-supplies everything else.
+The generic gateway fragment. Use it for **any endpoint that speaks `/v1/chat/completions` and
+serves its own model names**: a vLLM server, OpenRouter, or a router someone in your organisation
+runs. You supply the base URL, the model ids and the context windows; the fragment supplies
+everything else.
+
+!!! tip "If it is a LiteLLM proxy, use [`litellm`](litellm.md) instead"
+
+    This fragment fits a LiteLLM proxy too, and until there was a `litellm` fragment it was the
+    right answer. It has to ship every `compat` flag off and no thinking map, because it does not
+    know what is behind the URL. `litellm.json` names the product and can therefore state the wire
+    behaviour outright — reasoning levels, streamed usage, the pricing probe. Same interview, two
+    more questions, a config that is right on the first turn instead of after three 400s.
 
 It is configured at install time from `config/providers/openai-compatible.json` and lands in
 [`config/models.json`](models.md) and [`config/routing.json`](routing.md), both of which are

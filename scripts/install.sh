@@ -53,7 +53,9 @@
 #   --providers a,b           preselect providers, skipping the picker
 #   --tier NAME=provider/id   preset one tier binding (repeatable)
 #   --section NAME            reconfigure only one section: providers|tiers|agent|safety|tools|shell
-#   --prefix DIR              install root instead of $HOME (also $PI_INSTALL_PREFIX)
+#   --prefix DIR              install root instead of $HOME (also $PI_INSTALL_PREFIX). Relocates the
+#                             runtime tree only: the generated config/*.json is always written into
+#                             THIS clone, so a throwaway install overwrites the real one's.
 #   --mode auto|binary|npm    how PI itself is installed
 #   --offline [--offline-dir D]   no network; artifacts are pre-staged in D
 #   --skip-runtime            do not touch the PI binary; configure only
@@ -168,8 +170,11 @@ ${2:?--tier needs NAME=provider/model}"; shift 2 ;;
   esac
 done
 
-# Every path hangs off $PREFIX, which is what makes a fully isolated test install possible
-# without going anywhere near a real ~/.pi.
+# Every RUNTIME path hangs off $PREFIX, which is what makes a test install possible without going
+# anywhere near a real ~/.pi. It is not full isolation, and the difference is announced below: the
+# GENERATED config (config/models.json, routing.json, settings.json and their siblings) is written
+# into this clone whatever --prefix says, because the live config is a symlink back into the repo
+# by design. A throwaway install therefore overwrites the real one's generated config.
 STABLE_LINK="$PREFIX/pi-config"
 BIN_DIR="$PREFIX/bin"
 PI_HOME="$PREFIX/.pi"
@@ -183,6 +188,17 @@ SECRETS_FILE="$PI_HOME/secrets.env"
 CACHE_DIR="$PREFIX/.cache/pi-install"
 MANIFEST="$AGENT_DIR/install-manifest.tsv"
 [ -n "$ANSWERS_OUT" ] || ANSWERS_OUT="$AGENT_DIR/install-answers.conf"
+
+# Said out loud, at the top, before anything is written: --prefix reads as "isolated", and the one
+# thing it does not isolate is the part a repo's own test suite reads back. Discovered by breaking
+# eleven tests in a checkout whose routing.json a throwaway install had rewritten.
+if [ "$PREFIX" != "$HOME" ]; then
+  warn "--prefix moves the runtime tree, NOT the generated config: config/*.json is written into $REPO_DIR/config regardless"
+  # The cleanup itself is a one-liner with nested quoting and a command substitution; printed
+  # through the manual-step list it loses its quotes and stops being copy-pasteable, so the step
+  # points at the place that carries it verbatim instead of trying to be it.
+  todo_add "     this run rewrote $REPO_DIR/config/*.json (previous contents kept alongside as *.bak.*) — to restore that clone, run the cleanup command under 'Look before you leap' in docs/getting-started/install.md, then: ./scripts/install.sh --repair"
+fi
 
 # Interactive unless told otherwise AND a terminal is actually attached. Both halves matter: a
 # CI job that forgot --yes must fail loudly on a missing answer, not block on a prompt forever.
@@ -493,6 +509,20 @@ for t in tar ln readlink sed awk grep; do
 done
 ok "shell tools: tar ln readlink sed awk grep"
 
+# jq is NOT required by this installer — every JSON read here goes through Node — but it is
+# required by the first thing a colleague does afterwards: config/bin/pi-tier hard-requires it,
+# and docs/getting-started/first-run.md step 2 is `pi-tier --list`. Without this check the
+# install completes clean, postinstall-verify.sh passes (it deliberately avoids jq), and the
+# failure surfaces at first run as a message about a tool the installer never mentioned.
+# A warning and a named manual step rather than an abort: nothing installed here stops working
+# without jq, and on macOS the whole remedy is one brew command.
+if command -v jq >/dev/null 2>&1; then
+  ok "jq $(jq --version 2>/dev/null | tr -d '\n') — pi-tier and the provider verification one-liners need it"
+else
+  warn "'jq' is not on PATH. The installer does not need it; pi-tier and the per-provider verification one-liners do"
+  todo_add "     install jq (macOS: brew install jq — Debian/Ubuntu: apt install jq), or 'pi-tier --list' will not run"
+fi
+
 # Node is a hard prerequisite even on the standalone-binary path: bin/pi-check, bin/pi-run and
 # this installer's own JSON handling are all Node. Refusing here, with an actionable message,
 # beats failing three steps later inside a helper.
@@ -684,6 +714,7 @@ MODEL_CHOICES="$SCRATCH/models.tsv";  : > "$MODEL_CHOICES"
 TIER_SUGGESTIONS="$SCRATCH/tiersugg.tsv"; : > "$TIER_SUGGESTIONS"
 ENV_PLAN="$SCRATCH/envplan.tsv"; : > "$ENV_PLAN"
 NOTES_LOG="$SCRATCH/provider-notes.md"; : > "$NOTES_LOG"
+VERIFY_ANY=0
 
 for p in $SELECTED; do
   printf '\n   %s--- %s ---%s\n' "$C_B" "$p" "$C_0"
@@ -710,12 +741,19 @@ for p in $SELECTED; do
         # to a dozen dense paragraphs (they carry measured findings, e.g. which compat flag causes
         # which 400), and printing all of them before the first question is a wall of text, not
         # teaching. The full text is kept verbatim and written to provider-notes.md at the end.
-        if [ "$EXPRESS" = 0 ]; then
-          _nhead="${f1%%. *}"
-          [ "${#_nhead}" -le 108 ] || _nhead="$(printf '%.105s...' "$_nhead")"
-          printf '   %s· %s%s\n' "$C_D" "$_nhead" "$C_0"
-          NOTES_SHOWN=1
-        fi ;;
+        #
+        # The headlines print on EVERY path, --express and --yes included. They were once behind
+        # an $EXPRESS guard, and the note it suppressed most consequentially was
+        # github-copilot's "NEVER RUN /login github-copilot WITH THIS FRAGMENT" — whose cost when
+        # missed is not an error but an enterprise tenant's traffic silently leaving it, because
+        # PI's OAuth resolver overrides the configured baseUrl at request time. A note whose whole
+        # content is "never do X" is not a verbosity setting. One capped line per note is not the
+        # wall of text the guard was defending against; the full paragraphs still are, and they
+        # still only go to the file.
+        _nhead="${f1%%. *}"
+        [ "${#_nhead}" -le 108 ] || _nhead="$(printf '%.105s...' "$_nhead")"
+        printf '   %s· %s%s\n' "$C_D" "$_nhead" "$C_0"
+        NOTES_SHOWN=1 ;;
       REQ)
         # f1=kind f2=name f3=required f4=secret f5=description f6=howTo
         case "$f1" in
@@ -764,8 +802,6 @@ for p in $SELECTED; do
           number)  ask "$p.$f1" "$f3" "$f4" int  "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
           *)       ask "$p.$f1" "$f3" "$f4" string "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
         esac ;;
-      VERIFY)
-        printf '%s\037%s\037%s\n' "$p" "$f1" "$f2" >> "$SCRATCH/verify.tsv" ;;
     esac
   done < "$DESC"
 
@@ -785,12 +821,25 @@ for p in $SELECTED; do
       # point it is an ordinary secret: same plan row, same 1/2/3 menu, same secrets.env.
       # r1=kind r2=name r3=required r4=secret r5=description r6=howTo
       CRED)  [ "$r4" = 1 ] && printf '%s\037%s\037%s\037%s\037%s\037%s\n' "$p" "$r2" "$r5" "$r3" "" "$r6" >> "$CRED_PLAN" || true ;;
+      # README §2.7: one-liners that prove the provider works, with this install's own base URL
+      # and credential variable already substituted in. They are recorded rather than run: an
+      # endpoint that is down is a runtime condition, not an install failure. They go into
+      # provider-notes.md so the operator has the exact command instead of having to derive it.
+      VERIFY)
+        printf -- '\n**Verify — %s**\n\n    %s\n' "$r1" "$r2" >> "$NOTES_LOG"
+        VERIFY_ANY=1 ;;
     esac
   done < "$RES"
   ok "$p: $(awk -F"$US" '$1=="MODEL"' "$RES" | wc -l | tr -d ' ') model(s) available"
 done
 if [ "${NOTES_SHOWN:-0}" = 1 ]; then
   info "each · above is the headline of a longer note; the full text is saved to $AGENT_DIR/provider-notes.md"
+fi
+if [ "$VERIFY_ANY" = 1 ]; then
+  # The install cannot run these for you: they need the credential, which is collected later, and a
+  # reachable endpoint. Naming them here is the difference between a step you were told about and
+  # one you discover when the first turn fails.
+  todo_add "     run the per-provider verification one-liners once — each is written out in full in $AGENT_DIR/provider-notes.md"
 fi
 
 # --- non-secret environment variables a provider needs exported. They are NOT secrets, but they
@@ -1729,15 +1778,23 @@ if [ -d "$REPO_DIR/config/bin" ]; then
   done
 fi
 
-# bin/pi-run — the fail-closed headless wrapper. It lives at the repo root's bin/, not
-# config/bin/, so it gets its own link rather than falling into the loop above.
-if [ "$(readlink "$BIN_DIR/pi-run" 2>/dev/null || true)" = "$STABLE_LINK/bin/pi-run" ]; then ok "bin/pi-run"
-else
-  run "chmod 0755 '$REPO_DIR/bin/pi-run'"
-  run "ln -sfn '$STABLE_LINK/bin/pi-run' '$BIN_DIR/pi-run'"
-  changed "bin/pi-run -> $STABLE_LINK/bin/pi-run"
-fi
-manifest_add LINK "$BIN_DIR/pi-run" "$STABLE_LINK/bin/pi-run"
+# The two tools that live at the repo root's bin/ rather than config/bin/, so they do not fall
+# into the loop above: pi-run, the fail-closed headless wrapper, and pi-check, this repo's own
+# verification gate — which docs/getting-started/first-run.md step 1 invokes as a bare command, so
+# leaving it off PATH makes a colleague's first action after a successful install a
+# `command not found`. Linking is safe for both: each resolves its repo root from
+# `import.meta.url` rather than from $PWD, so the link resolves back through itself to the
+# checkout and the tool works from any directory.
+for root_tool in pi-run pi-check; do
+  [ -f "$REPO_DIR/bin/$root_tool" ] || continue
+  if [ "$(readlink "$BIN_DIR/$root_tool" 2>/dev/null || true)" = "$STABLE_LINK/bin/$root_tool" ]; then ok "bin/$root_tool"
+  else
+    run "chmod 0755 '$REPO_DIR/bin/$root_tool'"
+    run "ln -sfn '$STABLE_LINK/bin/$root_tool' '$BIN_DIR/$root_tool'"
+    changed "bin/$root_tool -> $STABLE_LINK/bin/$root_tool"
+  fi
+  manifest_add LINK "$BIN_DIR/$root_tool" "$STABLE_LINK/bin/$root_tool"
+done
 
 for state in auth.json trust.json sessions models-store.json; do
   if [ -L "$AGENT_DIR/$state" ]; then

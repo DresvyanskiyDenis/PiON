@@ -343,12 +343,24 @@ probe_provider() { # probe_provider <id> -> 0 available, 1 with a reason on stdo
   local frag="$REPO_DIR/config/providers/$p.json"
   # Named `lack`, not `missing`: two other functions in this file use `missing` as an array,
   # and a reader (and shellcheck) should not have to work out that these are unrelated locals.
-  local lack="" kind name required checked=0
+  local lack="" kind name required ref checked=0
 
   if [ -f "$frag" ]; then
     while IFS="$US" read -r kind name required; do
       [ -n "$kind" ] || continue
       [ "$required" = "true" ] || continue
+      # README §2.8: a requirement's variable NAME may be deferred to an install-time answer, in
+      # which case the fragment holds a lone {{token}} and not a name. Probing that literally
+      # reports "needs ${{apiKeyEnv}}", which names nothing the operator can export. The answer
+      # landed in the generated models.json, as providers.<id>.apiKey = "$THE_NAME".
+      case "$name" in
+        '{{'*'}}')
+          ref="$(json get "$MODELS_JSON" "providers.$p.apiKey" 2>/dev/null || true)"
+          case "$ref" in
+            '$'*) name="${ref#\$}" ;;
+            *)    continue ;;   # unresolvable: declared-but-unprobed, not a failure
+          esac ;;
+      esac
       checked=$((checked + 1))
       case "$kind" in
         env)

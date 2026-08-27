@@ -171,9 +171,14 @@ Convention: lead each note with a short SHOUTED clause so it can be skimmed.
 
 ### 2.7 `verify[]` — one-liners that prove it works
 
-`{ "label": "…", "command": "…" }`. Shell, run by a human or by `scripts/verify-environment.sh`. They
-may reference env vars and `config/models.json`. Never required to pass for the install to complete —
-a provider whose endpoint is down is a runtime condition, not an install failure.
+`{ "label": "…", "command": "…" }`. Shell, run by a human. They may reference env vars,
+`config/models.json`, and **the fragment's own `{{tokens}}`** — which is why `resolve` emits them and
+`describe` does not: before the first question there is no base URL and no credential name to put in
+them, and a command printed with `{{placeholders}}` still in it is not a command. The installer
+substitutes and writes them verbatim into `~/.pi/agent/provider-notes.md`, and names that file in the
+closing list of manual steps. It never runs them: they need a credential collected later and a
+reachable endpoint, and a provider whose endpoint is down is a runtime condition, not an install
+failure.
 
 ### 2.8 Deferred fields — three places a fragment may say "ask the user"
 
@@ -286,11 +291,17 @@ written once into `models.json` and read from there.
 
 ## 5. Adding another provider
 
-Three fragments ship. Before writing a fourth, check whether `openai-compatible.json` already covers
+Four fragments ship. Before writing a fifth, check whether `openai-compatible.json` already covers
 your case: any endpoint speaking `/v1/chat/completions` under its own model names is that fragment,
 answered differently, and a new file buys you nothing. That is what retired the `local` and `openai`
 fragments — a loopback model server and a first-party OpenAI account are both just that fragment with
 different answers.
+
+The one thing that does justify a separate file is knowledge the interview cannot carry. `compat`,
+`reasoning` and `thinkingLevelMap` may not be deferred to a prompt (§2.8), so wire behaviour that is
+knowable for a **named** product can only be stated as a literal by a fragment that names it. That is
+why `litellm.json` exists beside `openai-compatible.json` although both would fit: they differ in no
+answer, and in four fields nobody can be asked about.
 
 Copy the closest fragment, change `id` to match the new filename, and answer these before you ship it:
 
