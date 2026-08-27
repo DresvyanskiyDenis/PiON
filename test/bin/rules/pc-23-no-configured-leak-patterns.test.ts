@@ -188,6 +188,26 @@ describe("PC-23 — the git-ignored local file source", () => {
     assert.equal(findings[0].file, "docs/notes.md");
   });
 
+  it("a '#' comment line is dropped whole, commas included — the file is line-based, the env var is not", () => {
+    const dir = freshRepo();
+    writeTracked(dir, ".gitignore", "config/leak-patterns.local.txt\n");
+    // The prose that follows the comma in the comment below, sitting in an ordinary tracked
+    // sentence. The two channels do not share a grammar: the env var is one flat string where a
+    // comma is the only way to write a second entry, while the file gives every entry its own
+    // line. Splitting a comment on commas anyway turned "plus the tenant name" into a live
+    // pattern, and the rule then reported every sentence in the repository that contained it.
+    writeTracked(dir, "docs/notes.md", "the gateway host, plus the tenant name, are configured elsewhere\n");
+    writeTracked(dir, "b.md", `${FAKE_PATTERN}\n`);
+    writeTracked(dir, "config/leak-patterns.local.txt", `# sourced from the gateway config, plus the tenant name\n${FAKE_PATTERN}\n`);
+    commitAll(dir, "add notes");
+
+    const r = runPc23(dir);
+    assert.equal(r.exitCode, 1);
+    const findings = r.json!.findings.filter((f) => f.rule === "PC-23");
+    assert.equal(findings.length, 1, `the comment's post-comma prose was matched as a pattern: ${JSON.stringify(findings)}`);
+    assert.equal(findings[0].file, "b.md");
+  });
+
   it("combines with the env var rather than replacing it", () => {
     const dir = freshRepo();
     writeTracked(dir, ".gitignore", "config/leak-patterns.local.txt\n");

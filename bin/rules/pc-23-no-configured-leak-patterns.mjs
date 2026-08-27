@@ -13,6 +13,15 @@
 //   - the LOCAL_FILE below it — one pattern per line, '#'-comment and blank lines ignored,
 //     git-ignored by convention (see .gitignore) so it can never itself become the leak
 //
+// The two channels do not share a grammar, and the difference is load-bearing. The env var is a
+// single flat string, so a comma is the only way to write a second entry in it. The file gives
+// every entry its own line and has no need of the comma at all — but it does have comments, and a
+// comment is prose, and prose has commas in it. So a comment line is dropped WHOLE, before the
+// shared splitter runs. Splitting it first turns "# sourced from the gateway config, plus the
+// tenant name" into the live pattern "plus the tenant name", which then matches ordinary English
+// across the repository: dozens of findings, none of them a leak, in the one rule whose findings
+// must always be worth reading.
+//
 // Neither configured is the expected state for almost every clone of this repo (nobody but Denis
 // has values to hide), so that state is a clean pass with a notice on stderr, never a finding —
 // this must not fail CI for someone who has nothing to hide (this is a *sensitive* default, unlike
@@ -63,6 +72,19 @@ function splitPatterns(raw) {
     .filter((p) => p.length > 0 && !p.startsWith("#"));
 }
 
+/**
+ * Patterns from the local file: comment lines are removed per LINE first, so a comma inside one
+ * stays prose instead of becoming an entry. See the channel-grammar note in the header.
+ * @param {string} raw @returns {string[]}
+ */
+function splitFilePatterns(raw) {
+  const withoutComments = raw
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("#"))
+    .join("\n");
+  return splitPatterns(withoutComments);
+}
+
 /** @param {RuleContext} ctx @returns {string[]} deduplicated, order-preserving */
 function loadPatterns(ctx) {
   /** @type {string[]} */
@@ -78,7 +100,7 @@ function loadPatterns(ctx) {
   const fromEnv = process.env[PATTERNS_ENV];
   if (fromEnv) for (const p of splitPatterns(fromEnv)) add(p);
   const fromFile = ctx.readText(LOCAL_FILE);
-  if (fromFile) for (const p of splitPatterns(fromFile)) add(p);
+  if (fromFile) for (const p of splitFilePatterns(fromFile)) add(p);
   return out;
 }
 
