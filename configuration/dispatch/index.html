@@ -4211,6 +4211,20 @@ decided not to do itself, and it runs without the main loop watching — the fai
 default is a plausible-looking wrong answer that nobody reads closely, which costs more than the
 tokens saved. So the strong tier is what you get by not choosing, and <code>light</code> is what you get by
 choosing it: name it on the call, for work whose correctness is obvious on inspection.</p>
+<p>That argument has a premise, and the premise is about <strong>your</strong> <code>routing.json</code>, not about the words
+<code>strong</code> and <code>light</code>. It holds while <code>light</code> is bound to a weaker model — which is what ships here,
+Sonnet against Opus. Rebind the tiers and it can invert. Bind <code>light</code> to the same model at a lower
+effort and the gap is effort, not judgement. Bind it to a cheap model whose gateway has just begun
+serving a reasoning level it used to refuse, and <code>light</code> becomes the <em>hardest</em> thinking you can buy
+on that endpoint at a fraction of the price — at which point defaulting to <code>strong</code> is paying more
+for less. <a href="../routing/#how-thinkinglevel-reaches-the-child"><code>thinkingLevel</code></a> is where that ceiling is
+declared, and <a href="../models/#models"><code>models.json</code></a> is where a level the endpoint used to refuse becomes
+available again.</p>
+<p>Which is the useful part: <strong><code>defaultTier</code> is the one line that follows a change in what your tiers
+mean.</strong> Not the agent files — an agent file naming a tier is naming a role, and the roles do not
+change when the bindings do. Re-read this key whenever a tier's model or <code>thinkingLevel</code> changes,
+and decide the default from what the tiers point at <em>now</em> rather than from which word sounds
+stronger.</p>
 <p><code>defaultEgress</code> used to be load-bearing: it was the class an undeclared agent was <em>checked</em> against,
 and setting it to <code>confidential</code> would have made every such agent fail against a public provider.
 Since the containment rule was withdrawn on 2026-08-13 it decides nothing — it only picks the word
