@@ -109,9 +109,13 @@ What is **missing** carries most of the meaning.
     fragment is separate: it is a property of LiteLLM's transformation code, identical on every
     LiteLLM proxy, with no counterpart in vLLM or OpenRouter.
 - **`off` is absent, and absent is not the same as `null`.** An absent level stays supported and
-  reaches the wire as *no parameter at all*. Nulling `off` would make PI clamp a request for `off`
-  **upwards** to `minimal` — the clamp walks up before it walks down — so asking for less thinking
-  would quietly buy more.
+  reaches the wire as *no parameter at all*, which means your endpoint applies **its own default
+  effort** — not none. Nulling `off` would be the worse of the two: PI would clamp a request for
+  `off` **upwards** to `minimal` — the clamp walks up before it walks down — so asking for less
+  thinking would quietly buy more. Absent is the right default here only because the spelling for
+  no reasoning belongs to the endpoint behind your proxy and cannot be known from this file. If
+  yours accepts one, map it — [`models.md`](models.md) lays out all three states side by side, and
+  says how to prove which one you got.
 
 To enable `xhigh` after your operator sets the flag: confirm it through `/model/info`, then add
 `"xhigh": "xhigh"` to that model's map in `config/models.json`.
