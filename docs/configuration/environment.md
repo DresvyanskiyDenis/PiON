@@ -26,6 +26,7 @@ export PI_TELEMETRY=0             # no telemetry egress
 export PI_SKIP_VERSION_CHECK=1    # no version ping at startup
 unset PI_EXPERIMENTAL             # MUST never be set
 export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
+export PI_INTERCOM_ASK_TIMEOUT_MS=3600000   # a blocked subagent waits an hour, not ten minutes
 # export PI_OFFLINE=1             # opt-in: blocks every non-LLM outbound call
 ```
 
@@ -34,6 +35,7 @@ export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
 | `PI_TELEMETRY` | `0` | Matches `enableAnalytics: false` in [`settings.json`](settings.md#telemetry). Set in both places because processes that never read the settings file still read the environment |
 | `PI_SKIP_VERSION_CHECK` | `1` | No network call at startup. Also makes a machine with no egress start cleanly |
 | `PI_EXPERIMENTAL` | **unset** | Explicitly unset rather than merely not exported, so an inherited value from a parent shell cannot turn experimental behaviour on under you |
+| `PI_INTERCOM_ASK_TIMEOUT_MS` | `3600000` | 60 minutes, against the package's 10. See [below](#pi_intercom_ask_timeout_ms-the-only-bound-on-a-blocked-child) |
 | `PI_OFFLINE` | commented | Opt-in. Blocks every non-LLM outbound call — useful for a run that must not fetch anything |
 
 ### `PI_CODING_AGENT_DIR` — required, not a convenience
@@ -45,6 +47,27 @@ config tree.** Exporting this variable pins both to the one symlink target, whic
 
 **What breaks if you unset it:** web search silently reads a config file that does not exist, falls
 back to package defaults, and your pinned backend quietly stops being pinned.
+
+### `PI_INTERCOM_ASK_TIMEOUT_MS` — the only bound on a blocked child
+
+A subagent that calls `contact_supervisor` and expects a reply stops and waits. It polls for a reply
+file every 250 ms until a deadline, then throws `Timed out waiting for supervisor reply.`
+(`intercom/native-supervisor-channel.ts:219-231`). That deadline is the whole mechanism: there is no
+second timeout underneath it, and no config key feeds it — `askTimeoutMs()` reads the environment
+directly (`:191-193`), which is why the value lives in this file rather than in
+`config/subagent.json`.
+
+The package ships 10 minutes (`DEFAULT_ASK_TIMEOUT_MS`, `:24`). This edition ships **60**.
+
+The reason is what is on the other end. The request surfaces in the parent session, but the reply is
+composed by the **parent agent**, not typed by you — so the wait is sizing a model's turn, and a
+turn that includes reading code and thinking about an answer is not a ten-minute event. Erring long
+is also the cheaper mistake: while a child waits it holds whatever concurrency slot it occupies, and
+the cumulative spawn claim it already spent is [never refunded](../extending/subagents.md#the-three-spawn-budgets--cumulative-spend-not-width),
+so an expiry costs the claim and returns nothing.
+
+**Lower it** if you would rather a stuck child fail fast than sit on a slot. **Raise it** and you are
+betting that the parent will eventually get round to the request; nothing wakes it on your behalf.
 
 ---
 

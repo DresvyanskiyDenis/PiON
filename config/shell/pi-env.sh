@@ -26,6 +26,24 @@ unset PI_EXPERIMENTAL             # MUST never be set
 export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
 # export PI_SHARE_VIEWER_URL="http://127.0.0.1:9"  # neuter /share
 
+# How long a subagent blocked on a `contact_supervisor` request waits for the answer before that
+# request throws. 60 minutes, decision 2026-08-27, against a package default of 10 minutes
+# (DEFAULT_ASK_TIMEOUT_MS, pi-subagents/src/intercom/native-supervisor-channel.ts:24). A number with
+# no reasoning beside it is the kind that drifts, so:
+#   - It is the only bound on that wait. The child polls for a reply file every 250 ms until the
+#     deadline and then throws "Timed out waiting for supervisor reply." (same file, :219-231).
+#     Nothing else ends the wait.
+#   - A waiting child is a running child. It holds whatever concurrency slot it occupies for the
+#     whole wait, and the cumulative spawn claim it already spent is never refunded, so an expiry
+#     costs you the claim and returns nothing.
+#   - It sizes a MODEL's turn, not a person's attention: the request surfaces in the parent
+#     session, but the reply is composed by the parent agent. An hour is generous for a machine
+#     round trip, and generous is the right side to err on when the failure mode is a thrown
+#     request rather than a wasted human wait.
+#   - It is set here because there is nowhere else. `askTimeoutMs()` reads the environment directly
+#     (:191-193) and no config key feeds it.
+export PI_INTERCOM_ASK_TIMEOUT_MS=3600000
+
 # --- PATH for the shipped helpers --------------------------------------------
 case ":$PATH:" in *":$HOME/bin:"*) ;; *) export PATH="$HOME/bin:$PATH" ;; esac
 

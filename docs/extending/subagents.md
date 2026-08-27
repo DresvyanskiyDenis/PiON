@@ -234,6 +234,14 @@ This edition sets `maxSubagentSpawnsPerRun` and `maxActiveAsyncRunsPerSession` t
 `config/subagent.default.json`. The second of those replaces unlimited, so it is a real tightening;
 the first *lowers* the vendor default, so read the paragraph below before assuming it is free.
 
+`maxSubagentSpawnsPerSession` is left unset on purpose. The rule this edition applied to all three
+was *cap it if it bounds simultaneity, leave it alone if it is a total*, and this one is a total: it
+counts every child a session has ever launched, the failed ones included, and never gives a count
+back. Setting it would put a ceiling on how much work one session may do rather than on how much it
+does at once, and a long day of small fan-outs would hit it for no reason anybody would recognise at
+the time. The key that actually counts something simultaneous is `maxActiveAsyncRunsPerSession`,
+which is set.
+
 The first two are cumulative and their claims are never released or refunded, so a long-lived
 workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
 a concurrency one. A batch that does not fit is rejected **whole**, with none of its children
@@ -267,7 +275,9 @@ like the rest of the personal config (see
   "parallel": {
     "maxTasks": 8,
     "concurrency": 4
-  }
+  },
+  "maxSubagentSpawnsPerRun": 20,
+  "maxActiveAsyncRunsPerSession": 20
 }
 ```
 
