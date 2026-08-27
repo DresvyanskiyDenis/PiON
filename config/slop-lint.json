@@ -1,0 +1,17 @@
+{
+  "roots": ["extensions", "bin"],
+  "exts": [".ts", ".mjs", ".js"],
+  "sinks": [
+    "notify",
+    "setStatus",
+    "setWidget",
+    "setWorkingIndicator",
+    "setFooter",
+    "setHeader",
+    "Error",
+    "TypeError",
+    "RangeError"
+  ],
+  "proseKeys": ["message", "description", "title", "detail", "hint", "label", "summary", "reason"],
+  "budget": 53
+}

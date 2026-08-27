@@ -14,7 +14,8 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "allowJs": true
   },
-  "include": ["extensions/**/*.ts", "lib/**/*.ts", "test/**/*.ts"]
+  "include": ["extensions/**/*.ts", "lib/**/*.ts", "test/**/*.ts", "bin/lib/*.mjs"]
 }

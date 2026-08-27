@@ -83,9 +83,69 @@ It asserts things that are invisible until they bite:
 | `PC-21` | the on-disk vendored tree matches its recorded per-file sha256 manifest |
 | `PC-24` | every committed `path-rules` fixture has valid frontmatter and a supported glob |
 | `PC-25` | nothing on the [do-not-publish list](../skills-portability.md#skills-that-are-deliberately-absent) reaches a path, git history or a tracked file |
+| `PC-26` | user-facing prose carries exactly the number of em dashes recorded in `config/slop-lint.json` — [see below](#pc-26) |
 
 Exit `0` = clean, `1` = findings, `2` = the checker could not run. That last distinction matters in
 CI: treating them the same hides broken tooling behind a red build.
+
+### `PC-26` — the prose ratchet { #pc-26 }
+
+A house-style rule on our own output: the em dash. It is the only one of the web-UI review's
+findings that transferred to a terminal without modification, because it is about strings, not
+pixels.
+
+The obvious implementation is a grep, and the obvious implementation is useless here.
+`grep -rn '—' extensions/ --include='*.ts'` returns 1351 hits in this tree; 23 of them are output
+and the rest are docstrings. A gate built on that number would fire on any commit that added an
+explanation.
+
+So `bin/lib/user-strings.mjs` scans instead: character by character, tracking comments, all three
+string forms, nested template interpolation and regex literals, and emitting each literal with the
+dotted name of the call it was handed to and the object key it is the value of. Two signals decide
+whether a person ever reads it:
+
+- **The sink.** `notify`, `setStatus`, `setWidget`, `setWorkingIndicator`, `setFooter`,
+  `setHeader`, and the `Error` constructors. Matched on the final segment of the dotted name, so
+  `ui.notify`, `ctx.ui.notify` and `pi.ui.notify` are one surface. `Error` counts deliberately:
+  with [no provider failover](../adr/0001-no-provider-failover.md) and fail-loud aborts, the
+  message on the way out is the last thing the operator is told.
+- **The property name.** `message`, `description`, `title`, `detail`, `hint`, `label`, `summary`,
+  `reason`. Prose reaches a reader through a property at least as often as through an argument —
+  every `pi-check` finding is a `{ message }`, every registered tool carries a `description` — and
+  a scanner that looked only at arguments would call those surfaces clean because they are clean
+  of *calls*.
+
+That gives 554 user-facing strings across `extensions/` and `bin/`, 53 of them carrying an em dash.
+
+```json title="config/slop-lint.json"
+{
+  "roots": ["extensions", "bin"],
+  "sinks": ["notify", "setStatus", "setWidget", "Error"],
+  "proseKeys": ["message", "description", "title"],
+  "budget": 53
+}
+```
+
+Three things about that number are worth knowing before you trust it:
+
+- **It is a floor.** The scanner is not a TypeScript parser and does not pretend to be one —
+  `pi-check` is a zero-dependency offline gate. A message reached through a variable
+  (`const msg = "…"; ui.notify(msg)`) is attributed to nothing and is invisible to the sink
+  filter. The scanner undercounts and never overcounts, and a test pins that so an AST-backed
+  version would show up as a test change rather than as an unexplained jump in the budget.
+- **The check fails in both directions.** Over budget, it names the sites. *Under* budget, it also
+  fails and tells you to lower the number. Without that half it is not a ratchet: clean three call
+  sites, forget the config, and those three slots are quietly available to the next change.
+- **It is a count, not an allowlist.** Deleting one em dash and adding another elsewhere keeps the
+  total unchanged. The diff shows it; pinning every site by file, line and hash would churn on
+  every unrelated edit above it.
+
+Deleting `config/slop-lint.json` does not switch the rule off — the built-in default budget is `0`,
+so an unconfigured tree gets the strict reading. Config can widen what is tolerated; it cannot
+silence the check.
+
+The shipped budget is the count on the day the rule landed, not a target. Whether zero is the right
+number is a taste call about the voice of a repo, and this tool does not make it for you.
 
 ---
 

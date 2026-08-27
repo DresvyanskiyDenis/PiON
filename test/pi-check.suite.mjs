@@ -257,6 +257,20 @@ const MUTATIONS = [
       execFileSync("git", ["add", "-A"], { cwd: dir });
     },
   },
+  {
+    id: "PC-26",
+    // The clean fixture ships no config/slop-lint.json, so PC-26 runs on its built-in
+    // defaults, whose budget is 0. That posture is the point: an unconfigured tree gets the
+    // STRICT reading, so this rule cannot be switched off by deleting a file the way a
+    // "config present means enabled" design could be. The break adds one extension whose
+    // thrown message carries an em dash, taking the count from 0 to 1.
+    break: (dir) => {
+      writeFileSync(
+        join(dir, "extensions", "sloppy.ts"),
+        'export function refuse(): never {\n  throw new Error("refused \u2014 nothing to do");\n}\n',
+      );
+    },
+  },
 ];
 
 describe("each rule fires exactly on its own broken fixture", () => {
@@ -833,6 +847,91 @@ test("PC-25 scans content for a multi-token name but not for a single-token one"
     assert.equal(findings[0].line, 1, "the multi-token name is caught in prose; the single-token one on line 2 is not");
     // The finding must not quote what it matched — that is what would put the name in a CI log.
     assert.ok(!/example/i.test(findings[0].message), `finding repeated the matched text: ${findings[0].message}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------------------
+// 8. PC-26 — the prose ratchet. The MUTATIONS table proves it fires; these prove the two
+//    properties that make it a ratchet rather than a number somebody bumps.
+// ---------------------------------------------------------------------------------------
+
+const EM_DASH = "\u2014";
+
+/** Write an extension whose thrown messages carry `n` em dashes, one per function. */
+function seedProse(dir, n) {
+  let body = "";
+  for (let k = 0; k < n; k++) {
+    body += `export function refuse${k}(): never {\n  throw new Error("refused ${EM_DASH} case ${k}");\n}\n`;
+  }
+  writeFileSync(join(dir, "extensions", "prose.ts"), body);
+}
+
+/** The PC-26 findings from an --all run against `dir`. */
+function pc26Findings(dir) {
+  const { json } = runPiCheck(dir);
+  assert.ok(json, "expected valid --json output");
+  return json.findings.filter((f) => f.rule === "PC-26");
+}
+
+test("PC-26: the recorded budget is a ceiling, and the sites over it are named in the finding", () => {
+  const dir = freshCopy();
+  try {
+    writeFileSync(join(dir, "config", "slop-lint.json"), JSON.stringify({ budget: 2 }, null, 2) + "\n");
+    seedProse(dir, 3);
+    const findings = pc26Findings(dir);
+    assert.equal(findings.length, 1, `expected one PC-26 finding, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /carries 3 em dashes, 1 over the budget of 2/);
+    // A bare count tells nobody where to look, and this number is not re-derivable by hand.
+    assert.match(findings[0].message, /extensions\/prose\.ts:\d+/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-26: a budget the tree has fallen BELOW also fails, so freed slots are not banked", () => {
+  // The half that makes it a ratchet. Without it, somebody cleans three call sites, nobody
+  // edits the config, and the next change gets three em dashes free while the gate stays
+  // green — the budget having quietly become fiction.
+  const dir = freshCopy();
+  try {
+    writeFileSync(join(dir, "config", "slop-lint.json"), JSON.stringify({ budget: 5 }, null, 2) + "\n");
+    seedProse(dir, 2);
+    const findings = pc26Findings(dir);
+    assert.equal(findings.length, 1, `expected one PC-26 finding, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /carries 2 em dashes but the budget .* is still 5/);
+    assert.match(findings[0].message, /lower it to 2/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-26: a budget that is absent or not a non-negative integer is refused, not guessed at", () => {
+  const dir = freshCopy();
+  try {
+    for (const bad of [{}, { budget: "many" }, { budget: -1 }, { budget: 1.5 }]) {
+      writeFileSync(join(dir, "config", "slop-lint.json"), JSON.stringify(bad, null, 2) + "\n");
+      const findings = pc26Findings(dir);
+      assert.equal(findings.length, 1, `expected one PC-26 finding for ${JSON.stringify(bad)}`);
+      assert.match(findings[0].message, /"budget" is missing or is not a non-negative integer/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-26: config widens the scan but cannot silence it", () => {
+  const dir = freshCopy();
+  try {
+    // Narrowing `roots` to a directory that does not exist is the most direct attempt to switch
+    // the rule off. It still runs, still counts (to zero), and still holds the tree to the
+    // recorded budget — so a disabling edit surfaces as a failure rather than as silence.
+    writeFileSync(join(dir, "config", "slop-lint.json"), JSON.stringify({ roots: ["nowhere"], budget: 4 }, null, 2) + "\n");
+    seedProse(dir, 4);
+    const findings = pc26Findings(dir);
+    assert.equal(findings.length, 1, `expected one PC-26 finding, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /carries 0 em dashes but the budget .* is still 4/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
