@@ -59,6 +59,7 @@ import { id as worktreeId, register as registerWorktree } from "./worktree/index
 import { id as jobsId, register as registerJobs } from "./jobs/index.ts";
 import { id as tasksId, register as registerTasks } from "./tasks/index.ts";
 import { id as quotaId, register as registerQuota } from "./quota/index.ts";
+import { id as subagentCostId, register as registerSubagentCost } from "./subagent-cost/index.ts";
 import { id as digestId, register as registerDigest } from "./digest/index.ts";
 import { id as compactionId, register as registerCompaction } from "./compaction/index.ts";
 import { id as contextReportId, register as registerContextReport } from "./context-report/index.ts";
@@ -101,6 +102,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [tasksId, registerTasks],
   // observability and lifecycle
   [quotaId, registerQuota],
+  [subagentCostId, registerSubagentCost],
   [digestId, registerDigest],
   [compactionId, registerCompaction],
   [contextReportId, registerContextReport],

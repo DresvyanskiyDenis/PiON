@@ -32,8 +32,13 @@ describe("config/pi-statusline.json — extensionStatusIcons", () => {
     assert.ok(icons !== null && !Array.isArray(icons));
   });
 
-  it("declares exactly one key: quota", () => {
-    assert.deepEqual(Object.keys(loadIcons()), ["quota"]);
+  it("carries the quota key, alongside whatever other modules have claimed one", () => {
+    // This file guards the quota join specifically, so it asserts the key is present rather than
+    // that it is alone. It was `deepEqual(["quota"])` while quota was the only module publishing
+    // a status icon; `subagent-cost` claiming one made "quota is the only key" a statement about
+    // an unrelated module. What this test owns is that quota's icon exists and matches the key
+    // the quota extension publishes — asserted below.
+    assert.ok(Object.keys(loadIcons()).includes("quota"));
   });
 
   it("the icon value is a single non-empty string", () => {
@@ -49,12 +54,12 @@ describe("config/pi-statusline.json — extensionStatusIcons", () => {
     const src = readFileSync(QUOTA_INDEX_PATH, "utf8");
     const match = src.match(/const STATUS_KEY = "([^"]+)"/);
     assert.ok(match, 'extensions/quota/index.ts must define `const STATUS_KEY = "..."`');
-    assert.equal(Object.keys(loadIcons())[0], match![1]);
+    assert.ok(Object.hasOwn(loadIcons(), match![1]));
   });
 
   it("does not collide with a status key another extension already reserves", () => {
     // The reserved roster: worktree/tasks/jobs/scope, plus the quota key asserted above.
     const reserved = ["worktree", "tasks", "jobs", "scope"];
-    assert.ok(!reserved.includes(Object.keys(loadIcons())[0]));
+    for (const key of Object.keys(loadIcons())) assert.ok(!reserved.includes(key));
   });
 });

@@ -62,6 +62,7 @@ export const DECLARED_MODULES = [
   "tasks",
   // observability and lifecycle
   "quota",
+  "subagent-cost",
   "digest",
   "compaction",
   "context-report",

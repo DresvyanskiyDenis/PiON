@@ -172,6 +172,7 @@ nav:
           - extensions/tasks.md
       - Observability and lifecycle:
           - extensions/quota.md
+          - extensions/subagent-cost.md
           - extensions/digest.md
           - extensions/compaction.md
           - extensions/context-report.md
