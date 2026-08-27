@@ -61,8 +61,16 @@ An unfinished rebase or merge (`PI-UPDATE-E05`) and an untracked file sitting wh
 tracked one (`PI-UPDATE-E12`) stop the run for the same reason — both are states where "carry on"
 means losing something.
 
-!!! note "`--check` reports all four instead of refusing"
-    `--check` writes nothing, so none of these four can hurt it. It prints the condition with its
+A fourth, added because it was the one case where the promise above did not hold: a **git-ignored**
+file that upstream has started tracking, whose contents here differ from the incoming version, stops
+the run with `PI-UPDATE-E17`. Git's own refusal covers untracked files only; an ignored file is
+replaced by a fast-forward without a word, and every generated config is ignored by design. Copy
+yours aside and re-run — `./scripts/install.sh --repair` regenerates it from the new template once
+you have taken what you wanted out of the old one. An ignored file whose contents already match what
+upstream is adding is not a refusal: there is nothing there to lose.
+
+!!! note "`--check` reports all five instead of refusing"
+    `--check` writes nothing, so none of these five can hurt it. It prints the condition with its
     code, adds one line saying what an update would do about it, and then gives you the report
     anyway — including the incoming commits and what they touch.
 
@@ -135,7 +143,7 @@ binary. `--repair` is what installs the newly pinned runtime.
 
 | Flag | Meaning |
 |---|---|
-| `--check` | print the whole report, change nothing. Exit `0` up to date, `3` an update is waiting. Reports the four blocking conditions rather than refusing on them |
+| `--check` | print the whole report, change nothing. Exit `0` up to date, `3` an update is waiting. Reports the five blocking conditions rather than refusing on them |
 | `--dry-run` | print every action, perform none |
 | `--yes`, `--defaults` | never prompt; proceed |
 | `--skip-packages` | do not run `npm ci` even if the lockfile changed |

@@ -40,7 +40,8 @@
 #   --check                   report availability and the full plan, change nothing.
 #                             Exit 0 = up to date, 3 = an update is waiting.
 #                             It writes nothing, so a dirty tree, an unfinished rebase, a diverged
-#                             branch or an untracked-file collision are REPORTED here rather than
+#                             branch, an untracked-file collision or an ignored file upstream has
+#                             started tracking are REPORTED here rather than
 #                             refused — withholding the report is not a safety property, and it is
 #                             the information you want before deciding to clean up.
 #   --dry-run                 print every action, perform none
@@ -116,7 +117,10 @@ report_add() { REPORTED="$REPORTED
      $*"; }
 
 # The range ends on the last comment line of the header block above, not a line or two past it.
-usage() { sed -n '2,57p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
+# It also does not end EARLY: it used to stop at exit code 4, so `--help` printed a table with 130
+# missing from it and no link to the docs — a help text that is wrong about the thing it exists to
+# be right about.
+usage() { sed -n '2,62p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
 
 # ============================================================================ argument parse ===
 while [ $# -gt 0 ]; do
@@ -442,12 +446,23 @@ grep -qxF "package-lock.json" "$NEWSIDE" && LOCK_CHANGED=1 || true
 # it happens after the fetch has already succeeded — better to name the files here, while the
 # checkout is still exactly where the user left it.
 COLLIDE=""
+CLOBBER=""
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   [ -e "$REPO_DIR/$p" ] || continue
   git_in_repo ls-files --error-unmatch -- "$p" >/dev/null 2>&1 && continue
   if git_in_repo check-ignore -q -- "$p" 2>/dev/null; then
-    report_add "$p is git-ignored here and upstream now tracks it — your copy would be overwritten"
+    # git's own protection does NOT extend here: it refuses to overwrite an untracked file, but an
+    # IGNORED one it replaces without a word. So this is the only collision the user cannot see
+    # coming, on the one class of file that is theirs by construction — a generated config, which
+    # install.sh writes once and never resets, and which carries their gateway URL and model list.
+    # Reporting it and fast-forwarding anyway (what this did until the check below existed) is the
+    # one way this script could destroy work: the report even said "would be overwritten", in the
+    # future tense, under a heading promising nothing had changed.
+    # Identical content is nothing to lose, and refusing there would be a rule with no victim.
+    if git_in_repo show "$TARGET:$p" 2>/dev/null | cmp -s - "$REPO_DIR/$p"; then continue; fi
+    CLOBBER="$CLOBBER
+     $p"
   else
     COLLIDE="$COLLIDE
      $p"
@@ -458,6 +473,12 @@ if [ -n "$COLLIDE" ]; then
   printf '\n' >&2
   refuse_or_warn "PI-UPDATE-E12" "upstream adds files that already exist here as untracked files (listed above)" \
       "move or delete your copies — git refuses to overwrite an untracked file, and so does this script"
+fi
+if [ -n "$CLOBBER" ]; then
+  printf '\n   %sgit-ignored files here that upstream now tracks:%s%s\n' "$C_ER" "$C_0" "$CLOBBER" >&2
+  printf '\n' >&2
+  refuse_or_warn "PI-UPDATE-E17" "upstream now tracks files that exist here as git-ignored files with different contents (listed above) — a fast-forward would overwrite them silently, because being ignored is exactly what removes git's own protection" \
+      "copy yours aside first, then re-run — these are generated files, and './scripts/install.sh --repair' regenerates one from its template plus your answers once you have what you wanted out of it"
 fi
 
 # A generated config is yours the moment install.sh writes it: install.sh patches it and never

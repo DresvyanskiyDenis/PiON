@@ -194,10 +194,16 @@ make, a runtime pin that has moved past the installed binary. The update is not 
 the repository state is correct; what is out of step is the install around it, and
 `./scripts/install.sh --repair` is the fix.
 
-The three refusals that produce `1` are the ones worth scripting against, and all three are
-deliberate: `PI-UPDATE-E07` (uncommitted changes), `PI-UPDATE-E11` (the branch has diverged) and
-`PI-UPDATE-E12` (an untracked file where upstream adds a tracked one). None of them is recoverable
-by a script without discarding something a person wrote.
+The four refusals that produce `1` are the ones worth scripting against, and all four are
+deliberate: `PI-UPDATE-E07` (uncommitted changes), `PI-UPDATE-E11` (the branch has diverged),
+`PI-UPDATE-E12` (an untracked file where upstream adds a tracked one) and `PI-UPDATE-E17` (a
+git-ignored file, with contents of its own, that upstream has started tracking). None of them is
+recoverable by a script without discarding something a person wrote.
+
+`E17` is the one whose absence you would not notice. Git protects an untracked file and refuses to
+overwrite it — that is what `E12` reports — but a file matched by `.gitignore` gets no such
+protection, and a fast-forward replaces it silently. Every generated config is in that set by
+design, so the file at risk is the one holding your gateway URL.
 
 ---
 

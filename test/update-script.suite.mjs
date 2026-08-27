@@ -28,6 +28,7 @@ import {
   readFileSync,
   symlinkSync,
   readlinkSync,
+  readdirSync,
   existsSync,
   rmSync,
 } from "node:fs";
@@ -143,6 +144,34 @@ function pushUpstream(fx, mutate, message = "upstream change") {
   rmSync(staging, { recursive: true, force: true });
 }
 
+/**
+ * Every path under `dir` except `.git`, as a comparable string: the file's content, or a symlink's
+ * target, keyed by relative path. "Wrote nothing" is a claim about the WHOLE prefix — a test that
+ * only re-reads the three paths it happens to remember proves nothing about the fourth.
+ */
+function snapshot(dir) {
+  const out = {};
+  const walk = (rel) => {
+    const abs = rel ? join(dir, rel) : dir;
+    for (const e of readdirSync(abs, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      if (e.name === ".git") continue;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isSymbolicLink()) out[r] = `symlink -> ${readlinkSync(join(abs, e.name))}`;
+      else if (e.isDirectory()) { out[r] = "dir"; walk(r); }
+      else out[r] = readFileSync(join(abs, e.name), "utf8");
+    }
+  };
+  walk("");
+  return out;
+}
+
+/** Like pushUpstream, but also fast-forwards the clone: shared history, not an available update. */
+function landUpstream(fx, mutate, message) {
+  pushUpstream(fx, mutate, message);
+  git(fx.repo, "fetch", "--quiet");
+  git(fx.repo, "merge", "--quiet", "--ff-only", "@{u}");
+}
+
 // ------------------------------------------------------------------------------------------ tests
 
 describe("scripts/update.sh", () => {
@@ -154,6 +183,10 @@ describe("scripts/update.sh", () => {
       assert.match(r.stdout, /Usage:/);
       assert.match(r.stdout, /--check/);
       assert.match(r.stdout, /PI-UPDATE-Exx/);
+      // The whole exit-code table, not the first four fifths of it: the range this is printed
+      // from used to stop one line short of 130 and four short of the docs links.
+      assert.match(r.stdout, /130\s+interrupted/);
+      assert.match(r.stdout, /getting-started\/update/);
     } finally {
       rmSync(fx.dir, { recursive: true, force: true });
     }
@@ -464,4 +497,243 @@ describe("scripts/update.sh", () => {
     assert.match(r.stdout, /a real check/, "the verifier's own table should still be shown");
     assert.doesNotMatch(r.stdout, /Nothing is left for you to do by hand/);
   });
+  // ------------------------------------------------------------ the three advertised refusals
+  // README.md:60-65 and docs/getting-started/update.md make three promises about what this
+  // script will NOT do. The tests above cover the tracked-file half of the first one; these
+  // cover the parts a colleague only discovers by losing something.
+
+  test("an untracked file the update does not touch is not a dirty tree", () => {
+    // `git status --porcelain --untracked-files=no` is deliberate, and it is the difference
+    // between "refuses to run on a dirty tree" and "refuses to run in a directory you have ever
+    // put a scratch file in". Only an untracked file upstream ALSO adds is a blocker (E12), and
+    // that one is tested separately.
+    const fx = makeFixture();
+    try {
+      writeFileSync(join(fx.repo, "scratch-notes.txt"), "mine\n");
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, `an untracked file blocked the update:\n${r.stdout}\n${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /PI-UPDATE-E07/);
+      assert.equal(readFileSync(join(fx.repo, "config", "alpha.json"), "utf8"), '{"alpha":2}\n');
+      assert.equal(readFileSync(join(fx.repo, "scratch-notes.txt"), "utf8"), "mine\n");
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a hand-edited generated config is not a dirty tree", () => {
+    // The generated set (config/models.json and friends) is git-ignored precisely so that editing
+    // it is normal. If it counted as dirty, a colleague who ever ran the installer could never
+    // update again — the failure would be total and would look like the script's own rule.
+    const fx = makeFixture();
+    try {
+      landUpstream(fx, (d) => {
+        writeFileSync(join(d, ".gitignore"), "config/alpha.json\n");
+        git(d, "rm", "--quiet", "--cached", "config/alpha.json");
+      }, "ignore the generated config");
+      writeFileSync(join(fx.repo, "config", "alpha.json"), '{"alpha":"hand-edited"}\n');
+      // Scoped to the file: the fixture's own `scripts/update.sh` is a symlink to the real script
+      // and is untracked by construction, so a bare `git status` is never empty here.
+      assert.equal(
+        git(fx.repo, "status", "--porcelain", "--", "config/alpha.json"),
+        "",
+        "fixture: the edit should be invisible to git",
+      );
+
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "beta.json"), '{"beta":2}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, `a git-ignored generated config blocked the update:\n${r.stdout}\n${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /PI-UPDATE-E07/);
+      assert.equal(
+        readFileSync(join(fx.repo, "config", "alpha.json"), "utf8"),
+        '{"alpha":"hand-edited"}\n',
+        "the update rewrote a generated config",
+      );
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a diverged branch is left byte-identical — no rebase, no merge, no stash", () => {
+    // "It only fast-forwards" is a claim about what the tree looks like AFTERWARDS, not about
+    // which message was printed. A rebase that happened and then failed would still print E11.
+    const fx = makeFixture();
+    try {
+      writeFileSync(join(fx.repo, "config", "beta.json"), '{"beta":"mine"}\n');
+      git(fx.repo, "add", "-A");
+      git(fx.repo, "commit", "--quiet", "-m", "my local work");
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+
+      const headBefore = git(fx.repo, "rev-parse", "HEAD");
+      const treeBefore = snapshot(fx.repo);
+      const prefixBefore = snapshot(fx.prefix);
+
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 1, `expected a refusal:\n${r.stdout}\n${r.stderr}`);
+      assert.match(r.stderr, /PI-UPDATE-E11/);
+      assert.match(r.stderr, /my local work/, "the refusal did not list the local commit");
+      assert.match(r.stderr, /only fast-forwards/);
+
+      assert.equal(git(fx.repo, "rev-parse", "HEAD"), headBefore, "HEAD moved on a diverged branch");
+      assert.deepEqual(snapshot(fx.repo), treeBefore, "the working tree changed on a diverged branch");
+      assert.deepEqual(snapshot(fx.prefix), prefixBefore, "the prefix changed on a diverged branch");
+      const gitDir = join(fx.repo, ".git");
+      for (const marker of ["MERGE_HEAD", "REBASE_HEAD", "rebase-merge", "rebase-apply"]) {
+        assert.equal(existsSync(join(gitDir, marker)), false, `${marker} exists — something tried to join the branches`);
+      }
+      assert.equal(git(fx.repo, "stash", "list"), "", "the script stashed something");
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a generated config whose template moved upstream is named, left alone, and handed a command", () => {
+    // The third promise, and the one with no test at all until now: install.sh generates
+    // config/<name>.json from config/<name>.default.json plus your answers, and never resets it
+    // afterwards. So an upstream change to the template is a change you did NOT get. Merging it
+    // is a judgement call; naming it is not.
+    const fx = makeFixture();
+    try {
+      landUpstream(fx, (d) => {
+        writeFileSync(join(d, ".gitignore"), "config/gen.json\n");
+        writeFileSync(join(d, "config", "gen.default.json"), '{"gen":"template v1"}\n');
+      }, "add a generated-config template");
+      // What install.sh would have produced from it, then hand-edited.
+      writeFileSync(join(fx.repo, "config", "gen.json"), '{"gen":"mine, edited"}\n');
+      const generatedBefore = readFileSync(join(fx.repo, "config", "gen.json"), "utf8");
+
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "gen.default.json"), '{"gen":"template v2"}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+
+      assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+      assert.match(r.stdout, /config\/gen\.default\.json was modified upstream/, "the template change was not named");
+      assert.match(r.stdout, /config\/gen\.json is yours and stays untouched/);
+      assert.match(r.stdout, /install\.sh --reconfigure/, "no command was handed back");
+      assert.match(r.stdout, /For you to look at — nothing here was changed/);
+      assert.equal(
+        readFileSync(join(fx.repo, "config", "gen.json"), "utf8"),
+        generatedBefore,
+        "the update resolved the conflict instead of reporting it",
+      );
+      assert.equal(
+        readFileSync(join(fx.repo, "config", "gen.default.json"), "utf8"),
+        '{"gen":"template v2"}\n',
+        "the template itself should have arrived",
+      );
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("--check and --dry-run write nothing outside .git, anywhere under the prefix", () => {
+    // The existing tests spot-check HEAD, the manifest and one symlink. This one compares the
+    // whole of both trees, because the interesting write is always the one nobody thought to
+    // re-read: a scratch file dropped in the repo, a stray entry in the agent dir.
+    const fx = makeFixture();
+    try {
+      landUpstream(fx, (d) => {
+        writeFileSync(join(d, ".gitignore"), "config/gen.json\n");
+        writeFileSync(join(d, "config", "gen.default.json"), '{"gen":"template v1"}\n');
+      }, "add a generated-config template");
+      writeFileSync(join(fx.repo, "config", "gen.json"), '{"gen":"mine"}\n');
+      writeFileSync(join(fx.repo, "scratch-notes.txt"), "mine\n");
+
+      // An update carrying every kind of thing the script reacts to: a new linkable config, a
+      // moved template, a moved lockfile, a new interview question.
+      pushUpstream(fx, (d) => {
+        writeFileSync(join(d, "config", "gamma.json"), '{"gamma":true}\n');
+        writeFileSync(join(d, "config", "gen.default.json"), '{"gen":"template v2"}\n');
+        writeFileSync(join(d, "package-lock.json"), '{"lockfileVersion":3,"moved":true}\n');
+        writeFileSync(
+          join(d, "scripts", "install.sh"),
+          readFileSync(join(d, "scripts", "install.sh"), "utf8")
+            .replace("link_one required", "link_one optional config/gamma.json gamma.json\nlink_one required")
+            .replace('ask tools.alreadyAsked "an existing question" yes',
+                     'ask tools.alreadyAsked "an existing question" yes\n  ask tools.brandNew "a new question" no'),
+        );
+      });
+
+      const repoBefore = snapshot(fx.repo);
+      const prefixBefore = snapshot(fx.prefix);
+      const homeBefore = snapshot(fx.home);
+
+      const checked = update(fx, "--check");
+      assert.equal(checked.status, 3, checked.stderr);
+      assert.deepEqual(snapshot(fx.repo), repoBefore, "--check wrote inside the checkout");
+      assert.deepEqual(snapshot(fx.prefix), prefixBefore, "--check wrote inside the prefix");
+      assert.deepEqual(snapshot(fx.home), homeBefore, "--check wrote inside HOME");
+
+      const dry = update(fx, "--dry-run", "--yes", "--no-verify");
+      assert.equal(dry.status, 0, `${dry.stdout}\n${dry.stderr}`);
+      assert.deepEqual(snapshot(fx.repo), repoBefore, "--dry-run wrote inside the checkout");
+      assert.deepEqual(snapshot(fx.prefix), prefixBefore, "--dry-run wrote inside the prefix");
+      assert.deepEqual(snapshot(fx.home), homeBefore, "--dry-run wrote inside HOME");
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a git-ignored generated config that upstream starts tracking is refused, not overwritten", () => {
+    // The one place the three promises did not hold. `git merge --ff-only` overwrites an IGNORED
+    // file without a word — only untracked-and-not-ignored files make git refuse — so the script's
+    // own E12 collision check let this path through with a `report_add` and then fast-forwarded
+    // over it. The user's hand-edited config was gone, and the summary said so in the future tense
+    // ("your copy WOULD be overwritten") under the heading "nothing here was changed".
+    // config/models.json is the file this happens to, and it is the one carrying their gateway URL.
+    const fx = makeFixture();
+    try {
+      landUpstream(fx, (d) => {
+        writeFileSync(join(d, ".gitignore"), "config/gen.json\n");
+      }, "ignore the generated config");
+      writeFileSync(join(fx.repo, "config", "gen.json"), '{"gen":"mine, edited"}\n');
+      const headBefore = git(fx.repo, "rev-parse", "HEAD");
+
+      pushUpstream(fx, (d) => {
+        writeFileSync(join(d, "config", "gen.json"), '{"gen":"upstream now tracks this"}\n');
+        git(d, "add", "-f", "config/gen.json");
+      });
+
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 1, `expected a refusal:\n${r.stdout}\n${r.stderr}`);
+      assert.match(r.stderr, /PI-UPDATE-E17/);
+      assert.match(r.stderr, /config\/gen\.json/, "the refusal did not name the file");
+      assert.equal(
+        readFileSync(join(fx.repo, "config", "gen.json"), "utf8"),
+        '{"gen":"mine, edited"}\n',
+        "the update overwrote a hand-edited generated config",
+      );
+      assert.equal(git(fx.repo, "rev-parse", "HEAD"), headBefore, "the checkout moved anyway");
+
+      // --check reports it like every other blocking condition, and still exits 3.
+      const checked = update(fx, "--check");
+      assert.equal(checked.status, 3, checked.stderr);
+      assert.match(checked.stderr, /PI-UPDATE-E17/);
+      assert.equal(readFileSync(join(fx.repo, "config", "gen.json"), "utf8"), '{"gen":"mine, edited"}\n');
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("an ignored file identical to the version upstream is adding is not a refusal", () => {
+    // Nothing to lose means nothing to refuse: the common case is a generated file that happens
+    // to match what upstream now ships. Blocking there would be a rule with no victim.
+    const fx = makeFixture();
+    try {
+      landUpstream(fx, (d) => {
+        writeFileSync(join(d, ".gitignore"), "config/gen.json\n");
+      }, "ignore the generated config");
+      writeFileSync(join(fx.repo, "config", "gen.json"), '{"gen":"identical"}\n');
+      pushUpstream(fx, (d) => {
+        writeFileSync(join(d, "config", "gen.json"), '{"gen":"identical"}\n');
+        git(d, "add", "-f", "config/gen.json");
+      });
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /PI-UPDATE-E17/);
+      assert.equal(readFileSync(join(fx.repo, "config", "gen.json"), "utf8"), '{"gen":"identical"}\n');
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
 });
+
