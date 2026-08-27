@@ -1324,6 +1324,8 @@
       
         
       
+        
+      
     
     
     
@@ -1371,6 +1373,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../themes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Themes — the TUI colour scheme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4279,11 +4309,11 @@ wait than see the abort.</p>
 </table>
 <hr />
 <h2 id="resource-paths">Resource paths<a class="headerlink" href="#resource-paths" title="Permanent link">&para;</a></h2>
-<p>These four arrays are how PI finds everything this repository adds.</p>
+<p>These five arrays are how PI finds everything this repository adds.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"skills"</span><span class="p">:</span><span class="w">     </span><span class="p">[</span><span class="s2">"~/.pi/agent/skills"</span><span class="p">],</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">"prompts"</span><span class="p">:</span><span class="w">    </span><span class="p">[</span><span class="s2">"~/.pi/agent/prompts"</span><span class="p">],</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">],</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nt">"themes"</span><span class="p">:</span><span class="w">     </span><span class="p">[],</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nt">"themes"</span><span class="p">:</span><span class="w">     </span><span class="p">[</span><span class="s2">"~/pi-config/themes"</span><span class="p">],</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nt">"packages"</span><span class="p">:</span><span class="w">   </span><span class="p">[</span>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="s2">"~/pi-config/pi-packages/pi-mcp-adapter"</span><span class="p">,</span>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="s2">"~/pi-config/node_modules/pi-subagents"</span><span class="p">,</span>
@@ -4362,8 +4392,8 @@ for them elsewhere.</p>
 <tbody>
 <tr>
 <td><code>theme</code></td>
-<td><code>"dark"</code></td>
-<td></td>
+<td><code>"Tokyo Night"</code></td>
+<td>Selects by the <code>name</code> inside a theme file, not by filename. See <a href="../themes/">Themes</a></td>
 </tr>
 <tr>
 <td><code>tuiMode</code></td>
