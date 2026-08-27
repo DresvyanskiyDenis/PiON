@@ -1198,6 +1198,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#a-key-you-rotate-mid-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A key you rotate mid-session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#keychain-instead-of-a-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3922,6 +3933,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#a-key-you-rotate-mid-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A key you rotate mid-session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#keychain-instead-of-a-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4046,9 +4068,13 @@
 
 
 <h1 id="configshellpi-envsh-environment-secrets-proxy-ca"><code>config/shell/pi-env.sh</code> — environment, secrets, proxy, CA<a class="headerlink" href="#configshellpi-envsh-environment-secrets-proxy-ca" title="Permanent link">&para;</a></h1>
-<p><strong>Tracked in git. Edit in place.</strong> Sourced from your shell profile:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">[</span><span class="w"> </span>-f<span class="w"> </span>~/.pi/agent/shell/pi-env.sh<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>.<span class="w"> </span>~/.pi/agent/shell/pi-env.sh
+<p><strong>Tracked in git. Edit in place.</strong> Sourced from your shell profile — this is the line
+<code>scripts/install.sh</code> appends, and the path it appends is this repository's own:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">[</span><span class="w"> </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/pi-config/config/shell/pi-env.sh"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>.<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/pi-config/config/shell/pi-env.sh"</span>
 </span></code></pre></div>
+<p>A non-home <code>--prefix</code> substitutes its own stable link for <code>$HOME/pi-config</code>; the installer prints
+the exact line before it writes it. There is no <code>~/.pi/agent/shell/</code> directory — this page and the
+file's own header used to name one, which sourced nothing and said nothing about it.</p>
 <div class="admonition danger">
 <p class="admonition-title">This file contains NO secret values, and must not start to</p>
 <p>It only points at the places secrets live. <code>bin/pi-check</code> rule <code>PC-06</code> greps the repository for
@@ -4149,12 +4175,46 @@ too:</p>
 <p>Credentials that happen to already be exported for other tools will mask this problem until the
 one that is not costs you a debugging session.</p>
 </div>
+<h3 id="a-key-you-rotate-mid-session">A key you rotate mid-session<a class="headerlink" href="#a-key-you-rotate-mid-session" title="Permanent link">&para;</a></h3>
+<p>The block above runs once per <strong>shell start</strong>. Rotate a key in <code>~/.pi/secrets.env</code> after a terminal
+is already open and that terminal never sees it: the old value sits in the shell's environment and
+is inherited by every <code>pi</code> launched from it. Nothing tells you — a stale key is a well-formed key,
+so the provider rejects it and the error talks about authentication, not about your shell being
+older than your credentials.</p>
+<p>So the shipped file also defines a wrapper that re-reads the secrets file in a subshell immediately
+before running the real binary:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pi<span class="o">()</span><span class="w"> </span><span class="o">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="o">(</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-r<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.pi/secrets.env"</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nb">set</span><span class="w"> </span>-a
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">      </span>.<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.pi/secrets.env"</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nb">set</span><span class="w"> </span>+a
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="k">fi</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nb">unset</span><span class="w"> </span>-f<span class="w"> </span>pi
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nb">exec</span><span class="w"> </span>pi<span class="w"> </span><span class="s2">"</span><span class="nv">$@</span><span class="s2">"</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="o">)</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="o">}</span>
+</span></code></pre></div>
+<p>The refresh granularity is one file read per <code>pi</code> launch. The subshell keeps the refreshed value out
+of your interactive shell; <code>unset -f pi</code> before <code>exec</code> resolves to the binary on <code>PATH</code> rather than
+recursing, without hard-coding a path that would go stale if pi moves; <code>exec</code> keeps the process tree
+flat and the exit status pi's own; and the <code>[ -r ]</code> guard means an absent secrets file stays a silent
+no-op. <code>pil</code> and <code>pis</code> expand to <code>pi --model …</code>, so they refresh too. <code>command pi</code> reaches the bare
+binary if you ever want it.</p>
+<p>The installer also sources this file from <code>~/.zshenv</code> so cron and launchd runs get credentials, which
+means the wrapper covers headless callers as well — the case where the shell that started the job is
+most likely to be days old.</p>
+<div class="admonition warning">
+<p class="admonition-title">It cannot rescue a session that is already running</p>
+<p>A process environment is fixed at spawn. A <code>pi</code> started before the rotation keeps the old key
+until you restart it. The wrapper fixes the <em>next</em> launch, not the current one.</p>
+</div>
 <h3 id="keychain-instead-of-a-file">Keychain instead of a file<a class="headerlink" href="#keychain-instead-of-a-file" title="Permanent link">&para;</a></h3>
 <p>On macOS:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>security<span class="w"> </span>add-generic-password<span class="w"> </span>-a<span class="w"> </span><span class="s2">"</span><span class="nv">$USER</span><span class="s2">"</span><span class="w"> </span>-s<span class="w"> </span>pi-&lt;name&gt;<span class="w"> </span>-w<span class="w"> </span><span class="s1">'&lt;key&gt;'</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="o">[</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">SOME_API_KEY</span><span class="k">:-</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nb">export</span><span class="w"> </span><span class="nv">SOME_API_KEY</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>security<span class="w"> </span>find-generic-password<span class="w"> </span>-a<span class="w"> </span><span class="s2">"</span><span class="nv">$USER</span><span class="s2">"</span><span class="w"> </span>-s<span class="w"> </span>pi-&lt;name&gt;<span class="w"> </span>-w<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="k">)</span><span class="s2">"</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>security<span class="w"> </span>add-generic-password<span class="w"> </span>-a<span class="w"> </span><span class="s2">"</span><span class="nv">$USER</span><span class="s2">"</span><span class="w"> </span>-s<span class="w"> </span>pi-&lt;name&gt;<span class="w"> </span>-w<span class="w"> </span><span class="s1">'&lt;key&gt;'</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="o">[</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">SOME_API_KEY</span><span class="k">:-</span><span class="si">}</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nb">export</span><span class="w"> </span><span class="nv">SOME_API_KEY</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>security<span class="w"> </span>find-generic-password<span class="w"> </span>-a<span class="w"> </span><span class="s2">"</span><span class="nv">$USER</span><span class="s2">"</span><span class="w"> </span>-s<span class="w"> </span>pi-&lt;name&gt;<span class="w"> </span>-w<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="k">)</span><span class="s2">"</span>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Put the keychain read here, not in <code>models.json</code></p>
@@ -4164,19 +4224,19 @@ every call and has no TTL of its own.</p>
 </div>
 <hr />
 <h2 id="databricks_host"><code>DATABRICKS_HOST</code><a class="headerlink" href="#databricks_host" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># export DATABRICKS_HOST="https://&lt;your-workspace-host&gt;"</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># export DATABRICKS_CONFIG_PROFILE=DEFAULT</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># export DATABRICKS_HOST="https://&lt;your-workspace-host&gt;"</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># export DATABRICKS_CONFIG_PROFILE=DEFAULT</span>
 </span></code></pre></div>
 <p>Read by the vendor CLI and by <code>config/bin/dbx-token-cached</code>. <strong>Not read by PI</strong> — <code>baseUrl</code> in
 <code>models.json</code> is not variable-expanded, so the hostname is set independently in two places and the
 two must agree. The installer writes both from one answer; if you change one by hand, change both.</p>
 <hr />
 <h2 id="tls-and-proxy">TLS and proxy<a class="headerlink" href="#tls-and-proxy" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># export NODE_EXTRA_CA_CERTS="$HOME/.ssl/&lt;your-ca-bundle&gt;.pem"</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># export HTTPS_PROXY="http://&lt;your-proxy-host&gt;:&lt;port&gt;"</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># export HTTP_PROXY="$HTTPS_PROXY"</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NO_PROXY</span><span class="o">=</span><span class="s2">"127.0.0.1,localhost,::1,.local"</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">no_proxy</span><span class="o">=</span><span class="s2">"</span><span class="nv">$NO_PROXY</span><span class="s2">"</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># export NODE_EXTRA_CA_CERTS="$HOME/.ssl/&lt;your-ca-bundle&gt;.pem"</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># export HTTPS_PROXY="http://&lt;your-proxy-host&gt;:&lt;port&gt;"</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># export HTTP_PROXY="$HTTPS_PROXY"</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NO_PROXY</span><span class="o">=</span><span class="s2">"127.0.0.1,localhost,::1,.local"</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">no_proxy</span><span class="o">=</span><span class="s2">"</span><span class="nv">$NO_PROXY</span><span class="s2">"</span>
 </span></code></pre></div>
 <h3 id="node_extra_ca_certs"><code>NODE_EXTRA_CA_CERTS</code><a class="headerlink" href="#node_extra_ca_certs" title="Permanent link">&para;</a></h3>
 <p>Behind a TLS-intercepting proxy, Node needs the interceptor's CA bundle or every HTTPS call fails
@@ -4198,16 +4258,16 @@ looks like the endpoint being down.</p>
 <div class="admonition tip">
 <p class="admonition-title">A per-provider proxy, without a global one</p>
 <p>An <code>auth.json</code> credential can carry its own <code>env</code> object, applied for that provider only:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"&lt;provider-id&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"api"</span><span class="p">,</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$YOUR_API_KEY_VAR"</span><span class="p">,</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">                     </span><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"HTTPS_PROXY"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://proxy.example.com:8080"</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"&lt;provider-id&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"api"</span><span class="p">,</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"$YOUR_API_KEY_VAR"</span><span class="p">,</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">                     </span><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"HTTPS_PROXY"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://proxy.example.com:8080"</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>Prefer that over exporting <code>HTTPS_PROXY</code> globally, which would also capture anything you run on
 loopback.</p>
 </div>
 <hr />
 <h2 id="convenience-aliases">Convenience aliases<a class="headerlink" href="#convenience-aliases" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pil</span><span class="o">=</span><span class="s1">'pi --model "$(pi-tier light)"'</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pis</span><span class="o">=</span><span class="s1">'pi --model "$(pi-tier strong)"'</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pil</span><span class="o">=</span><span class="s1">'pi --model "$(pi-tier light)"'</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">alias</span><span class="w"> </span><span class="nv">pis</span><span class="o">=</span><span class="s1">'pi --model "$(pi-tier strong)"'</span>
 </span></code></pre></div>
 <p>Two shortcuts, and a demonstration of the intended pattern: a shell command names a <strong>tier</strong>, and
 <code>pi-tier</code> resolves it. Nothing in your shell history hard-codes a model id, so rebinding a tier in

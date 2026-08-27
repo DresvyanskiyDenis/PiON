@@ -2271,6 +2271,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#5-web_answer-search-that-reads-the-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. web_answer — search that reads the pages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cost" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3859,6 +3870,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#5-web_answer-search-that-reads-the-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. web_answer — search that reads the pages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cost" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3907,7 +3929,7 @@
 
 <h1 id="web-provider-independent-search-and-fetch"><code>web</code> — provider-independent search and fetch<a class="headerlink" href="#web-provider-independent-search-and-fetch" title="Permanent link">&para;</a></h1>
 <p>The web tools themselves come from an adopted package. This module owns the four things the package
-adoption does not cover.</p>
+adoption does not cover, and adds one tool of its own.</p>
 <p>Configured by <a href="../../configuration/tools/#web"><code>config/web.json</code> and <code>config/web-search.json</code></a>.</p>
 <h2 id="1-exactly-one-search-backend-pinned">1. Exactly one search backend, pinned<a class="headerlink" href="#1-exactly-one-search-backend-pinned" title="Permanent link">&para;</a></h2>
 <p>Enforced at <strong>every</strong> <code>session_start</code>, not merely declared in a config file nobody re-checks.
@@ -3943,9 +3965,35 @@ logged into.</p>
 <code>web_fetch</code>. The alias is set in <code>web-search.json</code>'s <code>toolNames.fetchContent</code> and <strong>enforced at
 <code>session_start</code></strong> the same way as the backend pin — a rename that silently stops applying leaves
 every instruction referring to a tool that does not exist.</p>
+<h2 id="5-web_answer-search-that-reads-the-pages">5. <code>web_answer</code> — search that reads the pages<a class="headerlink" href="#5-web_answer-search-that-reads-the-pages" title="Permanent link">&para;</a></h2>
+<p><code>web_search</code> hands back ten titles and leaves the agent to pick, fetch one at a time, and reconcile
+what they said. That is several round trips of context for a question whose answer is a paragraph.
+<code>web_answer</code> asks the search host to do the whole loop — search, screen, open the top pages, read
+them — and returns prose with <code>[n]</code> citations plus the source list those markers point at.</p>
+<p>It does not replace <code>web_search</code>. Reach for <code>web_search</code> when the answer is <em>which page</em>, or when
+the query is navigational; reach for <code>web_answer</code> when the answer is a fact, a version, a default,
+a config key, or a comparison.</p>
+<div class="admonition note">
+<p class="admonition-title">Off until you give it an address</p>
+<p>A stock SearXNG serves <code>/search</code> and nothing else. Search-read-and-cite is a <strong>second endpoint
+you put in front of it</strong>, so <code>web.json</code>'s <code>search.answerPath</code> ships <code>null</code> and the tool is not
+registered at all while it is unset — the same shape as answering "none" at install time
+removing <code>web_search</code> cleanly rather than leaving it to fail at the first call. Set it to the
+path your host serves (<code>"/answer"</code>, say) and it is joined to the <code>searxngBaseUrl</code> <code>web_search</code>
+already uses, so there stays exactly one address to keep correct.</p>
+</div>
+<p>The request rides the same global fetch dispatcher section 2 installs, so a proxy and a custom CA
+bundle apply here too. If the engine is unreachable, <code>web_answer</code> throws rather than degrading to a
+link list: the agent still has <code>web_search</code> and <code>web_fetch</code> in the same session, so a throw costs
+one turn, while a quietly weaker answer costs the attribution.</p>
+<p>The question may carry a SearXNG engine bang (<code>!arxiv</code>, <code>!gh</code>, <code>!so</code>, …) to restrict the search to
+one source — useful only when the question names the kind of source it wants, since a bang turns off
+the cross-engine fusion answer quality normally comes from.</p>
 <h2 id="cost">Cost<a class="headerlink" href="#cost" title="Permanent link">&para;</a></h2>
-<p><code>register()</code> starts no timers, sockets or watchers; all I/O is in <code>session_start</code>. Reading two small
-JSON files and installing a dispatcher.</p>
+<p><code>register()</code> starts no timers, sockets or watchers. Its one read is <code>web.json</code>, which decides
+whether <code>web_answer</code> exists — a tool has to be registered before the session it is offered to
+opens, and PI has no way to withdraw one later. Everything else — the two config asserts, the
+dispatcher — is in <code>session_start</code>.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../configuration/tools/#web"><code>web.json</code> / <code>web-search.json</code></a> ·
 <a href="../../configuration/environment/">Environment</a></p>
