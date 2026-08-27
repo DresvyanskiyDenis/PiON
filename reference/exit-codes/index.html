@@ -4629,10 +4629,15 @@ at all. The same reasoning as the uninstaller's <code>3</code>, applied to a dif
 make, a runtime pin that has moved past the installed binary. The update is not rolled back, because
 the repository state is correct; what is out of step is the install around it, and
 <code>./scripts/install.sh --repair</code> is the fix.</p>
-<p>The three refusals that produce <code>1</code> are the ones worth scripting against, and all three are
-deliberate: <code>PI-UPDATE-E07</code> (uncommitted changes), <code>PI-UPDATE-E11</code> (the branch has diverged) and
-<code>PI-UPDATE-E12</code> (an untracked file where upstream adds a tracked one). None of them is recoverable
-by a script without discarding something a person wrote.</p>
+<p>The four refusals that produce <code>1</code> are the ones worth scripting against, and all four are
+deliberate: <code>PI-UPDATE-E07</code> (uncommitted changes), <code>PI-UPDATE-E11</code> (the branch has diverged),
+<code>PI-UPDATE-E12</code> (an untracked file where upstream adds a tracked one) and <code>PI-UPDATE-E17</code> (a
+git-ignored file, with contents of its own, that upstream has started tracking). None of them is
+recoverable by a script without discarding something a person wrote.</p>
+<p><code>E17</code> is the one whose absence you would not notice. Git protects an untracked file and refuses to
+overwrite it — that is what <code>E12</code> reports — but a file matched by <code>.gitignore</code> gets no such
+protection, and a fast-forward replaces it silently. Every generated config is in that set by
+design, so the file at risk is the one holding your gateway URL.</p>
 <hr />
 <h2 id="scriptsuninstallsh"><code>scripts/uninstall.sh</code><a class="headerlink" href="#scriptsuninstallsh" title="Permanent link">&para;</a></h2>
 <table>

@@ -4170,9 +4170,16 @@ automation. This is the case most likely to bite: it is silent under a plain <co
 <p>An unfinished rebase or merge (<code>PI-UPDATE-E05</code>) and an untracked file sitting where upstream adds a
 tracked one (<code>PI-UPDATE-E12</code>) stop the run for the same reason — both are states where "carry on"
 means losing something.</p>
+<p>A fourth, added because it was the one case where the promise above did not hold: a <strong>git-ignored</strong>
+file that upstream has started tracking, whose contents here differ from the incoming version, stops
+the run with <code>PI-UPDATE-E17</code>. Git's own refusal covers untracked files only; an ignored file is
+replaced by a fast-forward without a word, and every generated config is ignored by design. Copy
+yours aside and re-run — <code>./scripts/install.sh --repair</code> regenerates it from the new template once
+you have taken what you wanted out of the old one. An ignored file whose contents already match what
+upstream is adding is not a refusal: there is nothing there to lose.</p>
 <div class="admonition note">
-<p class="admonition-title"><code>--check</code> reports all four instead of refusing</p>
-<p><code>--check</code> writes nothing, so none of these four can hurt it. It prints the condition with its
+<p class="admonition-title"><code>--check</code> reports all five instead of refusing</p>
+<p><code>--check</code> writes nothing, so none of these five can hurt it. It prints the condition with its
 code, adds one line saying what an update would do about it, and then gives you the report
 anyway — including the incoming commits and what they touch.</p>
 <p>Refusing there would withhold exactly the information you are asking for before deciding whether
@@ -4299,7 +4306,7 @@ binary. <code>--repair</code> is what installs the newly pinned runtime.</p>
 <tbody>
 <tr>
 <td><code>--check</code></td>
-<td>print the whole report, change nothing. Exit <code>0</code> up to date, <code>3</code> an update is waiting. Reports the four blocking conditions rather than refusing on them</td>
+<td>print the whole report, change nothing. Exit <code>0</code> up to date, <code>3</code> an update is waiting. Reports the five blocking conditions rather than refusing on them</td>
 </tr>
 <tr>
 <td><code>--dry-run</code></td>
