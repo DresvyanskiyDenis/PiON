@@ -165,6 +165,7 @@ nav:
           - extensions/context-imports.md
           - extensions/session-index.md
           - extensions/auto-title.md
+          - extensions/thinking-indicator.md
           - extensions/doctor.md
   - Extending:
       - extending/index.md

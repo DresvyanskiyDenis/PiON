@@ -52,6 +52,40 @@ function contrast(a: string, b: string): number {
   return (hi! + 0.05) / (lo! + 0.05);
 }
 
+/** sRGB hex to CIE L*a*b*, D65. */
+function lab(hex: string): [number, number, number] {
+  const linear = [1, 3, 5]
+    .map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const [r, g, b] = linear as [number, number, number];
+  const xyz: [number, number, number] = [
+    (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047,
+    0.2126 * r + 0.7152 * g + 0.0722 * b,
+    (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883,
+  ];
+  const [fx, fy, fz] = xyz.map((v) => (v > 216 / 24389 ? Math.cbrt(v) : (841 / 108) * v + 4 / 29));
+  return [116 * fy! - 16, 500 * (fx! - fy!), 200 * (fy! - fz!)];
+}
+
+/**
+ * CIE76 ΔE. The right metric for "are these two panels the same colour": WCAG contrast is a
+ * luminance ratio, so two equally light but differently hued backgrounds score ~1.0 on it and it
+ * cannot tell them apart at all. ΔE measures perceptual distance in all three dimensions.
+ */
+function deltaE(a: string, b: string): number {
+  const [l1, a1, b1] = lab(a);
+  const [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/**
+ * The floor a tool panel must clear against its neighbours. CIE76 calls ~2.3 the just-noticeable
+ * difference for adjacent patches; 8 is well above that, because these panels are never adjacent
+ * — they are separated by rows of output and by time, and a glance has to place one without a
+ * reference to compare it to.
+ */
+const PANEL_DELTA_E = 8;
+
 const THEMES = ["tokyo-night.json", "tokyo-night-day.json"] as const;
 
 // Every token the schema knows about, including the two it marks optional. A theme that omits an
@@ -82,6 +116,8 @@ const COMPOSITED_PAIRS: ReadonlyArray<readonly [fg: string, bg: string]> = [
   ["customMessageText", "customMessageBg"],
   ["customMessageLabel", "customMessageBg"],
   ["toolTitle", "toolPendingBg"],
+  ["toolTitle", "toolSuccessBg"],
+  ["toolTitle", "toolErrorBg"],
   ["toolOutput", "toolPendingBg"],
   ["toolOutput", "toolSuccessBg"],
   ["toolOutput", "toolErrorBg"],
@@ -168,11 +204,33 @@ describe("tokyo night themes", () => {
         // tokens, but PI renders them as foregrounds (`components/diff.js` calls
         // `theme.fg("toolDiffAdded", ...)`), so a tint lands as near-invisible text on the ground
         // it was designed to be. Pin the tints out by value, so a future resync cannot reintroduce
-        // them past a ratio check that a light variant would satisfy for the wrong reason.
+        // them past a ratio check that a light variant would satisfy for the wrong reason. They are
+        // not discarded — the same four hexes are Tokyo Night's real diff backgrounds and now carry
+        // `toolSuccessBg` / `toolErrorBg`, which is the job upstream drew them for.
         const UPSTREAM_TINTS = ["#243e4a", "#4a272f", "#b7ced5", "#dababe"];
         for (const tint of UPSTREAM_TINTS) {
           assert.ok(![added, removed, context].includes(tint), `${tint} is a diff background tint`);
         }
+      });
+
+      it("gives a tool run three tellable-apart panels, and none of them the ground", () => {
+        const panels = ["toolPendingBg", "toolSuccessBg", "toolErrorBg"] as const;
+        const pairs: ReadonlyArray<readonly [string, string]> = [
+          ["toolPendingBg", "toolSuccessBg"],
+          ["toolPendingBg", "toolErrorBg"],
+          ["toolSuccessBg", "toolErrorBg"],
+        ];
+        const failures = [
+          ...pairs.map(([a, b]) => [`${a}/${b}`, deltaE(resolve(theme, a), resolve(theme, b))] as const),
+          ...panels.map((p) => [`${p}/ground`, deltaE(resolve(theme, p), ground)] as const),
+        ].filter(([, d]) => d < PANEL_DELTA_E);
+        assert.deepEqual(
+          failures.map(([p, d]) => `${p}=${d.toFixed(2)}`),
+          [],
+          "the panel background is the only per-state signal PI renders (`components/tool-execution.js` " +
+            "picks toolPendingBg / toolSuccessBg / toolErrorBg and changes nothing else), so two panels " +
+            "at the same colour make a running tool and a finished one indistinguishable",
+        );
       });
 
       it("ramps the thinking levels as a visible progression", () => {

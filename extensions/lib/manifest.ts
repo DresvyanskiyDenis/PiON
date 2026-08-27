@@ -68,6 +68,8 @@ export const DECLARED_MODULES = [
   "session-index",
   "auto-title",
   "skills-lint",
+  // presentation — reads the level PI already tracks, changes nothing else
+  "thinking-indicator",
   // diagnostics last, so it observes everything above
   "doctor",
 ] as const;

@@ -15,7 +15,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 | 2 | Capability configuration | [path-defaults](path-defaults.md), [path-rules](path-rules.md), [skills-env](skills-env.md), [skill-mask](skill-mask.md), [skills-lint](skills-lint.md) |
 | 3 | Tools and input | [web](web.md), [bash](bash.md), [hooks](hooks.md), [input-transform](input-transform.md), [big-results](big-results.md) |
 | 4 | Orchestration | [dispatch](dispatch.md), [teammates](teammates.md), [worktree](worktree.md), [jobs](jobs.md), [tasks](tasks.md) |
-| 5 | Observability and lifecycle | [quota](quota.md), [digest](digest.md), [compaction](compaction.md), [context-report](context-report.md), [context-imports](context-imports.md), [session-index](session-index.md), [auto-title](auto-title.md), [skills-lint](skills-lint.md) |
+| 5 | Observability and lifecycle | [quota](quota.md), [digest](digest.md), [compaction](compaction.md), [context-report](context-report.md), [context-imports](context-imports.md), [session-index](session-index.md), [auto-title](auto-title.md), [skills-lint](skills-lint.md), [thinking-indicator](thinking-indicator.md) |
 | 6 | Last | [doctor](doctor.md) |
 
 ## What they register

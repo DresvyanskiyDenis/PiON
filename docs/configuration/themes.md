@@ -51,7 +51,7 @@ Switch at runtime with `/theme`. That writes your choice back to `config/setting
 ## What was changed from upstream, and why
 
 `folke/tokyonight.nvim` publishes a PI export under `extras/pi/`. These themes started from it
-rather than from a blank file, and four things in it were wrong for PI specifically. If you resync
+rather than from a blank file, and five things in it were wrong for PI specifically. If you resync
 from upstream, these are the edits to reapply.
 
 ### Diff colours were backgrounds
@@ -68,6 +68,27 @@ sit on. Added and removed lines were very nearly invisible.
 They now use the palette's green and red — the same colours upstream uses as the diff foregrounds
 elsewhere — and `toolDiffContext` moves off a 1.97:1 blue onto the same colour as ordinary tool
 output, because a context line is ordinary code and should read like it.
+
+### The tool panel said nothing about the tool
+
+Upstream set `toolPendingBg` and `toolSuccessBg` to the same value — `#292e42` in `night`,
+`#c4c8da` in `day` — and `toolErrorBg` to `#241d28`, a colour Tokyo Night does not define anywhere.
+
+The panel background is the **only** per-state signal PI renders. Its tool renderer picks one of
+`toolPendingBg` / `toolSuccessBg` / `toolErrorBg` and changes nothing else: no glyph, no border, no
+title colour. So with two of the three equal, "this tool is still running" and "this tool finished"
+were the same picture, and the distinction did not exist on screen.
+
+The two tints freed up by the diff fix are exactly the surfaces for it — Tokyo Night's own
+diff-add and diff-delete backgrounds, drawn to mean *went well* and *did not*:
+
+| Token | `night` | `day` |
+|---|---|---|
+| `toolPendingBg` | `#292e42` | `#c4c8da` |
+| `toolSuccessBg` | `#243e4a` | `#b7ced5` |
+| `toolErrorBg` | `#4a272f` | `#dababe` |
+
+No colour is invented. Every value is upstream's, used for the job upstream drew it for.
 
 ### The thinking ramp did not ramp
 
@@ -110,6 +131,23 @@ resolves every `vars` reference, and then measures WCAG contrast:
 
 `syntaxComment` is deliberately exempt. A comment is meant to recede, and Tokyo Night's comment
 colour is one of the two or three hues the theme is recognised by.
+
+### Why the panels need a second metric
+
+Contrast alone cannot see the tool-panel bug. It is a **luminance ratio**, so two backgrounds of
+the same lightness in different hues score about 1.0 on it whether they are identical or opposite —
+and a "background against background" ratio near 1 is what you *want* for panels that sit on the
+same page. A theme with `toolPendingBg` and `toolSuccessBg` set to the same hex passes every
+contrast floor above, cleanly.
+
+The panels are therefore held to **CIE76 ΔE ≥ 8** instead: perceptual distance in L\*a\*b\*, which
+measures lightness *and* hue. Each of the three against the other two, and each against the ground.
+CIE76 puts the just-noticeable difference for two patches side by side at roughly 2.3; the floor is
+well above that because these panels are never side by side — they are separated by rows of output
+and by seconds of time, and a glance has to place one with nothing to compare it to. The collapsed
+pending/success pair scored **ΔE 0.00**.
+
+If you resync from upstream, this is the check that will fail rather than the contrast one.
 
 The rule caught two real defects in the day variant while it was being written: tool output on the
 tool panel sat at 2.78:1 and inline code inside a code block at 2.74:1. Both were moved to darker

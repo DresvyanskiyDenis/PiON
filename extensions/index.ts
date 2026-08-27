@@ -65,6 +65,7 @@ import { id as contextImportsId, register as registerContextImports } from "./co
 import { id as sessionIndexId, register as registerSessionIndex } from "./session-index/index.ts";
 import { id as autoTitleId, register as registerAutoTitle } from "./auto-title/index.ts";
 import { id as skillsLintId, register as registerSkillsLint } from "./skills-lint.ts";
+import { id as thinkingIndicatorId, register as registerThinkingIndicator } from "./thinking-indicator.ts";
 import { id as doctorId, register as registerDoctor } from "./doctor.ts";
 
 import { recordLoad, recordLoadFailure } from "./manifest.ts";
@@ -105,6 +106,8 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [sessionIndexId, registerSessionIndex],
   [autoTitleId, registerAutoTitle],
   [skillsLintId, registerSkillsLint],
+  // presentation — reads the level PI already tracks, changes nothing else
+  [thinkingIndicatorId, registerThinkingIndicator],
   // diagnostics last, so it observes everything above
   [doctorId, registerDoctor],
 ];
