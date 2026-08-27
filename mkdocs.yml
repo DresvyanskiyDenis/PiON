@@ -95,8 +95,20 @@ extra:
       link: https://github.com/DresvyanskiyDenis/PiON
       name: PiON on GitHub
 
-# `strict` turns broken internal links and unrecognised config into build failures.
+# `strict` turns warnings into build failures. On its own that is less than it sounds: MkDocs
+# reports several link defects at INFO, which `strict` does not see, so the build could report a
+# dead link and still exit 0. A link into a heading that no longer exists shipped that way once.
+# `validation.links` promotes that whole class to WARNING so `strict` can fail on it.
 strict: true
+
+validation:
+  links:
+    # A link to a `#heading` the target page does not have. Default: info.
+    anchors: warn
+    # A relative link that cannot be an internal link at all. Default: info.
+    unrecognized_links: warn
+    # A `/`-rooted link, which breaks under the project subpath this site is served from. Default: info.
+    absolute_links: warn
 
 nav:
   - Home:

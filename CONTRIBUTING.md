@@ -122,7 +122,9 @@ Dependency count is not a disqualifier here — a reviewed package beats bespoke
 ### Documentation
 
 - Reference documentation lives in `docs/` and ships with the code that made it true. A broken
-  internal link fails CI (`mkdocs build --strict`).
+  internal link fails CI (`mkdocs build --strict`) — including a link into a heading that does
+  not exist on the target page, which MkDocs only reports at INFO until `validation.links` in
+  `mkdocs.yml` raises it. Read the build output rather than only its exit status.
 - Recipes, FAQ entries and troubleshooting go in `wiki/`, which is pushed to the wiki repository
   separately — see `wiki/Publishing-This-Wiki.md`.
 - English only. Concrete identifiers over prose. No marketing language.
