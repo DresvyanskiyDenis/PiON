@@ -4487,33 +4487,39 @@ legacy multi-child runs. New orchestration uses <code>workflowScript</code> and 
 <p>A chain step's <code>parallel: [...]</code> group that names no <code>concurrency</code> of its own takes
 <code>MAX_PARALLEL_CONCURRENCY = 4</code> (<code>parallel-utils.ts:265</code>), not <code>globalConcurrencyLimit</code>.</p>
 <h3 id="the-three-spawn-budgets-cumulative-spend-not-width">The three spawn budgets — cumulative spend, not width<a class="headerlink" href="#the-three-spawn-budgets-cumulative-spend-not-width" title="Permanent link">&para;</a></h3>
-<p>New in 0.57.0, live at their defaults whether or not you set them:</p>
+<p>New in 0.57.0. Only the first has a default — the other two do nothing until you set them.
+This table previously gave <code>100</code> and <code>4</code> as defaults and said all three were "live at their defaults
+whether or not you set them"; both numbers came from the vendor's example snippets rather than from
+its defaults. Corrected 2026-08-27 against <code>pi-subagents</code> <code>docs/configuration.md</code>.</p>
 <table>
 <thead>
 <tr>
 <th>Key</th>
-<th>Default</th>
+<th>Unset behaviour</th>
 <th>Bounds</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>maxSubagentSpawnsPerRun</code></td>
-<td>64</td>
+<td><strong>64</strong> (a real default, <code>:262</code>)</td>
 <td>every child one top-level run has <strong>ever</strong> started</td>
 </tr>
 <tr>
 <td><code>maxSubagentSpawnsPerSession</code></td>
-<td>100</td>
+<td><strong>unlimited</strong> (<code>:252</code>)</td>
 <td>the same, counted across the session</td>
 </tr>
 <tr>
 <td><code>maxActiveAsyncRunsPerSession</code></td>
-<td>4</td>
+<td><strong>unlimited</strong> (<code>:272</code>)</td>
 <td>top-level async runs in flight <strong>right now</strong></td>
 </tr>
 </tbody>
 </table>
+<p>This edition sets <code>maxSubagentSpawnsPerRun</code> and <code>maxActiveAsyncRunsPerSession</code> to <code>20</code> in
+<code>config/subagent.default.json</code>. The second of those replaces unlimited, so it is a real tightening;
+the first <em>lowers</em> the vendor default, so read the paragraph below before assuming it is free.</p>
 <p>The first two are cumulative and their claims are never released or refunded, so a long-lived
 workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
 a concurrency one. A batch that does not fit is rejected <strong>whole</strong>, with none of its children

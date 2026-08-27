@@ -4558,9 +4558,13 @@ previously needed none.</p>
   multi-child runs. New orchestration uses <code>workflowScript</code> and <code>runs.all</code>"
   (<code>docs/configuration.md:244</code>). What <a href="../adr/0005-unbounded-fan-out-on-runs-all/">ADR 0005</a>
   established by measurement is now the vendor's own statement.</li>
-<li>Three spawn budgets exist and are live at their defaults — <code>maxSubagentSpawnsPerRun</code> (64),
-  <code>maxSubagentSpawnsPerSession</code> (100) and <code>maxActiveAsyncRunsPerSession</code> (4). The first two are
-  cumulative and the third bounds current async load; none is a width cap. See
+<li>Three spawn budgets exist, and <strong>only one of them has a default</strong> — corrected 2026-08-27, having
+  previously claimed all three were "live at their defaults". <code>maxSubagentSpawnsPerRun</code> really does
+  default to <code>64</code> (<code>docs/configuration.md:262</code>). The other two are <strong>unlimited unless you set them</strong>:
+  sessions are "unlimited by default" for <code>maxSubagentSpawnsPerSession</code> (<code>:252</code>), and "unset or <code>0</code>
+  keeps the existing unlimited behavior" for <code>maxActiveAsyncRunsPerSession</code> (<code>:272</code>). The <code>100</code> and
+  <code>4</code> previously given here were values from the vendor's example snippets, not defaults. The first
+  two budgets are cumulative and the third bounds current async load; none is a width cap. See
   <a href="../extending/subagents/#concurrency-limits-what-each-one-actually-bounds">Sub-agents</a>.</li>
 <li><code>parallel.maxTasks</code> and <code>parallel.concurrency</code> are now <strong>dormant</strong>: their resolvers
   (<code>src/shared/types.ts:2411</code> and <code>:2415</code>) are exported and imported but called nowhere in the
