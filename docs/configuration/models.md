@@ -317,6 +317,32 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     request-body merge, so a level the proxy will not pass is one no entry in this file can reach.
     That one is fixed in the proxy's per-model allowlist, server-side, or not at all.
 
+!!! tip "The per-level gate is a capability flag, and it is usually one field away from working"
+
+    Listing `reasoning_effort` in a deployment's `supported_openai_params` only decides whether the
+    **parameter** is forwarded. The **value** is gated separately, per level, and not by a single
+    rule. In LiteLLM 1.89.7 the GPT-5-family transformation treats `xhigh` as *opt-in*: it is
+    allowed only when `supports_xhigh_reasoning_effort` is explicitly `true`, and the helper behind
+    that check requires a literal true and returns false for any model it does not recognise
+    (`llms/openai/chat/gpt_5_transformation.py`). `none` gets the same strict treatment in the Azure
+    subclass. `low` and `minimal` are the opposite, *opt-out*: a missing flag passes through, and
+    only an explicit `false` blocks them. That asymmetry is why a deployment can serve `low`
+    perfectly well while refusing `xhigh` with both flags equally unset, which reads as incoherence
+    until you know there are two rules.
+
+    The flags go unset for an ordinary reason. A deployment of a model newer than the proxy's
+    bundled price table has no entry in it, and a `base_model` naming the deployment rather than a
+    mapped model supplies nothing either. Nothing is misconfigured; the capability simply has no
+    source, and the safe fallback is a refusal.
+
+    So before writing a `null`, check whether the proxy will let you *declare* the level.
+    `get_model_info` reads `supports_<level>_reasoning_effort` straight out of the deployment's
+    `model_info`, so setting it on the gateway is enough whenever the upstream genuinely serves that
+    level, and it is a smaller change than an allowlist. Set it in the proxy's config file rather
+    than its admin UI, where model-info edits have been reported not to take effect
+    ([BerriAI/litellm#13338](https://github.com/BerriAI/litellm/issues/13338)). A level the upstream
+    does not serve is a different case: declaring it only moves the 400 one hop.
+
 ---
 
 ## Provider fragments — the installer's source of truth
