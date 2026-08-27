@@ -599,6 +599,8 @@
       
         
       
+        
+      
     
     
     
@@ -696,6 +698,34 @@
     
   
     Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Update
   
 
     
@@ -4506,6 +4536,10 @@ whose behaviour is in question; the probe then resolves the matching <em>types</
 <td>first install, <strong>and every reconfiguration afterwards</strong></td>
 </tr>
 <tr>
+<td><code>scripts/update.sh</code></td>
+<td>moving an existing install forward — fast-forward, re-link, re-verify</td>
+</tr>
+<tr>
 <td><code>scripts/uninstall.sh</code></td>
 <td>removal</td>
 </tr>
@@ -4529,6 +4563,8 @@ environment probe; <code>postinstall-verify.sh</code> checks a machine <strong>a
 <p>Both take <code>--with-model</code> to make a real model call (spends tokens; off by default) and <code>--json</code> for
 machine-readable output. Both exit <code>0</code> for no failures, <code>1</code> for at least one, <code>2</code> if the harness
 itself could not run.</p>
+<p><code>update.sh</code> calls <code>postinstall-verify.sh</code> as <em>its</em> last step too, for the same reason: an update
+that moved the repo but left a config unlinked is not an update that finished.</p>
 <p>See <a href="../verification/">Verification</a>.</p>
 <hr />
 <h2 id="slash-commands">Slash commands<a class="headerlink" href="#slash-commands" title="Permanent link">&para;</a></h2>

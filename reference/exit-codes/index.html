@@ -599,6 +599,8 @@
       
         
       
+        
+      
     
     
     
@@ -696,6 +698,34 @@
     
   
     Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Update
   
 
     
@@ -3825,6 +3855,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#scriptsupdatesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scripts/update.sh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#scriptsuninstallsh" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4132,6 +4173,17 @@
     <span class="md-ellipsis">
       
         scripts/install.sh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scriptsupdatesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scripts/update.sh
       
     </span>
   </a>
@@ -4478,6 +4530,49 @@ rather than for the message text; the messages are written for humans and may be
 are not.</p>
 <p>Note the asymmetry with the uninstaller below, which <em>does</em> use <code>2</code> for a usage error. Do not write a
 driver that assumes the two scripts share one contract — read each table.</p>
+<hr />
+<h2 id="scriptsupdatesh"><code>scripts/update.sh</code><a class="headerlink" href="#scriptsupdatesh" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>up to date, or the update completed, or you declined at the confirmation</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>aborted, with a <code>PI-UPDATE-EXX</code> code, a cause and a suggested action</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td><strong><code>--check</code> only</strong> — an update is available. Nothing was changed</td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>the update landed, but <code>postinstall-verify.sh</code> reported failures. Read its table</td>
+</tr>
+<tr>
+<td><code>130</code></td>
+<td>interrupted (Ctrl-C / SIGTERM)</td>
+</tr>
+</tbody>
+</table>
+<p><code>3</code> is deliberately not <code>1</code>. "There is an update waiting" is not a failure, and a driver that
+cannot tell it apart from "I could not check" will either update on a network error or never update
+at all. The same reasoning as the uninstaller's <code>3</code>, applied to a different question.</p>
+<p><code>4</code> says the checkout moved but the machine may not be right yet — a symlink the update could not
+make, a runtime pin that has moved past the installed binary. The update is not rolled back, because
+the repository state is correct; what is out of step is the install around it, and
+<code>./scripts/install.sh --repair</code> is the fix.</p>
+<p>The three refusals that produce <code>1</code> are the ones worth scripting against, and all three are
+deliberate: <code>PI-UPDATE-E07</code> (uncommitted changes), <code>PI-UPDATE-E11</code> (the branch has diverged) and
+<code>PI-UPDATE-E12</code> (an untracked file where upstream adds a tracked one). None of them is recoverable
+by a script without discarding something a person wrote.</p>
 <hr />
 <h2 id="scriptsuninstallsh"><code>scripts/uninstall.sh</code><a class="headerlink" href="#scriptsuninstallsh" title="Permanent link">&para;</a></h2>
 <table>

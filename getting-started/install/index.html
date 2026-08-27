@@ -16,7 +16,7 @@
         <link rel="prev" href="../prerequisites/">
       
       
-        <link rel="next" href="../first-run/">
+        <link rel="next" href="../update/">
       
       
         
@@ -601,6 +601,8 @@
       
         
       
+        
+      
     
     
     
@@ -919,6 +921,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#updating-later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating later
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#uninstalling" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -944,6 +957,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Update
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -4206,6 +4247,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#updating-later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updating later
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#uninstalling" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4608,12 +4660,26 @@ configure keeps working. A request that needs the missing one <strong>fails loud
 failures, the install still completed — read the table. See <a href="../../operations/verification/">Verification</a>.</p>
 <p>Next: <a href="../first-run/">First run</a>.</p>
 <hr />
-<h2 id="uninstalling">Uninstalling<a class="headerlink" href="#uninstalling" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
+<h2 id="updating-later">Updating later<a class="headerlink" href="#updating-later" title="Permanent link">&para;</a></h2>
+<p><code>./scripts/update.sh</code> fast-forwards the checkout and then reconciles the install against it: new
+config files get their symlinks, a changed lockfile gets an <code>npm ci</code>, and a template you have
+diverged from is named rather than overwritten. It refuses to run on a dirty tree and it never
+merges or rebases for you.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./scripts/update.sh<span class="w"> </span>--check<span class="w">    </span><span class="c1"># is there an update, and what would it do?</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./scripts/update.sh<span class="w">            </span><span class="c1"># report, confirm, apply</span>
 </span></code></pre></div>
+<p>It hands you back here for anything an update cannot decide — a new interview question, a changed
+provider fragment, a moved PI pin all end in <code>./scripts/install.sh --reconfigure</code> or <code>--repair</code>, and
+update.sh prints the exact command. See <a href="../update/">Update</a>.</p>
+<hr />
+<h2 id="uninstalling">Uninstalling<a class="headerlink" href="#uninstalling" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
+</span></code></pre></div>
+<p>To move an install forward rather than take it out, see <a href="../update/">Update</a> — it reads the same
+manifest, and adds to it rather than removing from it.</p>
 <p>It reads the install manifest back, so it removes <strong>only what the installer created</strong>. A foreign
 file or symlink sitting at one of those paths is left alone and reported, not deleted.</p>
 <p>Plain <code>./scripts/uninstall.sh</code> never deletes credentials, trust decisions or session transcripts.
@@ -4625,7 +4691,7 @@ compaction-loop state, per-session scratch directories and locks — things the 
 created, which is why they are kept by default.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../prerequisites/">Prerequisites</a> · <a href="../first-run/">First run</a> · <a href="../config-layout/">Configuration layout</a></li>
+<li><a href="../prerequisites/">Prerequisites</a> · <a href="../first-run/">First run</a> · <a href="../update/">Update</a> · <a href="../config-layout/">Configuration layout</a></li>
 <li><a href="../../configuration/">Configuration reference</a> — what to change afterwards</li>
 <li><a href="../../operations/verification/">Verification</a> · <a href="../../operations/troubleshooting/">Troubleshooting</a></li>
 </ul>
