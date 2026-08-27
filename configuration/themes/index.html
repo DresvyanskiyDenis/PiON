@@ -1295,6 +1295,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-tool-panel-said-nothing-about-the-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The tool panel said nothing about the tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-thinking-ramp-did-not-ramp" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1340,6 +1351,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="The contrast rule">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-the-panels-need-a-second-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the panels need a second metric
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2716,6 +2744,8 @@
       
         
       
+        
+      
     
     
     
@@ -2944,6 +2974,34 @@
     
   
     auto-title — naming the session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/thinking-indicator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    thinking-indicator — the spinner tells you how hard it is thinking
   
 
     
@@ -3901,6 +3959,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-tool-panel-said-nothing-about-the-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The tool panel said nothing about the tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-thinking-ramp-did-not-ramp" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3946,6 +4015,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="The contrast rule">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-the-panels-need-a-second-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the panels need a second metric
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -4037,7 +4123,7 @@ your terminal reports correctly.</p>
 <hr />
 <h2 id="what-was-changed-from-upstream-and-why">What was changed from upstream, and why<a class="headerlink" href="#what-was-changed-from-upstream-and-why" title="Permanent link">&para;</a></h2>
 <p><code>folke/tokyonight.nvim</code> publishes a PI export under <code>extras/pi/</code>. These themes started from it
-rather than from a blank file, and four things in it were wrong for PI specifically. If you resync
+rather than from a blank file, and five things in it were wrong for PI specifically. If you resync
 from upstream, these are the edits to reapply.</p>
 <h3 id="diff-colours-were-backgrounds">Diff colours were backgrounds<a class="headerlink" href="#diff-colours-were-backgrounds" title="Permanent link">&para;</a></h3>
 <p>Upstream set <code>toolDiffAdded</code> to <code>#243e4a</code> and <code>toolDiffRemoved</code> to <code>#4a272f</code>. Those are Tokyo
@@ -4050,6 +4136,42 @@ sit on. Added and removed lines were very nearly invisible.</p>
 <p>They now use the palette's green and red — the same colours upstream uses as the diff foregrounds
 elsewhere — and <code>toolDiffContext</code> moves off a 1.97:1 blue onto the same colour as ordinary tool
 output, because a context line is ordinary code and should read like it.</p>
+<h3 id="the-tool-panel-said-nothing-about-the-tool">The tool panel said nothing about the tool<a class="headerlink" href="#the-tool-panel-said-nothing-about-the-tool" title="Permanent link">&para;</a></h3>
+<p>Upstream set <code>toolPendingBg</code> and <code>toolSuccessBg</code> to the same value — <code>#292e42</code> in <code>night</code>,
+<code>#c4c8da</code> in <code>day</code> — and <code>toolErrorBg</code> to <code>#241d28</code>, a colour Tokyo Night does not define anywhere.</p>
+<p>The panel background is the <strong>only</strong> per-state signal PI renders. Its tool renderer picks one of
+<code>toolPendingBg</code> / <code>toolSuccessBg</code> / <code>toolErrorBg</code> and changes nothing else: no glyph, no border, no
+title colour. So with two of the three equal, "this tool is still running" and "this tool finished"
+were the same picture, and the distinction did not exist on screen.</p>
+<p>The two tints freed up by the diff fix are exactly the surfaces for it — Tokyo Night's own
+diff-add and diff-delete backgrounds, drawn to mean <em>went well</em> and <em>did not</em>:</p>
+<table>
+<thead>
+<tr>
+<th>Token</th>
+<th><code>night</code></th>
+<th><code>day</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>toolPendingBg</code></td>
+<td><code>#292e42</code></td>
+<td><code>#c4c8da</code></td>
+</tr>
+<tr>
+<td><code>toolSuccessBg</code></td>
+<td><code>#243e4a</code></td>
+<td><code>#b7ced5</code></td>
+</tr>
+<tr>
+<td><code>toolErrorBg</code></td>
+<td><code>#4a272f</code></td>
+<td><code>#dababe</code></td>
+</tr>
+</tbody>
+</table>
+<p>No colour is invented. Every value is upstream's, used for the job upstream drew it for.</p>
 <h3 id="the-thinking-ramp-did-not-ramp">The thinking ramp did not ramp<a class="headerlink" href="#the-thinking-ramp-did-not-ramp" title="Permanent link">&para;</a></h3>
 <p>The six <code>thinking*</code> tokens colour the reasoning-level indicator, so they should read as a
 progression at a glance. Upstream's ordering put <code>low</code> <strong>darker</strong> than <code>off</code>, and <code>xhigh</code> darker
@@ -4081,6 +4203,19 @@ resolves every <code>vars</code> reference, and then measures WCAG contrast:</p>
 </ul>
 <p><code>syntaxComment</code> is deliberately exempt. A comment is meant to recede, and Tokyo Night's comment
 colour is one of the two or three hues the theme is recognised by.</p>
+<h3 id="why-the-panels-need-a-second-metric">Why the panels need a second metric<a class="headerlink" href="#why-the-panels-need-a-second-metric" title="Permanent link">&para;</a></h3>
+<p>Contrast alone cannot see the tool-panel bug. It is a <strong>luminance ratio</strong>, so two backgrounds of
+the same lightness in different hues score about 1.0 on it whether they are identical or opposite —
+and a "background against background" ratio near 1 is what you <em>want</em> for panels that sit on the
+same page. A theme with <code>toolPendingBg</code> and <code>toolSuccessBg</code> set to the same hex passes every
+contrast floor above, cleanly.</p>
+<p>The panels are therefore held to <strong>CIE76 ΔE ≥ 8</strong> instead: perceptual distance in L*a*b*, which
+measures lightness <em>and</em> hue. Each of the three against the other two, and each against the ground.
+CIE76 puts the just-noticeable difference for two patches side by side at roughly 2.3; the floor is
+well above that because these panels are never side by side — they are separated by rows of output
+and by seconds of time, and a glance has to place one with nothing to compare it to. The collapsed
+pending/success pair scored <strong>ΔE 0.00</strong>.</p>
+<p>If you resync from upstream, this is the check that will fail rather than the contrast one.</p>
 <p>The rule caught two real defects in the day variant while it was being written: tool output on the
 tool panel sat at 2.78:1 and inline code inside a code block at 2.74:1. Both were moved to darker
 palette entries.</p>

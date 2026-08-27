@@ -2527,6 +2527,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-fleet-is-on-screen-not-behind-a-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fleet is on screen, not behind a command
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#load-order" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2729,6 +2740,8 @@
   
     
     
+      
+        
       
         
       
@@ -2977,6 +2990,34 @@
     
   
     auto-title — naming the session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../thinking-indicator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    thinking-indicator — the spinner tells you how hard it is thinking
   
 
     
@@ -3955,6 +3996,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-fleet-is-on-screen-not-behind-a-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fleet is on screen, not behind a command
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#load-order" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4173,6 +4225,40 @@ that never wrote a <code>status.json</code> — "never started" still gets said.
 <p>The block is built once at <code>session_start</code> and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. <code>/agents</code> prints the same text <strong>verbatim</strong> — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.</p>
+<h2 id="the-fleet-is-on-screen-not-behind-a-command">The fleet is on screen, not behind a command<a class="headerlink" href="#the-fleet-is-on-screen-not-behind-a-command" title="Permanent link">&para;</a></h2>
+<p>The announcement above is written for the model. It fires once per run, and only after the run is
+over — so it is not the surface that answers <em>"is anything still running?"</em>.</p>
+<p>In the TUI, a panel above the editor carries that: every async run this session started, with the
+state its own <code>status.json</code> reports right now, present exactly while at least one run is tracked and
+gone the moment none is.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>async subagents — 1 running · 1 done · 1 needs attention
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ▸ data-engineer [66971211] running
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  ✓ code-reviewer [6e77fc27] complete
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ? researcher   [a4c167dd] NEVER STARTED
+</span></code></pre></div>
+<p>Four glyphs, no colour: <code>▸</code> live, <code>✓</code> finished, <code>✗</code> failed, <code>?</code> never started. The distinction is
+shape rather than hue, so it survives a screenshot, a colour-blind reader and a terminal that has
+quantised the palette. <code>NEVER STARTED</code> is the case only this module can report — a run the package
+handed back an id for and then never recorded a start for, which a fleet view built on the
+package's own run list cannot show, because the run never registered.</p>
+<p><code>/agents</code> is unchanged. It carries the dispatch registry as well — what <em>can</em> be dispatched, on what
+model — which is a catalogue, not live state, and would be wrong as a permanent panel; and it is the
+only fleet surface that exists outside the TUI. The panel makes the common case free; it does not
+take a diagnostic away.</p>
+<div class="admonition note">
+<p class="admonition-title">Why it polls, and what that costs</p>
+<p>The state lives on disk and changes with no event reaching the process: a run completes while
+the model is mid-stream, or while you are typing. Repainting only at the end of a turn would
+produce a panel that is confidently wrong for exactly as long as you are looking at it;
+repainting on a per-token event would re-read every status file per token.</p>
+<p>So there is one interval — one <code>readFileSync</code> per tracked run per second — and it exists only
+while a run is tracked. It is <code>unref()</code>d, so it can never hold the process open; it stops itself
+on the first tick that finds nothing to show; and it is torn down at session shutdown. The tests
+wrap <code>setInterval</code>/<code>clearInterval</code> and require zero timers created outside the TUI, zero while
+the fleet is empty, exactly one across repeated refreshes, and zero still open afterwards.</p>
+<p>Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
+<code>hasUI</code> — <code>hasUI</code> is true in RPC mode too, where there is no editor for a widget to sit above.</p>
+</div>
 <h2 id="load-order">Load order<a class="headerlink" href="#load-order" title="Permanent link">&para;</a></h2>
 <p><a href="../guard/"><code>guard</code></a> <strong>must</strong> load before this module. PI iterates <code>tool_call</code> handlers in load order
 and returns on the first block; a blocked dispatch must never have had its arguments rewritten
