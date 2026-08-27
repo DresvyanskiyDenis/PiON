@@ -63,7 +63,7 @@ The reason is what is on the other end. The request surfaces in the parent sessi
 composed by the **parent agent**, not typed by you — so the wait is sizing a model's turn, and a
 turn that includes reading code and thinking about an answer is not a ten-minute event. Erring long
 is also the cheaper mistake: while a child waits it holds whatever concurrency slot it occupies, and
-the cumulative spawn claim it already spent is [never refunded](../extending/subagents.md#the-three-spawn-budgets--cumulative-spend-not-width),
+the cumulative spawn claim it already spent is [never refunded](../extending/subagents.md#the-three-spawn-budgets-cumulative-spend-not-width),
 so an expiry costs the claim and returns nothing.
 
 **Lower it** if you would rather a stuck child fail fast than sit on a slot. **Raise it** and you are
