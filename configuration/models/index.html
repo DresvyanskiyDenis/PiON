@@ -2792,6 +2792,8 @@
       
         
       
+        
+      
     
     
     
@@ -2852,6 +2854,34 @@
     
   
     quota — a pre-flight, not just a number
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/subagent-cost/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    subagent-cost — what the children spent
   
 
     
@@ -4447,6 +4477,21 @@ for <code>input</code> and <code>output</code>. Vary the prompt text between cal
 cache and measures the wrong thing. One prompt sent twice, deliberately cached, gives you
 <code>cacheRead</code>. Check your arithmetic reproduces the gateway's own figure to the last digit before
 you believe it, and <strong>date the note</strong>: it is a measurement, and it expires.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">How you find out: a corpus-wide zero is a broken instrument, not a discovery</p>
+<p>A price table that expires does not announce itself, and nothing downstream looks wrong — the
+footer keeps showing a number, it is simply always <code>$0.000</code>. On one install this went unnoticed
+for about two weeks of real, metered spend.</p>
+<p>The check costs one command and no guesswork. Sweep your session files and count how many
+assistant messages carry a <strong>non-zero</strong> cost. If the answer is zero across hundreds of
+messages, the rates are gone; a live table produces a scatter, never a clean sweep. When the
+rates on that install were restored, the boundary was visible to the second — every message
+before it priced at zero, every message after it priced normally.</p>
+<p>Treat "cost is exactly zero while tokens are not" as <strong>unknown</strong>, never as free, everywhere a
+number is displayed. That is the discriminator the
+<a href="../../extensions/subagent-cost/"><code>subagent-cost</code></a> status uses, and it is the one that makes the
+display honest the next time a rate expires rather than only this time.</p>
 </div>
 <div class="admonition danger">
 <p class="admonition-title">If the endpoint reports cache-write tokens, <code>cacheWrite: 0</code> under-reports by orders of magnitude</p>
