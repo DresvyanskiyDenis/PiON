@@ -87,9 +87,13 @@ Three changes reach this repository's own documentation rather than only its loc
   multi-child runs. New orchestration uses `workflowScript` and `runs.all`"
   (`docs/configuration.md:244`). What [ADR 0005](adr/0005-unbounded-fan-out-on-runs-all.md)
   established by measurement is now the vendor's own statement.
-- Three spawn budgets exist and are live at their defaults — `maxSubagentSpawnsPerRun` (64),
-  `maxSubagentSpawnsPerSession` (100) and `maxActiveAsyncRunsPerSession` (4). The first two are
-  cumulative and the third bounds current async load; none is a width cap. See
+- Three spawn budgets exist, and **only one of them has a default** — corrected 2026-08-27, having
+  previously claimed all three were "live at their defaults". `maxSubagentSpawnsPerRun` really does
+  default to `64` (`docs/configuration.md:262`). The other two are **unlimited unless you set them**:
+  sessions are "unlimited by default" for `maxSubagentSpawnsPerSession` (`:252`), and "unset or `0`
+  keeps the existing unlimited behavior" for `maxActiveAsyncRunsPerSession` (`:272`). The `100` and
+  `4` previously given here were values from the vendor's example snippets, not defaults. The first
+  two budgets are cumulative and the third bounds current async load; none is a width cap. See
   [Sub-agents](extending/subagents.md#concurrency-limits-what-each-one-actually-bounds).
 - `parallel.maxTasks` and `parallel.concurrency` are now **dormant**: their resolvers
   (`src/shared/types.ts:2411` and `:2415`) are exported and imported but called nowhere in the

@@ -219,13 +219,20 @@ A chain step's `parallel: [...]` group that names no `concurrency` of its own ta
 
 ### The three spawn budgets — cumulative spend, not width
 
-New in 0.57.0, live at their defaults whether or not you set them:
+New in 0.57.0. Only the first has a default — the other two do nothing until you set them.
+This table previously gave `100` and `4` as defaults and said all three were "live at their defaults
+whether or not you set them"; both numbers came from the vendor's example snippets rather than from
+its defaults. Corrected 2026-08-27 against `pi-subagents` `docs/configuration.md`.
 
-| Key | Default | Bounds |
+| Key | Unset behaviour | Bounds |
 |---|---|---|
-| `maxSubagentSpawnsPerRun` | 64 | every child one top-level run has **ever** started |
-| `maxSubagentSpawnsPerSession` | 100 | the same, counted across the session |
-| `maxActiveAsyncRunsPerSession` | 4 | top-level async runs in flight **right now** |
+| `maxSubagentSpawnsPerRun` | **64** (a real default, `:262`) | every child one top-level run has **ever** started |
+| `maxSubagentSpawnsPerSession` | **unlimited** (`:252`) | the same, counted across the session |
+| `maxActiveAsyncRunsPerSession` | **unlimited** (`:272`) | top-level async runs in flight **right now** |
+
+This edition sets `maxSubagentSpawnsPerRun` and `maxActiveAsyncRunsPerSession` to `20` in
+`config/subagent.default.json`. The second of those replaces unlimited, so it is a real tightening;
+the first *lowers* the vendor default, so read the paragraph below before assuming it is free.
 
 The first two are cumulative and their claims are never released or refunded, so a long-lived
 workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
