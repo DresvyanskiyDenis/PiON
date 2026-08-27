@@ -1,6 +1,6 @@
 # Architecture
 
-## One extension, thirty modules
+## One extension, thirty-one modules
 
 PI discovers extensions by scanning `extensions/*.ts` and `extensions/<dir>/index.ts`. This
 repository deliberately does **not** use that. `config/settings.json` names exactly one file:
@@ -14,7 +14,7 @@ repository deliberately does **not** use that. `config/settings.json` names exac
 
 Three reasons, all of them consequences of how PI behaves:
 
-1. **Directory discovery would load 26 files as 26 separate extensions**, in `readdir` order, and
+1. **Directory discovery would load every module as its own extension**, in `readdir` order, and
    fail every one that has no default export.
 2. **`readdir` order would decide the `tool_call` chaining order.** PI iterates `tool_call`
    handlers across extensions in load order and returns on the first `{block: true}`. If `bash`
@@ -89,7 +89,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),<br/>rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 27 modules + config + bin/"]
+    OURS["this repository — 31 modules + config + bin/"]
     PI --- PKG --- OURS
 ```
 

@@ -44,7 +44,7 @@ What the first public release contains:
   anything is written, idempotent, re-runnable, and it leaves no orphans.
 - **Zero skills and zero MCP servers by design.** The machinery ships; the content is yours. The
   installer offers two public MCP servers and defaults to neither.
-- **Documentation**: an MkDocs site covering every configuration key and all 27 modules, and this
+- **Documentation**: an MkDocs site covering every configuration key and all 31 modules, and this
   wiki.
 
 **Action required:** none — there is nothing to upgrade from.

@@ -36,7 +36,7 @@ uv run --with-requirements requirements-docs.txt mkdocs serve
 All three must pass, and CI runs them on every pull request:
 
 ```bash
-./bin/pi-check --all      # 22 repository invariants
+./bin/pi-check --all      # 26 repository invariants
 npm run typecheck
 npm test
 ```
@@ -70,7 +70,7 @@ alternatives that were rejected and why — read the relevant one before arguing
 | **`guard` loads first, `trust` second, `doctor` last** | PI returns on the first `{block: true}` across extensions in load order. A call the guard blocks must reach the guard before anything rewrites its arguments |
 | **The guard fails open on an internal error; hooks fail closed** | Whose bug is it? A bug in our gate must not blanket-block your machine. A declarative rule *you wrote* that silently stops applying **is** the bug |
 | **Egress classes are declarative and are never described as a network boundary** | Nothing here intercepts a socket, and implied enforcement is worse than none |
-| **`extensions/` is never symlinked into `~/.pi/agent/`** | PI would discover all 27 modules separately, in `readdir` order, and fail every one that has no default export |
+| **`extensions/` is never symlinked into `~/.pi/agent/`** | PI would discover every module separately, in `readdir` order, and fail every one that has no default export |
 | **No skills and no MCP server definitions ship** | The machinery ships; the content is yours. This is not an oversight to be fixed by adding "a few useful defaults" |
 | **Nothing personal, no credentials, no tenant hostnames** | `PC-06` and `PC-12` fail the build. Use `<PLACEHOLDER>` or a `$VAR` reference |
 

@@ -87,7 +87,7 @@ Opt-in, off by default:
 
 !!! danger "The `extensions not linked` check is not pedantry"
     PI discovers `extensions/*.ts` and `extensions/<dir>/index.ts` and loads each as a **separate**
-    extension in `readdir` order. A symlinked directory would therefore try to load all 27 modules
+    extension in `readdir` order. A symlinked directory would therefore try to load every module
     independently, fail every one that has no default export, and destroy the load order the
     [safety model](../concepts/safety-model.md) depends on.
 
