@@ -159,6 +159,39 @@ take a diagnostic away.
     Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
     `hasUI` — `hasUI` is true in RPC mode too, where there is no editor for a widget to sit above.
 
+!!! warning "Why this is the *only* widget above the editor"
+    `config/subagent.default.json` sets `asyncWidget: false`, which turns off the `pi-subagents`
+    package's own above-editor block for active background runs. That is a bug fix, not a
+    preference for our own rendering.
+
+    Two `aboveEditor` widgets do not stack in a stable order. The host keeps same-placement widgets
+    in a `Map` and renders them in insertion order, but `setWidget` **deletes the key and
+    re-inserts it on every update** — content-only changes included. Re-insertion moves a key to
+    the tail, so the rendered order is *least-recently-painted first*: whichever block painted most
+    recently sinks to the bottom. With two painters on unsynchronised timers that is not a
+    tie-break, it is a flip, and at a sub-second repaint rate the two blocks visibly swap places
+    several times a second. Nothing in PI's extension or TUI documentation specifies ordering among
+    same-placement widgets — only `placement` itself — so it is an emergent property of the
+    implementation rather than a contract. **If you add a second `aboveEditor` widget, this is what
+    you are joining.**
+
+    Being the sole painter is the only fix for that; height-locking one of two blocks does nothing
+    about their order. It is also why this panel gates its own repaints on a text diff of what it
+    last painted: an unchanged tick that called `setWidget` anyway would re-order the widget for
+    free.
+
+    The panel is a fixed block in its own right, too. It truncates every line by **display width**
+    rather than `String.length` — a CJK glyph is one UTF-16 unit and two columns, a combining mark
+    one unit and zero — because a line that overruns the terminal wraps, and a wrapped line costs a
+    row exactly as an extra line would. And it honours the host's own `MAX_WIDGET_LINES` of 10:
+    past that the host truncates the array *and appends a line of its own*, so the panel degrades
+    deliberately instead, and says how many runs it is not showing rather than dropping them
+    silently.
+
+    What this does not turn off: FleetView keeps its default `belowEditor` placement, so the Fleet
+    inspector (`Ctrl+Alt+F`), `/subagents-fleet`, completion notifications and lifecycle events are
+    all untouched.
+
 ## Load order
 
 [`guard`](guard.md) **must** load before this module. PI iterates `tool_call` handlers in load order

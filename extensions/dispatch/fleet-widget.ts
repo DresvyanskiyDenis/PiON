@@ -38,14 +38,113 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { type AsyncFleet, reconcile, shortId } from "./async-fleet.ts";
 
-/** The `setWidget` key. One key, so a repaint replaces rather than stacks. */
+/**
+ * The `setWidget` key. One key, so a repaint replaces rather than stacks.
+ *
+ * **If you are adding a second `aboveEditor` widget, read this first.** Their vertical order is not
+ * stable and is not configurable. The host keeps them in a `Map`
+ * (`@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js:285`) and renders
+ * `widgets.values()` in insertion order (`:1723-1725`) — but `setExtensionWidget` deletes the key
+ * and re-inserts it on *every* update (`:1629-1633` then `:1657`), even when only the content
+ * changed. Re-insertion moves a key to the tail, so the rendered order is **least-recently-painted
+ * first**: whichever widget painted most recently sinks to the bottom.
+ *
+ * With two painters on unsynchronised timers that is not a tie-break, it is a flip — the blocks
+ * trade places every time the upper one repaints, which at a sub-second repaint rate is a far more
+ * violent event on screen than either block changing size. It is why `config/subagent.default.json`
+ * sets `asyncWidget: false` and this panel replaces the `pi-subagents` block rather than sitting
+ * beside it. Nothing in `docs/extensions.md` or `docs/tui.md` documents ordering among
+ * same-placement widgets; only `placement` itself is specified, so this is an emergent property of
+ * the implementation and not a contract to rely on.
+ */
 export const WIDGET_KEY = "dispatch-async-fleet";
 
 /** How often the tracked runs' status files are re-read while any run is tracked. */
 export const POLL_MS = 1_000;
 
+/**
+ * The most lines this panel may emit, because it is the most the host will draw.
+ *
+ * `InteractiveMode.MAX_WIDGET_LINES` is 10
+ * (`@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js:1702`), and a string
+ * array longer than that is silently cut to 10 **plus** an appended `... (widget truncated)` line
+ * (`:1644-1649`). A panel that ignored this would not merely lose its tail: at the boundary the
+ * host adds a line of its own, so the block would be one row taller than this module believed it
+ * was emitting. The ceiling is honoured here, where the layout can degrade deliberately and say
+ * what it is not showing, rather than upstream where it degrades by truncation.
+ */
+export const MAX_PANEL_LINES = 10;
+
+/** Columns assumed when stdout reports none — piped output, a test, CI. */
+const FALLBACK_COLUMNS = 80;
+
+/**
+ * The width a panel line may occupy. Two columns short of the terminal, because a line that
+ * overruns wraps — and a wrapped line costs a second terminal row exactly as an extra line would,
+ * which is the height the panel is trying to keep constant.
+ */
+export function panelWidth(columns: number | undefined = process.stdout.columns): number {
+  return Math.max(20, (columns && columns > 0 ? columns : FALLBACK_COLUMNS) - 2);
+}
+
+/**
+ * Terminal columns one grapheme occupies.
+ *
+ * `String.length` counts UTF-16 code units and is the wrong ruler twice over: a CJK ideograph or an
+ * emoji is one unit and **two columns**, and a combining mark is one unit and **zero**. Both arrive
+ * here through values this module does not control — an agent name, a file path, a child's error
+ * text — so measuring with `length` would leave the width bound true for ASCII and quietly false
+ * for everything else, which is the kind of guarantee that is worse than a documented limit.
+ *
+ * The wide ranges are East Asian Wide and Fullwidth plus the emoji blocks; anything whose code
+ * points are all zero-width (combining marks, joiners, variation selectors) is zero. A grapheme
+ * cluster is measured as a whole, so an emoji built from a ZWJ sequence counts two columns once
+ * rather than two per component.
+ */
+const WIDE_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf], [0x4e00, 0x9fff],
+  [0xa000, 0xa4cf], [0xa960, 0xa97f], [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe10, 0xfe19],
+  [0xfe30, 0xfe6f], [0xff00, 0xff60], [0xffe0, 0xffe6], [0x1f300, 0x1f64f], [0x1f680, 0x1f6ff],
+  [0x1f900, 0x1f9ff], [0x20000, 0x3fffd],
+];
+
+const ZERO_WIDTH = /^[\p{Mn}\p{Me}\p{Cf}]$/u;
+
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+function codePointWidth(codePoint: number): number {
+  if (ZERO_WIDTH.test(String.fromCodePoint(codePoint))) return 0;
+  return WIDE_RANGES.some(([lo, hi]) => codePoint >= lo && codePoint <= hi) ? 2 : 1;
+}
+
+/** Terminal columns a string occupies, as opposed to the number of UTF-16 units it is stored in. */
+export function displayWidth(text: string): number {
+  let width = 0;
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    let cluster = 0;
+    for (const char of segment) cluster = Math.max(cluster, codePointWidth(char.codePointAt(0)!));
+    width += cluster;
+  }
+  return width;
+}
+
+/** One line, truncated by display width so it can never wrap into a second row. */
+export function fitLine(text: string, width: number): string {
+  if (displayWidth(text) <= width) return text;
+  let kept = "";
+  let used = 0;
+  // One column is reserved for the ellipsis, which is itself one column wide.
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    const next = displayWidth(segment);
+    if (used + next > width - 1) break;
+    kept += segment;
+    used += next;
+  }
+  return `${kept}…`;
+}
+
 /** The panel's lines, or `undefined` when there is nothing to show and the panel should go away. */
-export function renderFleetPanel(fleet: AsyncFleet): string[] | undefined {
+export function renderFleetPanel(fleet: AsyncFleet, width: number = panelWidth()): string[] | undefined {
   if (fleet.tracked.size === 0) return undefined;
   const reports = reconcile(fleet);
   let live = 0;
@@ -71,7 +170,14 @@ export function renderFleetPanel(fleet: AsyncFleet): string[] | undefined {
     done > 0 ? `${done} done` : undefined,
     bad > 0 ? `${bad} needs attention` : undefined,
   ].filter((part): part is string => part !== undefined);
-  return [`async subagents — ${counts.join(" · ")}`, ...rows];
+  // Past the host's ceiling the panel says how many runs it is not showing. Silently dropping them
+  // is the one thing it must not do: a fleet panel that omits a running child is worse than one
+  // that admits it is out of room.
+  const budget = MAX_PANEL_LINES - 1;
+  const body = rows.length <= budget
+    ? rows
+    : [...rows.slice(0, budget - 1), `  … and ${rows.length - (budget - 1)} more`];
+  return [`async subagents — ${counts.join(" · ")}`, ...body].map((line) => fitLine(line, width));
 }
 
 export interface FleetWidget {
@@ -97,8 +203,26 @@ export function createFleetWidget(fleet: AsyncFleet, pollMs: number = POLL_MS): 
     timer = undefined;
   };
 
+  /**
+   * What the panel currently shows, so an unchanged tick costs nothing. `undefined` means the panel
+   * is deliberately cleared; `null` means nothing has been painted yet and the next paint must run.
+   *
+   * This is not only a saved write. Every `setWidget` call re-inserts the key and so re-orders this
+   * widget against any other at the same placement (see `WIDGET_KEY`), which makes a no-op repaint
+   * a visible event rather than a free one.
+   */
+  let painted: string[] | undefined | null = null;
+
+  const unchanged = (lines: string[] | undefined): boolean => {
+    if (painted === null) return false;
+    if (lines === undefined || painted === undefined) return lines === painted;
+    return lines.length === painted.length && lines.every((line, index) => line === painted![index]);
+  };
+
   const paint = (ctx: ExtensionContext): boolean => {
     const lines = renderFleetPanel(fleet);
+    if (unchanged(lines)) return lines !== undefined;
+    painted = lines;
     if (lines === undefined) {
       ctx.ui.setWidget(WIDGET_KEY, undefined);
       return false;
@@ -130,6 +254,9 @@ export function createFleetWidget(fleet: AsyncFleet, pollMs: number = POLL_MS): 
       stopPoll();
       const target = ctx ?? pinned;
       pinned = undefined;
+      // Not gated on `painted`: dispose is the safety net, and a net that trusts its own bookkeeping
+      // is not one. It clears unconditionally.
+      painted = null;
       if (target === undefined || target.mode !== "tui") return;
       target.ui.setWidget(WIDGET_KEY, undefined);
     },

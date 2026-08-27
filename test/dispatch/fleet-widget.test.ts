@@ -12,7 +12,15 @@ import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { createAsyncFleet, noteAsyncSpawn, type AsyncFleet } from "../../extensions/dispatch/async-fleet.ts";
-import { createFleetWidget, renderFleetPanel, WIDGET_KEY } from "../../extensions/dispatch/fleet-widget.ts";
+import {
+  createFleetWidget,
+  displayWidth,
+  fitLine,
+  MAX_PANEL_LINES,
+  panelWidth,
+  renderFleetPanel,
+  WIDGET_KEY,
+} from "../../extensions/dispatch/fleet-widget.ts";
 import { scratch } from "./helpers.ts";
 
 const RUN = "66971211-3f09-48ca-bdea-c2be3950a845";
@@ -222,5 +230,100 @@ describe("createFleetWidget", () => {
       globalThis.clearInterval = realClear;
       for (const handle of open) realClear(handle as ReturnType<typeof setInterval>);
     }
+  });
+});
+
+/**
+ * Two things make a widget block move on screen, and neither is about what it says.
+ *
+ * One is height: a line more or fewer, or a line long enough to wrap, and everything below it
+ * walks. The other is ORDER — `setWidget` re-inserts this widget's key on every call, which
+ * re-orders it against any other widget at the same placement, so a repaint that changes nothing
+ * is still a visible event. These measure both.
+ */
+describe("the panel as a fixed block on the screen", () => {
+  function fleetOf(count: number): AsyncFleet {
+    const fleet = createAsyncFleet();
+    for (let i = 0; i < count; i += 1) {
+      const id = `${String(i).repeat(8)}-0000-4000-8000-000000000000`;
+      const dir = join(root, id);
+      mkdirSync(dir, { recursive: true });
+      if (i % 2 === 0) {
+        writeFileSync(join(dir, "status.json"), JSON.stringify({ runId: id, state: "running", mode: "single" }));
+      }
+      noteAsyncSpawn(fleet, spawnResult(id, dir, `a${i}`), 0);
+    }
+    return fleet;
+  }
+
+  it("never asks the host to draw more lines than the host will draw", () => {
+    for (let count = 1; count <= 14; count += 1) {
+      const lines = renderFleetPanel(fleetOf(count))!;
+      assert.ok(
+        lines.length <= MAX_PANEL_LINES,
+        `${count} runs produced ${lines.length} lines, past the host ceiling of ${MAX_PANEL_LINES}`,
+      );
+    }
+  });
+
+  it("says how many runs it is not showing rather than dropping them in silence", () => {
+    assert.equal(renderFleetPanel(fleetOf(9))!.length, MAX_PANEL_LINES);
+    const twelve = renderFleetPanel(fleetOf(12))!;
+    assert.equal(twelve.length, MAX_PANEL_LINES);
+    assert.match(twelve.at(-1)!, /… and 4 more/);
+  });
+
+  it("never emits a line that would wrap into a second row", () => {
+    const id = "77777777-0000-4000-8000-000000000000";
+    const dir = join(root, id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "status.json"), JSON.stringify({ runId: id, state: "x".repeat(400), mode: "single" }));
+    const fleet = createAsyncFleet();
+    noteAsyncSpawn(fleet, spawnResult(id, dir, "agent-with-a-very-long-name".repeat(10)), 0);
+    for (const width of [20, 40, 80, 200]) {
+      for (const line of renderFleetPanel(fleet, width)!) {
+        assert.ok(displayWidth(line) <= width, `a ${displayWidth(line)}-column line at width ${width}`);
+      }
+    }
+  });
+
+  it("measures a line in terminal columns, not in UTF-16 code units", () => {
+    assert.equal(displayWidth("日本語"), 6, "three CJK ideographs are six columns, not three");
+    assert.equal(displayWidth("🚀"), 2);
+    assert.equal("🚀".length, 2, "the ruler String.length would have used");
+    // e + U+0301: one column, two code units. And a ZWJ family: many code points, one grapheme.
+    assert.equal(displayWidth("e\u0301"), 1);
+    assert.equal(displayWidth("👩‍👩‍👧"), 2);
+    for (const text of ["日本語".repeat(40), "🚀".repeat(40), "e\u0301".repeat(40)]) {
+      for (const width of [20, 41, 80]) assert.ok(displayWidth(fitLine(text, width)) <= width);
+    }
+    assert.equal(fitLine("日本語", 6), "日本語", "a line that already fits is left alone");
+    assert.equal(fitLine("abcdef", 4), "abc…");
+    assert.equal(panelWidth(120), 118);
+    assert.equal(panelWidth(undefined), 78);
+  });
+
+  it("does not repaint — and so does not re-order itself — when nothing changed", () => {
+    const id = "88888888-0000-4000-8000-000000000000";
+    const dir = join(root, id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "status.json"), JSON.stringify({ runId: id, state: "running", mode: "single" }));
+    const fleet = createAsyncFleet();
+    noteAsyncSpawn(fleet, spawnResult(id, dir, "reviewer"), 0);
+
+    const painted: Painted[] = [];
+    const widget = createFleetWidget(fleet, 50);
+    const ctx = ctxFor("tui", painted);
+    widget.refresh(ctx);
+    assert.equal(painted.length, 1);
+    widget.refresh(ctx);
+    widget.refresh(ctx);
+    assert.equal(painted.length, 1, "an unchanged panel was written to the host again");
+
+    writeFileSync(join(dir, "status.json"), JSON.stringify({ runId: id, state: "complete", mode: "single" }));
+    widget.refresh(ctx);
+    assert.equal(painted.length, 2, "a changed panel was not repainted");
+    widget.dispose(ctx);
+    assert.equal(painted.at(-1)!.content, undefined);
   });
 });
