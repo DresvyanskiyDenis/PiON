@@ -4289,6 +4289,36 @@ the fleet is empty, exactly one across repeated refreshes, and zero still open a
 <p>Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
 <code>hasUI</code> — <code>hasUI</code> is true in RPC mode too, where there is no editor for a widget to sit above.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Why this is the <em>only</em> widget above the editor</p>
+<p><code>config/subagent.default.json</code> sets <code>asyncWidget: false</code>, which turns off the <code>pi-subagents</code>
+package's own above-editor block for active background runs. That is a bug fix, not a
+preference for our own rendering.</p>
+<p>Two <code>aboveEditor</code> widgets do not stack in a stable order. The host keeps same-placement widgets
+in a <code>Map</code> and renders them in insertion order, but <code>setWidget</code> <strong>deletes the key and
+re-inserts it on every update</strong> — content-only changes included. Re-insertion moves a key to
+the tail, so the rendered order is <em>least-recently-painted first</em>: whichever block painted most
+recently sinks to the bottom. With two painters on unsynchronised timers that is not a
+tie-break, it is a flip, and at a sub-second repaint rate the two blocks visibly swap places
+several times a second. Nothing in PI's extension or TUI documentation specifies ordering among
+same-placement widgets — only <code>placement</code> itself — so it is an emergent property of the
+implementation rather than a contract. <strong>If you add a second <code>aboveEditor</code> widget, this is what
+you are joining.</strong></p>
+<p>Being the sole painter is the only fix for that; height-locking one of two blocks does nothing
+about their order. It is also why this panel gates its own repaints on a text diff of what it
+last painted: an unchanged tick that called <code>setWidget</code> anyway would re-order the widget for
+free.</p>
+<p>The panel is a fixed block in its own right, too. It truncates every line by <strong>display width</strong>
+rather than <code>String.length</code> — a CJK glyph is one UTF-16 unit and two columns, a combining mark
+one unit and zero — because a line that overruns the terminal wraps, and a wrapped line costs a
+row exactly as an extra line would. And it honours the host's own <code>MAX_WIDGET_LINES</code> of 10:
+past that the host truncates the array <em>and appends a line of its own</em>, so the panel degrades
+deliberately instead, and says how many runs it is not showing rather than dropping them
+silently.</p>
+<p>What this does not turn off: FleetView keeps its default <code>belowEditor</code> placement, so the Fleet
+inspector (<code>Ctrl+Alt+F</code>), <code>/subagents-fleet</code>, completion notifications and lifecycle events are
+all untouched.</p>
+</div>
 <h2 id="load-order">Load order<a class="headerlink" href="#load-order" title="Permanent link">&para;</a></h2>
 <p><a href="../guard/"><code>guard</code></a> <strong>must</strong> load before this module. PI iterates <code>tool_call</code> handlers in load order
 and returns on the first block; a blocked dispatch must never have had its arguments rewritten
