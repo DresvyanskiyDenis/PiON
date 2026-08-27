@@ -1,7 +1,8 @@
 {
   "version": 1,
   "search": {
-    "backend": "none"
+    "backend": "none",
+    "answerPath": null
   },
-  "note": "The declared pinned backend, for humans and for tooling that reads .search.backend from this exact file. The file pi-web-access itself reads at runtime is config/web-search.json, which follows a foreign, unrelated JSON schema — see config/README.md. extensions/web.ts's session_start handler asserts the two agree; a mismatch is a fail-loud error, not a silent drift."
+  "note": "The declared pinned backend, for humans and for tooling that reads .search.backend from this exact file. The file pi-web-access itself reads at runtime is config/web-search.json, which follows a foreign, unrelated JSON schema — see config/README.md. extensions/web.ts's session_start handler asserts the two agree; a mismatch is a fail-loud error, not a silent drift. search.answerPath is ours alone: the path your search host serves search-read-and-cite on, joined to the searxngBaseUrl web_search already uses. It ships null, and while it is null the web_answer tool is not registered at all."
 }

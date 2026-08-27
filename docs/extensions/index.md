@@ -38,6 +38,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 | `expand_result` | [big-results](big-results.md) |
 | `job` | [jobs](jobs.md) |
 | `teammate` | [teammates](teammates.md) |
+| `web_answer` | [web](web.md) |
 
 Tools that come from adopted packages — `subagent`, `web_search`, `web_fetch`, `todo` — are listed
 in `config/tools.declared.json`; see [Generated and locked files](../configuration/not-editable.md).

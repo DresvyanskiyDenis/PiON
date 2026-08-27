@@ -124,11 +124,22 @@ the first call.
 ### `web.json`
 
 ```json
-{ "version": 1, "search": { "backend": "none" } }
+{ "version": 1, "search": { "backend": "none", "answerPath": null } }
 ```
 
 This repository's declared pinned backend, for humans and for `jq`-based tooling. Ships `none`;
 the installer sets `searxng` if you asked for it.
+
+| Key | Ships | Notes |
+|---|---|---|
+| `search.backend` | `"none"` | The declared backend. **Must equal `web-search.json`'s `provider`** or the session refuses to start |
+| `search.answerPath` | `null` | Path your search host serves search-read-and-cite on, joined to `searxngBaseUrl`. While it is `null` the [`web_answer`](../extensions/web.md#5-web_answer-search-that-reads-the-pages) tool is not registered at all |
+
+!!! note "`answerPath` is not something a stock SearXNG has"
+    SearXNG serves `/search`. An endpoint that searches, opens the top pages and returns a cited
+    answer is a **second service you put in front of it**. Name its path here only once you run
+    one; the host comes from `searxngBaseUrl` below, so there is still one address to keep
+    correct.
 
 ### `web-search.json`
 

@@ -1,10 +1,12 @@
 /**
- * `EXT-07` — provider-independent `web_search` / `web_fetch` (`REQ-EXT-50`, `-51`).
+ * `EXT-07` — provider-independent `web_search` / `web_fetch`, and a `web_answer` that reads the
+ * pages and cites them (`REQ-EXT-50`, `-51`).
  *
  * `pi-web-access@0.18.0` is adopted wholesale (the earlier "keep
  * custom" verdict is reversed) and registers its own tools via its own `pi.extensions` entry, wired
  * through `settings.json`'s `packages` array. This
- * module owns the three things the package adoption does *not* cover:
+ * module owns the four things the package adoption does *not* cover, and adds a fifth tool of its
+ * own:
  *
  *   1. **Pinning exactly one search backend**, enforced at every `session_start`, not just declared
  *      in a config file nobody re-checks (`./web/config-guard.ts`).
@@ -20,9 +22,16 @@
  *      ported `AGENTS.md`'s TRIGGER blocks and the `sofa` skill already call), enforced the same way
  *      as the backend pin — see `./web/config-guard.ts`'s `assertFetchToolAliasedToWebFetch`.
  *
+ *   5. **A `web_answer` tool** (`./web/answer.ts`) — search that opens the top pages and returns a
+ *      cited answer instead of a link list, served by the same host `searxngBaseUrl` already names.
+ *      Registered in `register()` rather than `session_start`: a tool has to exist before the
+ *      session it is offered to does, and PI has no way to withdraw one afterwards.
+ *
  * `register()` starts no timers, sockets or watchers — the factory also runs in invocations that
- * never open a session (`pi --list-models`). All I/O (reading the two config files, installing the
- * network dispatcher) is in `session_start`.
+ * never open a session (`pi --list-models`). Its one piece of I/O is `registerAnswerTool`'s read of
+ * `web.json`, which decides whether `web_answer` exists at all; that read has to happen here for
+ * the reason just given, and an absent or unreadable file simply means the tool is off. Everything
+ * else (the config asserts, installing the network dispatcher) is in `session_start`.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { emitNotice } from "./lib/announce.ts";
@@ -33,11 +42,14 @@ import {
   type PinnedBackendCheck,
 } from "./web/config-guard.ts";
 import { installNetworkDispatcher } from "./web/proxy.ts";
+import { registerAnswerTool } from "./web/answer.ts";
 
 export const id = "web";
 const MODULE_VERSION = "1.0.0";
 
 export function register(pi: ExtensionAPI): void {
+  registerAnswerTool(pi);
+
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     // F6 fix (adversarial security review): the proxy/CA plumbing has to land BEFORE the
     // asserts below, unconditionally. A `throw` from PI's `session_start` runner is caught and

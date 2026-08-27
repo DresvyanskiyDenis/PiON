@@ -1,7 +1,7 @@
 # `web` — provider-independent search and fetch
 
 The web tools themselves come from an adopted package. This module owns the four things the package
-adoption does not cover.
+adoption does not cover, and adds one tool of its own.
 
 Configured by [`config/web.json` and `config/web-search.json`](../configuration/tools.md#web).
 
@@ -48,10 +48,40 @@ The package's default tool name is `fetch_content`; this repository's instructio
 `session_start`** the same way as the backend pin — a rename that silently stops applying leaves
 every instruction referring to a tool that does not exist.
 
+## 5. `web_answer` — search that reads the pages
+
+`web_search` hands back ten titles and leaves the agent to pick, fetch one at a time, and reconcile
+what they said. That is several round trips of context for a question whose answer is a paragraph.
+`web_answer` asks the search host to do the whole loop — search, screen, open the top pages, read
+them — and returns prose with `[n]` citations plus the source list those markers point at.
+
+It does not replace `web_search`. Reach for `web_search` when the answer is *which page*, or when
+the query is navigational; reach for `web_answer` when the answer is a fact, a version, a default,
+a config key, or a comparison.
+
+!!! note "Off until you give it an address"
+    A stock SearXNG serves `/search` and nothing else. Search-read-and-cite is a **second endpoint
+    you put in front of it**, so `web.json`'s `search.answerPath` ships `null` and the tool is not
+    registered at all while it is unset — the same shape as answering "none" at install time
+    removing `web_search` cleanly rather than leaving it to fail at the first call. Set it to the
+    path your host serves (`"/answer"`, say) and it is joined to the `searxngBaseUrl` `web_search`
+    already uses, so there stays exactly one address to keep correct.
+
+The request rides the same global fetch dispatcher section 2 installs, so a proxy and a custom CA
+bundle apply here too. If the engine is unreachable, `web_answer` throws rather than degrading to a
+link list: the agent still has `web_search` and `web_fetch` in the same session, so a throw costs
+one turn, while a quietly weaker answer costs the attribution.
+
+The question may carry a SearXNG engine bang (`!arxiv`, `!gh`, `!so`, …) to restrict the search to
+one source — useful only when the question names the kind of source it wants, since a bang turns off
+the cross-engine fusion answer quality normally comes from.
+
 ## Cost
 
-`register()` starts no timers, sockets or watchers; all I/O is in `session_start`. Reading two small
-JSON files and installing a dispatcher.
+`register()` starts no timers, sockets or watchers. Its one read is `web.json`, which decides
+whether `web_answer` exists — a tool has to be registered before the session it is offered to
+opens, and PI has no way to withdraw one later. Everything else — the two config asserts, the
+dispatcher — is in `session_start`.
 
 ## Related
 [`web.json` / `web-search.json`](../configuration/tools.md#web) ·
