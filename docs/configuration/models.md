@@ -297,7 +297,7 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     same count as its neighbour, and a 200 tells you only that nothing objected.
 
     When the proxy is the one refusing, the map cannot route around it. PI writes `reasoning_effort`
-    as a top-level parameter (`pi-ai/dist/api/openai-completions.js:580`) and has no generic
+    as a top-level parameter (`pi-ai/dist/api/openai-completions.js:659`) and has no generic
     request-body merge, so a level the proxy will not pass is one no entry in this file can reach.
     That one is fixed in the proxy's per-model allowlist, server-side, or not at all.
 
