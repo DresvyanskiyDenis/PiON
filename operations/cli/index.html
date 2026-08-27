@@ -3328,6 +3328,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="bin/pi-check">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pc-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PC-26 — the prose ratchet
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4032,6 +4049,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="bin/pi-check">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pc-26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PC-26 — the prose ratchet
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4272,17 +4306,72 @@ the loop entry on the stream. On either, <code>pi</code> gets 2 s to exit itself
 <td><code>PC-25</code></td>
 <td>nothing on the <a href="../../skills-portability/#skills-that-are-deliberately-absent">do-not-publish list</a> reaches a path, git history or a tracked file</td>
 </tr>
+<tr>
+<td><code>PC-26</code></td>
+<td>user-facing prose carries exactly the number of em dashes recorded in <code>config/slop-lint.json</code> — <a href="#pc-26">see below</a></td>
+</tr>
 </tbody>
 </table>
 <p>Exit <code>0</code> = clean, <code>1</code> = findings, <code>2</code> = the checker could not run. That last distinction matters in
 CI: treating them the same hides broken tooling behind a red build.</p>
+<h3 id="pc-26"><code>PC-26</code> — the prose ratchet<a class="headerlink" href="#pc-26" title="Permanent link">&para;</a></h3>
+<p>A house-style rule on our own output: the em dash. It is the only one of the web-UI review's
+findings that transferred to a terminal without modification, because it is about strings, not
+pixels.</p>
+<p>The obvious implementation is a grep, and the obvious implementation is useless here.
+<code>grep -rn '—' extensions/ --include='*.ts'</code> returns 1351 hits in this tree; 23 of them are output
+and the rest are docstrings. A gate built on that number would fire on any commit that added an
+explanation.</p>
+<p>So <code>bin/lib/user-strings.mjs</code> scans instead: character by character, tracking comments, all three
+string forms, nested template interpolation and regex literals, and emitting each literal with the
+dotted name of the call it was handed to and the object key it is the value of. Two signals decide
+whether a person ever reads it:</p>
+<ul>
+<li><strong>The sink.</strong> <code>notify</code>, <code>setStatus</code>, <code>setWidget</code>, <code>setWorkingIndicator</code>, <code>setFooter</code>,
+  <code>setHeader</code>, and the <code>Error</code> constructors. Matched on the final segment of the dotted name, so
+  <code>ui.notify</code>, <code>ctx.ui.notify</code> and <code>pi.ui.notify</code> are one surface. <code>Error</code> counts deliberately:
+  with <a href="../../adr/0001-no-provider-failover/">no provider failover</a> and fail-loud aborts, the
+  message on the way out is the last thing the operator is told.</li>
+<li><strong>The property name.</strong> <code>message</code>, <code>description</code>, <code>title</code>, <code>detail</code>, <code>hint</code>, <code>label</code>, <code>summary</code>,
+  <code>reason</code>. Prose reaches a reader through a property at least as often as through an argument —
+  every <code>pi-check</code> finding is a <code>{ message }</code>, every registered tool carries a <code>description</code> — and
+  a scanner that looked only at arguments would call those surfaces clean because they are clean
+  of <em>calls</em>.</li>
+</ul>
+<p>That gives 554 user-facing strings across <code>extensions/</code> and <code>bin/</code>, 53 of them carrying an em dash.</p>
+<div class="language-json highlight"><span class="filename">config/slop-lint.json</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"roots"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"extensions"</span><span class="p">,</span><span class="w"> </span><span class="s2">"bin"</span><span class="p">],</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"sinks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"notify"</span><span class="p">,</span><span class="w"> </span><span class="s2">"setStatus"</span><span class="p">,</span><span class="w"> </span><span class="s2">"setWidget"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Error"</span><span class="p">],</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"proseKeys"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"message"</span><span class="p">,</span><span class="w"> </span><span class="s2">"description"</span><span class="p">,</span><span class="w"> </span><span class="s2">"title"</span><span class="p">],</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"budget"</span><span class="p">:</span><span class="w"> </span><span class="mi">53</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Three things about that number are worth knowing before you trust it:</p>
+<ul>
+<li><strong>It is a floor.</strong> The scanner is not a TypeScript parser and does not pretend to be one —
+  <code>pi-check</code> is a zero-dependency offline gate. A message reached through a variable
+  (<code>const msg = "…"; ui.notify(msg)</code>) is attributed to nothing and is invisible to the sink
+  filter. The scanner undercounts and never overcounts, and a test pins that so an AST-backed
+  version would show up as a test change rather than as an unexplained jump in the budget.</li>
+<li><strong>The check fails in both directions.</strong> Over budget, it names the sites. <em>Under</em> budget, it also
+  fails and tells you to lower the number. Without that half it is not a ratchet: clean three call
+  sites, forget the config, and those three slots are quietly available to the next change.</li>
+<li><strong>It is a count, not an allowlist.</strong> Deleting one em dash and adding another elsewhere keeps the
+  total unchanged. The diff shows it; pinning every site by file, line and hash would churn on
+  every unrelated edit above it.</li>
+</ul>
+<p>Deleting <code>config/slop-lint.json</code> does not switch the rule off — the built-in default budget is <code>0</code>,
+so an unconfigured tree gets the strict reading. Config can widen what is tolerated; it cannot
+silence the check.</p>
+<p>The shipped budget is the count on the day the rule landed, not a target. Whether zero is the right
+number is a taste call about the voice of a repo, and this tool does not make it for you.</p>
 <hr />
 <h2 id="pi-tier"><code>config/bin/pi-tier</code><a class="headerlink" href="#pi-tier" title="Permanent link">&para;</a></h2>
 <p>Resolves a semantic tier to a concrete model, from the shell. Useful in scripts and as a predicate.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>config/bin/pi-tier<span class="w"> </span>--list<span class="w">              </span><span class="c1"># every tier and what it resolves to</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>config/bin/pi-tier<span class="w"> </span>strong<span class="w">              </span><span class="c1"># -&gt; github-copilot/claude-opus-5:high</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>config/bin/pi-tier<span class="w"> </span>--thinking<span class="w"> </span>strong<span class="w">   </span><span class="c1"># -&gt; high</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>config/bin/pi-tier<span class="w"> </span>--egress<span class="w"> </span>databricks<span class="w"> </span><span class="c1"># -&gt; confidential</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>config/bin/pi-tier<span class="w"> </span>--list<span class="w">              </span><span class="c1"># every tier and what it resolves to</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>config/bin/pi-tier<span class="w"> </span>strong<span class="w">              </span><span class="c1"># -&gt; github-copilot/claude-opus-5:high</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>config/bin/pi-tier<span class="w"> </span>--thinking<span class="w"> </span>strong<span class="w">   </span><span class="c1"># -&gt; high</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>config/bin/pi-tier<span class="w"> </span>--egress<span class="w"> </span>databricks<span class="w"> </span><span class="c1"># -&gt; confidential</span>
 </span></code></pre></div>
 <p><strong>The tier's <code>thinkingLevel</code> is part of the answer</strong>, appended as a <code>:&lt;level&gt;</code> suffix, because the
 model string is the only channel PI reads reasoning effort from — see
@@ -4300,9 +4389,9 @@ machine?"</em>.</p>
 <hr />
 <h2 id="configbinpi-mcp-approve"><code>config/bin/pi-mcp-approve</code><a class="headerlink" href="#configbinpi-mcp-approve" title="Permanent link">&para;</a></h2>
 <p>The project-MCP trust ledger. See <a href="../../extending/mcp-servers/">Adding MCP servers</a>.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>config/bin/pi-mcp-approve<span class="w"> </span>--status<span class="w"> </span>.<span class="w">   </span><span class="c1"># what would happen right now</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>config/bin/pi-mcp-approve<span class="w"> </span>.<span class="w">            </span><span class="c1"># print the config, then record approval</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>config/bin/pi-mcp-approve<span class="w"> </span>--list<span class="w">       </span><span class="c1"># the whole ledger</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>config/bin/pi-mcp-approve<span class="w"> </span>--status<span class="w"> </span>.<span class="w">   </span><span class="c1"># what would happen right now</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>config/bin/pi-mcp-approve<span class="w"> </span>.<span class="w">            </span><span class="c1"># print the config, then record approval</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>config/bin/pi-mcp-approve<span class="w"> </span>--list<span class="w">       </span><span class="c1"># the whole ledger</span>
 </span></code></pre></div>
 <p><code>--status</code> exits <code>0</code> when allowed and <code>1</code> when refused, so it works as a shell predicate.</p>
 <hr />
@@ -4315,9 +4404,9 @@ server through <code>env -i</code> plus an explicit allowlist. Exits <code>64</c
 <h2 id="binpi-log"><code>bin/pi-log</code><a class="headerlink" href="#binpi-log" title="Permanent link">&para;</a></h2>
 <p>The session index's greppable face. Reads <code>index.db</code> directly and never opens it for write, so it
 works with <code>pi</code> running.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bin/pi-log<span class="w"> </span>sessions<span class="w">     </span><span class="c1"># last 50 sessions: title, model, turns, tokens, cost</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>bin/pi-log<span class="w"> </span>events<span class="w">       </span><span class="c1"># last 200 events</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>bin/pi-log<span class="w"> </span>cost<span class="w">         </span><span class="c1"># spend grouped by model</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>bin/pi-log<span class="w"> </span>sessions<span class="w">     </span><span class="c1"># last 50 sessions: title, model, turns, tokens, cost</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>bin/pi-log<span class="w"> </span>events<span class="w">       </span><span class="c1"># last 200 events</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bin/pi-log<span class="w"> </span>cost<span class="w">         </span><span class="c1"># spend grouped by model</span>
 </span></code></pre></div>
 <p>Requires the <code>sqlite3</code> CLI. Exits <code>1</code> if no index exists yet — run <code>/index</code> inside <code>pi</code> first.</p>
 <hr />
@@ -4332,7 +4421,7 @@ that moves fast — 0.84.1 shipped the day after 0.84.0.</p>
 <p>It reads that surface <strong>straight from the installed package's shipped <code>.d.ts</code> files</strong> — never from
 documentation, never from memory — and either records it or diffs the current surface against a
 previously recorded lock, exiting non-zero when something depended on has been removed or renamed.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--check
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--check
 </span></code></pre></div>
 <p>The recorded surface lives in <code>config/api-surface.lock.json</code>, which is
 <a href="../../configuration/not-editable/">not hand-editable</a>.</p>
