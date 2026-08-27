@@ -178,11 +178,66 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 | `name` | the human label in `/model`. Purely cosmetic |
 | `contextWindow` | what the endpoint *actually* serves. For a local server, the `-c` / `--ctx-size` it was **launched** with, not the model's native window |
 | `maxTokens` | output cap |
+| `cost` | the four rates for this model, in **dollars per million tokens** — `input`, `output`, `cacheRead`, `cacheWrite`. Omitting it is a claim, not a blank; see below |
 | `reasoning` | `true` for a thinking model |
 | `thinkingLevelMap` | which reasoning efforts this model actually serves. See the warning below — the default when you omit it is not "all of them" |
 | `input` | `["text"]` or `["text", "image"]` |
 | `compat` | per-model overrides of the provider block, e.g. `thinkingFormat` |
 | `samplingParams` | merged verbatim into the request body — `temperature`, `top_p`, `top_k`, `min_p`, `repeat_penalty`, and anything else with no first-class PI field |
+
+!!! danger "An omitted `cost` is a claim of zero, and nothing tells you so"
+    `cost` is required on PI's runtime model type and optional in this schema, and the gap is closed
+    silently: the provider composer substitutes
+    `{ "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }` for any model that omits it.
+    Nothing warns and nothing fails. The status line reads a flat `$0.000` for the whole session, on
+    a provider that may be charging real money, and at runtime a forgotten field is indistinguishable
+    from a deliberate zero — only the config can tell them apart, and only if somebody wrote it down.
+
+    The rates are **dollars per million tokens**. PI divides each by 1,000,000 before multiplying by
+    the usage counter, so a per-token figure pasted out of a price page is wrong by six orders of
+    magnitude and still renders happily.
+
+    ```json
+    "cost": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3 }
+    ```
+
+!!! warning "On a gateway, probe the rate — do not copy the upstream vendor's price page"
+    A model id behind a gateway is not the vendor's direct model. You are billed whatever the gateway
+    operator configured for that model group, in front of whatever deployment they chose, and that can
+    change under you without a line of your configuration changing — including from *free* to *not
+    free*, which presents as nothing at all.
+
+    If the gateway reports a per-response cost (LiteLLM returns one in
+    `x-litellm-response-cost-original`), two calls with opposite input/output ratios — a long prompt
+    with a tiny reply, then a tiny prompt with a long reply — give you two equations and solve exactly
+    for `input` and `output`. Vary the prompt text between calls or the second one is served from
+    cache and measures the wrong thing. One prompt sent twice, deliberately cached, gives you
+    `cacheRead`. Check your arithmetic reproduces the gateway's own figure to the last digit before
+    you believe it, and **date the note**: it is a measurement, and it expires.
+
+!!! danger "If the endpoint reports cache-write tokens, `cacheWrite: 0` under-reports by orders of magnitude"
+    Two facts combine here, and neither is alarming alone.
+
+    First, PI does not leave cache-write tokens in the input bucket. When a response carries
+    `prompt_tokens_details.cache_write_tokens`, PI computes
+    `input = promptTokens - cacheReadTokens - cacheWriteTokens` and prices what it moved out at
+    `cacheWrite`. On the first turn of a session nearly the whole prompt *is* a cache write, so nearly
+    the whole prompt is priced at that rate and almost none of it at `input`.
+
+    Second, a gateway may bill a cache write at the plain input rate with no surcharge. Vendor price
+    pages routinely quote a premium; the gateway in front of them does not necessarily apply one.
+    Measure yours rather than assuming either way.
+
+    Where both hold, `cacheWrite` equals `input` — which contradicts every price page you will find
+    and is still correct, because the number is what makes PI's arithmetic reproduce the invoice given
+    how PI partitions the counters, not a claim about vendor policy. Leave the zero in instead and a
+    turn billed at $0.015 renders as $0.00006. Whatever you write, write *why* beside it in `notes[]`:
+    a rate that looks wrong without its mechanism does not survive the next reader.
+
+!!! note "`cacheWrite1h` is priced at `input × 2`, and never at your `cacheWrite`"
+    PI prices the long-lived (1-hour) cache-write bucket at twice the `input` rate and does not
+    consult `cacheWrite` for it at all. If your endpoint ever begins reporting that bucket, the price
+    it produces is one nobody chose. Do not assume it stays absent — re-probe.
 
 !!! warning "Model ids are not guessable"
     On a self-hosted serving platform they are your own endpoint names. On llama.cpp they are
@@ -238,6 +293,20 @@ Six ship:
 | `github-copilot.json` | yes | `public` | Never run `/login` on this path — the OAuth resolver silently overrides your `baseUrl` |
 | `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured |
 | [`openai-compatible.json`](openai-compatible.md) | no | **you choose** | Any gateway serving its own model names. The context window and the egress class are *answers*, not facts about the URL |
+
+!!! warning "A fragment that defines models must price them or explain the zero"
+    `test/providers-cost.test.ts` fails the build when a fragment that is not `builtIn` defines models
+    with an incomplete `cost` block and no `notes[]` entry naming `cost`. The rule is not "every model
+    must be priced" — this repository ships templates and cannot know anybody's rates — it is that the
+    zero must be *accounted for*: unmetered, unpriced, or simply not established. Zero is a legal
+    answer; "nobody has measured it" is a legal answer; silence is not.
+
+    Such a note must also state the units in the literal words `DOLLARS PER MILLION TOKENS`, which the
+    test greps for, because the units are the easy thing to get wrong and the wrong ones render
+    without complaint.
+
+    `builtIn` fragments are exempt by construction: they override PI's own catalogues, which already
+    carry complete non-zero costs.
 
 The fragment schema, the substitution rules and the merge algorithm are documented in
 `config/providers/README.md`, which is the contract between the fragments and the installer. To
