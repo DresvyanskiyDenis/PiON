@@ -4447,9 +4447,9 @@ wait than see the abort.</p>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>extensions</code> names exactly one file, on purpose</p>
-<p><code>extensions/index.ts</code> is a composition root that imports and registers 27 modules in a fixed
-order. Pointing PI at the <em>directory</em> instead would load 26 separate extensions in <code>readdir</code>
-order, fail every one that has no default export, and let <code>readdir</code> decide the <code>tool_call</code>
+<p><code>extensions/index.ts</code> is a composition root that imports and registers 31 modules in a fixed
+order. Pointing PI at the <em>directory</em> instead would load each of them as a separate extension in
+<code>readdir</code> order, fail every one that has no default export, and let <code>readdir</code> decide the <code>tool_call</code>
 chaining order — which decides whether <code>guard</code> sees a call before <code>bash</code> rewrites it. Do not
 "simplify" this line. <a href="../../concepts/architecture/">Architecture</a> has the full argument.</p>
 </div>

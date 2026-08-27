@@ -4898,7 +4898,7 @@ that <code>~/.pi/agent/extensions</code> is <strong>not</strong> a symlink to th
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ls<span class="w"> </span>-l<span class="w"> </span>~/.pi/agent/extensions<span class="w">        </span><span class="c1"># should not exist as a link to extensions/</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./scripts/postinstall-verify.sh<span class="w">     </span><span class="c1"># the "extensions not linked" check</span>
 </span></code></pre></div>
-<p>PI would load all 27 modules independently, in <code>readdir</code> order, and fail every one — none has a
+<p>PI would load every module independently, in <code>readdir</code> order, and fail every one — none has a
 default export.</p>
 <h3 id="a-model-list-that-is-missing-a-provider-entirely">A <code>/model</code> list that is missing a provider entirely<a class="headerlink" href="#a-model-list-that-is-missing-a-provider-entirely" title="Permanent link">&para;</a></h3>
 <p>Its <code>apiKey</code> is absent or does not resolve. PI drops the <strong>whole catalogue</strong> for a provider whose

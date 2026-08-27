@@ -4629,12 +4629,69 @@ than its admin UI, where model-info edits have been reported not to take effect
 (<a href="https://github.com/BerriAI/litellm/issues/13338">BerriAI/litellm#13338</a>). A level the upstream
 does not serve is a different case: declaring it only moves the 400 one hop.</p>
 </div>
+<div class="admonition danger">
+<p class="admonition-title"><code>"off": null</code> is the one value that guarantees thinking</p>
+<p>The natural way to write <em>this model does not do thinking-off</em> is <code>"off": null</code>. It does the
+opposite, and it costs money.</p>
+<p><code>null</code> does not mean "this level is disabled". It means <strong>"this level does not exist here"</strong>:
+<code>getSupportedThinkingLevels</code> filters out every key mapped to <code>null</code>
+(<code>pi-ai/dist/models.js:548</code>). <code>clampThinkingLevel</code> then has to move a request for a level that
+is not on the list, and it walks <strong>upward</strong> first — the whole list above the requested level,
+in order, before it ever considers going down (<code>:560</code>). So a request for <code>off</code> on a model whose
+map nulls it does not become "no reasoning". It becomes the cheapest level you left available,
+and if <code>minimal</code> is also gone that is <code>low</code>. Every request that asked for <em>no thinking</em> runs
+with thinking on, silently, and the config file looks like it says the opposite.</p>
+<p><strong>Deleting the key is a different fix, not the same one.</strong> Three plausible-looking states,
+three behaviours:</p>
+<table>
+<thead>
+<tr>
+<th><code>thinkingLevelMap.off</code></th>
+<th>What reaches the wire</th>
+<th>What you get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>null</code></td>
+<td>the request never asks for <code>off</code> — it was clamped away first</td>
+<td>the next level up. Reasoning tokens you are paying for</td>
+</tr>
+<tr>
+<td>absent</td>
+<td>no <code>reasoning_effort</code> field at all</td>
+<td>whatever <strong>default effort the endpoint applies</strong>, which is not none</td>
+</tr>
+<tr>
+<td>a string</td>
+<td><code>reasoning_effort: &lt;that string&gt;</code></td>
+<td>off, if that is your endpoint's word for it</td>
+</tr>
+</tbody>
+</table>
+<p>Only the third makes off mean off. <code>off</code> reaches the API layer as <code>undefined</code>
+(<code>openai-completions.js:473</code> maps the clamped <code>"off"</code> to it), and the branch that handles it
+emits a value <strong>only when <code>thinkingLevelMap.off</code> is a string</strong> — otherwise the parameter is
+omitted and the endpoint falls back to its own default.</p>
+<p>So: map <code>off</code> to whatever value your endpoint accepts for no reasoning, or accept that off
+rounds up. There is no universal spelling. <code>none</code> is one gateway family's word for it and
+nothing more — the value belongs to your endpoint, and the only way to learn it is the probe
+two tips up, watching <code>reasoning_tokens</code> reach 0 rather than trusting a 200.</p>
+<p>And probe <strong>every model group</strong>, not the one someone asked about. A level that works on one
+deployment of a model family is not evidence about the next one; the capability flags behind it
+are set per deployment, by hand, at different times.</p>
+<p>The failure mode this describes is not hypothetical, and it is a <em>stale</em> config more often than
+a wrong one. A <code>null</code> written honestly, on the day the endpoint really did return 400, stays
+exactly as wrong once the operator sets the flag — and nothing in this repository or in PI will
+tell you. Re-probe after any gateway change, and treat a <code>null</code> older than the last one as
+unverified.</p>
+</div>
 <hr />
 <h2 id="provider-fragments-the-installers-source-of-truth">Provider fragments — the installer's source of truth<a class="headerlink" href="#provider-fragments-the-installers-source-of-truth" title="Permanent link">&para;</a></h2>
 <p><code>config/providers/*.json</code> are self-describing templates: the block that goes into <code>models.json</code>,
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as comments.</p>
-<p>Six ship:</p>
+<p>Three ship:</p>
 <table>
 <thead>
 <tr>

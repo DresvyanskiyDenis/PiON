@@ -4526,9 +4526,9 @@ model — became the next commit in anybody's fork.</p>
 <strong>Nothing is copied.</strong></p>
 <div class="admonition warning">
 <p class="admonition-title"><code>extensions/</code> is deliberately NOT linked</p>
-<p>PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and would load all 27 modules as separate extensions
-in <code>readdir</code> order — breaking the fixed load order that puts <code>guard</code> before <code>bash</code>, and failing
-every module that has no default export.</p>
+<p>PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and <code>&lt;agentDir&gt;/extensions/&lt;dir&gt;/index.ts</code>, and would
+load every module as a separate extension in <code>readdir</code> order — breaking the fixed load order
+that puts <code>guard</code> before <code>bash</code>, and failing every module that has no default export.</p>
 <p><code>config/settings.json</code> names one file, <code>extensions/index.ts</code>, explicitly instead.</p>
 </div>
 <h3 id="the-pi-runtime-itself">The PI runtime itself<a class="headerlink" href="#the-pi-runtime-itself" title="Permanent link">&para;</a></h3>

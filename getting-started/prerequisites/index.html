@@ -4047,6 +4047,11 @@
 <td>bash/zsh</td>
 <td><code>scripts/install.sh</code> and the helpers in <code>config/bin/</code> are bash.</td>
 </tr>
+<tr>
+<td><strong><code>jq</code></strong></td>
+<td>any</td>
+<td><a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a> exits 1 without it, and <code>pi-tier</code> is step 2 of <a href="../first-run/">first run</a> and the <code>$(pi-tier strong)</code> in every documented invocation. <code>scripts/install.sh</code> itself never calls it — the installer will finish on a machine where <code>pi-tier</code> then cannot run.</td>
+</tr>
 </tbody>
 </table>
 <h2 id="strongly-recommended">Strongly recommended<a class="headerlink" href="#strongly-recommended" title="Permanent link">&para;</a></h2>
@@ -4059,12 +4064,36 @@
 </thead>
 <tbody>
 <tr>
-<td><strong><code>jq</code></strong></td>
-<td><a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a> requires it. <code>scripts/install.sh</code> falls back to <code>awk</code> when it is absent, but nothing else does.</td>
-</tr>
-<tr>
 <td><strong>A credential for at least one provider</strong></td>
 <td>Nothing starts a session usefully without one. A provider whose credential is missing does <strong>not</strong> stop <code>pi</code> from starting — it fails only when that provider is selected.</td>
+</tr>
+</tbody>
+</table>
+<p>The installer asks which provider to configure and writes <code>config/models.json</code> from one of three
+fragments in <code>config/providers/</code>. Have the answers ready before you start:</p>
+<table>
+<thead>
+<tr>
+<th>Fragment</th>
+<th>You will be asked for</th>
+<th>Pick it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>github-copilot</code></strong> (the default)</td>
+<td>an endpoint and a tenant</td>
+<td>you have a Copilot subscription. PI already ships this provider, so the fragment overrides PI's catalogue instead of defining one.</td>
+</tr>
+<tr>
+<td><strong><code>openai-compatible</code></strong></td>
+<td>a base URL, the name of the environment variable holding the key, and two model ids with their context windows</td>
+<td>anything that speaks <code>/v1/chat/completions</code> under its own model names — a <strong>LiteLLM</strong> proxy, vLLM, OpenRouter, or a router someone in your organisation runs. This is the fragment most people arrive through, and <a href="../../configuration/openai-compatible/">it takes exactly one gateway</a>.</td>
+</tr>
+<tr>
+<td><strong><code>databricks</code></strong></td>
+<td>a workspace host, an auth method, and one or two serving endpoints</td>
+<td>your models are served from Databricks. Egress is fixed at <code>confidential</code>.</td>
 </tr>
 </tbody>
 </table>

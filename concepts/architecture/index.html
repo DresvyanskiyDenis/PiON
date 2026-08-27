@@ -1592,10 +1592,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-one-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty modules
+        One extension, thirty-one modules
       
     </span>
   </a>
@@ -3948,10 +3948,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-one-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty modules
+        One extension, thirty-one modules
       
     </span>
   </a>
@@ -4039,7 +4039,7 @@
 
 
 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<h2 id="one-extension-thirty-modules">One extension, thirty modules<a class="headerlink" href="#one-extension-thirty-modules" title="Permanent link">&para;</a></h2>
+<h2 id="one-extension-thirty-one-modules">One extension, thirty-one modules<a class="headerlink" href="#one-extension-thirty-one-modules" title="Permanent link">&para;</a></h2>
 <p>PI discovers extensions by scanning <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code>. This
 repository deliberately does <strong>not</strong> use that. <code>config/settings.json</code> names exactly one file:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">]</span>
@@ -4048,7 +4048,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
 <code>register(pi)</code> — not a default export — and is imported and invoked here in a fixed order.</p>
 <p>Three reasons, all of them consequences of how PI behaves:</p>
 <ol>
-<li><strong>Directory discovery would load 26 files as 26 separate extensions</strong>, in <code>readdir</code> order, and
+<li><strong>Directory discovery would load every module as its own extension</strong>, in <code>readdir</code> order, and
    fail every one that has no default export.</li>
 <li><strong><code>readdir</code> order would decide the <code>tool_call</code> chaining order.</strong> PI iterates <code>tool_call</code>
    handlers across extensions in load order and returns on the first <code>{block: true}</code>. If <code>bash</code>
@@ -4135,7 +4135,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 <pre class="mermaid"><code>flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),&lt;br/&gt;rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 27 modules + config + bin/"]
+    OURS["this repository — 31 modules + config + bin/"]
     PI --- PKG --- OURS</code></pre>
 <p>The rule this project follows is <strong>package-first</strong>: adopt a community package where one exists and
 survives review, and write custom code only for the remainder. Dependency count is not a

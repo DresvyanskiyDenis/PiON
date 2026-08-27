@@ -4040,27 +4040,28 @@ second copy to keep in sync.</p>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>├── auth.json                                                  0600, written by /login — never committed
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── trust.json                                                 PI's own project-trust decisions
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>├── install-manifest.tsv                                       what the installer created; uninstall reads it
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>└── sessions/  models-store.json                               PI-owned, never linked
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>~/bin/
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>├── pi-run          -&gt; ~/pi-config/bin/pi-run                the fail-closed headless wrapper
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── pi-check        -&gt; ~/pi-config/bin/pi-check              offline config rules
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>├── pi-tier         -&gt; ~/pi-config/config/bin/pi-tier        tier -&gt; provider/model-id
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>└── mcp-stdio-guard -&gt; ~/pi-config/config/bin/mcp-stdio-guard
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
-</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>~/.pi/secrets.env                    0600, git-ignored, NOT in the repo
-</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>~/.local/state/pi-config/            (or $XDG_STATE_HOME/pi-config) runtime state — see below
-</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>
-</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>&lt;project&gt;/.pi/settings.json          deep-merged OVER global, only after the project is trusted
-</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>&lt;project&gt;/.pi/hooks.yaml             merged after the global hooks, only when trusted
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>├── provider-notes.md                                          why your models.json looks the way it does
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>└── sessions/  models-store.json                               PI-owned, never linked
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>~/bin/
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── pi-run          -&gt; ~/pi-config/bin/pi-run                the fail-closed headless wrapper
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>├── pi-check        -&gt; ~/pi-config/bin/pi-check              offline config rules
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>├── pi-tier         -&gt; ~/pi-config/config/bin/pi-tier        tier -&gt; provider/model-id
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>└── mcp-stdio-guard -&gt; ~/pi-config/config/bin/mcp-stdio-guard
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>~/.pi/secrets.env                    0600, git-ignored, NOT in the repo
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>~/.local/state/pi-config/            (or $XDG_STATE_HOME/pi-config) runtime state — see below
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>&lt;project&gt;/.pi/settings.json          deep-merged OVER global, only after the project is trusted
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>&lt;project&gt;/.pi/hooks.yaml             merged after the global hooks, only when trusted
 </span></code></pre></div>
 <p><code>~/pi-config</code> is a <em>stable symlink</em> to wherever you actually cloned, created by the installer. Every
 link above goes through it, and so do <code>config/settings.json</code>'s own <code>extensions</code> and <code>packages</code>
 entries, so you can move or rename the checkout without editing anything.</p>
 <div class="admonition warning">
 <p class="admonition-title">Two things are deliberately <strong>not</strong> linked</p>
-<p><strong><code>extensions/</code>.</strong> PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and would load all 27 modules as
-separate extensions in <code>readdir</code> order — breaking the fixed load order and failing every module
+<p><strong><code>extensions/</code>.</strong> PI discovers <code>&lt;agentDir&gt;/extensions/*.ts</code> and <code>&lt;agentDir&gt;/extensions/&lt;dir&gt;/index.ts</code>,
+and would load every module as a separate extension in <code>readdir</code> order — breaking the fixed load order and failing every module
 that has no default export. <code>config/settings.json</code> names the single file
 <code>~/pi-config/extensions/index.ts</code> instead.</p>
 <p>One file <em>inside</em> that same directory is still linked, deliberately: the <code>pi-subagents</code>

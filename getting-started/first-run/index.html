@@ -4044,7 +4044,8 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pi-check<span class="w"> </span>--all
 </span></code></pre></div>
 <p><code>bin/pi-check</code> is a standalone Node script that reads the config tree and the agent files without
-starting PI. It runs 22 rules (21 without <code>--live</code>, which PC-19 needs to reach the npm registry); the ones you will actually hit on a fresh clone:</p>
+starting PI. It runs 26 rules (25 without <code>--live</code>, which PC-19 needs to reach the npm registry); the ones you
+will actually hit on a fresh clone:</p>
 <table>
 <thead>
 <tr>
@@ -4073,20 +4074,23 @@ starting PI. It runs 22 rules (21 without <code>--live</code>, which PC-19 needs
 <td><code>PC-10</code></td>
 <td>a <code>&lt;PLACEHOLDER&gt;</code> survived installation</td>
 </tr>
-<tr>
-<td><code>PC-19</code></td>
-<td>a pinned npm version disagrees with what is installed</td>
-</tr>
 </tbody>
 </table>
 <p>Zero findings, exit 0. Anything else is a real problem and the message names the file.</p>
 <h2 id="2-the-tier-table-needs-jq-no-network">2. The tier table (needs <code>jq</code>, no network)<a class="headerlink" href="#2-the-tier-table-needs-jq-no-network" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pi-tier<span class="w"> </span>--list
 </span></code></pre></div>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>strong       github-copilot/claude-opus-5     main loop, architecture, hard debugging
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>light        github-copilot/claude-sonnet-5   everything the main loop delegates
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>confidential …                               anything that must not leave your boundary (unbound until you bind it)
+<p>One line per tier: name, the provider-qualified model it resolves to, and the <code>purpose</code> string
+from <code>routing.json</code>. <strong>The output is yours, not this page's</strong> — the model ids depend on which
+provider fragment you installed, and <code>purpose</code> prints in full rather than abridged. Illustrative
+shape only:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>strong         &lt;provider&gt;/&lt;model-id&gt;   main loop, the subagent default, architecture, hard debugging
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>light          &lt;provider&gt;/&lt;model-id&gt;   the opt-in tier for mechanical work, named deliberately …
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>confidential   UNBOUND                 no provider of the right kind was configured
 </span></code></pre></div>
+<p>A tier printed as <code>UNBOUND</code> is in the vocabulary but has no model: your install configured no
+provider of that kind. It is listed rather than omitted so that a caller can see <em>why</em> the name
+it asked for is missing. Asking for it still exits <strong>2</strong>.</p>
 <p>An unknown tier exits <strong>2</strong>. That is deliberate: a typo in a cron job must fail, never fall back to
 a default model you did not choose.</p>
 <h2 id="3-one-real-turn-per-provider">3. One real turn per provider<a class="headerlink" href="#3-one-real-turn-per-provider" title="Permanent link">&para;</a></h2>
@@ -4103,6 +4107,21 @@ a default model you did not choose.</p>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  caused by   : &lt;cause chain&gt;
 </span></code></pre></div>
 <p>Nothing is retried onto a different provider. Fix the credential, or select a different tier.</p>
+<div class="admonition danger">
+<p class="admonition-title">Do not fix a Copilot credential by logging in from inside PI</p>
+<p>PI's Copilot provider registers <strong>two</strong> auth methods. The <code>apiKey</code> method — the one the
+<code>github-copilot</code> fragment configures — sends <code>COPILOT_GITHUB_TOKEN</code> through and leaves the
+<code>baseUrl</code> the fragment wrote intact. The OAuth method's resolver <strong>always</strong> returns its own
+<code>baseUrl</code>, derived from a hint inside the token, and at request time that one wins. On the
+public endpoint the substitution is harmless. On a tenant with a data-residency endpoint it
+silently sends your traffic somewhere else, and nothing in the session says so.</p>
+<p>So the fix is a token in <code>~/.pi/secrets.env</code>, not a login:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s1">'COPILOT_GITHUB_TOKEN=gho_...'</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.pi/secrets.env<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~/.pi/secrets.env
+</span></code></pre></div>
+<p>Reuse the token an editor integration already holds, or — <strong>on a public seat only</strong> — run
+<code>/login github-copilot</code> once purely to mint one and copy the value out of
+<code>~/.pi/agent/auth.json</code>. <code>config/providers/github-copilot.json</code> carries the full finding.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Run <code>/compact</code> once, in an interactive session, before you trust a provider</p>
 <p>Some provider integrations resolve their endpoint differently on the compaction and
@@ -4165,13 +4184,13 @@ specifically so its report observes every module above it.</p>
 <h2 id="5-prove-the-guard-bites">5. Prove the guard bites<a class="headerlink" href="#5-prove-the-guard-bites" title="Permanent link">&para;</a></h2>
 <p>The point of a permission layer is that you can demonstrate it. In an interactive session, ask the
 agent to run something the guard must refuse:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>run: sudo rm -rf /
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>run: sudo rm -rf /
 </span></code></pre></div>
 <p>You should get a refusal naming the rule id (<code>DB-RM-ROOT</code>), not a confirmation prompt and not an
 execution. If you get anything else, stop and read <a href="../../extensions/doctor/"><code>/doctor</code>'s <code>D-06</code></a>
 before using this harness for real work.</p>
 <p>Then the headless half:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">"reply OK"</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pi-tier<span class="w"> </span>light<span class="k">)</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"exit=</span><span class="nv">$?</span><span class="s2">"</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi-run<span class="w"> </span>-p<span class="w"> </span><span class="s2">"reply OK"</span><span class="w"> </span>--model<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pi-tier<span class="w"> </span>light<span class="k">)</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"exit=</span><span class="nv">$?</span><span class="s2">"</span>
 </span></code></pre></div>
 <p><code>exit=0</code>. Now point it at a deliberately broken credential and confirm it exits <strong>20</strong> rather than
 0 — that is the entire reason <a href="../../operations/cli/#pi-run"><code>pi-run</code></a> exists.</p>
