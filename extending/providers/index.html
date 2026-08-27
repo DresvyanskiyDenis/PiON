@@ -898,6 +898,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -958,6 +962,62 @@
     
   
     config/models.json — providers and models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/github-copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/litellm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    litellm — a LiteLLM proxy
   
 
     
@@ -4195,14 +4255,23 @@
 
 
 <h1 id="adding-a-provider">Adding a provider<a class="headerlink" href="#adding-a-provider" title="Permanent link">&para;</a></h1>
-<p>Three provider fragments ship: <code>github-copilot</code>, <code>databricks</code> and <code>openai-compatible</code>. Adding a
-fourth is a JSON file, and the installer picks it up with no code change.</p>
+<p>Four provider fragments ship: <code>github-copilot</code>, <code>litellm</code>, <code>databricks</code> and <code>openai-compatible</code>.
+Adding a fifth is a JSON file, and the installer picks it up with no code change.</p>
 <div class="admonition tip">
 <p class="admonition-title">Check <code>openai-compatible</code> first</p>
-<p>If your endpoint speaks <code>/v1/chat/completions</code> under its own model names — LiteLLM, vLLM,
-OpenRouter, an in-house router — it is already covered by
+<p>If your endpoint speaks <code>/v1/chat/completions</code> under its own model names — vLLM, OpenRouter, an
+in-house router — it is already covered by
 <a href="../../configuration/openai-compatible/"><code>openai-compatible</code></a>, answered differently. Writing a
 new fragment buys you a second entry in the provider menu and nothing else.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">The one thing that does justify a new file</p>
+<p>Knowledge the interview cannot carry. <code>compat</code>, <code>reasoning</code> and <code>thinkingLevelMap</code> may not be
+deferred to a prompt — only <code>egress</code>, <code>concurrency</code> and a <code>requires[].name</code> may — so wire
+behaviour that is knowable for a <strong>named</strong> product can only be stated as a literal by a fragment
+that names it. That is why <a href="../../configuration/litellm/"><code>litellm</code></a> exists beside
+<code>openai-compatible</code> although both fit a LiteLLM proxy: they differ in no answer, and in four
+fields nobody can be asked about.</p>
 </div>
 <p>There are two ways in, and they are not equivalent:</p>
 <table>

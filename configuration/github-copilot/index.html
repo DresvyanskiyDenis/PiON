@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/configuration/routing/">
+        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/configuration/github-copilot/">
       
       
-        <link rel="prev" href="../openai-compatible/">
+        <link rel="prev" href="../models/">
       
       
-        <link rel="next" href="../settings/">
+        <link rel="next" href="../litellm/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>config/routing.json — tiers, egress, concurrency - PiON</title>
+        <title>github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#configroutingjson-tiers-egress-concurrency" class="md-skip">
+        <a href="#github-copilot-claude-gpt-gemini-and-grok-through-a-copilot-seat" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              config/routing.json — tiers, egress, concurrency
+              github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
             
           </span>
         </div>
@@ -989,10 +989,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../github-copilot/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1008,6 +1035,103 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-interview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The interview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-the-fragment-overrides-context-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why the fragment overrides context windows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#three-things-about-the-model-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three things about the model list
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#never-touch-the-x-initiator-header" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Never touch the X-Initiator header
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verifying" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1073,37 +1197,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    config/routing.json — tiers, egress, concurrency
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../routing/" class="md-nav__link">
         
   
   
@@ -1119,142 +1216,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#version" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        version
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tiers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        tiers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="tiers">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-three-tier-names" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The three tier names
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#how-thinkinglevel-reaches-the-child" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How thinkingLevel reaches the child
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tiersunbound" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        tiersUnbound
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#egress" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        egress
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#concurrency" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        concurrency
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#onprovidererror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        onProviderError
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verifying-a-change" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verifying a change
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -4069,10 +4030,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#version" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        version
+        Before you start
       
     </span>
   </a>
@@ -4080,49 +4041,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tiers" class="md-nav__link">
+  <a href="#the-interview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        tiers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="tiers">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-three-tier-names" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The three tier names
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#how-thinkinglevel-reaches-the-child" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How thinkingLevel reaches the child
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tiersunbound" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        tiersUnbound
+        The interview
       
     </span>
   </a>
@@ -4130,10 +4052,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#egress" class="md-nav__link">
+  <a href="#why-the-fragment-overrides-context-windows" class="md-nav__link">
     <span class="md-ellipsis">
       
-        egress
+        Why the fragment overrides context windows
       
     </span>
   </a>
@@ -4141,10 +4063,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#concurrency" class="md-nav__link">
+  <a href="#three-things-about-the-model-list" class="md-nav__link">
     <span class="md-ellipsis">
       
-        concurrency
+        Three things about the model list
       
     </span>
   </a>
@@ -4152,10 +4074,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#onprovidererror" class="md-nav__link">
+  <a href="#never-touch-the-x-initiator-header" class="md-nav__link">
     <span class="md-ellipsis">
       
-        onProviderError
+        Never touch the X-Initiator header
       
     </span>
   </a>
@@ -4163,10 +4085,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#verifying-a-change" class="md-nav__link">
+  <a href="#verifying" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verifying a change
+        Verifying
       
     </span>
   </a>
@@ -4201,7 +4123,7 @@
 
 
   
-    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/configuration/routing.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/configuration/github-copilot.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4209,276 +4131,123 @@
   
 
 
-<h1 id="configroutingjson-tiers-egress-concurrency"><code>config/routing.json</code> — tiers, egress, concurrency<a class="headerlink" href="#configroutingjson-tiers-egress-concurrency" title="Permanent link">&para;</a></h1>
-<p><strong>Generated by the installer. Gitignored.</strong> Built from <code>config/routing.default.json</code> plus the tier
-choices you made. Hand edits are supported; re-running the installer regenerates the file, so an
-edit that must survive belongs in <code>config/routing.default.json</code>.</p>
-<p><strong>PI does not read this file.</strong> It has no concept of a tier. <code>routing.json</code> is read by this
-repository's extensions and by <a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a>. It is symlinked as
-<code>~/.pi/agent/routing.json</code> only so everything lives in one place.</p>
-<p>The concepts are on <a href="../../concepts/providers-and-tiers/">Providers and tiers</a>. This page is the
-key-by-key reference.</p>
+<h1 id="github-copilot-claude-gpt-gemini-and-grok-through-a-copilot-seat"><code>github-copilot</code> — Claude, GPT, Gemini and Grok through a Copilot seat<a class="headerlink" href="#github-copilot-claude-gpt-gemini-and-grok-through-a-copilot-seat" title="Permanent link">&para;</a></h1>
+<p>Use this if you have a GitHub Copilot seat. One credential gets you the whole Copilot catalogue, and
+PI ships the provider itself — this fragment only corrects the parts that are wrong for a coding
+agent.</p>
+<p>It is configured at install time from <code>config/providers/github-copilot.json</code> and lands in
+<a href="../models/"><code>config/models.json</code></a> and <a href="../routing/"><code>config/routing.json</code></a>, both generated and
+gitignored. It is selected <strong>by default</strong> in the installer's provider picker.</p>
 <hr />
-<h2 id="version"><code>version</code><a class="headerlink" href="#version" title="Permanent link">&para;</a></h2>
-<p>Ships <code>2</code>. A schema marker, not a knob. Leave it.</p>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>You need a <strong>Copilot OAuth access token</strong> — a <code>gho_…</code> value. PI sends it straight through as the API
+key; there is no token exchange on this path. Two ways to get one:</p>
+<ol>
+<li><strong>Reuse the token an editor integration already holds.</strong> VS Code and other OAuth clients store
+   one.</li>
+<li><strong>Run <code>/login github-copilot</code> once in PI</strong>, on a <em>public</em> seat, and copy the value out of
+   <code>~/.pi/agent/auth.json</code>.</li>
+</ol>
+<p>Then put it in <code>~/.pi/secrets.env</code> (chmod 600) as a <code>COPILOT_GITHUB_TOKEN</code> line holding that value, or
+let the installer do it for you.</p>
+<div class="admonition danger">
+<p class="admonition-title">Never leave <code>/login github-copilot</code> as your credential path</p>
+<p>PI's Copilot provider registers <strong>two</strong> auth methods. The <code>apiKey</code> method sends
+<code>COPILOT_GITHUB_TOKEN</code> through and leaves the configured <code>baseUrl</code> intact. The OAuth method's
+resolver <strong>always</strong> returns its own <code>baseUrl</code>, derived from the token's <code>proxy-ep</code> hint, and at
+request time <code>applyAuth()</code> does <code>auth.baseUrl ? {...model, baseUrl: auth.baseUrl} : model</code> — so
+an OAuth credential silently overrides the host written here.</p>
+<p>On the public endpoint that is harmless. On an enterprise data-residency tenant it sends your
+traffic somewhere else. Use <code>/login</code> to <em>mint</em> a token, then configure it as an env var.</p>
+</div>
+<p>An optional second credential, <code>PI_COPILOT_QUOTA_TOKEN</code>, is used only by the quota-meter extension
+and never for chat. It must be a <strong>classic</strong> <code>ghp_…</code> PAT — the premium-usage endpoint rejects a
+fine-grained <code>github_pat_…</code> token.</p>
 <hr />
-<h2 id="tiers"><code>tiers</code><a class="headerlink" href="#tiers" title="Permanent link">&para;</a></h2>
-<p>The whole point of the file. Three names are the fixed vocabulary; every agent, skill and script in
-this harness dispatches on them.</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"tiers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"strong"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"github-copilot/claude-opus-5"</span><span class="p">,</span><span class="w">   </span><span class="nt">"thinkingLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"high"</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">              </span><span class="nt">"purpose"</span><span class="p">:</span><span class="w"> </span><span class="s2">"main loop, architecture, hard debugging"</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">"light"</span><span class="p">:</span><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"github-copilot/claude-sonnet-5"</span><span class="p">,</span><span class="w"> </span><span class="nt">"thinkingLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"medium"</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">              </span><span class="nt">"purpose"</span><span class="p">:</span><span class="w"> </span><span class="s2">"everything that is not the main loop: reviews, docs, mechanical multi-file edits, summaries, digests, classification, grep-and-report"</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
-</span></code></pre></div>
+<h2 id="the-interview">The interview<a class="headerlink" href="#the-interview" title="Permanent link">&para;</a></h2>
+<p>One question, or two.</p>
 <table>
 <thead>
 <tr>
-<th>Key</th>
-<th>Meaning</th>
+<th>#</th>
+<th>Question</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>model</code></td>
-<td>a <strong>provider-qualified</strong> id: <code>&lt;provider&gt;/&lt;model-id&gt;</code>. A bare id is rejected</td>
+<td>1</td>
+<td>Which Copilot endpoint does your seat use?</td>
+<td><code>public</code> (api.githubcopilot.com) — the normal answer — or <code>enterprise</code></td>
 </tr>
 <tr>
-<td><code>thinkingLevel</code></td>
-<td><code>off</code> | <code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code> | <code>max</code> — the reasoning effort every child dispatched on this tier runs at. Maps to <code>thinkingBudgets</code> in <a href="../settings/#thinkingbudgets"><code>settings.json</code></a>. An unknown value aborts at load, naming the tier</td>
-</tr>
-<tr>
-<td><code>purpose</code></td>
-<td>prose. Shown by <code>pi-tier --list</code> and injected into the sub-agent model-selection block, so a model can pick sensibly</td>
-</tr>
-<tr>
-<td><code>optional</code></td>
-<td><code>true</code> means "absence is a warning, not a failure". For a tier whose target may legitimately be down — an endpoint on your own hardware, say — rather than misconfigured</td>
+<td>2</td>
+<td>Your GHE data-residency tenant slug</td>
+<td>Only asked for <code>enterprise</code>. The <strong>slug only</strong>: for an enterprise at <code>https://&lt;tenant&gt;.ghe.com</code>, the Copilot API host is <code>copilot-api.&lt;tenant&gt;.ghe.com</code></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Changing which model a tier uses is a one-line edit here.</strong> No agent file is touched; the next
-dispatch uses the new model. That inversion is the acceptance test the design was built against —
-the predecessor harness hard-coded one model id into fourteen agent files.</p>
-<h3 id="the-three-tier-names">The three tier names<a class="headerlink" href="#the-three-tier-names" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Tier</th>
-<th>For</th>
-<th>Shipped <code>thinkingLevel</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>strong</code></td>
-<td>main loop, architecture, hard debugging — <strong>and the sub-agent default</strong> (<code>dispatch.json</code>'s <code>defaultTier</code>)</td>
-<td><code>high</code></td>
-</tr>
-<tr>
-<td><code>light</code></td>
-<td>the opt-in tier for mechanical work, named on the call rather than inherited: multi-file edits, summaries, digests, classification, grep-and-report</td>
-<td><code>medium</code></td>
-</tr>
-<tr>
-<td><code>confidential</code></td>
-<td>anything that must not leave your boundary. Ships unbound</td>
-<td>—</td>
-</tr>
-</tbody>
-</table>
-<p>Do not invent a fourth. Everything that resolves a tier fails loud on an unknown name, and adding
-one means every consumer has to learn it.</p>
-<div class="admonition note">
-<p class="admonition-title">Two tiers, not one per price point</p>
-<p>A tier is a <em>role</em>, and the harness has exactly two roles a bound tier can play: the main loop,
-and everything the main loop delegates. Splitting the second one by price produced tiers that
-differed only in which model they happened to point at, and agents choosing between them on
-vibes. <code>light</code> is the single delegation tier; when one particular call genuinely needs a
-different model, pin <code>provider/id</code> on that call rather than adding a vocabulary word every
-consumer then has to learn.</p>
-<p>Which tier a delegated call <em>lands</em> on if nobody chooses is a separate question, answered by
-<a href="../dispatch/#defaulttier-and-defaultegress"><code>dispatch.json</code>'s <code>defaultTier</code></a> — and the answer is
-<code>strong</code>. Two roles, two tiers; the default is the careful one. Careful <em>for the binding that
-ships</em>: it is a statement about what these two tiers currently point at, and it is re-decidable
-in one line when that changes.</p>
-</div>
-<h3 id="how-thinkinglevel-reaches-the-child">How <code>thinkingLevel</code> reaches the child<a class="headerlink" href="#how-thinkinglevel-reaches-the-child" title="Permanent link">&para;</a></h3>
-<p>PI carries a child's reasoning effort <strong>inside the model string</strong>, as a <code>:&lt;level&gt;</code> suffix
-(<code>github-copilot/claude-opus-5:high</code>) — that is the only channel it reads effort from, and it
-outranks both the agent file's own <code>thinking:</code> and any per-call override. So resolving a tier moves
-its declared <code>thinkingLevel</code> into the resolved id: <code>model: strong</code> dispatches on
-<code>github-copilot/claude-opus-5:high</code>, not on the bare id.</p>
-<div class="admonition warning">
-<p class="admonition-title">Your gateway may cap effort below what the model advertises</p>
-<p>A <code>thinkingLevel</code> is a request, and the endpoint serving the model decides whether to honour it.
-A gateway in front of a model family can refuse the top levels for the whole family — the
-request comes back <code>400</code>, and because the level is carried <em>inside the model id</em>, the dispatch
-aborts rather than thinking less hard. That is the correct behaviour and the harness does not
-soften it: silently downgrading <code>max</code> to <code>high</code> would mean a tier whose declared effort is
-fiction.</p>
-<p>So the ceiling that matters is the one <strong>your</strong> endpoint actually serves, not the one the model
-card claims. Probe it once with a throwaway call per level before writing a level into
-<code>routing.json</code>, and set the tier to the highest that answers <code>200</code>.</p>
-<p>Then re-probe rather than trusting the last refusal. The ceiling is the endpoint's, so it can
-move without anything in this repo changing: a proxy that begins declaring a level it used to
-gate serves that level from then on. <code>thinkingLevel</code> here is the first line to follow it, and
-<a href="../dispatch/#defaulttier-and-defaultegress"><code>dispatch.json</code>'s <code>defaultTier</code></a> may be the second —
-a tier whose ceiling has just risen is not the tier it was when you picked the default.</p>
-</div>
-<p>Two consequences worth knowing:</p>
-<ul>
-<li><strong>A suffix already written into <code>model</code> wins.</strong> <code>"model": "github-copilot/gpt-5.4:max"</code> together
-  with <code>"thinkingLevel": "low"</code> dispatches at <code>max</code>. The more specific statement is the one on the
-  id.</li>
-<li><strong>A tier and the bare id it points at are not the same request.</strong> Naming the tier carries the
-  effort; typing <code>github-copilot/claude-opus-5</code> on the call does not. A tier is shorthand for <em>this
-  id and this effort</em>.</li>
-</ul>
-<p>You can write the suffix yourself on any concrete <code>provider/id</code> at dispatch time. A misspelled level
-is never silently read as an effort: <code>:maxx</code> stays part of the id and the dispatch aborts as an
-unknown model, which is the loud failure rather than a quiet downgrade.</p>
-<p><strong><code>model</code> is a bare <code>provider/id</code>; the level goes in <code>thinkingLevel</code> and nowhere else.</strong> Writing
-<code>"model": "github-copilot/claude-opus-5:high"</code> and leaving <code>thinkingLevel</code> off looks equivalent and
-is not: PI keys its model registry on the bare id, so every consumer that does not strip the suffix
-reads <code>:high</code> as part of the id. <code>/doctor</code>'s <code>D-04</code> then reports a perfectly healthy tier as
-<code>unresolved</code>, and anything that checks a tier's model against the registry refuses it. The
-suffix-attaching is the job of whatever emits a model string — dispatch, the digest and
-<a href="../../operations/cli/#pi-tier"><code>pi-tier</code></a> each do it, and each refuses a <code>thinkingLevel</code> that is not
-one of the seven levels rather than passing it on.</p>
-<p><a href="../../extensions/path-defaults/"><code>path-defaults</code></a> is the one consumer that neither emits nor
-forwards a model string: it splits the suffix off before asking the registry, then applies the
-resolved level to the session directly through <code>pi.setThinkingLevel</code>. So a suffix written into a
-tier's <code>model</code> is tolerated there and obeys the same precedence — but it is still the wrong place
-to write it, for every other consumer's sake.</p>
-<p><strong>What breaks:</strong> a <code>model</code> naming an id that is not in <code>config/models.json</code> fails at <strong>load</strong>, not
-at dispatch — every agent whose frontmatter names that tier refuses to start with
-<code>model "&lt;id&gt;" (from "light") is not in the model registry</code>. That is the design working. A typo in
-one of a dozen agent files must be a startup error, not a surprise forty minutes into a long run.</p>
+<p>Everything else is stated by the fragment: egress class <code>public</code>, concurrency cap <code>4</code>, and the model
+catalogue's context windows.</p>
+<p>To reconfigure afterwards: <code>./scripts/install.sh --section providers</code>.</p>
 <hr />
-<h2 id="tiersunbound"><code>tiersUnbound</code><a class="headerlink" href="#tiersunbound" title="Permanent link">&para;</a></h2>
-<p>Documentation, not configuration. A tier that no installed provider can satisfy is <strong>removed from
-<code>tiers</code> and listed here with a one-line reason</strong>:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">"tiersUnbound"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"confidential"</span><span class="p">:</span><span class="w"> </span><span class="s2">"No provider with egress class \"confidential\" is installed. …"</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">}</span>
-</span></code></pre></div>
-<p><code>confidential</code> ships unbound because binding it to whatever happened to be available would make the
-word meaningless. <code>confidential</code> bound to a public provider is worse than <code>confidential</code> being
-absent: naming it then fails loudly instead of quietly sending material to a third party. Run the
-installer and select an endpoint inside your own boundary to bind it.</p>
-<p><strong>Do not</strong> leave a tier in <code>tiers</code> pointing at a provider that is not in <code>models.json</code>.
-<code>bin/pi-check</code> rule <code>PC-02</code> fails on that, and at runtime the dispatcher refuses it with a less
-useful message than the check gives you.</p>
+<h2 id="why-the-fragment-overrides-context-windows">Why the fragment overrides context windows<a class="headerlink" href="#why-the-fragment-overrides-context-windows" title="Permanent link">&para;</a></h2>
+<p>PI's bundled Copilot catalogue declares a <strong>1 000 000</strong> token context window (1 050 000 for some
+ids) for models whose Copilot endpoint serves far less.</p>
+<p>PI's compaction threshold is <code>contextWindow - reserveTokens</code>. An over-declared window makes
+compaction fire far too late: by the time PI decides to compact, the request is already larger than
+the endpoint accepts, and the turn dies — or is silently truncated upstream — instead of compacting.</p>
+<p>The rule the fragment follows is <strong><code>min(200000, what the endpoint actually serves)</code></strong>, and the
+numbers in it were measured on one tenant. They are deliberately conservative: under-declaring only
+makes compaction fire earlier, which is safe. Over-declaring is what breaks.</p>
+<p>To re-measure on your own seat, send a request whose prompt is a known token count and grow it until
+the endpoint returns a context-length error; the largest size that still succeeds is the real
+window. <code>pi --list-models</code> shows what PI currently believes. <strong>Do not raise a number you have not
+observed.</strong></p>
 <hr />
-<h2 id="egress"><code>egress</code><a class="headerlink" href="#egress" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"egress"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"github-copilot"</span><span class="p">:</span><span class="w"> </span><span class="s2">"public"</span><span class="w"> </span><span class="p">}</span>
-</span></code></pre></div>
-<p>One class per provider, from the vocabulary <code>public</code> | <code>internal</code> | <code>confidential</code>. <strong>The class is a
-label. It is reported, never compared.</strong></p>
-<p>Pick the class by asking <em>where does the traffic physically go, and who can read it there</em> — not by
-how much you trust the vendor. A third-party API is <code>public</code> even when the vendor is excellent.</p>
-<p>Where you see it: the startup line, <code>/agents</code>, the sub-agent model-selection block injected into the
-system prompt, and the <code>dispatch_registry</code> audit entry.</p>
-<div class="admonition warning">
-<p class="admonition-title">This is a label, not a network boundary — and since 2026-08-13 not a dispatch gate either</p>
-<p>Nothing here intercepts a socket, and nothing refuses a dispatch on account of it.</p>
-<p>Until 2026-08-13 there was an ordering over the three classes (<code>egressOrder</code>) and a containment
-rule built on it: an agent bound to a provider classed looser than its own declared <code>egress:</code>
-failed at load, and a session could not dispatch a child onto a provider classed looser than
-itself. That rule is <strong>withdrawn</strong>. It refused far more than it protected — with most providers
-classed looser than the session, most agents became undispatchable and changing provider
-mid-session was impossible — and it was never a boundary in the first place, only a refusal
-inside our own dispatcher. If you need an actual network boundary, build one at the network
-layer. See <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
-</div>
-<p><strong>What breaks:</strong> nothing. A provider with <strong>no</strong> class dispatches normally and is reported as
-<code>unlabelled</code> wherever the class is shown. Add a row anyway when you add a provider — an unlabelled
-lane in the model menu is a lane nobody can reason about.</p>
+<h2 id="three-things-about-the-model-list">Three things about the model list<a class="headerlink" href="#three-things-about-the-model-list" title="Permanent link">&para;</a></h2>
+<p><strong>It is unfiltered.</strong> PI narrows the catalogue to the credential's entitlement only for <em>OAuth</em>
+credentials. On the <code>apiKey</code> path, <code>/model</code> lists every model in the bundled catalogue regardless of
+what your seat actually grants. A <strong>403 or 404 on a specific id is account policy</strong> surfacing
+through an unfiltered list, not a bug. Some seats also require enabling a model once in the editor's
+model picker before the API will accept it.</p>
+<p><strong><code>api</code> is deliberately unset.</strong> Copilot dispatches three different wire APIs depending on the
+model, and PI picks the right one from its own catalogue. Setting <code>api</code> here would force one of them
+onto all of them.</p>
+<p><strong><code>apiKey</code> is not optional.</strong> A <code>github-copilot</code> block with no <code>apiKey</code> key <em>at all</em> is read as
+unconfigured, and PI drops the <strong>entire</strong> built-in Copilot catalogue from <code>/model</code>, Ctrl+P and every
+tier naming a <code>github-copilot/*</code> id. That is a stronger failure than a present-but-empty reference,
+which leaves the models listed and fails at request time. Measured, not theorised.</p>
 <hr />
-<h2 id="concurrency"><code>concurrency</code><a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"github-copilot"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="p">}</span>
-</span></code></pre></div>
-<p>A semaphore keyed on the <strong>resolved</strong> provider id. It <strong>queues</strong> rather than erroring.</p>
-<p>A cap can encode a physical fact rather than a preference. A single machine serving models on
-loopback holds one large model at a time and a swapping router unloads on switch, so two concurrent
-dispatches there thrash instead of parallelising — configure that endpoint through
-<a href="../openai-compatible/"><code>openai-compatible</code></a> and answer its concurrency prompt with <code>1</code>.</p>
-<p>Raise a cloud provider's number if you dispatch wide fan-outs and the provider tolerates it; lower
-it if you are hitting rate limits. <code>config/dispatch.json</code>'s <code>concurrencyDefault</code> (3) applies when a
-provider has no row here.</p>
-<p><strong>Where the semaphore cannot reach</strong> is documented honestly in
-<code>extensions/dispatch/concurrency.ts</code>: there is no extension-visible hook inside PI's own
-<code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>
+<h2 id="never-touch-the-x-initiator-header">Never touch the <code>X-Initiator</code> header<a class="headerlink" href="#never-touch-the-x-initiator-header" title="Permanent link">&para;</a></h2>
+<p>GitHub's meter keys premium-request counting on it. Rewriting it misreports your usage against your
+seat. <code>bin/pi-check</code> rule <strong>PC-15</strong> fails the build if any extension references it.</p>
 <hr />
-<h2 id="onprovidererror"><code>onProviderError</code><a class="headerlink" href="#onprovidererror" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"onProviderError"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"policy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abort"</span><span class="p">,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"substituteProvider"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">"report"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"provider"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w"> </span><span class="s2">"errorClass"</span><span class="p">,</span><span class="w"> </span><span class="s2">"message"</span><span class="p">,</span><span class="w"> </span><span class="s2">"causeChain"</span><span class="p">],</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"errorClasses"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"auth"</span><span class="p">,</span><span class="w"> </span><span class="s2">"quota"</span><span class="p">,</span><span class="w"> </span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model-not-found"</span><span class="p">,</span><span class="w"> </span><span class="s2">"policy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">]</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
+<h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
+<p>The installer writes these into <code>~/.pi/agent/provider-notes.md</code> with your endpoint already
+substituted in, and names that file in its closing list of manual steps.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># the endpoint answers with your token</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s1">'%{http_code}\n'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$COPILOT_GITHUB_TOKEN</span><span class="s2">"</span><span class="w"> </span>https://api.githubcopilot.com/models
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># PI sees the provider as configured</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>pi<span class="w"> </span>--list-models<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'^github-copilot/'</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># one real turn</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span>github-copilot/claude-sonnet-5
 </span></code></pre></div>
 <div class="admonition danger">
-<p class="admonition-title">This is a standing rule, not a default to be flipped</p>
-<p>There is no provider failover in this harness, anywhere. A failover extension was specified,
-scheduled, and then <strong>cancelled</strong>; <code>extensions/failover.ts</code> does not exist and nothing in the
-tree references one. The installer offers no prompt to change these values and copies the block
-through untouched.</p>
-<p>The reasoning: a harness that silently substitutes a different provider produces work you
-cannot attribute, on a model you did not choose, at a price you did not agree to, and it hides
-the outage that caused it until something expensive depends on the wrong output. An abort with
-a full cause chain costs one turn. A silent substitution costs the trust in every turn after
-it.</p>
+<p class="admonition-title">There is no failover, here or anywhere</p>
+<p>A seat that is out of quota, rate-limited or returning 5xx <strong>aborts</strong> the request, naming the
+provider, the model, the error class and the cause chain. Nothing is silently sent elsewhere.
+See <a href="../../adr/0001-no-provider-failover/">ADR 0001</a>.</p>
 </div>
-<p>What you get instead is a good error, rendered by <code>extensions/lib/provider-error.ts</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[pi-config] provider call failed:
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  provider    : &lt;name&gt;
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  model       : &lt;id&gt;
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  error class : auth | quota | network | model-not-found | policy | empty-response
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  message     : &lt;upstream text&gt;
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  caused by   : &lt;cause chain&gt;
-</span></code></pre></div>
-<p><code>report</code> selects the fields in that block. <code>errorClasses</code> is the classification vocabulary.
-<code>policy</code> and <code>substituteProvider</code> are the two you should not change.</p>
-<div class="admonition note">
-<p class="admonition-title"><code>empty-response</code> is a shape, not a message</p>
-<p>The other five are decided by reading the provider's error text. <code>empty-response</code> is not: it is
-an HTTP <strong>200</strong> with a well-formed body that carried no completion — zero content parts, a
-<code>stop</code>-family finish reason, and usage of zero prompt and zero completion tokens. Nothing in the
-stack sees that as a failure on its own; PI materialises it as an ordinary assistant turn, the
-retry predicate skips it because the stop reason is not <code>error</code>, and <code>pi -p --mode json</code> exits
-<strong>0</strong> with no output. Downstream that surfaces as a sub-agent that "produced no output", which
-is a description of the symptom and tells you nothing about where it happened.</p>
-<p>The check is deliberately narrow — an empty <code>content</code> array — and deliberately unreachable from
-the text classifier, so no wording of a provider message can be mistaken for it. The report
-names the provider, the model, the status, the finish reason, the effective reasoning effort,
-the zero usage and the <code>responseId</code>. It states what was observed and does not guess at a cause.</p>
-<p>Two guesses that <em>did</em> get made and then had to be walked back, 2026-08-14, against an
-OpenAI-compatible gateway serving hundreds of reproductions: zero prompt tokens does <strong>not</strong>
-mean the request never reached the model — the underlying provider client pre-initialises usage
-to zero and only overwrites it from a usage chunk, so "no usage chunk arrived" and "the provider
-reported zero" reach this report byte-identical. And the <code>responseId</code>'s <em>form</em> — a gateway-issued
-id versus an upstream-shaped one — does <strong>not</strong> discriminate a dropped request either; a live
-check found it decided entirely by whether the request carried <code>tools</code>, which every agent turn
-does. Neither is printed as a cause; both are printed as what they are, an observation.</p>
-</div>
-<hr />
-<h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pi-tier<span class="w"> </span>light<span class="w">             </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
-</span></code></pre></div>
-<p><code>pi-tier</code> exiting <strong>2</strong> on an unknown tier is deliberate: a typo in a cron job must fail, never
-fall back to a default model you did not choose.</p>
-<p>Inside a session, <code>/agents</code> prints the same sub-agent model-selection block the model sees. If the
-human and the model are reading different lists, the one nobody can see is the one that is wrong.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../concepts/providers-and-tiers/">Providers and tiers</a></li>
-<li><a href="../models/"><code>models.json</code></a></li>
-<li><a href="../dispatch/"><code>dispatch.json</code></a> — the defaults used when an agent declares nothing</li>
+<li><a href="../models/"><code>config/models.json</code></a> — the file this writes into</li>
+<li><a href="../routing/"><code>config/routing.json</code></a> — tiers, egress classes, concurrency caps</li>
+<li><a href="../../concepts/context-windows/">Context windows</a> — why the overrides above exist</li>
+<li><a href="../../extensions/credentials/">Credentials</a> — where the token is stored</li>
 </ul>
 
 

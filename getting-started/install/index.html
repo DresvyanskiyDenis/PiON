@@ -1149,6 +1149,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1209,6 +1213,62 @@
     
   
     config/models.json — providers and models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/github-copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/litellm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    litellm — a LiteLLM proxy
   
 
     
@@ -4378,6 +4438,20 @@ matters, in one plain sentence, before asking.</p>
 <p>To try it without touching your real setup:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./scripts/install.sh<span class="w"> </span>--prefix<span class="w"> </span>/tmp/pi-test<span class="w"> </span>--yes
 </span></code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title"><code>--prefix</code> isolates the install, not the checkout</p>
+<p><code>--prefix</code> moves <code>bin/</code>, <code>.pi/</code> and the whole runtime tree. It does <strong>not</strong> move the generated
+config: <code>config/models.json</code>, <code>config/routing.json</code>, <code>config/settings.json</code> and their siblings
+are always written into the clone you ran the script from, next to the <code>*.default.json</code> they
+are generated from, because the live config is a symlink back into the repo by design.</p>
+<p>So a throwaway install overwrites the real one's generated config, and the previous contents
+are left beside them as <code>*.bak.&lt;timestamp&gt;</code>. They are gitignored, so nothing can reach a
+commit — but a repo whose test suite reads <code>config/routing.json</code> will start failing against
+the throwaway's answers. After a test install, from the clone:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="k">$(</span>git<span class="w"> </span>status<span class="w"> </span>--porcelain<span class="w"> </span>--ignored<span class="w"> </span>config/<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'$1=="!!"{print $2}'</span><span class="k">)</span><span class="w"> </span>config/*.bak.*
+</span></code></pre></div>
+<p>Then re-run your real install, or <code>./scripts/install.sh --repair</code>.</p>
+</div>
 <hr />
 <h2 id="the-nine-sections">The nine sections<a class="headerlink" href="#the-nine-sections" title="Permanent link">&para;</a></h2>
 <table>
@@ -4501,9 +4575,9 @@ generated <code>config/mcp.json</code>.</p>
 <h3 id="generated-config">Generated config<a class="headerlink" href="#generated-config" title="Permanent link">&para;</a></h3>
 <p>Eleven config files are <strong>generated</strong>: produced from a tracked <code>*.default.json</code> template plus, where
 relevant, <code>config/providers/*.json</code> and your answers.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>models.json  routing.json  mcp.json  settings.json  guard.json
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>trusted-roots.json  path-defaults.json  web.json  web-search.json  quota.json
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>subagent.json
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>models.json  routing.json  mcp.json  settings.json  guard.json
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>trusted-roots.json  path-defaults.json  web.json  web-search.json  quota.json
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>subagent.json
 </span></code></pre></div>
 <p>The template is read, never written. The generated file is yours — including any hand edit, because
 a re-run <strong>patches</strong> an existing generated file rather than resetting it to the template. That is
@@ -4517,10 +4591,10 @@ model — became the next commit in anybody's fork.</p>
 <p><strong>An edit that must survive a fresh clone belongs in the template.</strong> See
 <a href="../../configuration/">Configuration reference</a>.</p>
 <h3 id="symlinks-not-copies">Symlinks, not copies<a class="headerlink" href="#symlinks-not-copies" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>~/pi-config            -&gt; your clone           (a stable path everything else uses)
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>~/.pi/agent/*          -&gt; files in the clone   (settings, models, routing, guard, hooks, …)
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>~/bin/pi-tier          -&gt; config/bin/pi-tier   (and every other helper in config/bin/)
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>~/bin/pi-run           -&gt; bin/pi-run
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>~/pi-config            -&gt; your clone           (a stable path everything else uses)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>~/.pi/agent/*          -&gt; files in the clone   (settings, models, routing, guard, hooks, …)
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>~/bin/pi-tier          -&gt; config/bin/pi-tier   (and every other helper in config/bin/)
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>~/bin/pi-run           -&gt; bin/pi-run
 </span></code></pre></div>
 <p>Editing a file in the repository changes the live agent immediately, and <code>git pull</code> updates it.
 <strong>Nothing is copied.</strong></p>
@@ -4535,8 +4609,8 @@ that puts <code>guard</code> before <code>bash</code>, and failing every module 
 <p><code>--mode binary</code> downloads the release archive for your platform and unpacks it whole. It is a tree,
 not a bare executable — the binary loads native modules, wasm and a bundled <code>node_modules</code> from
 beside itself — so what goes on <code>PATH</code> is a symlink into that tree:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>~/.local/share/pi-config/runtime/&lt;version&gt;/pi/pi   the unpacked release (tens of MB)
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>~/bin/pi  -&gt;  that file                            what your shell finds
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>~/.local/share/pi-config/runtime/&lt;version&gt;/pi/pi   the unpacked release (tens of MB)
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>~/bin/pi  -&gt;  that file                            what your shell finds
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Why not <code>~/.local/pi/</code>, where PI installs itself</p>
@@ -4585,11 +4659,11 @@ key-shaped strings and fails the build on one.</p>
 <hr />
 <h2 id="unattended-installs">Unattended installs<a class="headerlink" href="#unattended-installs" title="Permanent link">&para;</a></h2>
 <p>Every flag drives the identical code path — there is no separate "quiet mode" that skips steps.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./scripts/install.sh<span class="w"> </span>--yes<span class="w">                        </span><span class="c1"># accept every default, never prompt</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./scripts/install.sh<span class="w"> </span>--express<span class="w">                    </span><span class="c1"># providers + safety only, defaults for the rest</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>./scripts/install.sh<span class="w"> </span>--answers<span class="w"> </span>my.conf<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># from a saved answer file</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>./scripts/install.sh<span class="w"> </span>--providers<span class="w"> </span>a,b<span class="w">              </span><span class="c1"># preselect providers, skip the picker</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>./scripts/install.sh<span class="w"> </span>--tier<span class="w"> </span><span class="nv">light</span><span class="o">=</span>acme/model-1<span class="w">    </span><span class="c1"># preset one tier binding (repeatable)</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./scripts/install.sh<span class="w"> </span>--yes<span class="w">                        </span><span class="c1"># accept every default, never prompt</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./scripts/install.sh<span class="w"> </span>--express<span class="w">                    </span><span class="c1"># providers + safety only, defaults for the rest</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./scripts/install.sh<span class="w"> </span>--answers<span class="w"> </span>my.conf<span class="w"> </span>--yes<span class="w">      </span><span class="c1"># from a saved answer file</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>./scripts/install.sh<span class="w"> </span>--providers<span class="w"> </span>a,b<span class="w">              </span><span class="c1"># preselect providers, skip the picker</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>./scripts/install.sh<span class="w"> </span>--tier<span class="w"> </span><span class="nv">light</span><span class="o">=</span>acme/model-1<span class="w">    </span><span class="c1"># preset one tier binding (repeatable)</span>
 </span></code></pre></div>
 <p>Each run saves its answers, so <strong>a second machine can be made identical</strong> by copying that file and
 passing <code>--answers</code>. The path is printed in the final summary.</p>
@@ -4628,16 +4702,16 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 </tr>
 <tr>
 <td><code>--prefix DIR</code></td>
-<td>install root instead of <code>$HOME</code></td>
+<td>install root instead of <code>$HOME</code>. Does <strong>not</strong> relocate the generated <code>config/*.json</code> — see <a href="#look-before-you-leap">the warning under "Look before you leap"</a></td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h2 id="reconfiguring-later">Reconfiguring later<a class="headerlink" href="#reconfiguring-later" title="Permanent link">&para;</a></h2>
 <p><strong>Re-running the installer is the supported way to change configuration.</strong> It is not a reinstall.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./scripts/install.sh<span class="w"> </span>--reconfigure<span class="w">           </span><span class="c1"># re-run the interview over an existing install</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>providers<span class="w">     </span><span class="c1"># just one section</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./scripts/install.sh<span class="w"> </span>--repair<span class="w">                </span><span class="c1"># re-link and re-verify, ask nothing</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./scripts/install.sh<span class="w"> </span>--reconfigure<span class="w">           </span><span class="c1"># re-run the interview over an existing install</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>providers<span class="w">     </span><span class="c1"># just one section</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>./scripts/install.sh<span class="w"> </span>--repair<span class="w">                </span><span class="c1"># re-link and re-verify, ask nothing</span>
 </span></code></pre></div>
 <p>Adding a provider six months from now is a re-run, not a hand-edit. Sections:
 <code>providers</code> · <code>tiers</code> · <code>agent</code> · <code>safety</code> · <code>tools</code> · <code>shell</code>.</p>
@@ -4646,8 +4720,8 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 <p>The summary tells you what you have, what was skipped, what was backed up, and — numbered — what is
 still yours to do by hand.</p>
 <p>Then:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w"> </span>-l<span class="w">          </span><span class="c1"># so PATH and the environment file are loaded</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pi<span class="w">                      </span><span class="c1"># start the agent</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w"> </span>-l<span class="w">          </span><span class="c1"># so PATH and the environment file are loaded</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pi<span class="w">                      </span><span class="c1"># start the agent</span>
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">A missing provider credential does not stop PI from starting</p>
@@ -4665,18 +4739,18 @@ failures, the install still completed — read the table. See <a href="../../ope
 config files get their symlinks, a changed lockfile gets an <code>npm ci</code>, and a template you have
 diverged from is named rather than overwritten. It refuses to run on a dirty tree and it never
 merges or rebases for you.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./scripts/update.sh<span class="w"> </span>--check<span class="w">    </span><span class="c1"># is there an update, and what would it do?</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./scripts/update.sh<span class="w">            </span><span class="c1"># report, confirm, apply</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>./scripts/update.sh<span class="w"> </span>--check<span class="w">    </span><span class="c1"># is there an update, and what would it do?</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>./scripts/update.sh<span class="w">            </span><span class="c1"># report, confirm, apply</span>
 </span></code></pre></div>
 <p>It hands you back here for anything an update cannot decide — a new interview question, a changed
 provider fragment, a moved PI pin all end in <code>./scripts/install.sh --reconfigure</code> or <code>--repair</code>, and
 update.sh prints the exact command. See <a href="../update/">Update</a>.</p>
 <hr />
 <h2 id="uninstalling">Uninstalling<a class="headerlink" href="#uninstalling" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
 </span></code></pre></div>
 <p>To move an install forward rather than take it out, see <a href="../update/">Update</a> — it reads the same
 manifest, and adds to it rather than removing from it.</p>

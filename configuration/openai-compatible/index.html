@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/configuration/openai-compatible/">
       
       
-        <link rel="prev" href="../models/">
+        <link rel="prev" href="../litellm/">
       
       
         <link rel="next" href="../routing/">
@@ -905,6 +905,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -968,6 +972,62 @@
     
   
     config/models.json — providers and models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github-copilot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../litellm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    litellm — a LiteLLM proxy
   
 
     
@@ -4194,10 +4254,18 @@
 
 
 <h1 id="openai-compatible-gateways-litellm-vllm-openrouter-in-house"><code>openai-compatible</code> — gateways (LiteLLM, vLLM, OpenRouter, in-house)<a class="headerlink" href="#openai-compatible-gateways-litellm-vllm-openrouter-in-house" title="Permanent link">&para;</a></h1>
-<p>The sixth provider fragment. Use it for <strong>any endpoint that speaks <code>/v1/chat/completions</code> and serves
-its own model names</strong>: a LiteLLM proxy, a vLLM server, OpenRouter, or a router someone in your
-organisation runs. You supply the base URL, the model ids and the context windows; the fragment
-supplies everything else.</p>
+<p>The generic gateway fragment. Use it for <strong>any endpoint that speaks <code>/v1/chat/completions</code> and
+serves its own model names</strong>: a vLLM server, OpenRouter, or a router someone in your organisation
+runs. You supply the base URL, the model ids and the context windows; the fragment supplies
+everything else.</p>
+<div class="admonition tip">
+<p class="admonition-title">If it is a LiteLLM proxy, use <a href="../litellm/"><code>litellm</code></a> instead</p>
+<p>This fragment fits a LiteLLM proxy too, and until there was a <code>litellm</code> fragment it was the
+right answer. It has to ship every <code>compat</code> flag off and no thinking map, because it does not
+know what is behind the URL. <code>litellm.json</code> names the product and can therefore state the wire
+behaviour outright — reasoning levels, streamed usage, the pricing probe. Same interview, two
+more questions, a config that is right on the first turn instead of after three 400s.</p>
+</div>
 <p>It is configured at install time from <code>config/providers/openai-compatible.json</code> and lands in
 <a href="../models/"><code>config/models.json</code></a> and <a href="../routing/"><code>config/routing.json</code></a>, both of which are
 generated and gitignored.</p>
