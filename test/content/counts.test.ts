@@ -27,6 +27,11 @@
  * rules is claiming the inventory. If a genuine subset ever names more than that, the fix is to
  * rephrase the sentence, not to lower the floor.
  *
+ * The floor's price is that small inventories are ungateable here. `docs/configuration/models.md`
+ * introduced its provider-fragment table with "Six ship" while three did, and no threshold that
+ * leaves "Four modules that are *not* composed here" alone can catch that. Small inventories need
+ * a check against their own directory, which is a different test than this one.
+ *
  * The other half of the fix is not in this file: several sentences that carried a count did not
  * need one. "PI would load all 27 modules independently" is about a failure mode, not an
  * inventory, and reads the same — and stays true — as "PI would load every module independently".
