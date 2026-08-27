@@ -1791,6 +1791,8 @@
       
         
       
+        
+      
     
     
     
@@ -1935,6 +1937,34 @@
     
   
     credentials — token caching and provider errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/cost-gate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-gate — the session ends before it lies about money
   
 
     
@@ -3882,7 +3912,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
 <pre class="mermaid"><code>flowchart TB
     subgraph safety["1 — safety and identity"]
         direction LR
-        guard --&gt; trust --&gt; sc["session-context"] --&gt; cred["credentials"]
+        guard --&gt; trust --&gt; sc["session-context"] --&gt; cred["credentials"] --&gt; cg["cost-gate"]
     end
     subgraph capconf["2 — capability configuration"]
         direction LR
