@@ -343,6 +343,49 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     ([BerriAI/litellm#13338](https://github.com/BerriAI/litellm/issues/13338)). A level the upstream
     does not serve is a different case: declaring it only moves the 400 one hop.
 
+!!! danger "`"off": null` is the one value that guarantees thinking"
+
+    The natural way to write *this model does not do thinking-off* is `"off": null`. It does the
+    opposite, and it costs money.
+
+    `null` does not mean "this level is disabled". It means **"this level does not exist here"**:
+    `getSupportedThinkingLevels` filters out every key mapped to `null`
+    (`pi-ai/dist/models.js:548`). `clampThinkingLevel` then has to move a request for a level that
+    is not on the list, and it walks **upward** first — the whole list above the requested level,
+    in order, before it ever considers going down (`:560`). So a request for `off` on a model whose
+    map nulls it does not become "no reasoning". It becomes the cheapest level you left available,
+    and if `minimal` is also gone that is `low`. Every request that asked for *no thinking* runs
+    with thinking on, silently, and the config file looks like it says the opposite.
+
+    **Deleting the key is a different fix, not the same one.** Three plausible-looking states,
+    three behaviours:
+
+    | `thinkingLevelMap.off` | What reaches the wire | What you get |
+    |---|---|---|
+    | `null` | the request never asks for `off` — it was clamped away first | the next level up. Reasoning tokens you are paying for |
+    | absent | no `reasoning_effort` field at all | whatever **default effort the endpoint applies**, which is not none |
+    | a string | `reasoning_effort: <that string>` | off, if that is your endpoint's word for it |
+
+    Only the third makes off mean off. `off` reaches the API layer as `undefined`
+    (`openai-completions.js:473` maps the clamped `"off"` to it), and the branch that handles it
+    emits a value **only when `thinkingLevelMap.off` is a string** — otherwise the parameter is
+    omitted and the endpoint falls back to its own default.
+
+    So: map `off` to whatever value your endpoint accepts for no reasoning, or accept that off
+    rounds up. There is no universal spelling. `none` is one gateway family's word for it and
+    nothing more — the value belongs to your endpoint, and the only way to learn it is the probe
+    two tips up, watching `reasoning_tokens` reach 0 rather than trusting a 200.
+
+    And probe **every model group**, not the one someone asked about. A level that works on one
+    deployment of a model family is not evidence about the next one; the capability flags behind it
+    are set per deployment, by hand, at different times.
+
+    The failure mode this describes is not hypothetical, and it is a *stale* config more often than
+    a wrong one. A `null` written honestly, on the day the endpoint really did return 400, stays
+    exactly as wrong once the operator sets the flag — and nothing in this repository or in PI will
+    tell you. Re-probe after any gateway change, and treat a `null` older than the last one as
+    unverified.
+
 ---
 
 ## Provider fragments — the installer's source of truth
@@ -351,7 +394,7 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the `notes[]` that JSON cannot carry as comments.
 
-Six ship:
+Three ship:
 
 | Fragment | Built-in to PI? | Egress | Notes worth reading before you touch it |
 |---|---|---|---|

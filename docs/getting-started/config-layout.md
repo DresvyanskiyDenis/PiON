@@ -26,6 +26,7 @@ second copy to keep in sync.
 ├── auth.json                                                  0600, written by /login — never committed
 ├── trust.json                                                 PI's own project-trust decisions
 ├── install-manifest.tsv                                       what the installer created; uninstall reads it
+├── provider-notes.md                                          why your models.json looks the way it does
 └── sessions/  models-store.json                               PI-owned, never linked
 
 ~/bin/
@@ -46,8 +47,8 @@ link above goes through it, and so do `config/settings.json`'s own `extensions` 
 entries, so you can move or rename the checkout without editing anything.
 
 !!! warning "Two things are deliberately **not** linked"
-    **`extensions/`.** PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as
-    separate extensions in `readdir` order — breaking the fixed load order and failing every module
+    **`extensions/`.** PI discovers `<agentDir>/extensions/*.ts` and `<agentDir>/extensions/<dir>/index.ts`,
+    and would load every module as a separate extension in `readdir` order — breaking the fixed load order and failing every module
     that has no default export. `config/settings.json` names the single file
     `~/pi-config/extensions/index.ts` instead.
 

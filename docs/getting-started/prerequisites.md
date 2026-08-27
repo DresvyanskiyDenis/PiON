@@ -8,13 +8,22 @@
 | **Node.js** | `≥ 22.19.0` | `package.json` `engines`. The extensions are TypeScript executed by Node's type-stripping loader — no build step, no `tsc` output. |
 | **git** | any recent | Worktree isolation, the session index's git probe, and the install script's stable-symlink logic. |
 | **A POSIX shell** | bash/zsh | `scripts/install.sh` and the helpers in `config/bin/` are bash. |
+| **`jq`** | any | [`pi-tier`](../operations/cli.md#pi-tier) exits 1 without it, and `pi-tier` is step 2 of [first run](first-run.md) and the `$(pi-tier strong)` in every documented invocation. `scripts/install.sh` itself never calls it — the installer will finish on a machine where `pi-tier` then cannot run. |
 
 ## Strongly recommended
 
 | Thing | Used by |
 |---|---|
-| **`jq`** | [`pi-tier`](../operations/cli.md#pi-tier) requires it. `scripts/install.sh` falls back to `awk` when it is absent, but nothing else does. |
 | **A credential for at least one provider** | Nothing starts a session usefully without one. A provider whose credential is missing does **not** stop `pi` from starting — it fails only when that provider is selected. |
+
+The installer asks which provider to configure and writes `config/models.json` from one of three
+fragments in `config/providers/`. Have the answers ready before you start:
+
+| Fragment | You will be asked for | Pick it when |
+|---|---|---|
+| **`github-copilot`** (the default) | an endpoint and a tenant | you have a Copilot subscription. PI already ships this provider, so the fragment overrides PI's catalogue instead of defining one. |
+| **`openai-compatible`** | a base URL, the name of the environment variable holding the key, and two model ids with their context windows | anything that speaks `/v1/chat/completions` under its own model names — a **LiteLLM** proxy, vLLM, OpenRouter, or a router someone in your organisation runs. This is the fragment most people arrive through, and [it takes exactly one gateway](../configuration/openai-compatible.md). |
+| **`databricks`** | a workspace host, an auth method, and one or two serving endpoints | your models are served from Databricks. Egress is fixed at `confidential`. |
 
 ## Optional
 

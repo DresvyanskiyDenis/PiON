@@ -3,7 +3,7 @@
 ## What is this, in one sentence?
 
 PiON — a hardened, portable harness for the [PI coding agent](https://github.com/earendil-works/pi):
-one composed extension of 27 modules plus a configuration tree, adding a permission layer, routing by
+one composed extension of 31 modules plus a configuration tree, adding a permission layer, routing by
 semantic tier, sub-agent orchestration and a headless wrapper that exits non-zero when a run actually
 failed.
 
@@ -110,8 +110,8 @@ running agent immediately and `git pull` updates it. Nothing is copied.
 
 ## Why is `extensions/` not symlinked like everything else?
 
-Because PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as separate
-extensions in `readdir` order — destroying the fixed load order that puts `guard` first, and failing
+Because PI discovers `<agentDir>/extensions/*.ts` and `<agentDir>/extensions/<dir>/index.ts`, and
+would load every module as a separate extension in `readdir` order — destroying the fixed load order that puts `guard` first, and failing
 every module that has no default export. `config/settings.json` names the single composition root
 `extensions/index.ts` explicitly instead.
 
@@ -124,7 +124,7 @@ unattended. See [Exit codes](https://dresvyanskiydenis.github.io/PiON/reference/
 
 ## What is `bin/pi-check`?
 
-22 repository invariants, run as one command. It refuses an unqualified model id, a tier bound to an
+26 repository invariants, run as one command. It refuses an unqualified model id, a tier bound to an
 absent provider, any failover key, a secret-shaped literal in a tracked file, an unreplaced
 placeholder, a vendored tree whose bytes no longer match their recorded digests, and more. Exit `1`
 means your repository is wrong; exit `2` means the checker could not run.

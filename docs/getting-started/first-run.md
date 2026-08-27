@@ -9,7 +9,8 @@ pi-check --all
 ```
 
 `bin/pi-check` is a standalone Node script that reads the config tree and the agent files without
-starting PI. It runs 22 rules (21 without `--live`, which PC-19 needs to reach the npm registry); the ones you will actually hit on a fresh clone:
+starting PI. It runs 26 rules (25 without `--live`, which PC-19 needs to reach the npm registry); the ones you
+will actually hit on a fresh clone:
 
 | Rule | Fails when |
 |---|---|
@@ -18,7 +19,6 @@ starting PI. It runs 22 rules (21 without `--live`, which PC-19 needs to reach t
 | `PC-04` | an agent file's `model:` frontmatter names a tier or id that does not resolve |
 | `PC-06` | a key-shaped string is committed |
 | `PC-10` | a `<PLACEHOLDER>` survived installation |
-| `PC-19` | a pinned npm version disagrees with what is installed |
 
 Zero findings, exit 0. Anything else is a real problem and the message names the file.
 
@@ -28,11 +28,20 @@ Zero findings, exit 0. Anything else is a real problem and the message names the
 pi-tier --list
 ```
 
+One line per tier: name, the provider-qualified model it resolves to, and the `purpose` string
+from `routing.json`. **The output is yours, not this page's** — the model ids depend on which
+provider fragment you installed, and `purpose` prints in full rather than abridged. Illustrative
+shape only:
+
 ```text
-strong       github-copilot/claude-opus-5     main loop, architecture, hard debugging
-light        github-copilot/claude-sonnet-5   everything the main loop delegates
-confidential …                               anything that must not leave your boundary (unbound until you bind it)
+strong         <provider>/<model-id>   main loop, the subagent default, architecture, hard debugging
+light          <provider>/<model-id>   the opt-in tier for mechanical work, named deliberately …
+confidential   UNBOUND                 no provider of the right kind was configured
 ```
+
+A tier printed as `UNBOUND` is in the vocabulary but has no model: your install configured no
+provider of that kind. It is listed rather than omitted so that a caller can see *why* the name
+it asked for is missing. Asking for it still exits **2**.
 
 An unknown tier exits **2**. That is deliberate: a typo in a cron job must fail, never fall back to
 a default model you did not choose.
@@ -57,6 +66,24 @@ pi -p "reply OK" --model "$(pi-tier light)"
 ```
 
 Nothing is retried onto a different provider. Fix the credential, or select a different tier.
+
+!!! danger "Do not fix a Copilot credential by logging in from inside PI"
+    PI's Copilot provider registers **two** auth methods. The `apiKey` method — the one the
+    `github-copilot` fragment configures — sends `COPILOT_GITHUB_TOKEN` through and leaves the
+    `baseUrl` the fragment wrote intact. The OAuth method's resolver **always** returns its own
+    `baseUrl`, derived from a hint inside the token, and at request time that one wins. On the
+    public endpoint the substitution is harmless. On a tenant with a data-residency endpoint it
+    silently sends your traffic somewhere else, and nothing in the session says so.
+
+    So the fix is a token in `~/.pi/secrets.env`, not a login:
+
+    ```bash
+    echo 'COPILOT_GITHUB_TOKEN=gho_...' >> ~/.pi/secrets.env && chmod 600 ~/.pi/secrets.env
+    ```
+
+    Reuse the token an editor integration already holds, or — **on a public seat only** — run
+    `/login github-copilot` once purely to mint one and copy the value out of
+    `~/.pi/agent/auth.json`. `config/providers/github-copilot.json` carries the full finding.
 
 !!! note "Run `/compact` once, in an interactive session, before you trust a provider"
     Some provider integrations resolve their endpoint differently on the compaction and
