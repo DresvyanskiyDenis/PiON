@@ -45,6 +45,27 @@ as a numbered list of remaining manual steps, never left implicit.
 
 Full detail: [Install](https://dresvyanskiydenis.github.io/PiON/getting-started/install/).
 
+### Update
+
+```bash
+./scripts/update.sh --check    # is there an update, and what would it do? changes nothing
+./scripts/update.sh            # report, confirm, apply
+```
+
+`git pull` moves files; this moves an install. It fast-forwards the checkout, then reconciles the
+symlinks in `~/.pi/agent/` against the install manifest, runs `npm ci` only if the lockfile actually
+changed, and re-verifies. Same contract as the installer: the whole report first, one confirmation,
+a `PI-UPDATE-Exx` code on every failure.
+
+What it will not do is the interesting half. It **refuses to run on a dirty tree** and names the
+files rather than stashing them; it **only fast-forwards**, so a diverged branch is a stop with an
+explanation and never a rebase it chose for you; and a generated config you have hand-edited whose
+template moved upstream is **reported by name and left alone**, because merging that is a judgement
+call. Anything it cannot decide ends in the exact `install.sh --reconfigure --section <name>` or
+`--repair` command to run.
+
+Full detail: [Update](https://dresvyanskiydenis.github.io/PiON/getting-started/update/).
+
 ---
 
 ## What you get
@@ -105,7 +126,7 @@ config/bin/        helper commands symlinked onto your PATH (pi-tier, pi-mcp-app
 config/providers/  one fragment per provider; the installer composes models.json from these
 agents/            sub-agent definitions (12 ship; add your own alongside)
 bin/               pi-run, pi-check, and the 22 repository rules pi-check enforces
-scripts/           install.sh, uninstall.sh, verification scripts
+scripts/           install.sh, update.sh, uninstall.sh, verification scripts
 pi-packages/       vendored third-party source, patched and pinned by digest
 docs/              the MkDocs site
 wiki/              the GitHub wiki source, pushed to a separate remote

@@ -284,6 +284,24 @@ Next: [First run](first-run.md).
 
 ---
 
+## Updating later
+
+`./scripts/update.sh` fast-forwards the checkout and then reconciles the install against it: new
+config files get their symlinks, a changed lockfile gets an `npm ci`, and a template you have
+diverged from is named rather than overwritten. It refuses to run on a dirty tree and it never
+merges or rebases for you.
+
+```bash
+./scripts/update.sh --check    # is there an update, and what would it do?
+./scripts/update.sh            # report, confirm, apply
+```
+
+It hands you back here for anything an update cannot decide — a new interview question, a changed
+provider fragment, a moved PI pin all end in `./scripts/install.sh --reconfigure` or `--repair`, and
+update.sh prints the exact command. See [Update](update.md).
+
+---
+
 ## Uninstalling
 
 ```bash
@@ -292,6 +310,9 @@ Next: [First run](first-run.md).
 ./scripts/uninstall.sh --purge         # also remove ~/.pi entirely       (asks first)
 ./scripts/uninstall.sh --purge-state   # also remove the runtime state dir (asks first)
 ```
+
+To move an install forward rather than take it out, see [Update](update.md) — it reads the same
+manifest, and adds to it rather than removing from it.
 
 It reads the install manifest back, so it removes **only what the installer created**. A foreign
 file or symlink sitting at one of those paths is left alone and reported, not deleted.
@@ -307,6 +328,6 @@ created, which is why they are kept by default.
 
 ## Related
 
-- [Prerequisites](prerequisites.md) · [First run](first-run.md) · [Configuration layout](config-layout.md)
+- [Prerequisites](prerequisites.md) · [First run](first-run.md) · [Update](update.md) · [Configuration layout](config-layout.md)
 - [Configuration reference](../configuration/index.md) — what to change afterwards
 - [Verification](../operations/verification.md) · [Troubleshooting](../operations/troubleshooting.md)

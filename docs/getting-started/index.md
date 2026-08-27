@@ -1,6 +1,6 @@
 # Getting started
 
-Four short pages, in order. If you only read one, read
+Five short pages, in order. If you only read one, read
 [Configuration layout](config-layout.md) — everything else in this project is downstream of
 understanding that `~/.pi/agent/` is a tree of symlinks back into your clone.
 
@@ -10,6 +10,7 @@ understanding that `~/.pi/agent/` is a tree of symlinks back into your clone.
 - **2. [Install](install.md)** — one script, idempotent, no `sudo`, no piped shells.
 - **3. [First run](first-run.md)** — prove each provider answers, then prove the guard bites.
 - **4. [Configuration layout](config-layout.md)** — where every file lives and which process reads it.
+- **5. [Update](update.md)** — move the checkout forward without losing what you changed.
 
 </div>
 

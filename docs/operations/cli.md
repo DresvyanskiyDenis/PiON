@@ -254,6 +254,7 @@ The recorded surface lives in `config/api-surface.lock.json`, which is
 | Script | When |
 |---|---|
 | `scripts/install.sh` | first install, **and every reconfiguration afterwards** |
+| `scripts/update.sh` | moving an existing install forward — fast-forward, re-link, re-verify |
 | `scripts/uninstall.sh` | removal |
 | `scripts/verify-environment.sh` | *before* installing — does this machine have what PI needs |
 | `scripts/postinstall-verify.sh` | *after* installing — are the symlinks, the pinned binary and the guardrail actually in place |
@@ -266,6 +267,9 @@ environment probe; `postinstall-verify.sh` checks a machine **after** `install.s
 Both take `--with-model` to make a real model call (spends tokens; off by default) and `--json` for
 machine-readable output. Both exit `0` for no failures, `1` for at least one, `2` if the harness
 itself could not run.
+
+`update.sh` calls `postinstall-verify.sh` as *its* last step too, for the same reason: an update
+that moved the repo but left a config unlinked is not an update that finished.
 
 See [Verification](verification.md).
 

@@ -118,6 +118,7 @@ nav:
       - getting-started/index.md
       - getting-started/prerequisites.md
       - getting-started/install.md
+      - getting-started/update.md
       - getting-started/first-run.md
       - getting-started/config-layout.md
   - Configuration:

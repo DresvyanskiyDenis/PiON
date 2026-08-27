@@ -175,6 +175,32 @@ driver that assumes the two scripts share one contract — read each table.
 
 ---
 
+## `scripts/update.sh`
+
+| Code | Meaning |
+|---|---|
+| `0` | up to date, or the update completed, or you declined at the confirmation |
+| `1` | aborted, with a `PI-UPDATE-EXX` code, a cause and a suggested action |
+| `3` | **`--check` only** — an update is available. Nothing was changed |
+| `4` | the update landed, but `postinstall-verify.sh` reported failures. Read its table |
+| `130` | interrupted (Ctrl-C / SIGTERM) |
+
+`3` is deliberately not `1`. "There is an update waiting" is not a failure, and a driver that
+cannot tell it apart from "I could not check" will either update on a network error or never update
+at all. The same reasoning as the uninstaller's `3`, applied to a different question.
+
+`4` says the checkout moved but the machine may not be right yet — a symlink the update could not
+make, a runtime pin that has moved past the installed binary. The update is not rolled back, because
+the repository state is correct; what is out of step is the install around it, and
+`./scripts/install.sh --repair` is the fix.
+
+The three refusals that produce `1` are the ones worth scripting against, and all three are
+deliberate: `PI-UPDATE-E07` (uncommitted changes), `PI-UPDATE-E11` (the branch has diverged) and
+`PI-UPDATE-E12` (an untracked file where upstream adds a tracked one). None of them is recoverable
+by a script without discarding something a person wrote.
+
+---
+
 ## `scripts/uninstall.sh`
 
 | Code | Meaning |
