@@ -139,9 +139,12 @@ plan_add() { PLAN="$PLAN
 todo_add() { MANUAL_TODO="$MANUAL_TODO
 $*"; }
 
-# The range ends on the last comment line of the header block above, not a line or two past it:
-# `sed` would happily print `set -euo pipefail` and the first few constants into the help text.
-usage() { sed -n '2,68p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
+# Prints the header block above: the line after the shebang up to the first line that is not a
+# comment. Not a line range — the range this replaces ended at line 68, which is a bare `#`, so
+# `--help` printed no link to the install documentation at all. update.sh had the same defect in a
+# worse place (its exit-code table lost 130) and the same cause: a number that stays correct only
+# while nobody edits the comment block above it.
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"; exit 0; }
 
 # ============================================================================ argument parse ===
 while [ $# -gt 0 ]; do

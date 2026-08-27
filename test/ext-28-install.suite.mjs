@@ -257,6 +257,17 @@ const DONE_LINE = /^\s*Done — (\d+) step\(s\) changed\s*$/m;
 // =========================================================================================
 
 describe("install.sh", () => {
+  test("--help prints the whole header block and nothing past it", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const res = runScript(join(REAL_SCRIPTS, "install.sh"), ["--help"], baseEnv(fixtureHome));
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Usage:/);
+    // The link to its own documentation, which the old line range cut off entirely.
+    assert.match(res.stdout, /getting-started\/install/);
+    assertHelpIsExactlyTheHeader(res.stdout, /getting-started\/install\/$/);
+    assert.deepEqual(readdirSync(fixtureHome), []);
+  });
+
   // Was "--dry-run on the live (currently-incomplete) repo fails loudly with PI-INSTALL-E18": it
   // asserted E18 against the *live* repo because, on the day it was written, this checkout had no
   // skills/ or prompts/ tree. Both now exist (as do AGENTS.md and the four config/ rows install.sh
@@ -487,6 +498,21 @@ describe("install.sh", () => {
 // =========================================================================================
 
 describe("postinstall-verify.sh", () => {
+  test("--help prints the exit-status contract, and not the maintainer note under it", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const res = runScript(join(REAL_SCRIPTS, "postinstall-verify.sh"), ["--help"], baseEnv(fixtureHome));
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Usage:/);
+    // The line the old range cut, and the reason this one was the costly truncation: a caller
+    // scripting against the exit status needs to know a WARN is not a failure.
+    assert.match(res.stdout, /WARN never fails the run/);
+    assertHelpIsExactlyTheHeader(res.stdout, /opt-in check that was not requested\.$/);
+    // The EXT-10 gate rationale moved down to the gate itself when --help began printing the
+    // header in full — it is a note to whoever edits that code, not to whoever runs the script.
+    assert.doesNotMatch(res.stdout, /scheduled for W3c/);
+    assert.deepEqual(readdirSync(fixtureHome), []);
+  });
+
   test("--json: valid machine-readable shape; exit 1 (not 2 — the harness itself ran fine) when checks fail", () => {
     const repo = makeRepoSkeleton();
     writeLock(repo, { platform: platformAsset() });
@@ -696,6 +722,21 @@ function snapshot(fixtureHome) {
   return out;
 }
 
+/**
+ * `--help` prints the file's comment header and stops there. Both ends, because each end has
+ * already failed once: install.sh's range stopped before its own docs links and update.sh's before
+ * exit code 130, while a range that is too LONG spills `set -euo pipefail` and the constants under
+ * it into the help text. Presence alone would have passed on both truncated versions.
+ */
+function assertHelpIsExactlyTheHeader(stdout, lastLine) {
+  const lines = stdout.trimEnd().split("\n");
+  assert.match(lines.at(-1), lastLine, "--help stopped before the end of the header block");
+  // NOT the literal `set -euo pipefail`: postinstall-verify.sh sets `-uo` without `-e`, so that
+  // string never appears in it and the assertion would have been vacuous there — a false pass
+  // that reads exactly like a real one.
+  assert.doesNotMatch(stdout, /set -e?uo pipefail/, "--help printed past the header block");
+}
+
 describe("uninstall.sh", () => {
   test("--help exits 0 and prints usage without touching anything", () => {
     const fixtureHome = freshDir("ext28-uninstall-home-");
@@ -703,6 +744,7 @@ describe("uninstall.sh", () => {
     assert.equal(res.status, 0);
     assert.match(res.stdout, /Usage:/);
     assert.match(res.stdout, /--purge/);
+    assertHelpIsExactlyTheHeader(res.stdout, /--keep-state    # keep it without asking, even under --purge$/);
     assert.deepEqual(readdirSync(fixtureHome), []);
   });
 

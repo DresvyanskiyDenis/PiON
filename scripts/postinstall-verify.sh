@@ -16,15 +16,6 @@
 #
 # Exit: 0 no FAILs, 1 at least one FAIL, 2 the harness itself could not run (bad args, no repo).
 # WARN never fails the run. SKIP marks an opt-in check that was not requested.
-#
-# Why five checks are gated behind a file-existence probe before they ever call `pi`: EXT-10
-# (`extensions/doctor.ts`, the `/doctor` command) is scheduled for W3c, not W1 — this script ships
-# before it exists, and a fork may never add it. PI does not intercept an unrecognised "/command"
-# locally: verified by hand, a bare `-p '/doctor --json'` with no `doctor` command registered is
-# forwarded to the configured model like any other message, spending real tokens on a request
-# nobody asked for. So every doctor-backed check here checks for `extensions/doctor.ts` on disk
-# FIRST and only calls `pi` once that file is confirmed present. Before EXT-10 lands, checks 5, 7
-# and 8 report a clean, expected FAIL naming exactly that — never a silent skip, never a token spend.
 
 set -uo pipefail
 
@@ -63,7 +54,11 @@ WITH_CREDENTIALS=0
 AS_JSON=0
 MODEL="${PI_VERIFY_MODEL:-}"
 
-usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
+# Prints the header block above: the line after the shebang up to the first line that is not a
+# comment. The range this replaces stopped at line 17, one line short of "WARN never fails the run.
+# SKIP marks an opt-in check that was not requested" — the sentence a caller scripting against this
+# script's exit status most needs, missing from the help that exists to give it to them.
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"; exit 0; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -202,8 +197,18 @@ assert_pi_check() {
 }
 
 # ---------------------------------------------------------------------------- doctor gate (5,7,8)
-# One live call, cached, shared by the three checks that read /doctor's report — see the file
-# header for why this is gated on extensions/doctor.ts existing before it ever runs `pi`.
+# One live call, cached, shared by the three checks that read /doctor's report.
+#
+# Why these five checks are gated behind a file-existence probe before they ever call `pi`: EXT-10
+# (`extensions/doctor.ts`, the `/doctor` command) is scheduled for W3c, not W1 — this script ships
+# before it exists, and a fork may never add it. PI does not intercept an unrecognised "/command"
+# locally: verified by hand, a bare `-p '/doctor --json'` with no `doctor` command registered is
+# forwarded to the configured model like any other message, spending real tokens on a request
+# nobody asked for. So every doctor-backed check here checks for `extensions/doctor.ts` on disk
+# FIRST and only calls `pi` once that file is confirmed present. Before EXT-10 lands, checks 5, 7
+# and 8 report a clean, expected FAIL naming exactly that — never a silent skip, never a token
+# spend. It lived in the file header until --help started printing the header in full: it is a note
+# to whoever edits the gate, and this is where they will be standing.
 DOCTOR_RAW=""
 DOCTOR_FETCHED=0
 DOCTOR_FETCH_ERR=""

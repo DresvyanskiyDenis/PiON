@@ -80,9 +80,11 @@ MANIFEST_OVERRIDE=""
 # because "the flag was not given" and "the flag said no" have to stay different answers.
 FORCE_STATE=""
 
-# The range ends on the last comment line of the header block above, not a line or two past it:
-# `sed` would happily print `set -euo pipefail` into the help text.
-usage() { sed -n '2,69p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0; }
+# Prints the header block above: the line after the shebang up to the first line that is not a
+# comment. The range this replaces was CORRECT — and converted anyway. install.sh's and update.sh's
+# were the same line of code and both silently truncated their own help; a pattern that only works
+# while every copy of it is maintained by hand is one this file should not be the last home of.
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"; exit 0; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
