@@ -95,6 +95,42 @@ async function waitForFileCount(dir: string, n: number, timeoutMs: number): Prom
   }
 }
 
+/**
+ * Waits for the postcondition the drain actually establishes: `n` digests written AND the queue
+ * emptied. Both, or neither is a finished drain.
+ *
+ * Waiting on the file count alone is a race, and it is the one that made this file flaky.
+ * `bin/pi-digest-drain` writes the digest and only THEN unlinks the job — the crash-safe order,
+ * since unlinking first would lose a session's transcript to a mid-write kill. So the instant the
+ * n-th digest appears there is still a `.json` in the queue, for as long as the `rm` takes. On an
+ * idle machine that is under a millisecond and the next assertion never notices; under concurrent
+ * suite load the process can lose the CPU inside that window and the queue assertion reads the job
+ * that is about to be removed.
+ *
+ * Proven rather than reasoned: inserting a 200 ms sleep between the drain's `writeDigest` and its
+ * `rm` reproduces the observed failure exactly — file count and per-session assertions pass, the
+ * queue assertion fails — with no load and no timeout involved.
+ *
+ * The budget is therefore NOT the fix and has not been raised. Measured end-to-end drain time for
+ * these five jobs: ~1.5 s idle, ~2.5 s with 6 busy cores, and the last-file-to-empty-queue lag is
+ * ~1 ms. 10 s stays a wide margin over the real work; what changed is that the wait now ends when
+ * the work is done instead of when it is nearly done.
+ */
+async function waitForDrain(
+  outDir: string,
+  queueDir: string,
+  n: number,
+  timeoutMs: number,
+): Promise<{ files: string[]; queued: string[] }> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const files = await readdir(outDir).catch(() => [] as string[]);
+    const queued = (await readdir(queueDir).catch(() => [] as string[])).filter((f) => f.endsWith(".json"));
+    if ((files.length >= n && queued.length === 0) || Date.now() > deadline) return { files, queued };
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 describe("digest — module contract", () => {
@@ -259,7 +295,8 @@ describe("digest — REQ-EXT-22 acceptance: five sessions exiting inside ten sec
       await handler({ type: "session_shutdown", reason: "quit" }, ctx);
     }
 
-    const files = await waitForFileCount(outDir, sessionIds.length, 10_000);
+    const queueDir = join(xdg, "pi-config", "digest-queue");
+    const { files, queued } = await waitForDrain(outDir, queueDir, sessionIds.length, 10_000);
     assert.equal(files.length, sessionIds.length, `expected ${sessionIds.length} digests, got [${files.join(", ")}]`);
     for (const sessionId of sessionIds) {
       assert.ok(
@@ -268,8 +305,8 @@ describe("digest — REQ-EXT-22 acceptance: five sessions exiting inside ten sec
       );
     }
 
-    const queueDir = join(xdg, "pi-config", "digest-queue");
-    const leftover = (await readdir(queueDir).catch(() => [])).filter((f) => f.endsWith(".json"));
-    assert.deepEqual(leftover, [], "the queue must be fully drained — nothing lost, nothing stuck");
+    // `queued` is the same read the wait ended on, not a fresh one: re-reading here would put the
+    // race back, one poll interval later.
+    assert.deepEqual(queued, [], "the queue must be fully drained — nothing lost, nothing stuck");
   });
 });
