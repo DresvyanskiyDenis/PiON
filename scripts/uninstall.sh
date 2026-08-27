@@ -35,7 +35,8 @@
 #   0    clean — everything listed was either removed or kept by an explicit choice; nothing
 #        had to be skipped. Also the "nothing to remove" and "you said no at the end" cases.
 #   1    fatal — could not run to completion; see the FAILED block printed above the exit.
-#   2    usage — a bad flag, or a flag that needed an argument and did not get one.
+#   2    usage — a bad flag, a flag that needed an argument and did not get one, or a real removal
+#        asked for with no terminal to confirm it on and no --yes (PI-UNINSTALL-E02).
 #   3    partial — the run finished, but at least one item was SKIPPED (a re-pointed symlink, a
 #        failed 'npm uninstall -g', a locked Keychain item, ...). Every skip is printed above
 #        with the reason and, where there is one, the exact command to finish the job by hand.
@@ -141,18 +142,43 @@ warn()    { printf '   %s!%s   %s\n' "$C_CH" "$C_0" "$*" >&2; SKIPPED=$((SKIPPED
 info()    { printf '   %s- %s%s\n' "$C_D" "$*" "$C_0"; }
 die() { printf '\n%sFAILED %s%s\n  cause:  %s\n  action: %s\n\n' "$C_ER" "$1" "$C_0" "$2" "$3" >&2; exit 1; }
 
+# The paths for the `git checkout --` hint printed under the PATCHED list, repo-relative and on one
+# line. install.sh only patches files under config/ today, so the hint used to be the literal
+# string "config/" — which restores paths it never touched and misses any PATCHED row outside that
+# directory. The manifest says which files they are; the hint should say the same ones.
+patched_paths() {
+  local p_path p_why out=""
+  while IFS=$'\t' read -r p_path p_why; do
+    [ -n "$p_path" ] || continue
+    case "$p_path" in "$REPO_DIR"/*) p_path="${p_path#"$REPO_DIR"/}" ;; esac
+    out="$out $p_path"
+  done < "$PATCHED"
+  printf '%s' "${out# }"
+}
+
 # Prompts are read from the terminal, not from stdin: this script must stay usable when its stdout
 # is being piped to a log.
+# `[ -r /dev/tty ]` alone is not the test: it is a stat, and it succeeds in a process that has no
+# controlling terminal to open, so the reads below then fail one by one and every question takes
+# its default with the error text as the only clue. install.sh:207 pairs it with `[ -t 0 ]`;
+# this script is the destructive one and had the weaker check.
 INTERACTIVE=1
-if [ "$YES" = 1 ] || [ ! -r /dev/tty ]; then INTERACTIVE=0; fi
+if [ "$YES" = 1 ] || ! { [ -r /dev/tty ] && [ -t 0 ]; }; then INTERACTIVE=0; fi
 # shellcheck disable=SC2229  # deliberate: `read -r "$__v"` reads into the variable NAMED by __v,
 # which is the whole point of this helper. Dropping the `$` would read into __v itself.
 _read_tty() { local __v="$1"; IFS= read -r "$__v" < /dev/tty || eval "$__v=''"; }
 
-# ask_yes_no <question> <default y|n> — non-interactively the default is taken silently.
+# ask_yes_no <question> <default y|n> — non-interactively the default is taken, and said out loud.
+# Taken silently is how it used to work, and a destructive script that decides in silence leaves a
+# piped log with no record of what it chose or why it never asked.
 ask_yes_no() {
-  local q="$1" def="$2" reply=""
-  if [ "$INTERACTIVE" = 0 ]; then [ "$def" = "y" ]; return $?; fi
+  local q="$1" def="$2" reply="" answer
+  if [ "$INTERACTIVE" = 0 ]; then
+    if [ "$def" = "y" ]; then answer=yes; else answer=no; fi
+    if [ "$YES" = 1 ]; then info "$q  --yes given, so: $answer"
+    else info "$q  no terminal to answer on, so: $answer"; fi
+    [ "$def" = "y" ]; return $?
+  fi
   while :; do
     if [ "$def" = "y" ]; then printf '   %s [Y/n]: ' "$q"; else printf '   %s [y/N]: ' "$q"; fi
     _read_tty reply; [ -n "$reply" ] || reply="$def"
@@ -336,7 +362,7 @@ if [ -s "$PATCHED" ]; then
   printf '\n   %sedited, but NOT removed%s (%s) — tracked repo files the installer changed\n' \
     "$C_B" "$C_0" "$(count_of "$PATCHED")"
   while IFS=$'\t' read -r p_path p_why; do printf '     %s\n' "$p_path"; done < "$PATCHED"
-  info "restore them with:  git -C $REPO_DIR checkout -- config/"
+  info "restore them with:  git -C $REPO_DIR checkout -- $(patched_paths)"
 fi
 
 # ------------------------------------------------------------- the questions that matter ----
@@ -442,6 +468,15 @@ if [ "$DRY_RUN" = 0 ] && [ "$INTERACTIVE" = 1 ]; then
   printf '\n'
   ask_yes_no "go ahead and remove everything listed above?" y || {
     printf '\nnothing was removed.\n'; exit 0; }
+elif [ "$DRY_RUN" = 0 ] && [ "$YES" = 0 ]; then
+  # Non-interactive and no --yes: the confirmation defaults to yes, so taking that default here
+  # would remove the whole install on an answer nobody gave — `./scripts/uninstall.sh | tee log`
+  # is enough to reach this line. --yes is what says an unattended removal is intended, and the
+  # preview above has already printed in full, so the reader loses nothing by re-running.
+  printf '\n%sPI-UNINSTALL-E02%s\n  cause:  there is no terminal to confirm this removal on, and --yes was not given\n  action: re-run with --yes to remove everything listed above, or --dry-run to preview it again\n\n' \
+    "$C_ER" "$C_0" >&2
+  printf 'nothing was removed.\n'
+  exit 2
 fi
 
 # ======================================================================== 4. remove ==========
@@ -656,7 +691,7 @@ if [ -s "$PATCHED" ]; then
   printf '\nTracked files the installer edited (not removed, because they belong to the repo):\n'
   # shellcheck disable=SC2034  # p_why absorbs the trailing "why" column — see the note above.
   while IFS=$'\t' read -r p_path p_why; do printf '   %s\n' "$p_path"; done < "$PATCHED"
-  printf '   restore them with:  git -C %s checkout -- config/\n' "$REPO_DIR"
+  printf '   restore them with:  git -C %s checkout -- %s\n' "$REPO_DIR" "$(patched_paths)"
 fi
 
 printf '\nOpen a new shell to drop the removed PATH entry.\n'

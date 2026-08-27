@@ -24,6 +24,7 @@ import {
   mkdtempSync,
   mkdirSync,
   writeFileSync,
+  appendFileSync,
   chmodSync,
   symlinkSync,
   readFileSync,
@@ -760,6 +761,46 @@ describe("uninstall.sh", () => {
     assert.deepEqual(readdirSync(fixtureHome), []);
   });
 
+  test("with no terminal to answer them, the questions are not asked at all", () => {
+    const { repo, fixtureHome, env } = installedFixture({ withHelper: false });
+    const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run"], env);
+    assert.equal(res.status, 0, `${res.stdout}${res.stderr}`);
+    const all = res.stdout + res.stderr;
+    // `[ -r /dev/tty ]` is a stat, and it succeeds in a process that has no controlling terminal
+    // to open. install.sh guards the same helper with `[ -t 0 ]` as well; uninstall.sh did not,
+    // so it printed questions nobody could answer, leaked the failed read, and took the default.
+    assert.doesNotMatch(all, /Device not configured|No such device|\/dev\/tty/);
+    assert.doesNotMatch(all, /\[Y\/n\]|\[y\/N\]/);
+  });
+
+  test("a real run with nobody to confirm it refuses rather than assuming yes", () => {
+    // The one invocation in this file that is not --dry-run, and it is here precisely because the
+    // assertion is that it removes nothing. The final confirmation defaults to yes, so a
+    // non-interactive run without --yes used to uninstall the harness with no answer given —
+    // `./scripts/uninstall.sh | tee log` was enough to trigger it.
+    const { repo, fixtureHome, env } = installedFixture({ withHelper: false });
+    const before = snapshot(fixtureHome);
+    const res = runScript(join(repo, "scripts", "uninstall.sh"), [], env);
+    assert.equal(res.status, 2, `${res.stdout}${res.stderr}`);
+    assert.match(res.stderr, /PI-UNINSTALL-E02/);
+    assert.match(res.stderr, /--yes/);
+    assert.deepEqual(snapshot(fixtureHome), before, "a refused run removed something anyway");
+  });
+
+  test("the restore hint names the tracked files it just listed", () => {
+    const { repo, fixtureHome, env } = installedFixture({ withHelper: false });
+    // install.sh only ever patches files under config/, which is why the hint could hardcode
+    // `-- config/` and stay true. The manifest format does not promise that, and a hint that
+    // does not restore the path printed above it — while restoring paths that were never
+    // touched — is a command the reader would run and be misled by.
+    const manifest = join(fixtureHome, ".pi", "agent", "install-manifest.tsv");
+    appendFileSync(manifest, `PATCHED\t${join(repo, "AGENTS.md")}\tmodified by install.sh\n`);
+    const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--dry-run", "--yes"], env);
+    assert.equal(res.status, 0, `${res.stdout}${res.stderr}`);
+    assert.match(res.stdout, /checkout -- .*AGENTS\.md/);
+    assert.doesNotMatch(res.stdout, /checkout -- config\/\s*$/m);
+  });
+
   test("--dry-run against a real install: reports every symlink it would remove, and the filesystem is unchanged after", () => {
     const { repo, fixtureHome, env } = installedFixture();
     const before = snapshot(fixtureHome);
@@ -977,7 +1018,9 @@ describe("uninstall.sh", () => {
     const contentsBefore = readFileSync(selfInstallPi);
     const ourRuntime = piRuntimeDir(fixtureHome, "0.84.0");
 
-    const res = runScript(join(repo, "scripts", "uninstall.sh"), [], env);
+    // --yes, because that is what an unattended removal is: with no terminal to confirm on, the
+    // script now refuses rather than assuming the confirmation's default of yes.
+    const res = runScript(join(repo, "scripts", "uninstall.sh"), ["--yes"], env);
     assert.equal(res.status, 0, `run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
     assert.throws(() => lstatSync(join(binDir, "pi")), "bin/pi must actually be gone after a real run");
     assert.throws(() => lstatSync(ourRuntime), "the runtime tree the symlink pointed into goes with it");
