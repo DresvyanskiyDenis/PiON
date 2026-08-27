@@ -4550,6 +4550,13 @@ its defaults. Corrected 2026-08-27 against <code>pi-subagents</code> <code>docs/
 <p>This edition sets <code>maxSubagentSpawnsPerRun</code> and <code>maxActiveAsyncRunsPerSession</code> to <code>20</code> in
 <code>config/subagent.default.json</code>. The second of those replaces unlimited, so it is a real tightening;
 the first <em>lowers</em> the vendor default, so read the paragraph below before assuming it is free.</p>
+<p><code>maxSubagentSpawnsPerSession</code> is left unset on purpose. The rule this edition applied to all three
+was <em>cap it if it bounds simultaneity, leave it alone if it is a total</em>, and this one is a total: it
+counts every child a session has ever launched, the failed ones included, and never gives a count
+back. Setting it would put a ceiling on how much work one session may do rather than on how much it
+does at once, and a long day of small fan-outs would hit it for no reason anybody would recognise at
+the time. The key that actually counts something simultaneous is <code>maxActiveAsyncRunsPerSession</code>,
+which is set.</p>
 <p>The first two are cumulative and their claims are never released or refunded, so a long-lived
 workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
 a concurrency one. A batch that does not fit is rejected <strong>whole</strong>, with none of its children
@@ -4574,8 +4581,10 @@ like the rest of the personal config (see
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"parallel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">"maxTasks"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">}</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">"maxSubagentSpawnsPerRun"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">"maxActiveAsyncRunsPerSession"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><code>4</code> mirrors the <code>concurrency</code> this repository's own <code>routing.default.json</code> ships for its one bundled
 provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
