@@ -1562,10 +1562,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-twenty-six-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, twenty-six modules
+        One extension, thirty modules
       
     </span>
   </a>
@@ -2247,6 +2247,8 @@
       
         
       
+        
+      
     
     
     
@@ -2291,6 +2293,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/ask-user/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ask-user — a question the model can actually put to you
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3858,10 +3888,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-twenty-six-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, twenty-six modules
+        One extension, thirty modules
       
     </span>
   </a>
@@ -3949,7 +3979,7 @@
 
 
 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<h2 id="one-extension-twenty-six-modules">One extension, twenty-six modules<a class="headerlink" href="#one-extension-twenty-six-modules" title="Permanent link">&para;</a></h2>
+<h2 id="one-extension-thirty-modules">One extension, thirty modules<a class="headerlink" href="#one-extension-thirty-modules" title="Permanent link">&para;</a></h2>
 <p>PI discovers extensions by scanning <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code>. This
 repository deliberately does <strong>not</strong> use that. <code>config/settings.json</code> names exactly one file:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">]</span>
@@ -3980,7 +4010,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
     end
     subgraph tools["3 — tool providers and input mutators"]
         direction LR
-        web --&gt; bash --&gt; hooks --&gt; it["input-transform"] --&gt; br["big-results"]
+        web --&gt; bash --&gt; hooks --&gt; it["input-transform"] --&gt; au["ask-user"] --&gt; br["big-results"]
     end
     subgraph orch["4 — orchestration"]
         direction LR
