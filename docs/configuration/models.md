@@ -180,7 +180,7 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 | `maxTokens` | output cap |
 | `cost` | the four rates for this model, in **dollars per million tokens** — `input`, `output`, `cacheRead`, `cacheWrite`. Omitting it is a claim, not a blank; see below |
 | `reasoning` | `true` for a thinking model |
-| `thinkingLevelMap` | which reasoning efforts this model actually serves. See the warning below — the default when you omit it is not "all of them" |
+| `thinkingLevelMap` | which reasoning efforts this model actually serves. See the warnings below — the default when you omit it is not "all of them", and a refusal is not proof of absence |
 | `input` | `["text"]` or `["text", "image"]` |
 | `compat` | per-model overrides of the provider block, e.g. `thinkingFormat` |
 | `samplingParams` | merged verbatim into the request body — `temperature`, `top_p`, `top_k`, `min_p`, `repeat_penalty`, and anything else with no first-class PI field |
@@ -277,6 +277,29 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     endpoint *accepts* is not what your provider *sends*. When a level is requested that the map
     does not serve, the dispatch says so — see
     [`onThinkingClamp`](dispatch.md#onthinkingclamp).
+
+!!! warning "A 400 is not proof the model lacks that level"
+    Behind a proxy, a refused `reasoning_effort` has two possible authors and they look alike from
+    where you are standing. The proxy can reject a value its own per-model table does not list,
+    before anything is forwarded. Or the upstream provider can reject it, and the proxy passes the
+    exception back. A stale table on the proxy therefore hides levels the deployment genuinely
+    serves, and a `null` written from that refusal is a claim you could have checked and did not.
+
+    They are distinguishable, and cheaply. A proxy-origin refusal names the proxy's **own** error
+    class — an unsupported-parameter error raised locally — and mentions no upstream at all. An
+    upstream refusal carries the provider's exception, and on Azure OpenAI that message enumerates
+    what the deployment does serve: *Supported values are: `none`, `low`, `medium`, `high`, and
+    `xhigh`*. Read that list before writing a `null`. It is the endpoint answering the exact
+    question you are probing, and it can contradict the proxy that just refused you.
+
+    Then confirm, because accepting a level is not the same as honouring it: send the same prompt at
+    two levels and watch the **reasoning-token count** move. A level that steers nothing reports the
+    same count as its neighbour, and a 200 tells you only that nothing objected.
+
+    When the proxy is the one refusing, the map cannot route around it. PI writes `reasoning_effort`
+    as a top-level parameter (`pi-ai/dist/api/openai-completions.js:580`) and has no generic
+    request-body merge, so a level the proxy will not pass is one no entry in this file can reach.
+    That one is fixed in the proxy's per-model allowlist, server-side, or not at all.
 
 ---
 
