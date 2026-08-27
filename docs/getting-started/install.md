@@ -165,9 +165,9 @@ Editing a file in the repository changes the live agent immediately, and `git pu
 **Nothing is copied.**
 
 !!! warning "`extensions/` is deliberately NOT linked"
-    PI discovers `<agentDir>/extensions/*.ts` and would load all 27 modules as separate extensions
-    in `readdir` order — breaking the fixed load order that puts `guard` before `bash`, and failing
-    every module that has no default export.
+    PI discovers `<agentDir>/extensions/*.ts` and `<agentDir>/extensions/<dir>/index.ts`, and would
+    load every module as a separate extension in `readdir` order — breaking the fixed load order
+    that puts `guard` before `bash`, and failing every module that has no default export.
 
     `config/settings.json` names one file, `extensions/index.ts`, explicitly instead.
 

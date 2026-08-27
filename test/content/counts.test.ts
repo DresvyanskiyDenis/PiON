@@ -98,27 +98,6 @@ function trackedMarkdown(): string[] {
     );
 }
 
-/**
- * The two files this branch was told not to touch: `PiON_new_features` is editing the README's
- * install block and adding a getting-started page, and a competing edit to the same regions would
- * collide. The corrections are written out here instead of being applied, and each entry asserts
- * that the file *still* holds the stale value — so the moment the handoff lands, this test fails
- * and says to delete the entry. An exception that cannot be forgotten.
- */
-const PENDING_HANDOFF: ReadonlyArray<{ file: string; stale: string; replacement: string }> = [
-  { file: "README.md", stale: "27 modules in a fixed load", replacement: "31 modules in a fixed load" },
-  { file: "README.md", stale: "27 modules + index.ts", replacement: "31 modules + index.ts" },
-  { file: "README.md", stale: "all 27 modules, the safety model", replacement: "all 31 modules, the safety model" },
-  { file: "README.md", stale: "# 22 repository invariants", replacement: "# 26 repository invariants" },
-  {
-    file: "docs/getting-started/install.md",
-    stale: "would load all 27 modules as separate extensions",
-    replacement: "and `<agentDir>/extensions/<dir>/index.ts`, and would load every module as a separate extension",
-  },
-];
-
-const pendingFiles = new Set(PENDING_HANDOFF.map((p) => p.file));
-
 // --- the truth, computed ----------------------------------------------------------------------
 
 const RULES_DIR = join(REPO, "bin", "rules");
@@ -143,7 +122,6 @@ describe("documented counts match the tree", () => {
     const stale: string[] = [];
 
     for (const file of trackedMarkdown()) {
-      if (pendingFiles.has(file)) continue;
       const lines = readFileSync(join(REPO, file), "utf8").split("\n");
       lines.forEach((text, i) => {
         for (const m of text.matchAll(COUNT_RE)) {
@@ -172,17 +150,5 @@ describe("documented counts match the tree", () => {
         `If a listed sentence is about a failure mode rather than an inventory, the better fix is ` +
         `to drop the number from it.`,
     );
-  });
-
-  it("the handed-off corrections to README.md and install.md are still outstanding", () => {
-    for (const p of PENDING_HANDOFF) {
-      const body = readFileSync(join(REPO, p.file), "utf8");
-      assert.ok(
-        body.includes(p.stale),
-        `${p.file} no longer contains ${JSON.stringify(p.stale)}. If the handoff landed ` +
-          `(replacement: ${JSON.stringify(p.replacement)}), delete this entry from ` +
-          `PENDING_HANDOFF so the file is gated normally.`,
-      );
-    }
   });
 });

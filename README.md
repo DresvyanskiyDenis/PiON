@@ -7,7 +7,7 @@ system, a way to say *"run this sub-agent on the delegation model"*, a compactio
 job directory that survives the process, or a headless wrapper that exits non-zero when a turn
 actually failed.
 
-This repository is the layer that adds those: **one composed PI extension (27 modules in a fixed load
+This repository is the layer that adds those: **one composed PI extension (31 modules in a fixed load
 order) plus a configuration tree symlinked into `~/.pi/agent/`.**
 
 Built and measured against **PI 0.84.0 on macOS (arm64), Node ≥ 22.19.0**. Most of it is
@@ -120,12 +120,12 @@ rest of the honest list is in
 ## Layout
 
 ```text
-extensions/        27 modules + index.ts, the composition root that fixes their load order
+extensions/        31 modules + index.ts, the composition root that fixes their load order
 config/            everything the agent reads at runtime; *.default.json are the tracked templates
 config/bin/        helper commands symlinked onto your PATH (pi-tier, pi-mcp-approve, …)
 config/providers/  one fragment per provider; the installer composes models.json from these
 agents/            sub-agent definitions (12 ship; add your own alongside)
-bin/               pi-run, pi-check, and the 22 repository rules pi-check enforces
+bin/               pi-run, pi-check, and the 26 repository rules pi-check enforces
 scripts/           install.sh, update.sh, uninstall.sh, verification scripts
 pi-packages/       vendored third-party source, patched and pinned by digest
 docs/              the MkDocs site
@@ -144,7 +144,7 @@ belongs in the template.
 
 | | |
 |---|---|
-| **[Documentation site](https://dresvyanskiydenis.github.io/PiON/)** | Structured reference: installation, every configuration key, all 27 modules, the safety model, exit codes. Lives in `docs/`, changes with the code, and a broken link fails CI |
+| **[Documentation site](https://dresvyanskiydenis.github.io/PiON/)** | Structured reference: installation, every configuration key, all 31 modules, the safety model, exit codes. Lives in `docs/`, changes with the code, and a broken link fails CI |
 | **[Wiki](https://github.com/DresvyanskiyDenis/PiON/wiki)** | Fast operational material: FAQ, task recipes, troubleshooting, a provider cheat sheet, release notes. Edited without a pull request |
 
 The single highest-value page is the
@@ -162,7 +162,7 @@ uv run --with-requirements requirements-docs.txt mkdocs serve
 ## Verifying an install
 
 ```bash
-~/pi-config/bin/pi-check --all      # 22 repository invariants
+~/pi-config/bin/pi-check --all      # 26 repository invariants
 ./scripts/postinstall-verify.sh     # the install itself
 /doctor                             # inside pi: which modules loaded, which are missing
 ```
