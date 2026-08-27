@@ -57,6 +57,22 @@ default is a plausible-looking wrong answer that nobody reads closely, which cos
 tokens saved. So the strong tier is what you get by not choosing, and `light` is what you get by
 choosing it: name it on the call, for work whose correctness is obvious on inspection.
 
+That argument has a premise, and the premise is about **your** `routing.json`, not about the words
+`strong` and `light`. It holds while `light` is bound to a weaker model — which is what ships here,
+Sonnet against Opus. Rebind the tiers and it can invert. Bind `light` to the same model at a lower
+effort and the gap is effort, not judgement. Bind it to a cheap model whose gateway has just begun
+serving a reasoning level it used to refuse, and `light` becomes the *hardest* thinking you can buy
+on that endpoint at a fraction of the price — at which point defaulting to `strong` is paying more
+for less. [`thinkingLevel`](routing.md#how-thinkinglevel-reaches-the-child) is where that ceiling is
+declared, and [`models.json`](models.md#models) is where a level the endpoint used to refuse becomes
+available again.
+
+Which is the useful part: **`defaultTier` is the one line that follows a change in what your tiers
+mean.** Not the agent files — an agent file naming a tier is naming a role, and the roles do not
+change when the bindings do. Re-read this key whenever a tier's model or `thinkingLevel` changes,
+and decide the default from what the tiers point at *now* rather than from which word sounds
+stronger.
+
 `defaultEgress` used to be load-bearing: it was the class an undeclared agent was *checked* against,
 and setting it to `confidential` would have made every such agent fail against a public provider.
 Since the containment rule was withdrawn on 2026-08-13 it decides nothing — it only picks the word

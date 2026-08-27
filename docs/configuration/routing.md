@@ -65,7 +65,9 @@ one means every consumer has to learn it.
 
     Which tier a delegated call *lands* on if nobody chooses is a separate question, answered by
     [`dispatch.json`'s `defaultTier`](dispatch.md#defaulttier-and-defaultegress) — and the answer is
-    `strong`. Two roles, two tiers; the default is the careful one.
+    `strong`. Two roles, two tiers; the default is the careful one. Careful *for the binding that
+    ships*: it is a statement about what these two tiers currently point at, and it is re-decidable
+    in one line when that changes.
 
 ### How `thinkingLevel` reaches the child
 
@@ -86,6 +88,12 @@ its declared `thinkingLevel` into the resolved id: `model: strong` dispatches on
     So the ceiling that matters is the one **your** endpoint actually serves, not the one the model
     card claims. Probe it once with a throwaway call per level before writing a level into
     `routing.json`, and set the tier to the highest that answers `200`.
+
+    Then re-probe rather than trusting the last refusal. The ceiling is the endpoint's, so it can
+    move without anything in this repo changing: a proxy that begins declaring a level it used to
+    gate serves that level from then on. `thinkingLevel` here is the first line to follow it, and
+    [`dispatch.json`'s `defaultTier`](dispatch.md#defaulttier-and-defaultegress) may be the second —
+    a tier whose ceiling has just risen is not the tier it was when you picked the default.
 
 Two consequences worth knowing:
 
