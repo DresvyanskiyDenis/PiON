@@ -55,14 +55,15 @@ curl -sS -H "Authorization: Bearer $LITELLM_API_KEY" "$BASE_URL/model/info" \
 ```
 
 Column by column: the **id to type**, the **context window to declare**, the two **prices** (see
-[Cost](#cost-is-left-out-not-guessed)), and whether **xhigh thinking** is enabled for that
+[price](#price-is-asked-not-guessed)), and whether **xhigh thinking** is enabled for that
 deployment.
 
 ---
 
 ## The interview
 
-Seven questions, plus three more if you configure a second model.
+Twelve questions for one model, plus eight more if you configure a second. Five of each set are the
+price, and four of those five are asked only if you answer `metered`.
 
 | # | Question | Notes |
 |---|---|---|
@@ -73,9 +74,13 @@ Seven questions, plus three more if you configure a second model.
 | 5 | Model id, exactly as the proxy serves it | `model_name` from the call above. Suggested for the `strong` tier |
 | 6 | Context window for that model | `min(200000, max_input_tokens)` |
 | 7 | Does that model take a `reasoning_effort`? | Default `false`. See [thinking](#thinking-levels) |
-| 8 | A second model id, or blank | Suggested for the `light` tier |
-| 9 | Context window for the second model | Only asked if you gave one |
-| 10 | Does the second model take a `reasoning_effort`? | Only asked if you gave one |
+| 8 | How is that model billed? | `metered` or `unmetered`. **No default** — an unstated price is refused by name rather than composed as a zero. See [price](#price-is-asked-not-guessed) |
+| 9-12 | Its input, output, cached-input and cache-write rates | Only asked if you said `metered`. **Dollars per million tokens**: `input_cost_per_token` from the call above **× 1 000 000**. The two cache rates default to `0` |
+| 13 | A second model id, or blank | Suggested for the `light` tier |
+| 14 | Context window for the second model | Only asked if you gave one |
+| 15 | Does the second model take a `reasoning_effort`? | Only asked if you gave one |
+| 16 | How is the second model billed? | Only asked if you gave one. Asked separately because the light tier is frequently the cheap alias, and sometimes the free one |
+| 17-20 | Its four rates | Only asked if you said `metered` for it |
 
 The credential's **value** is asked for later, in the credentials step, and written to
 `~/.pi/secrets.env` (chmod 0600) or the macOS Keychain. `config/models.json` gets only the
@@ -179,19 +184,29 @@ this harness can stop the packet — see
 
 ---
 
-## Cost is left out, not guessed
+## Price is asked, not guessed
 
 `cost` is optional in a fragment and required on PI's runtime model type, so the composer fills the
-gap with `{input:0,output:0,cacheRead:0,cacheWrite:0}` — and every session on this provider shows a
-flat `0.000` spend while really costing money.
+gap with `{input:0,output:0,cacheRead:0,cacheWrite:0}` — and every session on a model that omits it
+shows a flat `0.000` spend while really costing money.
 
-It is omitted rather than guessed because the price behind a proxy is whatever that deployment's
-operator configured, not the vendor's list price. To fix it, take
-`input_cost_per_token` / `output_cost_per_token` from `/model/info` and **multiply by 1 000 000**:
+The fragment cannot state the price, because the price behind a proxy is whatever that deployment's
+operator configured rather than the vendor's list price. So it asks, per model, and writes your
+answer into `config/models.json` before the first request. Two answers exist and there is no third:
 
-```json
+```json title="metered — the four rates"
 "cost": { "input": 1.25, "output": 10.0, "cacheRead": 0, "cacheWrite": 0 }
 ```
+
+```json title="unmetered — this alias is not billed by the token"
+"cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+```
+
+The second is a decision, not a gap: written down, it satisfies `bin/pi-check`'s `PC-27` and
+[`cost-gate`](../extensions/cost-gate.md) permanently. An omitted `cost` satisfies neither — it is
+what the gate ends the first billed turn on. To change an answer later, re-run
+`./scripts/install.sh --section providers`, or edit `cost` beside the model in `config/models.json`
+and re-run `bin/pi-check --all`.
 
 !!! warning "Six orders of magnitude, silently"
 

@@ -42,7 +42,8 @@ them do.
 
 ## The interview
 
-Seven questions, plus two more if you configure a second model. In order:
+Eleven questions, plus seven more if you configure a second model. Five of each set are the price,
+and four of those five are asked only if you answer `metered`. In order:
 
 | # | Question | Notes |
 |---|---|---|
@@ -52,8 +53,20 @@ Seven questions, plus two more if you configure a second model. In order:
 | 4 | How many requests may this harness have in flight at once? | Default `2` |
 | 5 | Model id, exactly as the gateway serves it | Suggested for the `strong` tier |
 | 6 | Context window for that model — `min(200000, what this endpoint actually serves)` | Default `32768` |
-| 7 | A second model id, or blank if you only want one | Suggested for the `light` tier |
-| 8 | Context window for the second model | Only asked if you gave one |
+| 7 | How is that model billed? | `metered` or `unmetered`. **No default** — an unstated price is refused by name rather than composed as a zero |
+| 8-11 | Its input, output, cached-input and cache-write rates | Only asked if you said `metered`. **Dollars per million tokens**: a gateway quotes per token, so **× 1 000 000**. The two cache rates default to `0` |
+| 12 | A second model id, or blank if you only want one | Suggested for the `light` tier |
+| 13 | Context window for the second model | Only asked if you gave one |
+| 14 | How is the second model billed? | Only asked if you gave one. Gateways price each model separately |
+| 15-18 | Its four rates | Only asked if you said `metered` for it |
+
+Price is the one answer no fragment can hold for you: the id you call is not the vendor's direct
+model, and what it costs is whatever the gateway's operator configured — frequently nothing at all.
+Both answers are complete and permanent. `metered` writes the four rates; `unmetered` writes four
+explicit zeros, which says *this endpoint is not billed by the token* and satisfies both
+`bin/pi-check`'s `PC-27` and [`cost-gate`](../extensions/cost-gate.md) for good. Leaving the price
+out is not an option the interview offers, because an absent `cost` is substituted with the same
+four zeros silently, and afterwards nobody can tell the decision from the omission.
 
 The credential's **value** is asked for later, in the credentials step, and is written to
 `~/.pi/secrets.env` (chmod 0600) or the macOS Keychain. `config/models.json` gets the indirection
@@ -83,7 +96,8 @@ To reconfigure afterwards: `./scripts/install.sh --section providers`.
   },
   "models": [
     { "id": "vendor-a/big-instruct", "name": "[gateway] vendor-a/big-instruct",
-      "input": ["text"], "contextWindow": 131072, "maxTokens": 8192 }
+      "input": ["text"], "contextWindow": 131072, "maxTokens": 8192,
+      "cost": { "input": 3, "output": 15, "cacheRead": 0, "cacheWrite": 0 } }
   ]
 }
 ```

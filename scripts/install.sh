@@ -317,6 +317,11 @@ validate() { # validate <type> <value> <choices-csv>
         *.*|localhost) : ;;
         *) _verr "that does not look like a hostname"; return 1 ;;
       esac ;;
+    number)
+      # Not `int`: a price is the one fragment answer that is routinely fractional (0.25 dollars
+      # per million tokens is a real rate), and rejecting the decimal point would leave the
+      # operator rounding a rate to nothing rather than stating it.
+      case "$val" in ''|*[!0-9.]*|*.*.*|.*|*.) _verr "must be a number, digits with at most one decimal point"; return 1 ;; esac ;;
     port|int)
       case "$val" in ''|*[!0-9]*) _verr "must be a number"; return 1 ;; esac
       if [ "$type" = port ] && { [ "$val" -lt 1 ] || [ "$val" -gt 65535 ]; }; then
@@ -802,7 +807,7 @@ for p in $SELECTED; do
           choice)  ask "$p.$f1" "$f3" "$f4" enum "$f5" "$f6" "$_why" "" "" >/dev/null ;;
           boolean) ask "$p.$f1" "$f3" "${f4:-false}" enum "$f5" "true,false" "$_why" "" "" >/dev/null ;;
           port)    ask "$p.$f1" "$f3" "$f4" port "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
-          number)  ask "$p.$f1" "$f3" "$f4" int  "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
+          number)  ask "$p.$f1" "$f3" "$f4" number "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
           *)       ask "$p.$f1" "$f3" "$f4" string "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
         esac ;;
     esac

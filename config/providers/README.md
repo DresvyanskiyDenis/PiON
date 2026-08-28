@@ -104,11 +104,18 @@ its models unavailable, and the harness must still start.
 }
 ```
 
-- Prompts are asked **in array order**. A `when` may only reference a prompt that appears earlier.
+- Prompts are asked **in array order**. A `when` may only reference a prompt that appears earlier,
+  and it carries **exactly one** condition: the installer's `describe` row has room for one, so a
+  second would be honoured by the generator and ignored by the interview, and the user would be asked
+  a question whose answer is then discarded. Two conditions are refused at load time.
 - `when: { "x": "*" }` means "ask this only if the answer to `x` is non-empty".
 - `when: { "x": <value> }` means "ask this only if the answer to `x` equals `<value>`".
-- A skipped prompt's answer is the empty string `""` (or the declared `default`, if the fragment gives
-  one and the installer prefers that — either is acceptable, but be consistent).
+- A skipped prompt's answer is the declared `default`, or the empty string `""` if there is none.
+  Installer and generator apply that rule identically, so a prompt feeding a **typed** field (a `cost`
+  rate, a context window) needs a default of that type: `""` where a number belongs is not a zero,
+  it is a string PI reads as unset.
+- A `required` prompt that IS asked and left blank is refused by name, by the installer when it does
+  the asking and by the generator when the answers arrive from a file.
 - `type: "number"` and `type: "port"` answers substitute **unquoted**. See rule 2 below.
 
 ### 2.3 `derived[]` — values computed from answers, not asked
@@ -314,13 +321,27 @@ Copy the closest fragment, change `id` to match the new filename, and answer the
 4. **Which `compat` flags did you measure?** Start with everything off and `maxTokensField:
    "max_tokens"`, get one successful turn, then enable one at a time — and write what you measured
    into `notes`, because the next person cannot re-derive it from the config alone.
-5. **What does a call cost, and did you probe it or copy it?** `cost` is optional here and required
-   on PI's runtime model type, so the provider composer fills the gap with
+5. **What does a call cost, and does your fragment assert it or ask it?** `cost` is optional here
+   and required on PI's runtime model type, so the provider composer fills the gap with
    `{input:0,output:0,cacheRead:0,cacheWrite:0}` and every session on your provider shows a flat
    `0.000` spend, silently. Units are **dollars per million tokens** — PI divides each rate by
    1000000 before multiplying by the usage counter, so a per-token figure pasted straight in is
-   wrong by six orders of magnitude and still renders. Do not copy a vendor price page for anything
-   behind a gateway: the id you call is not the vendor's direct model, and its price is whatever
-   that deployment's operator configured. Probe it, or leave `cost` out and say in `notes` why the
-   zero is what it is — unmetered (local weights), unpriced (billed by something other than tokens),
-   or simply not established.
+   wrong by six orders of magnitude and still renders.
+
+   Exactly two declarations are accepted, here and by everything downstream: the four rates, or four
+   explicit zeros meaning *this endpoint bills nothing, or bills by something other than tokens*.
+   There is no third spelling, and leaving `cost` out is not one of the two — `test/providers-cost.test.ts`
+   fails the build on it, `bin/pi-check`'s `PC-27` fails the install that composed it, and
+   [`cost-gate`](../../docs/extensions/cost-gate.md) ends the first turn that bills on it.
+
+   Which of the two you write is a fact about the deployment, so the fragment decides how to get it.
+   A fragment for a **named** product asserts it: `databricks.json` writes the four zeros, because
+   Model Serving bills by DBU and no per-token rate exists to state. A **gateway** fragment asks it:
+   `litellm.json` and `openai-compatible.json` carry a per-model `metered`/`unmetered` choice and four
+   rate prompts gated on it, because the id you call is not the vendor's direct model and its price is
+   whatever that deployment's operator configured. Rate prompts are `type: "number"` with a numeric
+   `default` — that default is what the unmetered answer writes (see §2.2), and it is the whole
+   mechanism by which the opt-out produces zeros rather than blanks.
+
+   What a fragment may not do is leave `cost` out and explain the absence in `notes`. Nothing reads
+   notes at runtime; the prose travels and the price does not.

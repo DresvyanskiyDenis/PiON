@@ -543,6 +543,146 @@ describe("install.sh", () => {
     assert.match(res.stderr, /rm -rf/);
     assert.ok(lstatSync(strandedTree).isDirectory(), "it says how to remove it; it does not remove it");
   });
+
+  // ---------------------------------------------------------------- the price question -----
+  // A gateway fragment cannot know what a call costs: the id you send is an alias the proxy's
+  // operator priced, not a vendor model with a public rate. Until the interview asked, the
+  // fragments left `cost` out and said so in their notes — and an omitted `cost` is substituted
+  // with {input:0,output:0,cacheRead:0,cacheWrite:0} by the composer, so the install ended
+  // "consistent" and the first billed turn ended on the cost gate's abort. The three tests below
+  // pin the two accepted answers and the refusal, on the composed file rather than on the prompt
+  // text, because the composed file is what PI reads.
+
+  /** The generated `config/models.json` for one answers file. This is the generator invocation
+   * install.sh makes in its "Writing the configuration" step, pointed at a throwaway directory:
+   * `--dry-run` rehearses the same call but keeps the JSON in its own scratch dir, so this is the
+   * only way to assert on the file itself rather than on the log line about it. */
+  function generateModels(answersFile) {
+    const outDir = freshDir("ext28-gen-");
+    const selected = readFileSync(answersFile, "utf8")
+      .split("\n")
+      .find((l) => l.startsWith("providers="))
+      .slice("providers=".length);
+    execFileSync(
+      process.execPath,
+      [
+        join(REPO_ROOT, "scripts", "lib", "providers.mjs"), "generate",
+        "--providers-dir", join(REPO_ROOT, "config", "providers"),
+        "--select", selected,
+        "--answers", answersFile,
+        "--models-default", join(REPO_ROOT, "config", "models.default.json"),
+        "--routing-default", join(REPO_ROOT, "config", "routing.default.json"),
+        "--out-models", join(outDir, "models.json"),
+        "--out-routing", join(outDir, "routing.json"),
+      ],
+      { encoding: "utf8" },
+    );
+    return JSON.parse(readFileSync(join(outDir, "models.json"), "utf8"));
+  }
+
+  function writeAnswers(lines) {
+    const answers = join(freshDir("ext28-answers-"), "answers.conf");
+    writeFileSync(answers, `${lines.join("\n")}\n`);
+    return answers;
+  }
+
+  test("the metered answer lands the four rates in the generated models.json, as numbers", () => {
+    const answers = writeAnswers([
+      "providers=litellm",
+      "litellm.baseUrl=https://proxy.example.internal/v1",
+      "litellm.apiKeyEnv=LITELLM_API_KEY",
+      "litellm.egress=internal",
+      "litellm.concurrency=2",
+      "litellm.model1Id=gpt-5.6-sol",
+      "litellm.model1Context=128000",
+      "litellm.model1Reasoning=true",
+      "litellm.model1Metering=metered",
+      "litellm.model1InputRate=3",
+      "litellm.model1OutputRate=15",
+      // Fractional on purpose: a cached-input rate is routinely below one dollar per million
+      // tokens, and the prompt type these answers feed was validated as an integer until the
+      // interview started asking for prices.
+      "litellm.model1CacheReadRate=0.3",
+      "litellm.model1CacheWriteRate=3.75",
+      "litellm.model2Id=",
+      "tier.strong=litellm/gpt-5.6-sol",
+    ]);
+    const res = runScript(
+      join(REAL_SCRIPTS, "install.sh"),
+      ["--dry-run", "--yes", "--answers", answers],
+      baseEnv(freshDir("ext28-home-")),
+    );
+    assert.equal(res.status, 0, `metered dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.match(`${res.stdout}${res.stderr}`, /generation rehearsed/);
+
+    const models = generateModels(answers);
+    const model = models.providers.litellm.models.find((m) => m.id === "gpt-5.6-sol");
+    assert.deepEqual(model.cost, { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 });
+    // Rule 2 of the substitution contract, and the reason the prompts are typed `number`: PI does
+    // not coerce, so a rate arriving as the string "3" is a price that never multiplies anything.
+    for (const rate of Object.values(model.cost)) assert.equal(typeof rate, "number");
+  });
+
+  test("the unmetered answer lands four written zeros, which is a declaration and not an omission", () => {
+    const answers = writeAnswers([
+      "providers=openai-compatible",
+      "openai-compatible.baseUrl=https://gateway.example.internal/v1",
+      "openai-compatible.apiKeyEnv=GATEWAY_API_KEY",
+      "openai-compatible.egress=internal",
+      "openai-compatible.concurrency=2",
+      "openai-compatible.model1Id=llama-3.1-70b",
+      "openai-compatible.model1Context=131072",
+      "openai-compatible.model1Metering=unmetered",
+      "openai-compatible.model2Id=",
+      "tier.strong=openai-compatible/llama-3.1-70b",
+    ]);
+    const res = runScript(
+      join(REAL_SCRIPTS, "install.sh"),
+      ["--dry-run", "--yes", "--answers", answers],
+      baseEnv(freshDir("ext28-home-")),
+    );
+    assert.equal(res.status, 0, `unmetered dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+
+    const models = generateModels(answers);
+    const model = models.providers["openai-compatible"].models.find((m) => m.id === "llama-3.1-70b");
+    // The four rate questions are never asked on this path — the answers file above does not carry
+    // them — and the zeros are still WRITTEN. That is the whole difference between this shape and
+    // the one that shipped before: `bin/pi-check` rule PC-27 and the cost gate both read a written
+    // zero as the operator saying "not billed by the token", and both end on a missing `cost`.
+    assert.deepEqual(model.cost, { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+  });
+
+  test("an answers file that never states the price is refused by name, not composed with zeros", () => {
+    // The old silent-omission shape: every field a turn needs, no `cost`, and an install that
+    // reported success. It is now a refusal that names the answer key, in the same PI-INSTALL-E23
+    // form as any other required answer missing from a non-interactive run.
+    const answers = writeAnswers([
+      "providers=litellm",
+      "litellm.baseUrl=https://proxy.example.internal/v1",
+      "litellm.apiKeyEnv=LITELLM_API_KEY",
+      "litellm.egress=internal",
+      "litellm.concurrency=2",
+      "litellm.model1Id=gpt-5.6-sol",
+      "litellm.model1Context=128000",
+      "litellm.model1Reasoning=true",
+      "litellm.model2Id=",
+      "tier.strong=litellm/gpt-5.6-sol",
+    ]);
+    const res = runScript(
+      join(REAL_SCRIPTS, "install.sh"),
+      ["--dry-run", "--yes", "--answers", answers],
+      baseEnv(freshDir("ext28-home-")),
+    );
+    assert.notEqual(res.status, 0, "an unpriced gateway model must not install quietly");
+    const out = `${res.stdout}${res.stderr}`;
+    assert.match(out, /PI-INSTALL-E23/);
+    assert.match(out, /litellm\.model1Metering/);
+
+    // And the generator refuses the same file on its own, because install.sh is not its only
+    // caller: `--repair` and `--section <other>` skip the provider interview and generate straight
+    // from a saved answers file, which on a tree that gained a prompt is a file missing that key.
+    assert.throws(() => generateModels(answers), /model1Metering.*required and unanswered/s);
+  });
 });
 
 // =========================================================================================

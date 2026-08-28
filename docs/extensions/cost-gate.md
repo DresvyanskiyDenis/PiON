@@ -75,15 +75,15 @@ operator reading it has just lost turn one and should not have to go looking.
 ## What it will not do
 
 **A deliberate zero stays legal and stays silent, forever.** An endpoint that is genuinely unmetered
-is declared with four explicit zeros and a `notes[]` entry saying so, and this gate never looks at
-it again. The rule is not "every model must be priced" — it is that the zero must be *accounted
-for*.
+is declared with four explicit zeros, and this gate never looks at it again. The rule is not "every
+model must be priced" — it is that the zero must be *declared*. The installer offers that answer by
+name: for a gateway provider it asks, per model, whether the model is metered, and the "not billed by
+the token" answer writes the four zeros for you.
 
-**A note is not a declaration.** `notes[]` satisfies
-[`test/providers-cost.test.ts`](../configuration/models.md), which governs the
-provider *fragments*; neither this gate nor `PC-27` reads notes, and both judge the composed
-`config/models.json`. A fragment that explains an absent `cost` in prose still renders a model the
-gate will stop the session on, so write the zeros as well.
+**A note is not a declaration.** Neither this gate nor `PC-27` reads `notes[]`, and
+[`test/providers-cost.test.ts`](../configuration/models.md), which governs the provider *fragments*,
+stopped accepting one as an explanation for an absent `cost`. All three now want the same thing
+written in the same place: a `cost` object beside the model id.
 
 It also answers **no opinion** wherever certainty is unavailable, because ending a session is far
 worse to do wrongly than to skip:

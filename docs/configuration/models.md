@@ -201,11 +201,14 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     "cost": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3 }
     ```
 
-    Two things ask this question for you. [`cost-gate`](../extensions/cost-gate.md) ends the session
-    the first time an unpriced model bills tokens, which is correct and late: on a fresh install that
-    is turn one, already billed. `bin/pi-check`'s `PC-27` asks it statically over this file, and the
-    installer runs `bin/pi-check --all` as its last step, so the answer normally arrives before the
-    first request. After hand-editing this file, re-run it.
+    Three things ask this question for you, and the earliest is the interview. For a provider whose
+    price cannot be read off the fragment — a gateway, where the id you call is an alias its operator
+    priced — `./scripts/install.sh` asks per model whether it is metered, takes the four rates if it
+    is, and writes four explicit zeros if it is not, so this file arrives priced. `bin/pi-check`'s
+    `PC-27` then asks it statically over the composed file, and the installer runs `bin/pi-check --all`
+    as its last step. [`cost-gate`](../extensions/cost-gate.md) ends the session the first time an
+    unpriced model bills tokens, which is correct and late: on a fresh install that is turn one,
+    already billed. After hand-editing this file, re-run `bin/pi-check --all`.
 
 !!! warning "On a gateway, probe the rate — do not copy the upstream vendor's price page"
     A model id behind a gateway is not the vendor's direct model. You are billed whatever the gateway
@@ -408,25 +411,28 @@ Three ship:
 | `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured |
 | [`openai-compatible.json`](openai-compatible.md) | no | **you choose** | Any gateway serving its own model names. The context window and the egress class are *answers*, not facts about the URL |
 
-!!! warning "A fragment that defines models must price them or explain the zero"
-    `test/providers-cost.test.ts` fails the build when a fragment that is not `builtIn` defines models
-    with an incomplete `cost` block and no `notes[]` entry naming `cost`. The rule is not "every model
-    must be priced" — this repository ships templates and cannot know anybody's rates — it is that the
-    zero must be *accounted for*: unmetered, unpriced, or simply not established. Zero is a legal
-    answer; "nobody has measured it" is a legal answer; silence is not.
+!!! warning "A fragment that defines models must state a complete cost — in numbers, or in answers"
+    `test/providers-cost.test.ts` fails the build when a fragment that is not `builtIn` defines a model
+    whose `cost` is missing or incomplete. The rule is not "every model must be priced" — this
+    repository ships templates and cannot know anybody's rates — it is that the zero must be
+    *declared*: four explicit zeros say *not billed by the token*, and that is a legal, permanent
+    answer. Silence is not, in any of the three places that read this: the test here, `PC-27` at
+    install time, and [`cost-gate`](../extensions/cost-gate.md) on the first billed turn.
 
-    Such a note must also state the units in the literal words `DOLLARS PER MILLION TOKENS`, which the
-    test greps for, because the units are the easy thing to get wrong and the wrong ones render
-    without complaint.
+    A fragment that cannot know the price **asks** for it instead. `litellm.json` and
+    `openai-compatible.json` state each rate as a `{{token}}` filled in by the interview, so the same
+    test also insists the prompt behind such a token is `type: "number"` with a numeric `default` —
+    that default is what the "unmetered" answer writes, and without it the opt-out would compose
+    `"input": ""` rather than a zero.
+
+    A `notes[]` entry that discusses `cost` must state the units in the literal words
+    `DOLLARS PER MILLION TOKENS`, which the test greps for, because the units are the easy thing to get
+    wrong and the wrong ones render without complaint. What a note can no longer do is stand in for the
+    declaration: nothing reads notes at runtime, so a fragment explaining an absent `cost` in prose
+    still renders a model the gate ends the session on.
 
     `builtIn` fragments are exempt by construction: they override PI's own catalogues, which already
     carry complete non-zero costs.
-
-    A `notes[]` entry satisfies **that** test, which is about fragments. It does not satisfy
-    [`cost-gate`](../extensions/cost-gate.md) or `PC-27`, which read the composed
-    `config/models.json` and accept only a written `cost`. For a model whose price nobody can
-    establish, the fragment note explains *why* and the four explicit zeros are what make the file
-    pass. A note on its own leaves the session to be aborted on turn one.
 
 The fragment schema, the substitution rules and the merge algorithm are documented in
 `config/providers/README.md`, which is the contract between the fragments and the installer. To

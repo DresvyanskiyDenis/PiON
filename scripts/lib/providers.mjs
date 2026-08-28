@@ -175,6 +175,13 @@ function loadFragment(file) {
     for (const dep of Object.keys(p.when ?? {})) {
       if (!seen.has(dep)) fatal(`${where}: prompt "${p.id}" has when:{${dep}} but "${dep}" is not an earlier prompt`);
     }
+    // README §2.2: one condition, because the installer and this file would otherwise read a
+    // two-condition `when` differently — install.sh's `describe` row carries a single whenId/whenValue
+    // pair, so it would ask on the first condition alone while the table below skips on both. The
+    // divergence is silent and costs the user the answer they typed: asked, then discarded.
+    if (Object.keys(p.when ?? {}).length > 1) {
+      fatal(`${where}: prompt "${p.id}" has a when with ${Object.keys(p.when).length} conditions; exactly one is supported`);
+    }
     seen.add(p.id);
   }
   for (const d of frag.derived ?? []) {
@@ -245,6 +252,19 @@ function tokenTable(frag, answers) {
       if (!satisfied) skipped = true;
     }
     if (skipped || raw === undefined) raw = p.default !== undefined ? String(p.default) : "";
+    // A required prompt that was ASKED and has no answer is refused here rather than substituted
+    // blank. install.sh dies on the same condition when it does the asking, but it is not the only
+    // way answers reach this file: `--repair` and `--section <other>` skip the provider interview
+    // entirely and generate from a saved answers file, which on a tree that gained a prompt is a
+    // file missing exactly that key. The blank would then substitute as "" — a model priced
+    // `"cost": {"input": ""}`, or one with an empty id — and every later check reads it as a
+    // decision somebody made.
+    if (!skipped && raw === "" && p.required !== false) {
+      fatal(
+        `${frag.id}: "${p.id}" is required and unanswered (${p.label}). ` +
+          `Add "${frag.id}.${p.id}=<value>" to the answers file, or re-run the installer and answer it.`,
+      );
+    }
     rawById.set(p.id, raw);
 
     // Rule 2: number/port/boolean substitute unquoted. PI does not coerce, so a context window
