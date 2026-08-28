@@ -379,7 +379,7 @@ ask() {
   fi
   printf '\n' >&2
   [ -z "$why" ] || printf '   %s%s%s\n' "$C_D" "$why" "$C_0" >&2
-  [ -z "$choices" ] || printf '   %soptions: %s%s\n' "$C_D" "$(printf '%s' "$choices" | tr ',' ' ')" "$C_0" >&2
+  [ -z "$choices" ] || printf '   %soptions: %s%s\n' "$C_D" "$(printf '%s' "$choices" | sed 's/,/, /g')" "$C_0" >&2
   while :; do
     if [ -n "$def" ]; then printf '   %s [%s]: ' "$label" "$def" >&2; else printf '   %s: ' "$label" >&2; fi
     _read_tty val; [ -n "$val" ] || val="$def"
@@ -402,6 +402,23 @@ ask_secret() { local label="$1" val=""
   printf '   %s (input is hidden): ' "$label" >&2
   IFS= read -r -s val < /dev/tty || val=""
   printf '\n' >&2; printf '%s' "$val"; }
+
+# The theme list is the themes/ directory, not a copy of it kept here. `theme` selects by the
+# `name` INSIDE each file, so that is what is read; a hand-maintained enum goes stale the first
+# time a theme is added. jq when it is there, awk when it is not — the fallback pattern this
+# script uses everywhere it reads JSON without a hard dependency on jq.
+theme_choices() {
+  local f name
+  for f in "$REPO_DIR"/themes/*.json; do
+    [ -e "$f" ] || continue
+    if command -v jq >/dev/null 2>&1; then name="$(jq -r '.name' "$f")"
+    else name="$(awk '/"name"[[:space:]]*:/ { sub(/^[^:]*:[[:space:]]*"/, ""); sub(/".*$/, ""); print; exit }' "$f")"
+    fi
+    [ -z "$name" ] || printf '%s,' "$name"
+  done
+  # PI's own two. They are not files, and nothing here replaces them.
+  printf 'dark,light'
+}
 
 # ================================================================================== manifest ===
 # The single source of truth for "what did the installer create". scripts/uninstall.sh reads it
@@ -1055,8 +1072,8 @@ if ask_section agent && [ "$EXPRESS" = 0 ]; then
     "The model that provider opens with. It must be one that provider actually serves." >/dev/null
   ask settings.defaultThinkingLevel "default thinking level" medium enum 1 "minimal,low,medium,high" \
     "How much reasoning budget every turn gets before you ask for more. medium is a good default." >/dev/null
-  ask settings.theme "theme" "Tokyo Night" enum 1 "Tokyo Night,Tokyo Night Day,dark,light" \
-    "Colour scheme of the terminal UI. The two Tokyo Night variants ship in themes/; dark and light are PI's own." >/dev/null
+  ask settings.theme "theme" "Tokyo Night" enum 1 "$(theme_choices)" \
+    "Colour scheme of the terminal UI. Everything but dark and light ships in themes/; those two are PI's own." >/dev/null
   ask settings.externalEditor "external editor command" "$EDITOR_GUESS" string 1 "" \
     "Used when you press the edit key on a long prompt. It must block until the file is closed (hence --wait)." >/dev/null
   ask settings.tuiMode "TUI mode" regular enum 1 "regular,compact" \
