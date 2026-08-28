@@ -426,7 +426,7 @@ them the same hides broken tooling behind a red build.
 ./scripts/install.sh --dry-run                     # print every action, perform none
 ```
 
-Sections: `providers` · `tiers` · `agent` · `safety` · `tools` · `shell`.
+Sections: `providers` · `tiers` · `agent` · `safety` · `tools` · `shell` · `maintenance`.
 
 ### 26. Remove it
 

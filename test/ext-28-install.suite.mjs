@@ -32,6 +32,7 @@ import {
   readlinkSync,
   rmSync,
   lstatSync,
+  existsSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -104,7 +105,7 @@ function makeRepoSkeleton() {
     symlinkSync(join(REPO_ROOT, "config", rel), join(repo, "config", rel));
   }
 
-  for (const rel of ["install.sh", "postinstall-verify.sh"]) {
+  for (const rel of ["install.sh", "postinstall-verify.sh", "auto-update-check.sh"]) {
     symlinkSync(join(REAL_SCRIPTS, rel), join(repo, "scripts", rel));
   }
   // Every helper in scripts/lib/, enumerated rather than listed: install.sh and
@@ -252,6 +253,49 @@ function baseEnv(fixtureHome, extra = {}) {
  * "What you now have" block below it. Matched as one anchored pattern, in one place, so the next
  * rewording is a single edit rather than a hunt. */
 const DONE_LINE = /^\s*Done — (\d+) step\(s\) changed\s*$/m;
+
+/**
+ * A `crontab(1)` that keeps the table in a file under the fixture $HOME instead of in the real
+ * per-user cron spool. Every scheduling assertion in this suite goes through it: `crontab` is
+ * per-USER, not per-$HOME, so a test that called the real one would rewrite the crontab of whoever
+ * ran `npm test` — on their laptop, with their jobs in it. The fixture PATH puts $HOME/bin first
+ * (see curatedPath), which is the same trick the offline runs use for `pi`.
+ *
+ * It implements exactly the three forms install.sh and uninstall.sh use: `-l` to read (exit 1 with
+ * "no crontab" when there is none, as the real one does — that exit status is load-bearing, the
+ * scripts branch on it), `FILE` to replace, and `-` to replace from stdin.
+ */
+function installFakeCrontab(fixtureHome) {
+  const tab = join(fixtureHome, "crontab.tab");
+  const bin = join(fixtureHome, "bin");
+  mkdirSync(bin, { recursive: true });
+  const fake = join(bin, "crontab");
+  writeFileSync(
+    fake,
+    [
+      "#!/usr/bin/env bash",
+      `TAB="${tab}"`,
+      'case "${1:-}" in',
+      '  -l) [ -f "$TAB" ] || { printf \'no crontab for fixture\\n\' >&2; exit 1; }; cat "$TAB" ;;',
+      '  -r) rm -f "$TAB" ;;',
+      '  -)  cat > "$TAB" ;;',
+      '  *)  cat "$1" > "$TAB" ;;',
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(fake, 0o755);
+  return tab;
+}
+
+/** The crontab as install.sh left it, or [] when no table was ever written. */
+function cronLines(tab) {
+  return existsSync(tab) ? readFileSync(tab, "utf8").split("\n").filter((l) => l.trim() !== "") : [];
+}
+
+const CRON_MARK = "# pi-config:auto-update";
+const markedLines = (tab) => cronLines(tab).filter((l) => l.includes(CRON_MARK));
+
 
 // =========================================================================================
 // install.sh
@@ -543,145 +587,296 @@ describe("install.sh", () => {
     assert.match(res.stderr, /rm -rf/);
     assert.ok(lstatSync(strandedTree).isDirectory(), "it says how to remove it; it does not remove it");
   });
+});
 
-  // ---------------------------------------------------------------- the price question -----
-  // A gateway fragment cannot know what a call costs: the id you send is an alias the proxy's
-  // operator priced, not a vendor model with a public rate. Until the interview asked, the
-  // fragments left `cost` out and said so in their notes — and an omitted `cost` is substituted
-  // with {input:0,output:0,cacheRead:0,cacheWrite:0} by the composer, so the install ended
-  // "consistent" and the first billed turn ended on the cost gate's abort. The three tests below
-  // pin the two accepted answers and the refusal, on the composed file rather than on the prompt
-  // text, because the composed file is what PI reads.
+// =========================================================================================
+// the price question — scripts/lib/providers.mjs, which is what turns interview answers into
+// config/models.json
+// =========================================================================================
+//
+// A fresh install used to end "consistent" and die on its first billed turn: the gateway fragments
+// rendered a model with every field a turn needs and no `cost`, the composer substituted four zeros
+// nobody wrote, and `extensions/cost-gate` aborted turn one with the money already spent. The fix is
+// not another gate — there were two already — but moving the answer earlier, to the one point where
+// being wrong costs nothing. These tests drive the generator install.sh calls, with the answers an
+// operator would have typed.
 
-  /** The generated `config/models.json` for one answers file. This is the generator invocation
-   * install.sh makes in its "Writing the configuration" step, pointed at a throwaway directory:
-   * `--dry-run` rehearses the same call but keeps the JSON in its own scratch dir, so this is the
-   * only way to assert on the file itself rather than on the log line about it. */
-  function generateModels(answersFile) {
-    const outDir = freshDir("ext28-gen-");
-    const selected = readFileSync(answersFile, "utf8")
+// =========================================================================================
+// install.sh — the maintenance section: auto-update scheduling
+// =========================================================================================
+
+describe("the installer schedules the update check", () => {
+  const platform = platformAsset();
+
+  /** A real (not --dry-run) offline install, run through the fake crontab. */
+  function offlineInstall(fixtureHome, answersText, extraArgs = []) {
+    const repo = makeRepoSkeleton();
+    const stageDir = freshDir("ext28-offline-cron-");
+    const { sha256 } = stageFakePiTarball(stageDir, platform);
+    writeLock(repo, { platform, sha256 });
+    const answers = join(freshDir("ext28-answers-cron-"), "answers.conf");
+    writeFileSync(answers, answersText);
+    const run = (...args) =>
+      runScript(
+        join(repo, "scripts", "install.sh"),
+        ["--mode", "binary", "--offline", "--offline-dir", stageDir, "--answers", answers, ...extraArgs, ...args],
+        baseEnv(fixtureHome),
+      );
+    return { repo, run, answers };
+  }
+
+  test("enabled: exactly one marked 30-minute entry, and a second run adds no second one", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const tab = installFakeCrontab(fixtureHome);
+    const { run } = offlineInstall(fixtureHome, "autoupdate.enabled=true\nautoupdate.mode=prompt\n");
+
+    const first = run();
+    assert.equal(first.status, 0, `install failed:\nSTDOUT:${first.stdout}\nSTDERR:${first.stderr}`);
+
+    const marked = markedLines(tab);
+    assert.equal(marked.length, 1, `expected one marked entry, got:\n${cronLines(tab).join("\n")}`);
+    assert.match(marked[0], /^\*\/30 \* \* \* \* \S+\/scripts\/auto-update-check\.sh /);
+    // Cron mails every byte a job writes. The entry has to be silent or the user gets 48 mails a day.
+    assert.match(marked[0], />\/dev\/null 2>&1/);
+
+    // Idempotency, which for a crontab means the read-filter-write produced a byte-identical table
+    // rather than an appended duplicate — the failure mode `crontab -l | { cat; echo …; }` has.
+    const second = run();
+    assert.equal(second.status, 0, `second run failed:\nSTDOUT:${second.stdout}\nSTDERR:${second.stderr}`);
+    assert.deepEqual(markedLines(tab), marked, "the second run rewrote or duplicated the entry");
+    const summary = second.stdout.match(DONE_LINE);
+    assert.ok(summary, `no summary line:\n${second.stdout}`);
+    assert.equal(summary[1], "0", `second run reported ${summary[1]} changed step(s):\n${second.stdout}`);
+  });
+
+  test("disabled by default: no crontab is written at all", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const tab = installFakeCrontab(fixtureHome);
+    const { run } = offlineInstall(fixtureHome, "");
+    const res = run();
+    assert.equal(res.status, 0, `install failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.deepEqual(cronLines(tab), [], "an opt-in feature touched the crontab while opted out");
+  });
+
+  test("--section maintenance turns it off again, and leaves every other entry alone", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const tab = installFakeCrontab(fixtureHome);
+    // Somebody else's job, already in the table. The installer edits ONE marked line; a rewrite
+    // that dropped this would be the most expensive bug in the feature.
+    const theirs = "0 5 * * * /usr/bin/true # nightly backup";
+    writeFileSync(tab, `${theirs}\n`);
+
+    const on = offlineInstall(fixtureHome, "autoupdate.enabled=true\nautoupdate.mode=auto\n");
+    const enabled = on.run();
+    assert.equal(enabled.status, 0, `install failed:\nSTDOUT:${enabled.stdout}\nSTDERR:${enabled.stderr}`);
+    assert.equal(markedLines(tab).length, 1);
+    assert.ok(cronLines(tab).includes(theirs), "the installer dropped an unrelated cron entry");
+
+    const off = join(freshDir("ext28-answers-off-"), "answers.conf");
+    writeFileSync(off, "autoupdate.enabled=false\n");
+    const res = runScript(
+      join(on.repo, "scripts", "install.sh"),
+      ["--section", "maintenance", "--answers", off],
+      baseEnv(fixtureHome),
+    );
+    assert.equal(res.status, 0, `--section maintenance failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.deepEqual(markedLines(tab), [], "turning it off left the cron entry behind");
+    assert.deepEqual(cronLines(tab), [theirs], "turning it off disturbed an unrelated entry");
+    assert.equal(
+      readFileSync(join(on.repo, "config", "auto-update.json"), "utf8").includes('"enabled": false'),
+      true,
+      "the preference file still says enabled",
+    );
+  });
+});
+
+const PROVIDERS_TOOL = join(REAL_SCRIPTS, "lib", "providers.mjs");
+const PROVIDERS_DIR = join(REPO_ROOT, "config", "providers");
+
+/** providers.mjs delimits its TSV fields with US (0x1f), never a tab. See its own header for why. */
+const FIELD_SEP = "\u001f";
+
+/** The four rate fields of PI's `ModelCostRates`. All four, or the object is read as unpriced. */
+const COST_RATE_FIELDS = ["input", "output", "cacheRead", "cacheWrite"];
+
+/** The gateway-shaped fragments: their price is a fact about somebody else's deployment. */
+const GATEWAYS = ["litellm", "openai-compatible"];
+
+function providersTool(args) {
+  const res = spawnSync(process.execPath, [PROVIDERS_TOOL, ...args], { encoding: "utf8" });
+  if (res.error) throw res.error;
+  return { status: res.status ?? -1, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
+}
+
+/** `describe`'s PROMPT rows, keyed by prompt id. Field order is fixed by providers.mjs. */
+function promptRows(providerId) {
+  const res = providersTool(["describe", PROVIDERS_DIR, providerId]);
+  assert.equal(res.status, 0, res.stderr);
+  const rows = new Map();
+  for (const line of res.stdout.split("\n")) {
+    const f = line.split(FIELD_SEP);
+    if (f[0] !== "PROMPT") continue;
+    rows.set(f[1], {
+      type: f[2], label: f[3], required: f[5], choices: f[6], choiceLabels: f[7],
+      whenId: f[8], whenValue: f[9], help: f[12],
+    });
+  }
+  return rows;
+}
+
+/**
+ * Both gateways answer the same interview apart from `reasoning`, so one answer table with a
+ * per-fragment pricing branch covers both. `pricing` is what an operator picks on screen.
+ */
+function gatewayAnswers(providerId, { pricing, second = true }) {
+  const lines = [
+    `${providerId}.baseUrl=https://gateway.example.com/v1`,
+    `${providerId}.apiKeyEnv=GATEWAY_KEY_NAME`,
+    `${providerId}.egress=internal`,
+    `${providerId}.concurrency=4`,
+    `${providerId}.model1Id=strong-alias`,
+    `${providerId}.model1Context=200000`,
+    `${providerId}.model1Reasoning=true`,
+    `${providerId}.model1Pricing=${pricing}`,
+    `tier.strong=${providerId}/strong-alias`,
+  ];
+  if (pricing === "metered") {
+    lines.push(`${providerId}.model1CostInput=2.5`, `${providerId}.model1CostOutput=10`);
+  }
+  if (second) {
+    lines.push(
+      `${providerId}.model2Id=light-alias`,
+      `${providerId}.model2Context=128000`,
+      `${providerId}.model2Reasoning=false`,
+      `${providerId}.model2Pricing=${pricing}`,
+      `tier.light=${providerId}/light-alias`,
+    );
+    if (pricing === "metered") {
+      lines.push(`${providerId}.model2CostInput=0.075`, `${providerId}.model2CostOutput=0.3`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** Run the generator exactly as install.sh does, and return the models.json it would write. */
+function generateModels(providerId, answersText) {
+  const dir = freshDir("ext28-answers-");
+  const answers = join(dir, "answers.conf");
+  writeFileSync(answers, answersText);
+  const outModels = join(dir, "models.json");
+  const res = providersTool([
+    "generate",
+    "--providers-dir", PROVIDERS_DIR,
+    "--select", providerId,
+    "--answers", answers,
+    "--models-default", join(REPO_ROOT, "config", "models.default.json"),
+    "--routing-default", join(REPO_ROOT, "config", "routing.default.json"),
+    "--out-models", outModels,
+    "--out-routing", join(dir, "routing.json"),
+  ]);
+  assert.equal(res.status, 0, `generate failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+  return JSON.parse(readFileSync(outModels, "utf8")).providers[providerId].models;
+}
+
+describe("the installer asks what a call costs", () => {
+  for (const providerId of GATEWAYS) {
+    test(`${providerId}: the interview asks per model, and the opt-out is on the menu`, () => {
+      const prompts = promptRows(providerId);
+      for (const n of [1, 2]) {
+        const pricing = prompts.get(`model${n}Pricing`);
+        assert.ok(pricing, `model${n}Pricing is not asked at all`);
+        assert.equal(pricing.type, "choice");
+        assert.equal(pricing.required, "1", "a price nobody has to answer is a price nobody answers");
+        // Both declarations the runtime gate accepts, offered as answers rather than as advice.
+        assert.equal(pricing.choices, "metered,unmetered");
+        assert.match(pricing.choiceLabels, /bills nothing, or bills by something other than tokens/);
+        // The conversion the operator gets wrong: gateways quote dollars per TOKEN.
+        for (const side of ["Input", "Output"]) {
+          const rate = prompts.get(`model${n}Cost${side}`);
+          assert.ok(rate, `model${n}Cost${side} is not asked`);
+          assert.equal(rate.type, "decimal", "an int prompt would refuse 2.5");
+          assert.match(rate.label, /dollars per MILLION tokens/);
+          assert.equal(rate.whenId, `model${n}Pricing`);
+          assert.equal(rate.whenValue, "metered");
+        }
+      }
+      assert.match(prompts.get("model1CostInput").help, /MULTIPLY BY 1000000/);
+      // The second model is optional, so its price question must be too — otherwise a one-model
+      // install is asked to price a model it never declared.
+      assert.equal(prompts.get("model2Pricing").whenId, "model2Id");
+    });
+
+    test(`${providerId}: a metered answer lands the rates it was given, as numbers`, () => {
+      const models = generateModels(providerId, gatewayAnswers(providerId, { pricing: "metered" }));
+      assert.deepEqual(
+        models.map((m) => [m.id, m.cost]),
+        [
+          ["strong-alias", { input: 2.5, output: 10, cacheRead: 0, cacheWrite: 0 }],
+          ["light-alias", { input: 0.075, output: 0.3, cacheRead: 0, cacheWrite: 0 }],
+        ],
+        "the rates have to arrive as JSON numbers: PI does not coerce, and a quoted rate is read " +
+          "as no rate at all",
+      );
+    });
+
+    test(`${providerId}: the opt-out lands four written zeros, and nothing else`, () => {
+      const models = generateModels(providerId, gatewayAnswers(providerId, { pricing: "unmetered" }));
+      for (const model of models) {
+        assert.deepEqual(
+          model.cost,
+          { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          `${model.id} did not come out as the deliberate opt-out`,
+        );
+      }
+      // Four zeros, not a fifth spelling. A sentinel here would give the cost object two readings.
+      assert.equal(Object.keys(models[0].cost).length, COST_RATE_FIELDS.length);
+    });
+
+    test(`${providerId}: the silent-omission shape is gone, on both answers and on one model`, () => {
+      const shapes = [
+        gatewayAnswers(providerId, { pricing: "metered" }),
+        gatewayAnswers(providerId, { pricing: "unmetered" }),
+        gatewayAnswers(providerId, { pricing: "metered", second: false }),
+      ];
+      for (const answers of shapes) {
+        for (const model of generateModels(providerId, answers)) {
+          for (const field of COST_RATE_FIELDS) {
+            assert.equal(
+              typeof model.cost?.[field],
+              "number",
+              `${model.id} reaches models.json with cost.${field} unstated, which is the shape ` +
+                `extensions/cost-gate ends the first billed turn for and bin/pi-check rule PC-27 ` +
+                `reports before that turn is ever sent`,
+            );
+          }
+        }
+      }
+    });
+  }
+
+  test("a metered answer with no rate typed is refused, not zeroed", () => {
+    // The failure this whole change is about, inverted: the generator must not invent a price for
+    // an operator who said the endpoint is metered. An interactive run cannot get here (the prompt
+    // is required and has no default); an --answers file can, and it has to fail loudly.
+    const answers = gatewayAnswers("litellm", { pricing: "metered", second: false })
       .split("\n")
-      .find((l) => l.startsWith("providers="))
-      .slice("providers=".length);
-    execFileSync(
-      process.execPath,
-      [
-        join(REPO_ROOT, "scripts", "lib", "providers.mjs"), "generate",
-        "--providers-dir", join(REPO_ROOT, "config", "providers"),
-        "--select", selected,
-        "--answers", answersFile,
-        "--models-default", join(REPO_ROOT, "config", "models.default.json"),
-        "--routing-default", join(REPO_ROOT, "config", "routing.default.json"),
-        "--out-models", join(outDir, "models.json"),
-        "--out-routing", join(outDir, "routing.json"),
-      ],
-      { encoding: "utf8" },
-    );
-    return JSON.parse(readFileSync(join(outDir, "models.json"), "utf8"));
-  }
-
-  function writeAnswers(lines) {
-    const answers = join(freshDir("ext28-answers-"), "answers.conf");
-    writeFileSync(answers, `${lines.join("\n")}\n`);
-    return answers;
-  }
-
-  test("the metered answer lands the four rates in the generated models.json, as numbers", () => {
-    const answers = writeAnswers([
-      "providers=litellm",
-      "litellm.baseUrl=https://proxy.example.internal/v1",
-      "litellm.apiKeyEnv=LITELLM_API_KEY",
-      "litellm.egress=internal",
-      "litellm.concurrency=2",
-      "litellm.model1Id=gpt-5.6-sol",
-      "litellm.model1Context=128000",
-      "litellm.model1Reasoning=true",
-      "litellm.model1Metering=metered",
-      "litellm.model1InputRate=3",
-      "litellm.model1OutputRate=15",
-      // Fractional on purpose: a cached-input rate is routinely below one dollar per million
-      // tokens, and the prompt type these answers feed was validated as an integer until the
-      // interview started asking for prices.
-      "litellm.model1CacheReadRate=0.3",
-      "litellm.model1CacheWriteRate=3.75",
-      "litellm.model2Id=",
-      "tier.strong=litellm/gpt-5.6-sol",
+      .filter((l) => !l.startsWith("litellm.model1CostInput="))
+      .join("\n");
+    const dir = freshDir("ext28-answers-");
+    const file = join(dir, "answers.conf");
+    writeFileSync(file, answers);
+    const res = providersTool([
+      "generate",
+      "--providers-dir", PROVIDERS_DIR,
+      "--select", "litellm",
+      "--answers", file,
+      "--models-default", join(REPO_ROOT, "config", "models.default.json"),
+      "--routing-default", join(REPO_ROOT, "config", "routing.default.json"),
+      "--print-only",
     ]);
-    const res = runScript(
-      join(REAL_SCRIPTS, "install.sh"),
-      ["--dry-run", "--yes", "--answers", answers],
-      baseEnv(freshDir("ext28-home-")),
-    );
-    assert.equal(res.status, 0, `metered dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
-    assert.match(`${res.stdout}${res.stderr}`, /generation rehearsed/);
-
-    const models = generateModels(answers);
-    const model = models.providers.litellm.models.find((m) => m.id === "gpt-5.6-sol");
-    assert.deepEqual(model.cost, { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 });
-    // Rule 2 of the substitution contract, and the reason the prompts are typed `number`: PI does
-    // not coerce, so a rate arriving as the string "3" is a price that never multiplies anything.
-    for (const rate of Object.values(model.cost)) assert.equal(typeof rate, "number");
-  });
-
-  test("the unmetered answer lands four written zeros, which is a declaration and not an omission", () => {
-    const answers = writeAnswers([
-      "providers=openai-compatible",
-      "openai-compatible.baseUrl=https://gateway.example.internal/v1",
-      "openai-compatible.apiKeyEnv=GATEWAY_API_KEY",
-      "openai-compatible.egress=internal",
-      "openai-compatible.concurrency=2",
-      "openai-compatible.model1Id=llama-3.1-70b",
-      "openai-compatible.model1Context=131072",
-      "openai-compatible.model1Metering=unmetered",
-      "openai-compatible.model2Id=",
-      "tier.strong=openai-compatible/llama-3.1-70b",
-    ]);
-    const res = runScript(
-      join(REAL_SCRIPTS, "install.sh"),
-      ["--dry-run", "--yes", "--answers", answers],
-      baseEnv(freshDir("ext28-home-")),
-    );
-    assert.equal(res.status, 0, `unmetered dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
-
-    const models = generateModels(answers);
-    const model = models.providers["openai-compatible"].models.find((m) => m.id === "llama-3.1-70b");
-    // The four rate questions are never asked on this path — the answers file above does not carry
-    // them — and the zeros are still WRITTEN. That is the whole difference between this shape and
-    // the one that shipped before: `bin/pi-check` rule PC-27 and the cost gate both read a written
-    // zero as the operator saying "not billed by the token", and both end on a missing `cost`.
-    assert.deepEqual(model.cost, { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
-  });
-
-  test("an answers file that never states the price is refused by name, not composed with zeros", () => {
-    // The old silent-omission shape: every field a turn needs, no `cost`, and an install that
-    // reported success. It is now a refusal that names the answer key, in the same PI-INSTALL-E23
-    // form as any other required answer missing from a non-interactive run.
-    const answers = writeAnswers([
-      "providers=litellm",
-      "litellm.baseUrl=https://proxy.example.internal/v1",
-      "litellm.apiKeyEnv=LITELLM_API_KEY",
-      "litellm.egress=internal",
-      "litellm.concurrency=2",
-      "litellm.model1Id=gpt-5.6-sol",
-      "litellm.model1Context=128000",
-      "litellm.model1Reasoning=true",
-      "litellm.model2Id=",
-      "tier.strong=litellm/gpt-5.6-sol",
-    ]);
-    const res = runScript(
-      join(REAL_SCRIPTS, "install.sh"),
-      ["--dry-run", "--yes", "--answers", answers],
-      baseEnv(freshDir("ext28-home-")),
-    );
-    assert.notEqual(res.status, 0, "an unpriced gateway model must not install quietly");
-    const out = `${res.stdout}${res.stderr}`;
-    assert.match(out, /PI-INSTALL-E23/);
-    assert.match(out, /litellm\.model1Metering/);
-
-    // And the generator refuses the same file on its own, because install.sh is not its only
-    // caller: `--repair` and `--section <other>` skip the provider interview and generate straight
-    // from a saved answers file, which on a tree that gained a prompt is a file missing that key.
-    assert.throws(() => generateModels(answers), /model1Metering.*required and unanswered/s);
+    assert.equal(res.status, 2, `expected a refusal, got:\n${res.stdout}${res.stderr}`);
+    assert.match(res.stderr, /model1CostInput.*required and unanswered/);
+    // The prompt validation catches the missing answer before cost validation runs; the error is the "required and unanswered" message above.
   });
 });
 

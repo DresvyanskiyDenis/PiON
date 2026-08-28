@@ -29,6 +29,10 @@
 #   * fails loudly       — every exit path has a PI-UPDATE-Exx code, a named cause and an action.
 #                          There is no bare `exit 1` and no silent skip.
 #   * no piped shells    — npm is always --ignore-scripts.
+#   * clears the reminder — an applied update removes <agent-dir>/update-pending, the note
+#                          scripts/auto-update-check.sh writes and extensions/auto-update reads at
+#                          session start. Applying an update and still being told about it is the
+#                          fastest way to teach someone to ignore the message.
 #
 # Usage:
 #   ./scripts/update.sh                 # fetch, report, confirm, update
@@ -701,6 +705,19 @@ else
         "run 'npm ci --ignore-scripts' in $REPO_DIR yourself and read the error"
   fi
   changed "npm ci --ignore-scripts (the lockfile changed)"
+fi
+
+# The update landed. `<agent-dir>/update-pending` is the note scripts/auto-update-check.sh leaves
+# for extensions/auto-update to read at session start, and it is now describing an update that has
+# been applied. Clearing it here rather than leaving it to the next cron tick is the difference
+# between "applied, and the next session is quiet" and "applied, and every session for the next
+# half hour still announces it".
+FLAG_FILE="$AGENT_DIR/update-pending"
+if [ "$DRY_RUN" = 1 ]; then
+  [ ! -f "$FLAG_FILE" ] || info "a real run would clear $FLAG_FILE"
+elif [ -f "$FLAG_FILE" ]; then
+  if rm -f "$FLAG_FILE"; then changed "cleared $FLAG_FILE — the update it announced is this one"
+  else warn "could not remove $FLAG_FILE — the next session will announce an update that is already applied"; fi
 fi
 
 if [ "$RUN_VERIFY" = 0 ]; then

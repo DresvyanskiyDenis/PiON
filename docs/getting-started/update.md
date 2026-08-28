@@ -181,6 +181,38 @@ esac
 
 Full table, alongside every other script: [Exit codes](../reference/exit-codes.md).
 
+---
+
+## Being told, instead of remembering
+
+Nothing above runs on its own. If you would rather be told when an update is waiting, the installer
+can schedule a check:
+
+```bash
+./scripts/install.sh --section maintenance
+```
+
+It asks two questions — whether to check `origin/main` every 30 minutes, and whether the next
+session should apply what it finds or simply mention it — and then registers one user-level cron
+entry:
+
+```
+*/30 * * * * /path/to/pi-config/scripts/auto-update-check.sh >/dev/null 2>&1 # pi-config:auto-update
+```
+
+The check never applies anything. It writes `~/.pi/agent/update-pending`, naming the commit range,
+and the [`auto-update`](../extensions/auto-update.md) extension turns that file into one line of
+system prompt at the start of your next session. You still run `./scripts/update.sh` — or, in
+`auto` mode, the extension runs it for you.
+
+`update.sh` deletes the flag once the update it announced has been applied, which is why the
+reminder stops on its own rather than needing to be dismissed. Deleting the file by hand dismisses
+it too; the next check writes it again if the update is still waiting.
+
+Turning it off is the same command with the opposite answer: the cron entry is removed, and every
+other entry in your crontab is left exactly as it was.
+
 ## Related
 
 - [Install](install.md) · [Configuration layout](config-layout.md) · [Verification](../operations/verification.md)
+- [`auto-update` extension](../extensions/auto-update.md) — the session-start half of the feature

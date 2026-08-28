@@ -35,6 +35,7 @@ config/web.json
 config/web-search.json
 config/quota.json
 config/subagent.json
+config/auto-update.json
 
 # --- Identity -----------------------------------------------------------------
 # The operator-identity extension refuses to READ a personal identity file from a

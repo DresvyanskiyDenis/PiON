@@ -90,53 +90,33 @@
       "required": true
     },
     {
-      "id": "model1Metering",
+      "id": "model1Pricing",
       "type": "choice",
-      "label": "How is that model billed?",
-      "help": "There is no honest default here. `cost` is optional in models.json and required at runtime, so a model that states no price reports a flat 0.000 spend per turn whatever it charges, and the cost gate ends the first turn that finds one. Answer from the proxy rather than from a vendor price page: an alias costs whatever that deployment's operator configured. `curl -sS -H \"Authorization: Bearer $KEY\" <baseUrl>/model/info | jq -r '.data[] | [.model_name, .model_info.input_cost_per_token, .model_info.output_cost_per_token] | @tsv'` prints it for every alias at once.",
-      "required": true,
+      "label": "What does that model cost per token on this proxy?",
+      "help": "PI needs a rate for every model it can call, and there is no third answer to this. A price left out does not stay out: the composer substitutes four zeros nobody wrote, the status line then reads 0.000 for the whole session on a proxy that is billing you, and extensions/cost-gate ends the first billed turn rather than let that stand. Both answers below are declarations the gate accepts for good.",
       "choices": [
-        { "value": "metered", "label": "metered - it bills by the token, and the next four questions ask the rates" },
-        { "value": "unmetered", "label": "unmetered - it bills nothing, or bills by something other than tokens" }
-      ]
+        { "value": "metered", "label": "it bills per token, and I will type the two rates" },
+        { "value": "unmetered", "label": "it bills nothing, or bills by something other than tokens" }
+      ],
+      "required": true
     },
     {
-      "id": "model1InputRate",
-      "type": "number",
+      "id": "model1CostInput",
+      "type": "decimal",
       "label": "Input rate for that model, in dollars per MILLION tokens",
-      "help": "/model/info quotes input_cost_per_token, which is DOLLARS PER TOKEN, so MULTIPLY BY 1000000: PI divides by 1000000 again before multiplying by the usage counter, and an unconverted figure is wrong by six orders of magnitude and still renders.",
-      "example": "3, for an input_cost_per_token of 0.000003",
-      "default": 0,
+      "help": "/model/info reports it as .data[].model_info.input_cost_per_token, which is DOLLARS PER TOKEN: MULTIPLY BY 1000000 before typing it here. PI divides this rate by 1000000 again before multiplying by the usage counter, so a per-token figure pasted straight in is wrong by six orders of magnitude and still renders.",
+      "example": "2.5",
       "required": true,
-      "when": { "model1Metering": "metered" }
+      "when": { "model1Pricing": "metered" }
     },
     {
-      "id": "model1OutputRate",
-      "type": "number",
+      "id": "model1CostOutput",
+      "type": "decimal",
       "label": "Output rate for that model, in dollars per MILLION tokens",
-      "help": "The same conversion applied to output_cost_per_token: DOLLARS PER TOKEN times 1000000.",
-      "example": "15, for an output_cost_per_token of 0.000015",
-      "default": 0,
+      "help": ".data[].model_info.output_cost_per_token on the same call, converted the same way. Output is typically several times input; if the two come out equal, check that you read two different fields.",
+      "example": "10",
       "required": true,
-      "when": { "model1Metering": "metered" }
-    },
-    {
-      "id": "model1CacheReadRate",
-      "type": "number",
-      "label": "Cached-input rate for that model, in dollars per MILLION tokens",
-      "help": "0 unless the proxy bills cached input at its own rate; where a deployment sets one, /model/info calls it cache_read_input_token_cost. This rate only ever multiplies cached tokens the endpoint reports, so a proxy that reports none costs nothing either way.",
-      "default": 0,
-      "required": true,
-      "when": { "model1Metering": "metered" }
-    },
-    {
-      "id": "model1CacheWriteRate",
-      "type": "number",
-      "label": "Cache-write rate for that model, in dollars per MILLION tokens",
-      "help": "0 unless the proxy charges to put a prompt into its cache. A proxy that does not surface cache_control breakpoints never bills this, which is the common case in front of LiteLLM.",
-      "default": 0,
-      "required": true,
-      "when": { "model1Metering": "metered" }
+      "when": { "model1Pricing": "metered" }
     },
     {
       "id": "model2Id",
@@ -163,53 +143,42 @@
       "when": { "model2Id": "*" }
     },
     {
-      "id": "model2Metering",
+      "id": "model2Pricing",
       "type": "choice",
-      "label": "How is the second model billed?",
-      "help": "The same two answers, asked again because the second alias is a different deployment entry and is frequently priced differently - the light tier is often the cheap one, and sometimes the free one.",
-      "required": true,
-      "when": { "model2Id": "*" },
+      "label": "What does the second model cost per token on this proxy?",
+      "help": "Same question, same two answers, asked again because the second model has its own price on this proxy. See the first model's help if you skipped it.",
       "choices": [
-        { "value": "metered", "label": "metered - it bills by the token, and the next four questions ask the rates" },
-        { "value": "unmetered", "label": "unmetered - it bills nothing, or bills by something other than tokens" }
-      ]
+        { "value": "metered", "label": "it bills per token, and I will type the two rates" },
+        { "value": "unmetered", "label": "it bills nothing, or bills by something other than tokens" }
+      ],
+      "required": true,
+      "when": { "model2Id": "*" }
     },
     {
-      "id": "model2InputRate",
-      "type": "number",
+      "id": "model2CostInput",
+      "type": "decimal",
       "label": "Input rate for the second model, in dollars per MILLION tokens",
-      "help": "input_cost_per_token from /model/info, MULTIPLIED BY 1000000.",
-      "default": 0,
+      "help": "Read the same way as the first model's, and converted the same way: MULTIPLY BY 1000000.",
+      "example": "2.5",
       "required": true,
-      "when": { "model2Metering": "metered" }
+      "when": { "model2Pricing": "metered" }
     },
     {
-      "id": "model2OutputRate",
-      "type": "number",
+      "id": "model2CostOutput",
+      "type": "decimal",
       "label": "Output rate for the second model, in dollars per MILLION tokens",
-      "help": "output_cost_per_token from /model/info, MULTIPLIED BY 1000000.",
-      "default": 0,
+      "help": "The output side of the same quote, converted the same way.",
+      "example": "10",
       "required": true,
-      "when": { "model2Metering": "metered" }
-    },
-    {
-      "id": "model2CacheReadRate",
-      "type": "number",
-      "label": "Cached-input rate for the second model, in dollars per MILLION tokens",
-      "help": "0 unless this alias bills cached input at its own rate.",
-      "default": 0,
-      "required": true,
-      "when": { "model2Metering": "metered" }
-    },
-    {
-      "id": "model2CacheWriteRate",
-      "type": "number",
-      "label": "Cache-write rate for the second model, in dollars per MILLION tokens",
-      "help": "0 unless this alias charges to put a prompt into its cache.",
-      "default": 0,
-      "required": true,
-      "when": { "model2Metering": "metered" }
+      "when": { "model2Pricing": "metered" }
     }
+  ],
+
+  "derived": [
+    { "id": "model1RateInput",  "from": "model1Pricing", "map": { "metered": "{{model1CostInput}}",  "unmetered": 0 } },
+    { "id": "model1RateOutput", "from": "model1Pricing", "map": { "metered": "{{model1CostOutput}}", "unmetered": 0 } },
+    { "id": "model2RateInput",  "from": "model2Pricing", "map": { "metered": "{{model2CostInput}}",  "unmetered": 0, "": 0 } },
+    { "id": "model2RateOutput", "from": "model2Pricing", "map": { "metered": "{{model2CostOutput}}", "unmetered": 0, "": 0 } }
   ],
 
   "tiers": {
@@ -238,10 +207,10 @@
         "contextWindow": "{{model1Context}}",
         "maxTokens": 8192,
         "cost": {
-          "input": "{{model1InputRate}}",
-          "output": "{{model1OutputRate}}",
-          "cacheRead": "{{model1CacheReadRate}}",
-          "cacheWrite": "{{model1CacheWriteRate}}"
+          "input": "{{model1RateInput}}",
+          "output": "{{model1RateOutput}}",
+          "cacheRead": 0,
+          "cacheWrite": 0
         }
       },
       {
@@ -254,10 +223,10 @@
         "contextWindow": "{{model2Context}}",
         "maxTokens": 8192,
         "cost": {
-          "input": "{{model2InputRate}}",
-          "output": "{{model2OutputRate}}",
-          "cacheRead": "{{model2CacheReadRate}}",
-          "cacheWrite": "{{model2CacheWriteRate}}"
+          "input": "{{model2RateInput}}",
+          "output": "{{model2RateOutput}}",
+          "cacheRead": 0,
+          "cacheWrite": 0
         }
       }
     ]
@@ -271,7 +240,7 @@
     "THE thinkingLevelMap IS A DELIBERATE FOUR ENTRIES, AND WHAT IS MISSING MATTERS MORE THAN WHAT IS THERE. xhigh and max are absent, which pi-ai reads as unsupported - correct here, because llms/openai/chat/gpt_5_transformation.py:236-247 makes xhigh an OPT-IN capability (\"only allow if model explicitly supports it\": supports_xhigh_reasoning_effort must be literally true in that deployment's model_info) and raises UnsupportedParamsError with status 400 when it is not, unless the proxy runs with drop_params. The same file at :249-259 makes minimal and low OPT-OUT - unknown models pass through, and only an explicit false blocks them - and :188 / :279 gate none the same way as xhigh. THAT ASYMMETRY IS THE REASON THIS FILE EXISTS: it is a property of litellm's transformation code, not of your deployment, so it is the same on every LiteLLM proxy and has no counterpart in vLLM or OpenRouter. off is absent too, and absent is NOT the same as null: an absent level stays supported and reaches the wire as no parameter at all, which leaves your endpoint applying ITS OWN DEFAULT EFFORT rather than none, while nulling off would be worse still - PI would clamp a request for off UPWARDS to minimal, clampThinkingLevel walking up before it walks down, and quietly buy more thinking than was asked for. Absent is right here only because the spelling for no reasoning belongs to the endpoint behind the proxy and cannot be known from this file; if yours accepts one, map off to it, and see docs/configuration/models.md for the three states side by side. To enable xhigh once your operator has set the flag, add \"xhigh\": \"xhigh\" to that model's map in config/models.json and confirm the flag through /model/info first.",
     "reasoning IS ASKED PER MODEL AND DEFAULTS TO false ON PURPOSE. PI never emits reasoning_effort for a model with `reasoning: false` - every level clamps to off and the emitter writes nothing - so a wrong false only costs you the thinking menu. A wrong true sends the parameter to a model that has no use for it, and a LiteLLM proxy that is not running with drop_params answers 400 on every turn rather than ignoring it. Say true only for ids you know reason.",
     "MODEL IDS ARE THE PROXY'S NAMES, NOT THE VENDOR'S. `model_name` in the operator's config.yaml is an alias they chose; the vendor id lives underneath in litellm_params and you never send it. Do not copy ids from a vendor's documentation, and do not copy the examples in this file - they are illustrative. One call lists everything you need for this interview at once: `curl -sS -H \"Authorization: Bearer $LITELLM_API_KEY\" \"<baseUrl>/model/info\" | jq -r '.data[] | [.model_name, .model_info.max_input_tokens, .model_info.input_cost_per_token, .model_info.output_cost_per_token] | @tsv'`.",
-    "A ZERO ON THE STATUS LINE MEANS UNPRICED, NOT FREE, SO THIS FRAGMENT ASKS THE PRICE INSTEAD OF LEAVING IT OUT. `cost` is optional in models.json and required on PI's runtime model type, so the composer substitutes {input:0,output:0,cacheRead:0,cacheWrite:0} for a model that omits it and the session reads a flat 0.000 while really costing money. A template cannot know your rates - an alias costs whatever the proxy's operator configured, not the vendor's list price - so the interview asks per model and writes the answer into config/models.json before the first request. Exactly two answers exist and there is no third spelling. METERED is the four rates in DOLLARS PER MILLION TOKENS, which is why the prompts insist on the conversion: /model/info quotes input_cost_per_token and output_cost_per_token in DOLLARS PER TOKEN, PI divides by 1000000 again before multiplying by the usage counter, and an unconverted figure is wrong by six orders of magnitude and still renders. UNMETERED writes four explicit zeros, meaning this alias bills nothing or bills by something other than tokens; written down, that satisfies `bin/pi-check` rule PC-27 and the cost gate permanently, where an omission satisfies neither. Re-answer by re-running the installer, or by editing `cost` next to the model in config/models.json: proxy pricing is a deployment setting and can change without anything in this repository changing.",
+    "THE PRICE IS ASKED DURING THE INTERVIEW, NOT LEFT FOR YOU TO REMEMBER. `cost` is optional in this file and required on PI's runtime model type, so a model that omits it gets {input:0,output:0,cacheRead:0,cacheWrite:0} substituted by the composer: the status line reads a flat 0.000 for the whole session while the proxy bills you, and extensions/cost-gate ends the first billed turn on that model rather than let it stand. So the installer asks per model and writes one of the two declarations that gate accepts - the rates you type, or four written zeros - and bin/pi-check's PC-27 re-asks the same question of the generated config/models.json before you start a session. Read input_cost_per_token and output_cost_per_token off /model/info and MULTIPLY BY 1000000: LiteLLM quotes DOLLARS PER TOKEN, PI's `cost` is DOLLARS PER MILLION TOKENS and divides by 1000000 before multiplying by the usage counter, so a per-token figure pasted straight in is wrong by six orders of magnitude and still renders. Answer unmetered only when you mean it: it says this endpoint bills nothing, or bills by something other than tokens, and it is accepted forever without another warning. cacheRead and cacheWrite are written as literal zeros because cacheControlFormat is deliberately unset here (see the note on the two unset flags), so PI never sends a cache breakpoint through the proxy and both counters stay at zero; give them real rates in config/models.json on the day you set that flag. Re-check after any change on the proxy: pricing is a deployment setting its operator can switch on without anything in this repository changing.",
     "TWO FLAGS DELIBERATELY LEFT UNSET. supportsStrictMode - whether strict JSON-schema tool calling survives depends on the model behind the alias, and declaring it wrongly turns occasional malformed tool JSON into a hard rejection. cacheControlFormat - a proxy in the path does not reliably surface cache_control breakpoints, and declaring \"anthropic\" here would report prompt-cache savings that did not happen.",
     "A 429 IS YOUR KEY'S BUDGET, NOT AN OUTAGE. LiteLLM enforces rpm/tpm and max_budget per virtual key. If turns start failing under load, lower the concurrency answer above or ask for a larger budget - retrying harder makes it worse. There is no failover in this harness: a request to this provider that cannot be served aborts and names it."
   ],

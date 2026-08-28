@@ -44,6 +44,7 @@
 #   ./scripts/install.sh --prefix /tmp/pi-test --yes    # install into a throwaway tree
 #   ./scripts/install.sh --reconfigure            # re-run the interview over an existing install
 #   ./scripts/install.sh --repair                 # re-link and re-verify, ask nothing
+#   ./scripts/install.sh --section maintenance    # just the auto-update check
 #
 # Flags:
 #   --express                 short path: providers, credentials and the safety posture only
@@ -52,7 +53,8 @@
 #   --write-answers FILE      where this run's answers are saved (default: <agent-dir>/install-answers.conf)
 #   --providers a,b           preselect providers, skipping the picker
 #   --tier NAME=provider/id   preset one tier binding (repeatable)
-#   --section NAME            reconfigure only one section: providers|tiers|agent|safety|tools|shell
+#   --section NAME            reconfigure only one section:
+#                             providers|tiers|agent|safety|tools|shell|maintenance
 #   --prefix DIR              install root instead of $HOME (also $PI_INSTALL_PREFIX). Relocates the
 #                             runtime tree only: the generated config/*.json is always written into
 #                             THIS clone, so a throwaway install overwrites the real one's.
@@ -251,6 +253,10 @@ ans_set() { local tmp="$SCRATCH/ans.$$"
   grep -v "^$(_ans_re "$1")=" "$ANSWERS" > "$tmp" 2>/dev/null || true
   printf '%s=%s\n' "$1" "$2" >> "$tmp"; mv "$tmp" "$ANSWERS"; }
 ans_get() { sed -n "s/^$(_ans_re "$1")=//p" "$ANSWERS" | tail -n1; }
+# The inverse of ans_set. Used where a run has to be RE-asked a question it already has an answer
+# to: ask() short-circuits on a stored key, so forgetting the key is how you get the prompt back.
+ans_unset() { local tmp="$SCRATCH/ans.$$"
+  grep -v "^$(_ans_re "$1")=" "$ANSWERS" > "$tmp" 2>/dev/null || true; mv "$tmp" "$ANSWERS"; }
 ans_has() { grep -q "^$(_ans_re "$1")=" "$ANSWERS" 2>/dev/null; }
 
 load_answer_file() { # load_answer_file <file> <overwrite 0|1>
@@ -317,11 +323,16 @@ validate() { # validate <type> <value> <choices-csv>
         *.*|localhost) : ;;
         *) _verr "that does not look like a hostname"; return 1 ;;
       esac ;;
-    number)
-      # Not `int`: a price is the one fragment answer that is routinely fractional (0.25 dollars
-      # per million tokens is a real rate), and rejecting the decimal point would leave the
-      # operator rounding a rate to nothing rather than stating it.
-      case "$val" in ''|*[!0-9.]*|*.*.*|.*|*.) _verr "must be a number, digits with at most one decimal point"; return 1 ;; esac ;;
+    decimal)
+      # A price, not a count. 0, 2, 2.5 and 0.075 are all legal answers here and `int` rejects
+      # three of them, so a rate typed correctly would be refused until the operator rounded it —
+      # which is how an interview teaches someone to write down a number that is not the price.
+      # Globs rather than a regex: this runs before the fragment's own ECMAScript pattern and must
+      # be able to reject "abc" without node.
+      case "$val" in
+        ''|*[!0-9.]*|*.*.*|.*|*.)
+          _verr "must be a number, with a leading digit and at most one decimal point (e.g. 0.075)"; return 1 ;;
+      esac ;;
     port|int)
       case "$val" in ''|*[!0-9]*) _verr "must be a number"; return 1 ;; esac
       if [ "$type" = port ] && { [ "$val" -lt 1 ] || [ "$val" -gt 65535 ]; }; then
@@ -432,7 +443,7 @@ backup_file() { # backup_file <path> — move aside, record where, never overwri
 # home directory, a chosen default model — became the next commit in anyone's fork. Measured, not
 # theorised: a --prefix test run wrote a scratch directory into config/trusted-roots.json, and it
 # survived into the working copy.
-GENERATED_CONFIGS="settings guard trusted-roots path-defaults web web-search quota subagent"
+GENERATED_CONFIGS="settings guard trusted-roots path-defaults web web-search quota subagent auto-update"
 
 cfg_seed() { # cfg_seed <name> — a path that exists NOW, so the interview can read current values
   local live="$REPO_DIR/config/$1.json"
@@ -603,7 +614,7 @@ if [ "$HAVE_GENERATED_CONFIG" = 1 ] || [ "$HAVE_LINKS" = 1 ] || [ -n "$INSTALLED
   elif [ "$INTERACTIVE" = 1 ]; then
     printf '\n   %sWhat should this run do?%s\n' "$C_B" "$C_0"
     printf '     1) reconfigure everything  — the full interview, your answers pre-filled\n'
-    printf '     2) reconfigure one section — providers, tiers, agent, safety, tools or shell\n'
+    printf '     2) reconfigure one section — providers, tiers, agent, safety, tools, shell or maintenance\n'
     printf '     3) repair                  — re-link and re-verify, ask nothing\n'
     printf '     4) leave it alone          — exit now, change nothing\n'
     _ex=""
@@ -611,10 +622,10 @@ if [ "$HAVE_GENERATED_CONFIG" = 1 ] || [ "$HAVE_LINKS" = 1 ] || [ -n "$INSTALLED
       printf '   choice [3]: '; _read_tty _ex; [ -n "$_ex" ] || _ex=3
       case "$_ex" in
         1) RECONFIGURE=1; break ;;
-        2) printf '   which section? [providers|tiers|agent|safety|tools|shell]: '
+        2) printf '   which section? [providers|tiers|agent|safety|tools|shell|maintenance]: '
            _read_tty ONLY_SECTION
            case "$ONLY_SECTION" in
-             providers|tiers|agent|safety|tools|shell) RECONFIGURE=1; break ;;
+             providers|tiers|agent|safety|tools|shell|maintenance) RECONFIGURE=1; break ;;
              *) printf '   %sunknown section%s\n' "$C_ER" "$C_0"; ONLY_SECTION="" ;;
            esac ;;
         3) REPAIR=1; break ;;
@@ -807,7 +818,8 @@ for p in $SELECTED; do
           choice)  ask "$p.$f1" "$f3" "$f4" enum "$f5" "$f6" "$_why" "" "" >/dev/null ;;
           boolean) ask "$p.$f1" "$f3" "${f4:-false}" enum "$f5" "true,false" "$_why" "" "" >/dev/null ;;
           port)    ask "$p.$f1" "$f3" "$f4" port "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
-          number)  ask "$p.$f1" "$f3" "$f4" number "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
+          number)  ask "$p.$f1" "$f3" "$f4" int  "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
+          decimal) ask "$p.$f1" "$f3" "$f4" decimal "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
           *)       ask "$p.$f1" "$f3" "$f4" string "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
         esac ;;
     esac
@@ -1308,6 +1320,63 @@ else
   todo_add "     add this to your shell rc yourself:  . $RC_ENV"
 fi
 
+# ==================================================================== SECTION 10: maintenance ===
+section "Staying up to date" \
+  "PiON updates by fast-forwarding this clone. A cron entry can watch origin/main every half hour and leave a note; whether to APPLY what it found stays a decision you make in a session, with the commit list on screen."
+
+AUTOUPDATE_FILE="$REPO_DIR/config/auto-update.json"
+AUTOUPDATE_SCRIPT="$REPO_DIR/scripts/auto-update-check.sh"
+# The whole cron contract in one string. Every operation on the crontab — add, replace, remove,
+# and uninstall.sh's own removal — matches on THIS marker and nothing else, so a line a user wrote
+# by hand that happens to call the same script is never touched by us.
+CRON_MARK="# pi-config:auto-update"
+# Read from the live config when there is one, the template otherwise. The key is therefore
+# load-bearing rather than decorative: edit config/auto-update.json, re-run --section maintenance
+# (or --repair), and the entry is rewritten at the new cadence.
+AUTOUPDATE_INTERVAL="$(json get "$(cfg_seed auto-update)" autoUpdate.intervalMinutes 2>/dev/null || printf '30')"
+case "$AUTOUPDATE_INTERVAL" in ''|*[!0-9]*) AUTOUPDATE_INTERVAL=30 ;; esac
+[ "$AUTOUPDATE_INTERVAL" -ge 1 ] 2>/dev/null && [ "$AUTOUPDATE_INTERVAL" -le 59 ] || AUTOUPDATE_INTERVAL=30
+CRON_LINE="*/$AUTOUPDATE_INTERVAL * * * * $AUTOUPDATE_SCRIPT >/dev/null 2>&1 $CRON_MARK"
+
+# ask() returns a stored answer WITHOUT asking, which is right for --yes and --answers and wrong
+# for the one run where the user explicitly asked to be interviewed again. --reconfigure and
+# --section both set RECONFIGURE=1: drop the stored value, re-offer it as the default. The
+# question gets asked; Enter still keeps the previous answer.
+if [ "$RECONFIGURE" = 1 ] && [ "$INTERACTIVE" = 1 ] && ask_section maintenance; then
+  for _k in autoupdate.enabled autoupdate.mode; do
+    if ans_has "$_k"; then eval "_prev_${_k##*.}=\$(ans_get "$_k")"; ans_unset "$_k"; fi
+  done
+fi
+_au_enabled_def="${_prev_enabled:-false}"
+_au_mode_def="${_prev_mode:-prompt}"
+
+if ask_section maintenance && [ "$EXPRESS" = 0 ]; then
+  AUTOUPDATE_ENABLED="$(ask autoupdate.enabled "check origin/main for updates every $AUTOUPDATE_INTERVAL minutes" \
+    "$_au_enabled_def" enum 1 "true,false" \
+    "A user-level cron entry running scripts/auto-update-check.sh. It fetches and counts; it never merges, never checks out, and never touches your working tree. Off by default: a background job that talks to a network every half hour is yours to opt into, not ours to assume.")"
+  if [ "$AUTOUPDATE_ENABLED" = true ]; then
+    ask autoupdate.mode "when an update is waiting, prompt or auto" "$_au_mode_def" enum 1 "prompt,auto" \
+      "prompt: the next session tells you, and you run ./scripts/update.sh when it suits you. auto: that session starts ./scripts/update.sh --yes in the background for you. Read the warning in docs/extensions/auto-update.md before choosing auto — it rewrites the tree the running session is reading from." >/dev/null
+  fi
+else
+  ans_has autoupdate.enabled || ans_set autoupdate.enabled "$_au_enabled_def"
+  ans_has autoupdate.mode    || ans_set autoupdate.mode "$_au_mode_def"
+  AUTOUPDATE_ENABLED="$(ans_get autoupdate.enabled)"
+fi
+[ "$AUTOUPDATE_ENABLED" = true ] || AUTOUPDATE_ENABLED=false
+# The mode question is only reached when the first answer was yes, so on every other path it has
+# no stored value at all — and `autoUpdate.mode: ""` is a state the config schema, the check
+# script and the extension all have no reading for. Record the default instead: turning
+# auto-update on later, or replaying this answers file, then starts from a real value.
+ans_has autoupdate.mode || ans_set autoupdate.mode "$_au_mode_def"
+
+if [ "$AUTOUPDATE_ENABLED" = true ]; then
+  plan_add "write config/auto-update.json (enabled, mode=$(ans_get autoupdate.mode))"
+  plan_add "add one user-level cron entry: $CRON_LINE"
+else
+  plan_add "write config/auto-update.json (auto-update off) and remove any cron entry we added before"
+fi
+
 # =================================================================== review, then apply =========
 step "Review — nothing has been written yet"
 
@@ -1326,6 +1395,9 @@ printf '   symlinked into %s\n' "$AGENT_DIR"
 printf '   helpers onto   %s\n' "$BIN_DIR"
 printf '   secrets file   %s (0600)\n' "$SECRETS_FILE"
 printf '   shell rc       %s\n' "$( [ "$DO_SHELL" = 1 ] && printf '%s' "$RC_CANDIDATES" || printf 'untouched' )"
+printf '   auto-update    %s\n' "$( [ "$AUTOUPDATE_ENABLED" = true ] \
+  && printf 'cron every %s min, %s on the next session' "$AUTOUPDATE_INTERVAL" "$(ans_get autoupdate.mode)" \
+  || printf 'off — no cron entry, no background fetch' )"
 printf '   manifest       %s  (what uninstall.sh reads back)\n' "$MANIFEST"
 if [ -s "$CRED_ACTIONS" ]; then
   printf '\n   credentials:\n'
@@ -2009,6 +2081,61 @@ else
   esac
 fi
 
+# --------------------------------------------------------------------- apply: auto-update -----
+step "Auto-update"
+
+# The preference is written whatever the answer was. "off" recorded in the file is not the same
+# state as "no file": the check script reads this to decide whether to do anything at all, and a
+# cron entry added by hand against a missing config would then run against the shipped default
+# rather than against a decision anybody made.
+cfg_set "$AUTOUPDATE_FILE" \
+  "autoUpdate.enabled=json:$AUTOUPDATE_ENABLED" \
+  "autoUpdate.mode=str:$(ans_get autoupdate.mode)" \
+  "autoUpdate.intervalMinutes=json:$AUTOUPDATE_INTERVAL"
+
+if ! command -v crontab >/dev/null 2>&1; then
+  # Not a failure: containers, minimal images and locked-down laptops routinely have no cron at
+  # all. The preference is still recorded, the check script still works by hand, and the one
+  # thing that cannot happen silently is the schedule going missing.
+  if [ "$AUTOUPDATE_ENABLED" = true ]; then
+    warn "crontab is not on PATH — the periodic check could not be scheduled"
+    todo_add "     schedule the update check yourself (launchd, a systemd timer, your own runner): $AUTOUPDATE_SCRIPT, every $AUTOUPDATE_INTERVAL minutes"
+  else
+    ok "crontab is not on PATH — nothing to schedule and nothing to remove"
+  fi
+elif [ "$DRY_RUN" = 1 ]; then
+  if [ "$AUTOUPDATE_ENABLED" = true ]; then
+    printf '   %sdry-run%s crontab: add %s\n' "$C_D" "$C_0" "$CRON_LINE"
+  else
+    printf '   %sdry-run%s crontab: remove any line marked %s\n' "$C_D" "$C_0" "$CRON_MARK"
+  fi
+else
+  # Read-modify-write of the WHOLE crontab, filtered on our marker. `crontab -l | { cat; echo; } |
+  # crontab -` is the usual one-liner and it appends unconditionally, so a second install leaves
+  # two entries and a third leaves three. Filtering first makes add and replace the same
+  # operation, and makes "already there" a comparison rather than a grep.
+  CRON_CUR="$SCRATCH/crontab.cur"; CRON_NEW="$SCRATCH/crontab.new"
+  # A user with no crontab at all makes `crontab -l` exit 1 with "no crontab for <user>" — a
+  # normal state, not an error, and the reason this is not `set -e`'s business.
+  crontab -l > "$CRON_CUR" 2>/dev/null || : > "$CRON_CUR"
+  grep -vF "$CRON_MARK" "$CRON_CUR" > "$CRON_NEW" 2>/dev/null || : > "$CRON_NEW"
+  [ "$AUTOUPDATE_ENABLED" = false ] || printf '%s\n' "$CRON_LINE" >> "$CRON_NEW"
+  if cmp -s "$CRON_CUR" "$CRON_NEW"; then
+    if [ "$AUTOUPDATE_ENABLED" = true ]; then ok "the cron entry is already exactly: $CRON_LINE"
+    else ok "no auto-update cron entry to remove"; fi
+  elif crontab "$CRON_NEW"; then
+    if [ "$AUTOUPDATE_ENABLED" = true ]; then changed "crontab: $CRON_LINE"
+    else changed "crontab: removed the auto-update entry"; fi
+  else
+    # `crontab` refuses on a machine where cron is disabled by policy, and on macOS without Full
+    # Disk Access for the calling terminal. Both are worth the user's attention and neither is
+    # worth aborting an otherwise complete install for.
+    warn "crontab refused the new table — the schedule was NOT changed"
+    todo_add "     'crontab $CRON_NEW' was refused (on macOS this is usually Full Disk Access for your terminal). Add or remove the line marked '$CRON_MARK' with 'crontab -e' yourself"
+  fi
+  [ "$AUTOUPDATE_ENABLED" = false ] || manifest_add CRON "$AUTOUPDATE_SCRIPT" "$CRON_MARK"
+fi
+
 # Endpoints and choices only. ask_secret()'s values were never put in this store, by construction.
 if [ "$DRY_RUN" = 0 ]; then
   { printf '# Written by scripts/install.sh on %s.\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -2084,6 +2211,16 @@ if [ -f "$MCP_FILE" ]; then _mcp_now="$(json keys "$MCP_FILE" mcpServers 2>/dev/
 printf '   mcp servers  %s\n' "${_mcp_now:-none — config/mcp.example.json is the annotated template}"
 if [ "$(ans_get skills.dir)" = "1" ]; then
   printf '   your skills  %s/<name>/SKILL.md   (git-ignored; the repo ships none)\n' "$SKILLS_DIR"
+fi
+# Read back from the file for the same reason as the two lines above it: on --repair and on
+# --section <anything-else> the question was never asked this run, so the ANSWER is whatever the
+# previous run stored while the file is what the check script will actually obey.
+_au_now="$(json get "$AUTOUPDATE_FILE" autoUpdate.enabled 2>/dev/null || printf 'false')"
+if [ "$_au_now" = true ]; then
+  printf '   auto-update  every %s min -> %s, then %s at the next session\n' \
+    "$AUTOUPDATE_INTERVAL" "$AGENT_DIR/update-pending" "$(json get "$AUTOUPDATE_FILE" autoUpdate.mode 2>/dev/null || printf 'prompt')"
+else
+  printf '   auto-update  off  (turn it on later: ./scripts/install.sh --section maintenance)\n'
 fi
 printf '   answers      %s   (re-run with --answers to reproduce this exactly)\n' "$ANSWERS_OUT"
 printf '   manifest     %s   (uninstall.sh reads this)\n' "$MANIFEST"

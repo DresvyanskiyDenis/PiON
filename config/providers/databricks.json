@@ -158,7 +158,12 @@
         "input": ["text", "image"],
         "contextWindow": "{{primaryContextWindow}}",
         "maxTokens": "{{primaryMaxTokens}}",
-        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        }
       },
       {
         "$omitIfBlank": "lightEndpoint",
@@ -169,7 +174,12 @@
         "input": ["text", "image"],
         "contextWindow": "{{lightContextWindow}}",
         "maxTokens": "{{lightMaxTokens}}",
-        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        }
       }
     ]
   },
@@ -184,7 +194,7 @@
     "TWO FLAGS DELIBERATELY LEFT UNSET. supportsStrictMode - tool calling works but strict JSON-schema mode is rejected, so expect occasional malformed tool JSON (a model-quality problem, not a config one). cacheControlFormat - Claude-on-Databricks does not surface cache_control breakpoints, and declaring \"anthropic\" here would report prompt-cache savings that do not exist.",
     "EGRESS CLASS IS `confidential` BECAUSE THE WORKSPACE IS YOURS. That is a DECLARATION about where the data goes, not a network control - nothing in this harness can stop a request reaching a public provider if a tier is bound to one. It is what lets the dispatcher refuse to send a confidential session to a public-class provider by name.",
     "AN IP ACCESS LIST ON THE WORKSPACE LOOKS LIKE AN AUTH FAILURE AND IS NOT ONE. If the workspace denies your current address, every call including inference returns 403 with a body that reads like a credential problem. Check your network position before regenerating tokens.",
-    "THE FOUR ZEROS IN `cost` ARE WRITTEN DOWN ON PURPOSE, AND THEY DO NOT MEAN FREE. Model Serving bills by DBU consumption per endpoint rather than per token, so there is no per-token rate to state and any number here would be a conversion this repository invented. Four zeros are how that is said in a `cost` object: `bin/pi-check` rule PC-27 and the cost gate both accept them as a declaration, and both end on an omission - an omitted `cost` is substituted with the same zeros silently, and afterwards nobody can tell a decision from a forgotten field. Track the real spend in the Databricks account console, not on PI's status line, which reads 0.000 for the whole session by design here. If you do decide to put an estimate in, the units are DOLLARS PER MILLION TOKENS: PI divides each rate by 1000000 before multiplying by the usage counter."
+    "THE FOUR ZEROS ON THIS MODEL ARE WRITTEN DOWN, AND THEY MEAN UNPRICED PER TOKEN, NOT FREE. Model Serving bills by DBU consumption per endpoint rather than per token, so there is no per-token rate to write into a `cost` object at all, and any number here would be a conversion this repository invented. That is why this fragment answers the question rather than skipping it: `cost` is optional in this file and required on PI's runtime model type, and an omission gets {input:0,output:0,cacheRead:0,cacheWrite:0} substituted by the composer, which is the same object these four zeros are but with nobody's decision behind it. extensions/cost-gate and bin/pi-check's PC-27 both read that difference, and both accept what is written here, so a session on this provider starts and reports a flat 0.000 spend on purpose. Track the real bill in the Databricks account console, not in PI. If you do decide to put an estimate in, the units are DOLLARS PER MILLION TOKENS: PI divides each rate by 1000000 before multiplying by the usage counter."
   ],
 
   "verify": [
