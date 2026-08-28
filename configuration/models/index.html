@@ -4553,6 +4553,11 @@ the usage counter, so a per-token figure pasted out of a price page is wrong by 
 magnitude and still renders happily.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
+<p>Two things ask this question for you. <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> ends the session
+the first time an unpriced model bills tokens, which is correct and late: on a fresh install that
+is turn one, already billed. <code>bin/pi-check</code>'s <code>PC-27</code> asks it statically over this file, and the
+installer runs <code>bin/pi-check --all</code> as its last step, so the answer normally arrives before the
+first request. After hand-editing this file, re-run it.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">On a gateway, probe the rate — do not copy the upstream vendor's price page</p>
@@ -4794,6 +4799,11 @@ test greps for, because the units are the easy thing to get wrong and the wrong 
 without complaint.</p>
 <p><code>builtIn</code> fragments are exempt by construction: they override PI's own catalogues, which already
 carry complete non-zero costs.</p>
+<p>A <code>notes[]</code> entry satisfies <strong>that</strong> test, which is about fragments. It does not satisfy
+<a href="../../extensions/cost-gate/"><code>cost-gate</code></a> or <code>PC-27</code>, which read the composed
+<code>config/models.json</code> and accept only a written <code>cost</code>. For a model whose price nobody can
+establish, the fragment note explains <em>why</em> and the four explicit zeros are what make the file
+pass. A note on its own leaves the session to be aborted on turn one.</p>
 </div>
 <p>The fragment schema, the substitution rules and the merge algorithm are documented in
 <code>config/providers/README.md</code>, which is the contract between the fragments and the installer. To

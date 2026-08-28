@@ -2051,6 +2051,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-static-half-pc-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The static half: PC-27
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-it-will-not-do" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4036,6 +4047,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-static-half-pc-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The static half: PC-27
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-it-will-not-do" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4128,12 +4150,42 @@ would disarm the gate on every session it exists to catch.</p>
 <p>On a fresh session that is turn one. The run ends before any work exists, the fix is one line in
 <code>models.json</code>, and the operator starts again. Weigh that against a session that runs to
 completion misreporting its spend, and it is not a close call.</p>
+<p>It is still the <em>earliest moment the evidence exists</em>, which is not the same as early: on a
+fresh install, turn one was billed before the gate could read it. That is what the static half
+below is for.</p>
 </div>
+<h2 id="the-static-half-pc-27">The static half: <code>PC-27</code><a class="headerlink" href="#the-static-half-pc-27" title="Permanent link">&para;</a></h2>
+<p>The gate needs a response to judge, and that is what makes it late. <code>bin/pi-check</code>'s
+<code>PC-27</code> asks the same question of the same file with no response, no evidence and no consequence
+beyond a red line: <strong>which declared models would the composer have to invent a price for?</strong></p>
+<p>It runs where a wrong answer is free:</p>
+<ul>
+<li><code>scripts/install.sh</code> ends with <code>bin/pi-check --all</code>, after <code>config/models.json</code> has been generated
+  from the provider fragments and before any session exists;</li>
+<li><code>scripts/postinstall-verify.sh</code> runs it again as one of its checks, which is what
+  <code>scripts/update.sh</code> invokes at the end of an update unless <code>--no-verify</code> was passed;</li>
+<li><code>bin/pi-check --all</code> by hand gives the same answer at any later time, which is the only defence
+  for a model group added to <code>models.json</code> after the install.</li>
+</ul>
+<p>Both halves accept exactly the same two declarations, so a config that passes <code>PC-27</code> cannot then be
+ended by the gate:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">}</span><span class="w">   </span><span class="c1">// metered</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span><span class="w">      </span><span class="c1">// unmetered, on purpose</span>
+</span></code></pre></div>
+<p>A gateway quotes <strong>dollars per token</strong> (LiteLLM serves them on <code>/model/info</code> as
+<code>input_cost_per_token</code>); these rates are <strong>dollars per million tokens</strong>, so multiply by 1,000,000
+before writing them down. The abort block spells both declarations out verbatim, because the
+operator reading it has just lost turn one and should not have to go looking.</p>
 <h2 id="what-it-will-not-do">What it will not do<a class="headerlink" href="#what-it-will-not-do" title="Permanent link">&para;</a></h2>
 <p><strong>A deliberate zero stays legal and stays silent, forever.</strong> An endpoint that is genuinely unmetered
 is declared with four explicit zeros and a <code>notes[]</code> entry saying so, and this gate never looks at
 it again. The rule is not "every model must be priced" — it is that the zero must be <em>accounted
 for</em>.</p>
+<p><strong>A note is not a declaration.</strong> <code>notes[]</code> satisfies
+<a href="../../configuration/models/"><code>test/providers-cost.test.ts</code></a>, which governs the
+provider <em>fragments</em>; neither this gate nor <code>PC-27</code> reads notes, and both judge the composed
+<code>config/models.json</code>. A fragment that explains an absent <code>cost</code> in prose still renders a model the
+gate will stop the session on, so write the zeros as well.</p>
 <p>It also answers <strong>no opinion</strong> wherever certainty is unavailable, because ending a session is far
 worse to do wrongly than to skip:</p>
 <table>
