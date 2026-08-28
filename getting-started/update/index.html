@@ -849,6 +849,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#being-told-instead-of-remembering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Being told, instead of remembering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2842,6 +2853,8 @@
       
         
       
+        
+      
     
     
     
@@ -3098,6 +3111,34 @@
     
   
     auto-title — naming the session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/auto-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    auto-update — the reminder that an update is waiting
   
 
     
@@ -4115,6 +4156,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#being-told-instead-of-remembering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Being told, instead of remembering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4410,9 +4462,30 @@ has to be able to tell the two apart:</p>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">esac</span>
 </span></code></pre></div>
 <p>Full table, alongside every other script: <a href="../../reference/exit-codes/">Exit codes</a>.</p>
+<hr />
+<h2 id="being-told-instead-of-remembering">Being told, instead of remembering<a class="headerlink" href="#being-told-instead-of-remembering" title="Permanent link">&para;</a></h2>
+<p>Nothing above runs on its own. If you would rather be told when an update is waiting, the installer
+can schedule a check:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>maintenance
+</span></code></pre></div>
+<p>It asks two questions — whether to check <code>origin/main</code> every 30 minutes, and whether the next
+session should apply what it finds or simply mention it — and then registers one user-level cron
+entry:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>*/30 * * * * /path/to/pi-config/scripts/auto-update-check.sh &gt;/dev/null 2&gt;&amp;1 # pi-config:auto-update
+</span></code></pre></div>
+<p>The check never applies anything. It writes <code>~/.pi/agent/update-pending</code>, naming the commit range,
+and the <a href="../../extensions/auto-update/"><code>auto-update</code></a> extension turns that file into one line of
+system prompt at the start of your next session. You still run <code>./scripts/update.sh</code> — or, in
+<code>auto</code> mode, the extension runs it for you.</p>
+<p><code>update.sh</code> deletes the flag once the update it announced has been applied, which is why the
+reminder stops on its own rather than needing to be dismissed. Deleting the file by hand dismisses
+it too; the next check writes it again if the update is still waiting.</p>
+<p>Turning it off is the same command with the opposite answer: the cron entry is removed, and every
+other entry in your crontab is left exactly as it was.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../install/">Install</a> · <a href="../config-layout/">Configuration layout</a> · <a href="../../operations/verification/">Verification</a></li>
+<li><a href="../../extensions/auto-update/"><code>auto-update</code> extension</a> — the session-start half of the feature</li>
 </ul>
 
 
