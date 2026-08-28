@@ -1652,10 +1652,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-one-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-two-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty-one modules
+        One extension, thirty-two modules
       
     </span>
   </a>
@@ -2579,6 +2579,8 @@
       
         
       
+        
+      
     
     
     
@@ -2667,6 +2669,34 @@
     
   
     teammates — named long-lived child sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/message-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    message-agent — peer-to-peer messaging between running sessions
   
 
     
@@ -4008,10 +4038,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-one-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-two-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty-one modules
+        One extension, thirty-two modules
       
     </span>
   </a>
@@ -4099,7 +4129,7 @@
 
 
 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<h2 id="one-extension-thirty-one-modules">One extension, thirty-one modules<a class="headerlink" href="#one-extension-thirty-one-modules" title="Permanent link">&para;</a></h2>
+<h2 id="one-extension-thirty-two-modules">One extension, thirty-two modules<a class="headerlink" href="#one-extension-thirty-two-modules" title="Permanent link">&para;</a></h2>
 <p>PI discovers extensions by scanning <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code>. This
 repository deliberately does <strong>not</strong> use that. <code>config/settings.json</code> names exactly one file:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">]</span>
@@ -4134,7 +4164,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
     end
     subgraph orch["4 — orchestration"]
         direction LR
-        dispatch --&gt; teammates --&gt; worktree --&gt; jobs --&gt; tasks
+        dispatch --&gt; teammates --&gt; ma["message-agent"] --&gt; worktree --&gt; jobs --&gt; tasks
     end
     subgraph obs["5 — observability and lifecycle"]
         direction LR
@@ -4167,7 +4197,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
 <td>They publish configuration later modules read. <code>skill-mask</code> keeps its slot beside them; it registers nothing now, and moving a registered id is a bigger change than leaving it in place.</td>
 </tr>
 <tr>
-<td><strong><code>dispatch</code> precedes <code>teammates</code> / <code>worktree</code> / <code>jobs</code></strong></td>
+<td><strong><code>dispatch</code> precedes <code>teammates</code> / <code>message-agent</code> / <code>worktree</code> / <code>jobs</code></strong></td>
 <td>Those register providers and vetoes into registries <code>dispatch</code> owns.</td>
 </tr>
 <tr>
@@ -4195,7 +4225,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 <pre class="mermaid"><code>flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),&lt;br/&gt;rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 31 modules + config + bin/"]
+    OURS["this repository — 32 modules + config + bin/"]
     PI --- PKG --- OURS</code></pre>
 <p>The rule this project follows is <strong>package-first</strong>: adopt a community package where one exists and
 survives review, and write custom code only for the remainder. Dependency count is not a

@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/concepts/context-windows/">
+        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/extensions/message-agent/">
       
       
-        <link rel="prev" href="../providers-and-tiers/">
+        <link rel="prev" href="../teammates/">
       
       
-        <link rel="next" href="../safety-model/">
+        <link rel="next" href="../worktree/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Context windows: the rule that matters most - PiON</title>
+        <title>message-agent — peer-to-peer messaging between running sessions - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#context-windows-the-rule-that-matters-most" class="md-skip">
+        <a href="#message-agent-peer-to-peer-messaging-between-running-sessions" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Context windows: the rule that matters most
+              message-agent — peer-to-peer messaging between running sessions
             
           </span>
         </div>
@@ -299,13 +299,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../architecture/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../concepts/architecture/" class="md-tabs__link">
           
   
   
@@ -323,11 +321,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../extensions/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -1522,10 +1522,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -1541,22 +1539,19 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1574,7 +1569,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1592,7 +1587,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
+      <a href="../../concepts/architecture/" class="md-nav__link">
         
   
   
@@ -1620,7 +1615,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../providers-and-tiers/" class="md-nav__link">
+      <a href="../../concepts/providers-and-tiers/" class="md-nav__link">
         
   
   
@@ -1645,37 +1640,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Context windows: the rule that matters most
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../concepts/context-windows/" class="md-nav__link">
         
   
   
@@ -1691,114 +1659,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-mechanism-exactly" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The mechanism, exactly
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-raising-reservetokens-is-not-the-answer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why raising reserveTokens is not the answer
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-the-catalogue-lies-and-why-that-is-nobodys-fault" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why the catalogue lies, and why that is nobody's fault
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-to-find-the-real-number" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How to find the real number
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-200-000-cap-and-what-it-costs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The 200 000 cap, and what it costs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verifying-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verifying it
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-related-mystery-nothing-to-compact-session-too-small" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The related mystery: "Nothing to compact (session too small)"
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#checklist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Checklist
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1811,7 +1671,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../safety-model/" class="md-nav__link">
+      <a href="../../concepts/safety-model/" class="md-nav__link">
         
   
   
@@ -1843,6 +1703,8 @@
       
   
   
+    
+  
   
   
     
@@ -1866,20 +1728,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../extensions/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1897,13 +1762,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1941,17 +1806,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
             
   
   
@@ -1987,7 +1855,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/guard/" class="md-nav__link">
+      <a href="../guard/" class="md-nav__link">
         
   
   
@@ -2015,7 +1883,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/trust/" class="md-nav__link">
+      <a href="../trust/" class="md-nav__link">
         
   
   
@@ -2043,7 +1911,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/session-context/" class="md-nav__link">
+      <a href="../session-context/" class="md-nav__link">
         
   
   
@@ -2071,7 +1939,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/credentials/" class="md-nav__link">
+      <a href="../credentials/" class="md-nav__link">
         
   
   
@@ -2099,7 +1967,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/cost-gate/" class="md-nav__link">
+      <a href="../cost-gate/" class="md-nav__link">
         
   
   
@@ -2153,17 +2021,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
             
   
   
@@ -2199,7 +2070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/path-defaults/" class="md-nav__link">
+      <a href="../path-defaults/" class="md-nav__link">
         
   
   
@@ -2227,7 +2098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/path-rules/" class="md-nav__link">
+      <a href="../path-rules/" class="md-nav__link">
         
   
   
@@ -2255,7 +2126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/skills-env/" class="md-nav__link">
+      <a href="../skills-env/" class="md-nav__link">
         
   
   
@@ -2283,7 +2154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/skill-mask/" class="md-nav__link">
+      <a href="../skill-mask/" class="md-nav__link">
         
   
   
@@ -2311,7 +2182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/skills-lint/" class="md-nav__link">
+      <a href="../skills-lint/" class="md-nav__link">
         
   
   
@@ -2367,17 +2238,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
         
           
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
             
   
   
@@ -2413,7 +2287,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/ask-user/" class="md-nav__link">
+      <a href="../ask-user/" class="md-nav__link">
         
   
   
@@ -2441,7 +2315,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/web/" class="md-nav__link">
+      <a href="../web/" class="md-nav__link">
         
   
   
@@ -2469,7 +2343,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/bash/" class="md-nav__link">
+      <a href="../bash/" class="md-nav__link">
         
   
   
@@ -2497,7 +2371,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/hooks/" class="md-nav__link">
+      <a href="../hooks/" class="md-nav__link">
         
   
   
@@ -2525,7 +2399,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/input-transform/" class="md-nav__link">
+      <a href="../input-transform/" class="md-nav__link">
         
   
   
@@ -2553,7 +2427,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/big-results/" class="md-nav__link">
+      <a href="../big-results/" class="md-nav__link">
         
   
   
@@ -2586,8 +2460,10 @@
                 
   
   
+    
   
   
+  
     
     
       
@@ -2608,18 +2484,21 @@
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
         
           
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
             
   
   
@@ -2637,7 +2516,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2655,7 +2534,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/dispatch/" class="md-nav__link">
+      <a href="../dispatch/" class="md-nav__link">
         
   
   
@@ -2683,7 +2562,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/teammates/" class="md-nav__link">
+      <a href="../teammates/" class="md-nav__link">
         
   
   
@@ -2708,10 +2587,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../extensions/message-agent/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    message-agent — peer-to-peer messaging between running sessions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2727,6 +2633,114 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The directory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#addressing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Addressing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delivery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replying" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replying
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Actions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it is not
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2739,7 +2753,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/worktree/" class="md-nav__link">
+      <a href="../worktree/" class="md-nav__link">
         
   
   
@@ -2767,7 +2781,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/jobs/" class="md-nav__link">
+      <a href="../jobs/" class="md-nav__link">
         
   
   
@@ -2795,7 +2809,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/tasks/" class="md-nav__link">
+      <a href="../tasks/" class="md-nav__link">
         
   
   
@@ -2859,17 +2873,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
         
           
-          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
             
   
   
@@ -2905,7 +2922,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/quota/" class="md-nav__link">
+      <a href="../quota/" class="md-nav__link">
         
   
   
@@ -2933,7 +2950,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/subagent-cost/" class="md-nav__link">
+      <a href="../subagent-cost/" class="md-nav__link">
         
   
   
@@ -2961,7 +2978,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/digest/" class="md-nav__link">
+      <a href="../digest/" class="md-nav__link">
         
   
   
@@ -2989,7 +3006,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/compaction/" class="md-nav__link">
+      <a href="../compaction/" class="md-nav__link">
         
   
   
@@ -3017,7 +3034,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/context-report/" class="md-nav__link">
+      <a href="../context-report/" class="md-nav__link">
         
   
   
@@ -3045,7 +3062,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/context-imports/" class="md-nav__link">
+      <a href="../context-imports/" class="md-nav__link">
         
   
   
@@ -3073,7 +3090,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/session-index/" class="md-nav__link">
+      <a href="../session-index/" class="md-nav__link">
         
   
   
@@ -3101,7 +3118,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/auto-title/" class="md-nav__link">
+      <a href="../auto-title/" class="md-nav__link">
         
   
   
@@ -3129,7 +3146,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/thinking-indicator/" class="md-nav__link">
+      <a href="../thinking-indicator/" class="md-nav__link">
         
   
   
@@ -3157,7 +3174,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../extensions/doctor/" class="md-nav__link">
+      <a href="../doctor/" class="md-nav__link">
         
   
   
@@ -4060,10 +4077,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-mechanism-exactly" class="md-nav__link">
+  <a href="#the-directory" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The mechanism, exactly
+        The directory
       
     </span>
   </a>
@@ -4071,10 +4088,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-raising-reservetokens-is-not-the-answer" class="md-nav__link">
+  <a href="#addressing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why raising reserveTokens is not the answer
+        Addressing
       
     </span>
   </a>
@@ -4082,10 +4099,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-the-catalogue-lies-and-why-that-is-nobodys-fault" class="md-nav__link">
+  <a href="#delivery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why the catalogue lies, and why that is nobody's fault
+        Delivery
       
     </span>
   </a>
@@ -4093,10 +4110,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#how-to-find-the-real-number" class="md-nav__link">
+  <a href="#replying" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How to find the real number
+        Replying
       
     </span>
   </a>
@@ -4104,10 +4121,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-200-000-cap-and-what-it-costs" class="md-nav__link">
+  <a href="#actions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The 200 000 cap, and what it costs
+        Actions
       
     </span>
   </a>
@@ -4115,10 +4132,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#verifying-it" class="md-nav__link">
+  <a href="#environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verifying it
+        Environment
       
     </span>
   </a>
@@ -4126,10 +4143,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-related-mystery-nothing-to-compact-session-too-small" class="md-nav__link">
+  <a href="#what-it-is-not" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The related mystery: "Nothing to compact (session too small)"
+        What it is not
       
     </span>
   </a>
@@ -4137,10 +4154,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#checklist" class="md-nav__link">
+  <a href="#related" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Checklist
+        Related
       
     </span>
   </a>
@@ -4164,7 +4181,7 @@
 
 
   
-    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/concepts/context-windows.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/extensions/message-agent.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4172,221 +4189,118 @@
   
 
 
-<h1 id="context-windows-the-rule-that-matters-most">Context windows: the rule that matters most<a class="headerlink" href="#context-windows-the-rule-that-matters-most" title="Permanent link">&para;</a></h1>
-<div class="admonition abstract">
-<p class="admonition-title">The rule</p>
-<p><strong><code>contextWindow</code> must be <code>min(200000, what the endpoint actually serves)</code> — per model, per
-provider.</strong></p>
-<p>Declare it too high and your request is not compacted here, it is <em>truncated there</em>. Silently.</p>
-</div>
-<p>This is the single most valuable operational lesson in this project and it is worth the page.</p>
-<h2 id="the-mechanism-exactly">The mechanism, exactly<a class="headerlink" href="#the-mechanism-exactly" title="Permanent link">&para;</a></h2>
-<p>PI's compaction trigger is one line. Measured against 0.84.0's shipped
-<code>dist/core/compaction/compaction.js</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>shouldCompact  ⇔  contextTokens &gt; contextWindow - settings.reserveTokens
+<h1 id="message-agent-peer-to-peer-messaging-between-running-sessions"><code>message-agent</code> — peer-to-peer messaging between running sessions<a class="headerlink" href="#message-agent-peer-to-peer-messaging-between-running-sessions" title="Permanent link">&para;</a></h1>
+<p>Registers the <code>message_agent</code> tool and <code>/peers</code>.</p>
+<p><strong>Not a transport.</strong> <code>pi.sendMessage()</code> already wakes a session, and four modules use it for exactly
+that — <a href="../dispatch/">dispatch</a> for a finished sub-agent, <a href="../jobs/">jobs</a> for a finished job,
+<a href="../tasks/">tasks</a> for a stale task, <a href="../context-imports/">context-imports</a> for nested instructions.
+But it is a handle on the <em>calling</em> session's own turn loop, so it delivers the last hop and nothing
+before it. <a href="../teammates/"><code>teammates</code></a> addresses children by name through a registry that lives in
+the lead's process, so a sibling cannot read it and nothing that did not do the spawning can either.</p>
+<p>The missing middle is the <strong>routing</strong>, and this module is only that: a directory on disk that says
+which names are live, and one inbox per name that any session may write into and only its owner
+drains.</p>
+<h2 id="the-directory">The directory<a class="headerlink" href="#the-directory" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;state&gt;/agents/&lt;name&gt;/
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  agent.json          {schema, name, sessionId, pid, cwd, sessionFile?, startedAt}
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  inbox/&lt;id&gt;.json     one undelivered message each
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  inbox/&lt;id&gt;.bad      an envelope that would not parse, kept rather than deleted
 </span></code></pre></div>
-<p>And <code>CompactionSettings</code> has exactly three keys: <code>enabled</code>, <code>reserveTokens</code>, <code>keepRecentTokens</code>.</p>
-<p>That is the whole trigger. Note what is not in it: there is <strong>no absolute-threshold key</strong>, and
-<strong><code>reserveTokens</code> is a single global scalar</strong> — one number for every model in the tree.</p>
-<p>So there are exactly two levers, and only one of them is usable:</p>
+<p><code>&lt;state&gt;</code> is <code>$XDG_STATE_HOME/pi-config</code> — runtime state, never the config tree, for the same reason
+<a href="../jobs/"><code>jobs</code></a> puts its store there: a configuration tree that carries another machine's runtime
+state with it is a configuration tree that cannot be copied.</p>
+<p>Every write is temp-file-then-rename, so a concurrent reader sees either no file or a whole one, and
+two senders never contend. There is no lock anywhere in this module.</p>
+<p><strong>Liveness is a pid, checked at read time.</strong> Nothing observes another session's exit — a session
+that is <code>SIGKILL</code>ed never runs <code>session_shutdown</code> — so a registration is a <em>claim</em>, verified by
+whoever looks next. A name whose process is gone is swept, and can then be claimed again.</p>
+<h2 id="addressing">Addressing<a class="headerlink" href="#addressing" title="Permanent link">&para;</a></h2>
+<p>A session registers at <code>session_start</code> under <code>PI_AGENT_NAME</code>, slugified, or under
+<code>agent-&lt;first 12 of the session id&gt;</code> when that variable is unset. <code>PI_AGENT_NAME=Reviewer</code> makes a
+session addressable as <code>reviewer</code> rather than as a hex string nobody will retype.</p>
+<p>A collision with a <strong>live</strong> holder resolves to <code>&lt;name&gt;-2</code> and is <strong>announced</strong>, never applied
+silently: two sessions answering one address is the failure this directory exists to prevent, and a
+message sent to the address the operator exported would otherwise land in the wrong session.</p>
+<h2 id="delivery">Delivery<a class="headerlink" href="#delivery" title="Permanent link">&para;</a></h2>
+<p><code>message_agent(target="reviewer", message="…")</code> returns when the envelope is on disk — never when it
+is read. The target drains its own inbox at <code>turn_end</code>, at <code>agent_settled</code>, and from a 2-second
+<code>unref</code>'d poll, then hands what it found to <code>pi.sendMessage()</code> with <code>deliverAs: "followUp"</code> and
+<code>triggerTurn: true</code>. That last flag is what makes an <strong>idle</strong> session wake rather than wait for its
+operator to type.</p>
+<p>A poll, not <code>fs.watch</code>: watching is per-platform, drops events under load, and has to be re-armed
+after every rename. One <code>readdir</code> of an almost-always-empty directory every two seconds is cheaper
+than that failure mode. Unlike <a href="../jobs/"><code>jobs</code></a>'s self-arming watcher, the poll runs for as long as
+the registration does — a message can arrive from a session this one has never heard of.</p>
+<p>An envelope that will not parse is renamed <code>&lt;id&gt;.bad</code> rather than deleted. It is somebody's message:
+the drain must neither loop on it forever nor lose it.</p>
+<h2 id="replying">Replying<a class="headerlink" href="#replying" title="Permanent link">&para;</a></h2>
+<p>The reply path is the same tool pointed the other way, and the inbound message text says so
+verbatim. There is no third contract to learn, and <a href="../teammates/"><code>teammates</code></a>' <code>reply_to_lead</code> keeps
+its single meaning — that module is untouched by this one.</p>
+<h2 id="actions">Actions<a class="headerlink" href="#actions" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Lever</th>
-<th>Scope</th>
-<th>Verdict</th>
+<th>Call</th>
+<th>Does</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>compaction.reserveTokens</code></td>
-<td><strong>global</strong></td>
-<td>Unusable as a threshold control. See below.</td>
+<td><code>message_agent(target=…, message=…)</code></td>
+<td>sends; <code>action</code> defaults to <code>"send"</code></td>
 </tr>
 <tr>
-<td><code>providers.&lt;p&gt;.modelOverrides.&lt;id&gt;.contextWindow</code></td>
-<td><strong>per model</strong></td>
-<td>The only per-model lever PI exposes. A pattern PI ships and uses itself.</td>
+<td><code>message_agent(action="list")</code></td>
+<td>every reachable session, this one marked</td>
+</tr>
+<tr>
+<td><code>message_agent(action="whoami")</code></td>
+<td>the name this session actually registered under, suffix and all</td>
 </tr>
 </tbody>
 </table>
-<h2 id="why-raising-reservetokens-is-not-the-answer">Why raising <code>reserveTokens</code> is not the answer<a class="headerlink" href="#why-raising-reservetokens-is-not-the-answer" title="Permanent link">&para;</a></h2>
-<p>Suppose you want compaction to fire at 180 000 tokens on a model whose catalogue entry claims a
-1 000 000-token window. Through <code>reserveTokens</code> that needs <code>1000000 - 180000 = 820000</code>.</p>
-<p>Now apply that same global scalar to every other model in the tree. Against a 200 000-token model,
-<code>200000 - 820000</code> is <strong>negative</strong>: <code>shouldCompact</code> returns true for <em>any</em> context at all.
-Compaction fires on every turn, its reduction falls under the loop guard's <code>minReductionRatio</code>, and
-after three consecutive non-reducing passes the <a href="../../extensions/compaction/">loop guard</a> aborts
-the run.</p>
-<p>This is not hypothetical. An earlier version of the compaction extension in this repository
-<em>printed that advice</em> — a warning line recommending <code>reserveTokens: 820000</code>. Following it would have
-broken three of five providers. Three faults were stacked:</p>
-<ol>
-<li>The extension hard-coded PI's <em>default</em> reserve (<code>16384</code>) instead of reading the configured
-   value, so the trigger it reported was never the trigger in effect. <strong>A default was being printed
-   as a measurement.</strong></li>
-<li>The advice treated a global scalar as if it were per-model.</li>
-<li>The project's own tracking had recorded the non-implementable approach as <em>applied</em>.</li>
-</ol>
-<p>The fix is in <code>extensions/compaction/threshold.ts</code>, and the interesting part is not the arithmetic:
-the module now resolves the reserve exactly the way PI does (compaction event → project settings →
-global settings → PI default) and <strong>carries the source alongside the value</strong>, so a default can never
-again be printed as a measurement.</p>
-<h2 id="why-the-catalogue-lies-and-why-that-is-nobodys-fault">Why the catalogue lies, and why that is nobody's fault<a class="headerlink" href="#why-the-catalogue-lies-and-why-that-is-nobodys-fault" title="Permanent link">&para;</a></h2>
-<p>PI ships a bundled model catalogue. It declares generous windows — for many hosted models,
-1 000 000 to 1 050 000 tokens. Those numbers are true of the model as the vendor publishes it.</p>
-<p>They are frequently <strong>not</strong> true of the endpoint you are actually calling. A gateway, a tenant
-deployment, an enterprise proxy or a regional endpoint can and does serve a smaller window than the
-upstream model's headline number, and it has no obligation to tell PI so.</p>
-<p>Worse, "the window" is often two numbers that are not the same:</p>
+<p><code>/peers</code> prints the same directory listing as <code>action="list"</code>.</p>
+<h2 id="environment">Environment<a class="headerlink" href="#environment" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Meaning</th>
+<th>Variable</th>
+<th>Default</th>
+<th>Effect</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>max_context_window_tokens</code></td>
-<td>total budget, prompt + completion</td>
+<td><code>PI_AGENT_NAME</code></td>
+<td>the session id</td>
+<td>the address this session asks for, slugified</td>
 </tr>
 <tr>
-<td><code>max_prompt_tokens</code></td>
-<td>the cap on what you may <strong>send</strong></td>
+<td><code>PI_AGENT_POLL_MS</code></td>
+<td><code>2000</code></td>
+<td>inbox poll interval; a malformed value throws rather than silently restoring the default</td>
+</tr>
+<tr>
+<td><code>PI_AGENT_WAKE</code></td>
+<td><code>1</code></td>
+<td><code>0</code> renders an inbound message without starting a turn for it</td>
 </tr>
 </tbody>
 </table>
-<p>Measured against one enterprise Copilot gateway: a model advertised <code>264000</code> total but <code>200000</code>
-prompt; another <code>328000</code> total but <code>200000</code> prompt; a family of models <code>400000</code> total but <code>272000</code>
-prompt.</p>
-<p><strong>The binding constraint on a request is the prompt cap</strong>, and PI's <code>shouldCompact</code> compares against
-<code>contextWindow</code>. So <code>contextWindow</code> must be the <em>prompt</em> cap. Anything larger lets the request reach
-the gateway and get truncated there instead of compacted here — which is precisely the silent
-failure the rule exists to prevent.</p>
-<pre class="mermaid"><code>flowchart LR
-    A["session grows"] --&gt; B{"contextTokens &gt;&lt;br/&gt;contextWindow − reserveTokens?"}
-    B -- "yes" --&gt; C["compaction fires HERE&lt;br/&gt;summarised, controlled, visible"]
-    B -- "no" --&gt; D["request sent"]
-    D --&gt; E{"request ≤ endpoint's&lt;br/&gt;real max_prompt_tokens?"}
-    E -- "yes" --&gt; F["normal turn"]
-    E -- "no" --&gt; G["truncated THERE&lt;br/&gt;silent, uncontrolled, invisible"]
-    style G fill:#c62828,color:#fff
-    style C fill:#2e7d32,color:#fff</code></pre>
-<p>Declaring a window <strong>below</strong> what is served can only ever compact earlier than necessary. Declaring
-it <strong>above</strong> can truncate silently. The asymmetry is the whole argument: under-declaration is
-bounded and recoverable, over-declaration is neither.</p>
-<h2 id="how-to-find-the-real-number">How to find the real number<a class="headerlink" href="#how-to-find-the-real-number" title="Permanent link">&para;</a></h2>
-<p>Ask the endpoint. Most OpenAI-compatible gateways publish a model list, and enterprise gateways
-generally publish per-model limits in it:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$YOUR_TOKEN</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">     </span><span class="s2">"https://&lt;your-gateway-host&gt;/models"</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[]</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s1">         | [.id,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s1">            .capabilities.limits.max_context_window_tokens,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s1">            .capabilities.limits.max_prompt_tokens]</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s1">         | @tsv'</span>
-</span></code></pre></div>
-<p>Then write one line per model into <code>config/models.json</code>:</p>
-<div class="language-json highlight"><span class="filename">config/models.json — the correction table</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"providers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"&lt;provider&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">"modelOverrides"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="nt">"&lt;model-a&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">"&lt;model-b&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w"> </span><span class="mi">168000</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">"&lt;model-c&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w"> </span><span class="mi">136000</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">"&lt;model-d&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w">  </span><span class="mi">64000</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">}</span>
-</span></code></pre></div>
-<p>Yes, that is one line per model. <code>modelOverrides</code> is the only per-model lever PI has; one line per
-model <em>is</em> the entire mechanism. The block reads as a correction table because that is what it is.</p>
-<p>For a model the gateway does not serve at all, the override is inert. For one it does, the override
-is conservative. Either way it is safe to write it.</p>
-<h2 id="the-200-000-cap-and-what-it-costs">The 200 000 cap, and what it costs<a class="headerlink" href="#the-200-000-cap-and-what-it-costs" title="Permanent link">&para;</a></h2>
-<p>Capping at 200 000 even when the endpoint serves more is a deliberate choice, and it buys a
-compaction trigger at <code>200000 - 20000 = 180000</code> with a <code>reserveTokens</code> of 20 000. Two secondary
-effects are real and worth accepting knowingly:</p>
+<h2 id="what-it-is-not">What it is not<a class="headerlink" href="#what-it-is-not" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Thinking budget is squeezed near the threshold.</strong> PI clamps a request's <code>max_tokens</code> to
-  <code>contextWindow - context - 4096</code>. At around 180 000 of context that lands near 16 900, against a
-  <code>high</code> thinking budget of 24 576 — so thinking compresses to roughly 15 900 tokens. Self-limiting,
-  and only in the turns immediately before a compaction that is about to fire anyway.</li>
-<li><strong><code>isContextOverflow</code> now treats input above the declared window as overflow</strong> for those models.
-  That is the intended behaviour; it is also a behaviour change if you were relying on the larger
-  number.</li>
+<li><strong>Not cross-host.</strong> A pid is only meaningful on the machine that owns it. Messaging between hosts
+  would need a heartbeat timestamp instead, and is not built.</li>
+<li><strong>Not authenticated.</strong> Any process running as this user can write into any inbox — the same trust
+  boundary <a href="../jobs/"><code>jobs</code></a> already has, stated rather than assumed.</li>
+<li><strong>Not durable.</strong> A message delivered to a session that dies before it drains is swept with the
+  registration. Keeping undelivered mail past the addressee's death would mean a message arriving in
+  a session that never asked for it, which is the worse failure.</li>
 </ul>
-<p>If you want a different cap, change the number. The <em>rule</em> is the <code>min()</code>, not the constant.</p>
-<h2 id="verifying-it">Verifying it<a class="headerlink" href="#verifying-it" title="Permanent link">&para;</a></h2>
-<p>The <code>/context</code> command exists because PI cannot answer this question. Enumerating every slash
-command in the 0.84.0 binary: there is no <code>/context</code>. Occupancy appears only in the TUI footer as
-<code>percent%/window</code>, which is honest but reads as "4.0 %" when the declared window is 1 050 000. And
-<code>/session</code> prints a <em>cumulative billing total</em> that looks like occupancy and can be an order of
-magnitude larger.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>/context
-</span></code></pre></div>
-<p>reports, separately labelled:</p>
-<table>
-<thead>
-<tr>
-<th>Line</th>
-<th>Source</th>
-<th>Accuracy</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>live context</td>
-<td>last assistant <code>usage.totalTokens</code></td>
-<td><strong>exact</strong> — provider-reported</td>
-</tr>
-<tr>
-<td>preamble</td>
-<td>first-turn <code>cacheWrite</code> — system prompt + tool schemas + skill catalogue + first message</td>
-<td>exact for that turn</td>
-</tr>
-<tr>
-<td>compactable dialogue</td>
-<td><code>live − preamble</code></td>
-<td>an <strong>estimate</strong>, labelled as one</td>
-</tr>
-<tr>
-<td><code>keepRecentTokens</code></td>
-<td><code>config/settings.json</code></td>
-<td>exact</td>
-</tr>
-<tr>
-<td>window / trigger</td>
-<td>the resolved <code>contextWindow</code> and <code>contextWindow − reserveTokens</code></td>
-<td>exact, <strong>with its source</strong></td>
-</tr>
-</tbody>
-</table>
-<p>Run it before and after an override edit. On the session that motivated this work it reported
-<code>window 1,050,000</code> before and <code>window 200,000</code> with a trigger at 180 000 after — which is how the
-correction was made checkable at all.</p>
-<h2 id="the-related-mystery-nothing-to-compact-session-too-small">The related mystery: "Nothing to compact (session too small)"<a class="headerlink" href="#the-related-mystery-nothing-to-compact-session-too-small" title="Permanent link">&para;</a></h2>
-<p>You will meet this on a session that is visibly not small. It is the same missing measurement
-wearing a different hat.</p>
-<p><code>prepareCompaction()</code> never looks at the context window. It walks session entries <em>backwards</em>
-accumulating estimated tokens until it reaches <code>keepRecentTokens</code>. If the whole dialogue is smaller
-than <code>keepRecentTokens</code>, the cut point never leaves the first boundary, the set of messages to
-summarise comes out empty, and the caller raises "session too small".</p>
-<p>The threshold that refused the compaction is <strong>yours</strong>, and it is applied to the dialogue only. The
-preamble is excluded twice over: it is not a session entry, and it is rebuilt on every request, so
-compaction could not shrink it even in principle. On the session that prompted <code>/context</code> being
-built, the live context was 41 637 tokens of which 21 219 were preamble — leaving 17 896 of
-compactable dialogue against a <code>keepRecentTokens</code> of 20 000.</p>
-<p>The message is true and reads as false. <code>/context</code> is what tells them apart.</p>
-<h2 id="checklist">Checklist<a class="headerlink" href="#checklist" title="Permanent link">&para;</a></h2>
-<ul class="task-list">
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> For every provider, fetch the real per-model limits from the endpoint, not from memory.</li>
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Where the endpoint distinguishes total window from prompt cap, use the <strong>prompt cap</strong>.</li>
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Write <code>contextWindow = min(&lt;your cap&gt;, prompt cap)</code> per model in <code>modelOverrides</code>.</li>
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Never over-declare. Under-declaring is safe; over-declaring truncates silently.</li>
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Leave <code>reserveTokens</code> alone as a threshold lever. It is global.</li>
-<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Verify with <code>/context</code> and confirm the reported window and trigger are the ones you intended.</li>
-</ul>
+<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
+<p><a href="../teammates/">teammates</a> · <a href="../jobs/">jobs</a> · <a href="../dispatch/">dispatch</a> ·
+<a href="../session-index/">session-index</a></p>
 
 
 
