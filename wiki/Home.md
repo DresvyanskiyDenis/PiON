@@ -10,6 +10,7 @@ portable harness for the [PI coding agent](https://github.com/earendil-works/pi)
 
 | Page | For |
 |---|---|
+| [[Quickstart]] | Install once, then drive the installer: the four re-run modes and the six sections |
 | [[Cookbook]] | "How do I make it do X?" — 20 short recipes, each one file and one command |
 | [[FAQ]] | The questions that come up before the first install |
 | [[Troubleshooting]] | Symptom → cause → fix, in the order you will hit them |
