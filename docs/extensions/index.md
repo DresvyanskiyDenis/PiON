@@ -26,6 +26,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 | `/context` | [context-report](context-report.md) |
 | `/agents` | [dispatch](dispatch.md) |
 | `/compaction-status` | [compaction](compaction.md) |
+| `/autocompact` | [compaction](compaction.md) |
 | `/path-defaults-status` | [path-defaults](path-defaults.md) |
 | `/quota` | [quota](quota.md) |
 | `/teammates` | [teammates](teammates.md) |

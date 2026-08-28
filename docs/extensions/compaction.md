@@ -4,7 +4,7 @@ Four parts, in the order they matter. Configured by
 [`config/compaction.json`](../configuration/sessions.md#compactionjson); PI's own three keys are in
 [`settings.json`](../configuration/settings.md#compaction).
 
-Registers `/compaction-status`.
+Registers `/compaction-status` and `/autocompact`.
 
 ## 1. The loop guard
 
@@ -50,6 +50,29 @@ than once per session.
     The only honest per-model lever is
     [`modelOverrides.<id>.contextWindow`](../configuration/models.md#modeloverrides). Full argument:
     [Context windows](../concepts/context-windows.md).
+
+### `/autocompact` — state the intent the current model actually implies
+
+`absoluteTokens` is a number somebody chose once, for one model, and it stays chosen when you switch
+to a model with a different window. `/autocompact [model-id]` rewrites it from the catalogue,
+defaulting to the session's model, and persists the change to `config/compaction.json`.
+
+It writes **`contextWindow − reserveTokens`**, not the window. That is the trigger PI already uses,
+so the declared absolute becomes exactly what `shouldCompact()` does and the verdict reads
+`aligned`. Writing the window itself would state an intent PI can never meet: the trigger is always
+`reserveTokens` below it, so the report would say `window-too-small` — and on a 64k model, with the
+16384-token default reserve, that is a 26 % divergence, past the 20 % tolerance, with a remedy line
+that correctly says no PI 0.84.0 setting closes the gap. **The command moves no trigger.** It only
+stops the declared number from describing a model you are not running.
+
+The window is read from `config/models.json` — **declared, never probed**, because that file carries
+this repo's deliberately understated windows. A model id that two providers declare differently is
+settled by the session's own provider and refused otherwise, naming both candidates; an explicitly
+named model the catalogue does not declare is refused rather than guessed. Only when you name no
+model at all does it fall back to the live session's window, and it says so in the report.
+
+The write is textual and re-parsed before it is offered: re-serialising the config would reformat 14
+lines to change one number, and `config/compaction.json` is tracked.
 
 ## An extension cannot abort a headless run
 

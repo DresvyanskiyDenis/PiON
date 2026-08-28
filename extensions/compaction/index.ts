@@ -58,7 +58,16 @@
  * `extensions/tasks/` and `extensions/big-results/` — `settings.json`'s `"extensions"` array needs
  * no entry.
  */
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync, writeSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -69,6 +78,7 @@ import type {
   SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { compact, estimateTokens } from "@earendil-works/pi-coding-agent";
+import { configPaths as sharedConfigPaths } from "../dispatch/config.ts";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { CONFIG_DIR_NAME, configDir, repoRoot, stateRoot } from "../lib/paths.ts";
@@ -92,11 +102,14 @@ import {
   type PinnedLimits,
 } from "./pinned.ts";
 import {
+  declaredContextWindows,
+  findContextWindow,
   formatThresholdLine,
   formatThresholdNotice,
   readReserveTokens,
   thresholdKey,
   thresholdReport,
+  type DeclaredWindow,
   type ReserveTokens,
   type ThresholdReport,
 } from "./threshold.ts";
@@ -195,21 +208,184 @@ export function parseConfig(raw: unknown): CompactionConfig {
   };
 }
 
-/** Synchronous by contract: `register()` must not start async work. */
-function loadConfig(): CompactionConfig {
+/**
+ * Synchronous by contract: `register()` must not start async work.
+ *
+ * The path is returned alongside the values because `/autocompact` writes back into this file, and
+ * a writer that re-resolves the path independently is a writer that can edit a different file from
+ * the one the running session read.
+ */
+function loadConfig(): { readonly config: CompactionConfig; readonly source: string | undefined } {
   const found = configPaths().find((p) => existsSync(p));
-  if (found === undefined) return DEFAULT_CONFIG;
+  if (found === undefined) return { config: DEFAULT_CONFIG, source: undefined };
   try {
-    return parseConfig(JSON.parse(readFileSync(found, "utf8")));
+    return { config: parseConfig(JSON.parse(readFileSync(found, "utf8"))), source: found };
   } catch (err) {
     process.stderr.write(
       `[pi-config] compaction: ${found} is not valid JSON (${describeError(err)}); using built-in defaults\n`,
     );
-    return DEFAULT_CONFIG;
+    return { config: DEFAULT_CONFIG, source: found };
   }
 }
 
-const cfg = loadConfig();
+const loaded = loadConfig();
+const cfg = loaded.config;
+
+/**
+ * The threshold `REQ-CTX-31` is currently checked against.
+ *
+ * Separate from `cfg` — which is frozen at module load — because `/autocompact` changes it inside a
+ * running session and `/compaction-status` must then report the new number rather than the one
+ * this process happened to start with. The file is still the source of truth across sessions; this
+ * is only what keeps the current session honest about what it just wrote.
+ */
+let activeThreshold: CompactionConfig["threshold"] = cfg.threshold;
+
+/* ---------------------------------------------------------------------------------------------
+ * `/autocompact` — sync the declared threshold to the trigger a model's declared window implies
+ * ------------------------------------------------------------------------------------------- */
+
+/** Test seam, mirroring `cost-gate`'s: the same `PI_CONFIG_MODELS_JSON` override. */
+function readModelsJson(): { readonly raw: unknown; readonly source: string } {
+  const override = process.env.PI_CONFIG_MODELS_JSON;
+  const found = sharedConfigPaths("models.json", override).find((p) => existsSync(p));
+  if (found === undefined) {
+    throw new Error(
+      `no config/models.json found (looked in ${sharedConfigPaths("models.json", override).join(", ")})`,
+    );
+  }
+  try {
+    return { raw: JSON.parse(readFileSync(found, "utf8")), source: found };
+  } catch (err) {
+    throw new Error(`${found} is not valid JSON: ${describeError(err)}`, { cause: err });
+  }
+}
+
+function plainObject(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? { ...(value as Record<string, unknown>) }
+    : {};
+}
+
+/**
+ * The parsed `compaction.json` with `threshold.absoluteTokens` replaced and **nothing else**
+ * touched — every other key, including the ones this module never reads, is carried through by
+ * identity.
+ *
+ * Written as a pure transform over the raw JSON rather than as a re-serialisation of
+ * {@link CompactionConfig} on purpose: `parseConfig` fills in defaults for everything absent, so
+ * round-tripping through it would silently materialise this build's defaults into the operator's
+ * file as if they had been chosen. A config writer must only ever write what it was asked to.
+ */
+export function withAbsoluteTokens(raw: unknown, absoluteTokens: number): Record<string, unknown> {
+  const root = plainObject(raw);
+  const compaction = plainObject(root.compaction);
+  const threshold = plainObject(compaction.threshold);
+  threshold.absoluteTokens = absoluteTokens;
+  compaction.threshold = threshold;
+  root.compaction = compaction;
+  return root;
+}
+
+/**
+ * The same edit as {@link withAbsoluteTokens}, but performed on the file's *text* so that its
+ * formatting survives.
+ *
+ * `JSON.stringify(_, null, 2)` is a re-formatter, not a round-trip: on the shipped
+ * `config/compaction.json` it explodes `"sources": ["AGENTS.md", "CLAUDE.md"]` across three lines
+ * and rewrites 14 lines to change one number. That is real damage to a tracked file — every future
+ * `git blame` on those lines points at a command that only ever meant to set an integer.
+ *
+ * So the number is patched in place when the key is there exactly once, and the result is parsed
+ * back and checked before it is offered: a regex that matched something unexpected returns
+ * `undefined` and the caller falls back to re-serialising, which is uglier but always correct.
+ */
+export function replaceAbsoluteTokensText(text: string, absoluteTokens: number): string | undefined {
+  const key = /"absoluteTokens"(\s*):(\s*)(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)/g;
+  const hits = [...text.matchAll(key)];
+  if (hits.length !== 1) return undefined;
+
+  const patched = text.replace(key, (_m, before: string, after: string) =>
+    `"absoluteTokens"${before}:${after}${absoluteTokens}`,
+  );
+  try {
+    const parsed = JSON.parse(patched) as { compaction?: { threshold?: { absoluteTokens?: unknown } } };
+    return parsed.compaction?.threshold?.absoluteTokens === absoluteTokens ? patched : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Rewrites one number in `path`, atomically and without changing the file's mode.
+ *
+ * temp+rename so a reader — this extension in another session, `bin/pi-check`, a test — never sees
+ * a half-written config; the mode is carried across because `config/compaction.json` is a tracked
+ * file and a permission change would show up as a spurious diff on a command whose whole job is to
+ * change a single integer.
+ */
+export function writeAbsoluteTokens(path: string, absoluteTokens: number): void {
+  const text = readFileSync(path, "utf8");
+  const patched =
+    replaceAbsoluteTokensText(text, absoluteTokens) ??
+    `${JSON.stringify(withAbsoluteTokens(JSON.parse(text), absoluteTokens), null, 2)}\n`;
+  const mode = statSync(path).mode & 0o777;
+  const tmp = `${path}.autocompact.${process.pid}`;
+  writeFileSync(tmp, patched, { mode });
+  renameSync(tmp, path);
+}
+
+interface WindowResolution {
+  readonly contextWindow: number;
+  readonly model: string;
+  /** Where the number came from, so the report can never present one source as another. */
+  readonly source: string;
+}
+
+/**
+ * The window `/autocompact` will write, for the model the operator named or for this session's.
+ *
+ * `models.json` is consulted first and is authoritative: it is the file this repo owns, the one
+ * whose windows are deliberately understated to match what the endpoints actually serve, and the
+ * only source that exists for a model the session is not currently running. The live session window is used only as a **named** fallback,
+ * for the case where the current model is served from PI's built-in catalogue with no override of
+ * ours — reporting where the number came from is what keeps that from being a silent substitution.
+ *
+ * An explicitly named model has no such fallback: there is no live window for a model that is not
+ * running, so an undeclared one is refused rather than guessed.
+ */
+function resolveTargetWindow(ctx: ExtensionContext, requested: string): WindowResolution {
+  const models = readModelsJson();
+  const declared: readonly DeclaredWindow[] = declaredContextWindows(models.raw);
+  const currentModel = ctx.model?.id;
+  const modelId = requested !== "" ? requested : currentModel;
+
+  if (modelId === undefined || modelId === "") {
+    throw new Error(
+      `no model is selected in this session, so there is nothing to read a context window from. ` +
+        `Name one: /autocompact <model-id>.`,
+    );
+  }
+
+  const lookup = findContextWindow(declared, modelId, ctx.model?.provider);
+  if (lookup.ok) {
+    return {
+      contextWindow: lookup.window.contextWindow,
+      model: modelId,
+      source: `${lookup.window.provider} ${lookup.window.declaredIn} in ${models.source}`,
+    };
+  }
+
+  if (requested !== "") throw new Error(lookup.reason);
+
+  const live = ctx.getContextUsage()?.contextWindow ?? 0;
+  if (live <= 0) throw new Error(lookup.reason);
+  return {
+    contextWindow: live,
+    model: modelId,
+    source: `the live session; PI's own catalogue, since ${models.source} declares no window for it`,
+  };
+}
 
 /* ---------------------------------------------------------------------------------------------
  * Per-session state
@@ -574,6 +750,77 @@ export function register(pi: ExtensionAPI): void {
     guards.delete(sid(ctx));
   });
 
+  /**
+   * `REQ-CTX-31`'s absolute threshold is a *stated intent*, not a lever — PI's `shouldCompact()`
+   * only ever knows `contextWindow - reserveTokens` (see this module's header and `threshold.ts`).
+   * So what this command does is state the intent that matches the model actually in use, instead
+   * of leaving a number chosen for a different one standing. It moves no trigger.
+   *
+   * What it writes is `contextWindow - reserveTokens`, **not** the window itself. The window is
+   * where the number comes from; the trigger is what the number is compared against, and writing
+   * the window would state an intent that PI can never meet — `thresholdReport()` would then read
+   * `effectiveTrigger < configuredAbsolute` and call it `window-too-small` on every model whose
+   * window is small enough for the reserve to exceed the 20 % tolerance (a 64k model, with the
+   * 16384-token default reserve, diverges by 26 %). That verdict's own remedy line says no PI
+   * 0.84.0 setting closes the gap, which would be true and permanent and entirely self-inflicted.
+   * Subtracting the reserve makes `effectiveTrigger === configuredAbsolute` by construction, which
+   * is exactly what `aligned` is for.
+   */
+  pi.registerCommand("autocompact", {
+    description:
+      "Align the compaction threshold with a model's declared context window (window - reserve): " +
+      "/autocompact [model-id], defaulting to the current model. Writes config/compaction.json, so " +
+      "it persists across sessions.",
+    handler: async (args: string, ctx) => {
+      try {
+        const path = loaded.source;
+        if (path === undefined) {
+          throw new Error(
+            `no config/compaction.json exists to write to (looked in ${configPaths().join(", ")}); ` +
+              `this session is running on the built-in defaults.`,
+          );
+        }
+        const target = resolveTargetWindow(ctx, args.trim());
+        const reserve = readReserveTokens({
+          observed: lastReserveTokens,
+          agentDir: configDir(),
+          cwd: ctx.cwd,
+          configDirName: CONFIG_DIR_NAME,
+        });
+        const absolute = target.contextWindow - reserve.value;
+        if (absolute <= 0) {
+          throw new Error(
+            `${target.model} declares a ${target.contextWindow}-token window, which is at or below ` +
+              `the ${reserve.value}-token reserve [${reserve.source}]; there is no threshold that ` +
+              `would leave room for a turn. Nothing was written.`,
+          );
+        }
+        const previous = activeThreshold.absoluteTokens;
+        writeAbsoluteTokens(path, absolute);
+        activeThreshold = { ...activeThreshold, absoluteTokens: absolute };
+
+        announce(
+          ctx,
+          [
+            `Compaction threshold set to ${absolute} tokens ` +
+              `(${target.model}: window ${target.contextWindow} - reserve ${reserve.value} ` +
+              `[${reserve.source}]; was ${previous})`,
+            `  read from  : ${target.source}`,
+            `  written to : ${path} (a tracked file, so commit it to keep the change)`,
+            `  note       : this moves no trigger. PI already compacts above ${absolute} tokens on ` +
+              `this model; what changed is that REQ-CTX-31 now states that number instead of one ` +
+              `chosen for a different model, so /compaction-status reads "aligned".`,
+          ].join("\n"),
+          "info",
+        );
+      } catch (err) {
+        // Nothing was written on any path that throws: the file is only touched after the window
+        // resolves. Reporting the failure and leaving the old number standing is the whole recovery.
+        announce(ctx, `/autocompact did not change anything: ${describeError(err)}`, "error");
+      }
+    },
+  });
+
   pi.registerCommand("compaction-status", {
     description: "Show the compaction loop guard, the effective threshold and the pinned sources",
     handler: async (_args: string, ctx) => {
@@ -588,6 +835,7 @@ export function register(pi: ExtensionAPI): void {
         `  keep/drop  : ${cfg.instructions.enabled ? "on" : "off"}`,
         `  pinned     : ${cfg.pinned.enabled ? cfg.pinned.sources.join(", ") || "(none)" : "off"}`,
         `  ${thresholdLine(ctx)}`,
+        `  /autocompact [model-id] sets that configured absolute to this model's declared window minus the reserve`,
       ];
       announce(ctx, lines.join("\n"), "info");
     },
@@ -618,8 +866,8 @@ function resolveThreshold(ctx: ExtensionContext): { report: ThresholdReport; res
     report: thresholdReport(
       usage.contextWindow,
       reserve.value,
-      cfg.threshold.absoluteTokens,
-      cfg.threshold.toleranceRatio,
+      activeThreshold.absoluteTokens,
+      activeThreshold.toleranceRatio,
     ),
   };
 }

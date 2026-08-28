@@ -88,6 +88,7 @@ Where a page exists, it is linked; the rest name their entry point in the tree.
 | `EXT-30` | scoped project trust, plus the vendored-tree deadman | [trust](../extensions/trust.md) |
 | `EXT-31` | the upstream API drift probe | `bin/api-probe.mjs` |
 | `EXT-32` | peer-to-peer messaging between running sessions | [message-agent](../extensions/message-agent.md) |
+| `EXT-33` | `/autocompact` — the declared threshold follows the model | [compaction](../extensions/compaction.md) |
 
 Gaps in the numbering are items that were folded into another one or dropped. An id is never reused.
 

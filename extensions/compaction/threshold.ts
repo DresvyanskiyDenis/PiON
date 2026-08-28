@@ -291,3 +291,107 @@ export function formatThresholdLine(
       );
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * The declared per-model window — what `/autocompact` reads
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * One `contextWindow` as `config/models.json` declares it.
+ *
+ * `declaredIn` is kept because the two shapes mean different things and a report that flattens
+ * them misleads: `models[]` declares a model this repo owns outright, `modelOverrides` layers a
+ * number over PI's built-in catalogue entry and is the only field of that entry we set. Both are
+ * equally authoritative for the window itself — that is why `/autocompact` accepts either.
+ */
+export interface DeclaredWindow {
+  readonly provider: string;
+  readonly model: string;
+  readonly contextWindow: number;
+  readonly declaredIn: "models" | "modelOverrides";
+}
+
+function positiveWindow(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : undefined;
+}
+
+/**
+ * Every declared window in a parsed `models.json`, in file order.
+ *
+ * Pure and total: a malformed provider, a model without an id, a `contextWindow` that is absent or
+ * not a positive number — each is skipped rather than thrown on. The catalogue is `/doctor`'s to
+ * validate (`bin/pi-check` PC-01..PC-04 own its shape); this function's only job is to answer
+ * "what window is declared for X", and it must not turn a stray key elsewhere in the file into a
+ * failed `/autocompact`.
+ */
+export function declaredContextWindows(raw: unknown): DeclaredWindow[] {
+  const providers = (raw as { providers?: Record<string, unknown> } | null)?.providers;
+  if (typeof providers !== "object" || providers === null) return [];
+
+  const out: DeclaredWindow[] = [];
+  for (const [provider, value] of Object.entries(providers)) {
+    if (typeof value !== "object" || value === null) continue;
+    const entry = value as { models?: unknown; modelOverrides?: unknown };
+
+    if (Array.isArray(entry.models)) {
+      for (const model of entry.models) {
+        if (typeof model !== "object" || model === null) continue;
+        const { id, contextWindow } = model as { id?: unknown; contextWindow?: unknown };
+        const window = positiveWindow(contextWindow);
+        if (typeof id !== "string" || id === "" || window === undefined) continue;
+        out.push({ provider, model: id, contextWindow: window, declaredIn: "models" });
+      }
+    }
+
+    if (typeof entry.modelOverrides === "object" && entry.modelOverrides !== null) {
+      for (const [id, override] of Object.entries(entry.modelOverrides as Record<string, unknown>)) {
+        if (typeof override !== "object" || override === null) continue;
+        const window = positiveWindow((override as { contextWindow?: unknown }).contextWindow);
+        if (window === undefined) continue;
+        out.push({ provider, model: id, contextWindow: window, declaredIn: "modelOverrides" });
+      }
+    }
+  }
+  return out;
+}
+
+export type WindowLookup =
+  | { readonly ok: true; readonly window: DeclaredWindow }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Resolves a bare model id to exactly one declared window.
+ *
+ * A model id is unique only within a provider — nothing stops the same id appearing under two of
+ * them with two different windows, and gateways make that likelier over time, not less. So a
+ * collision is resolved by `preferProvider` (the session's own provider, which is unambiguous) and
+ * refused otherwise, naming both candidates. Picking the first match would write a number from a
+ * provider the operator was not talking about into a file that persists.
+ */
+export function findContextWindow(
+  windows: readonly DeclaredWindow[],
+  modelId: string,
+  preferProvider?: string,
+): WindowLookup {
+  const matches = windows.filter((w) => w.model === modelId);
+  if (matches.length === 0) {
+    return {
+      ok: false,
+      reason:
+        `models.json declares no contextWindow for "${modelId}". ` +
+        `Declared: ${windows.map((w) => `${w.provider}/${w.model}`).join(", ") || "(none)"}.`,
+    };
+  }
+  if (matches.length === 1) return { ok: true, window: matches[0]! };
+
+  const preferred = matches.filter((w) => w.provider === preferProvider);
+  if (preferred.length === 1) return { ok: true, window: preferred[0]! };
+
+  return {
+    ok: false,
+    reason:
+      `"${modelId}" is declared by ${matches.length} providers with different windows ` +
+      `(${matches.map((w) => `${w.provider}=${w.contextWindow}`).join(", ")}); ` +
+      `there is no single answer. Switch to the model you mean and run /autocompact with no argument.`,
+  };
+}
