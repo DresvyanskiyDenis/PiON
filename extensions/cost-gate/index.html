@@ -4178,14 +4178,14 @@ before writing them down. The abort block spells both declarations out verbatim,
 operator reading it has just lost turn one and should not have to go looking.</p>
 <h2 id="what-it-will-not-do">What it will not do<a class="headerlink" href="#what-it-will-not-do" title="Permanent link">&para;</a></h2>
 <p><strong>A deliberate zero stays legal and stays silent, forever.</strong> An endpoint that is genuinely unmetered
-is declared with four explicit zeros and a <code>notes[]</code> entry saying so, and this gate never looks at
-it again. The rule is not "every model must be priced" — it is that the zero must be <em>accounted
-for</em>.</p>
-<p><strong>A note is not a declaration.</strong> <code>notes[]</code> satisfies
-<a href="../../configuration/models/"><code>test/providers-cost.test.ts</code></a>, which governs the
-provider <em>fragments</em>; neither this gate nor <code>PC-27</code> reads notes, and both judge the composed
-<code>config/models.json</code>. A fragment that explains an absent <code>cost</code> in prose still renders a model the
-gate will stop the session on, so write the zeros as well.</p>
+is declared with four explicit zeros, and this gate never looks at it again. The rule is not "every
+model must be priced" — it is that the zero must be <em>declared</em>. The installer offers that answer by
+name: for a gateway provider it asks, per model, whether the model is metered, and the "not billed by
+the token" answer writes the four zeros for you.</p>
+<p><strong>A note is not a declaration.</strong> Neither this gate nor <code>PC-27</code> reads <code>notes[]</code>, and
+<a href="../../configuration/models/"><code>test/providers-cost.test.ts</code></a>, which governs the provider <em>fragments</em>,
+stopped accepting one as an explanation for an absent <code>cost</code>. All three now want the same thing
+written in the same place: a <code>cost</code> object beside the model id.</p>
 <p>It also answers <strong>no opinion</strong> wherever certainty is unavailable, because ending a session is far
 worse to do wrongly than to skip:</p>
 <table>

@@ -4553,11 +4553,14 @@ the usage counter, so a per-token figure pasted out of a price page is wrong by 
 magnitude and still renders happily.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>Two things ask this question for you. <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> ends the session
-the first time an unpriced model bills tokens, which is correct and late: on a fresh install that
-is turn one, already billed. <code>bin/pi-check</code>'s <code>PC-27</code> asks it statically over this file, and the
-installer runs <code>bin/pi-check --all</code> as its last step, so the answer normally arrives before the
-first request. After hand-editing this file, re-run it.</p>
+<p>Three things ask this question for you, and the earliest is the interview. For a provider whose
+price cannot be read off the fragment — a gateway, where the id you call is an alias its operator
+priced — <code>./scripts/install.sh</code> asks per model whether it is metered, takes the four rates if it
+is, and writes four explicit zeros if it is not, so this file arrives priced. <code>bin/pi-check</code>'s
+<code>PC-27</code> then asks it statically over the composed file, and the installer runs <code>bin/pi-check --all</code>
+as its last step. <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> ends the session the first time an
+unpriced model bills tokens, which is correct and late: on a fresh install that is turn one,
+already billed. After hand-editing this file, re-run <code>bin/pi-check --all</code>.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">On a gateway, probe the rate — do not copy the upstream vendor's price page</p>
@@ -4788,22 +4791,25 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 </tbody>
 </table>
 <div class="admonition warning">
-<p class="admonition-title">A fragment that defines models must price them or explain the zero</p>
-<p><code>test/providers-cost.test.ts</code> fails the build when a fragment that is not <code>builtIn</code> defines models
-with an incomplete <code>cost</code> block and no <code>notes[]</code> entry naming <code>cost</code>. The rule is not "every model
-must be priced" — this repository ships templates and cannot know anybody's rates — it is that the
-zero must be <em>accounted for</em>: unmetered, unpriced, or simply not established. Zero is a legal
-answer; "nobody has measured it" is a legal answer; silence is not.</p>
-<p>Such a note must also state the units in the literal words <code>DOLLARS PER MILLION TOKENS</code>, which the
-test greps for, because the units are the easy thing to get wrong and the wrong ones render
-without complaint.</p>
+<p class="admonition-title">A fragment that defines models must state a complete cost — in numbers, or in answers</p>
+<p><code>test/providers-cost.test.ts</code> fails the build when a fragment that is not <code>builtIn</code> defines a model
+whose <code>cost</code> is missing or incomplete. The rule is not "every model must be priced" — this
+repository ships templates and cannot know anybody's rates — it is that the zero must be
+<em>declared</em>: four explicit zeros say <em>not billed by the token</em>, and that is a legal, permanent
+answer. Silence is not, in any of the three places that read this: the test here, <code>PC-27</code> at
+install time, and <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> on the first billed turn.</p>
+<p>A fragment that cannot know the price <strong>asks</strong> for it instead. <code>litellm.json</code> and
+<code>openai-compatible.json</code> state each rate as a <code>{{token}}</code> filled in by the interview, so the same
+test also insists the prompt behind such a token is <code>type: "number"</code> with a numeric <code>default</code> —
+that default is what the "unmetered" answer writes, and without it the opt-out would compose
+<code>"input": ""</code> rather than a zero.</p>
+<p>A <code>notes[]</code> entry that discusses <code>cost</code> must state the units in the literal words
+<code>DOLLARS PER MILLION TOKENS</code>, which the test greps for, because the units are the easy thing to get
+wrong and the wrong ones render without complaint. What a note can no longer do is stand in for the
+declaration: nothing reads notes at runtime, so a fragment explaining an absent <code>cost</code> in prose
+still renders a model the gate ends the session on.</p>
 <p><code>builtIn</code> fragments are exempt by construction: they override PI's own catalogues, which already
 carry complete non-zero costs.</p>
-<p>A <code>notes[]</code> entry satisfies <strong>that</strong> test, which is about fragments. It does not satisfy
-<a href="../../extensions/cost-gate/"><code>cost-gate</code></a> or <code>PC-27</code>, which read the composed
-<code>config/models.json</code> and accept only a written <code>cost</code>. For a model whose price nobody can
-establish, the fragment note explains <em>why</em> and the four explicit zeros are what make the file
-pass. A note on its own leaves the session to be aborted on turn one.</p>
 </div>
 <p>The fragment schema, the substitution rules and the merge algorithm are documented in
 <code>config/providers/README.md</code>, which is the contract between the fragments and the installer. To

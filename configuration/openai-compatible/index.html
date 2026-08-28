@@ -4288,7 +4288,8 @@ does, is the fix.</p>
 </div>
 <hr />
 <h2 id="the-interview">The interview<a class="headerlink" href="#the-interview" title="Permanent link">&para;</a></h2>
-<p>Seven questions, plus two more if you configure a second model. In order:</p>
+<p>Eleven questions, plus seven more if you configure a second model. Five of each set are the price,
+and four of those five are asked only if you answer <code>metered</code>. In order:</p>
 <table>
 <thead>
 <tr>
@@ -4330,16 +4331,43 @@ does, is the fix.</p>
 </tr>
 <tr>
 <td>7</td>
+<td>How is that model billed?</td>
+<td><code>metered</code> or <code>unmetered</code>. <strong>No default</strong> — an unstated price is refused by name rather than composed as a zero</td>
+</tr>
+<tr>
+<td>8-11</td>
+<td>Its input, output, cached-input and cache-write rates</td>
+<td>Only asked if you said <code>metered</code>. <strong>Dollars per million tokens</strong>: a gateway quotes per token, so <strong>× 1 000 000</strong>. The two cache rates default to <code>0</code></td>
+</tr>
+<tr>
+<td>12</td>
 <td>A second model id, or blank if you only want one</td>
 <td>Suggested for the <code>light</code> tier</td>
 </tr>
 <tr>
-<td>8</td>
+<td>13</td>
 <td>Context window for the second model</td>
 <td>Only asked if you gave one</td>
 </tr>
+<tr>
+<td>14</td>
+<td>How is the second model billed?</td>
+<td>Only asked if you gave one. Gateways price each model separately</td>
+</tr>
+<tr>
+<td>15-18</td>
+<td>Its four rates</td>
+<td>Only asked if you said <code>metered</code> for it</td>
+</tr>
 </tbody>
 </table>
+<p>Price is the one answer no fragment can hold for you: the id you call is not the vendor's direct
+model, and what it costs is whatever the gateway's operator configured — frequently nothing at all.
+Both answers are complete and permanent. <code>metered</code> writes the four rates; <code>unmetered</code> writes four
+explicit zeros, which says <em>this endpoint is not billed by the token</em> and satisfies both
+<code>bin/pi-check</code>'s <code>PC-27</code> and <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> for good. Leaving the price
+out is not an option the interview offers, because an absent <code>cost</code> is substituted with the same
+four zeros silently, and afterwards nobody can tell the decision from the omission.</p>
 <p>The credential's <strong>value</strong> is asked for later, in the credentials step, and is written to
 <code>~/.pi/secrets.env</code> (chmod 0600) or the macOS Keychain. <code>config/models.json</code> gets the indirection
 only:</p>
@@ -4361,9 +4389,10 @@ only:</p>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="p">},</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="nt">"models"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 </span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vendor-a/big-instruct"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"[gateway] vendor-a/big-instruct"</span><span class="p">,</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"text"</span><span class="p">],</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">8192</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="p">]</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="p">}</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"text"</span><span class="p">],</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">8192</span><span class="p">,</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span><span class="p">]</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">}</span>
 </span></code></pre></div>
 <div class="language-json highlight"><span class="filename">config/routing.json (excerpt)</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"egress"</span><span class="p">:</span><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"openai-compatible"</span><span class="p">:</span><span class="w"> </span><span class="s2">"internal"</span><span class="w"> </span><span class="p">},</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"openai-compatible"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">},</span>

@@ -1146,10 +1146,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cost-is-left-out-not-guessed" class="md-nav__link">
+  <a href="#price-is-asked-not-guessed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cost is left out, not guessed
+        Price is asked, not guessed
       
     </span>
   </a>
@@ -4129,10 +4129,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cost-is-left-out-not-guessed" class="md-nav__link">
+  <a href="#price-is-asked-not-guessed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cost is left out, not guessed
+        Price is asked, not guessed
       
     </span>
   </a>
@@ -4242,11 +4242,12 @@ probe — is <em>useful</em> knowledge about LiteLLM, and none of it is a reason
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="s1">                      .model_info.supports_xhigh_reasoning_effort] | @tsv'</span>
 </span></code></pre></div>
 <p>Column by column: the <strong>id to type</strong>, the <strong>context window to declare</strong>, the two <strong>prices</strong> (see
-<a href="#cost-is-left-out-not-guessed">Cost</a>), and whether <strong>xhigh thinking</strong> is enabled for that
+<a href="#price-is-asked-not-guessed">price</a>), and whether <strong>xhigh thinking</strong> is enabled for that
 deployment.</p>
 <hr />
 <h2 id="the-interview">The interview<a class="headerlink" href="#the-interview" title="Permanent link">&para;</a></h2>
-<p>Seven questions, plus three more if you configure a second model.</p>
+<p>Twelve questions for one model, plus eight more if you configure a second. Five of each set are the
+price, and four of those five are asked only if you answer <code>metered</code>.</p>
 <table>
 <thead>
 <tr>
@@ -4293,18 +4294,38 @@ deployment.</p>
 </tr>
 <tr>
 <td>8</td>
+<td>How is that model billed?</td>
+<td><code>metered</code> or <code>unmetered</code>. <strong>No default</strong> — an unstated price is refused by name rather than composed as a zero. See <a href="#price-is-asked-not-guessed">price</a></td>
+</tr>
+<tr>
+<td>9-12</td>
+<td>Its input, output, cached-input and cache-write rates</td>
+<td>Only asked if you said <code>metered</code>. <strong>Dollars per million tokens</strong>: <code>input_cost_per_token</code> from the call above <strong>× 1 000 000</strong>. The two cache rates default to <code>0</code></td>
+</tr>
+<tr>
+<td>13</td>
 <td>A second model id, or blank</td>
 <td>Suggested for the <code>light</code> tier</td>
 </tr>
 <tr>
-<td>9</td>
+<td>14</td>
 <td>Context window for the second model</td>
 <td>Only asked if you gave one</td>
 </tr>
 <tr>
-<td>10</td>
+<td>15</td>
 <td>Does the second model take a <code>reasoning_effort</code>?</td>
 <td>Only asked if you gave one</td>
+</tr>
+<tr>
+<td>16</td>
+<td>How is the second model billed?</td>
+<td>Only asked if you gave one. Asked separately because the light tier is frequently the cheap alias, and sometimes the free one</td>
+</tr>
+<tr>
+<td>17-20</td>
+<td>Its four rates</td>
+<td>Only asked if you said <code>metered</code> for it</td>
 </tr>
 </tbody>
 </table>
@@ -4419,15 +4440,22 @@ dispatcher refuse to send a confidential session to a public-class provider <em>
 this harness can stop the packet — see
 <a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
 <hr />
-<h2 id="cost-is-left-out-not-guessed">Cost is left out, not guessed<a class="headerlink" href="#cost-is-left-out-not-guessed" title="Permanent link">&para;</a></h2>
+<h2 id="price-is-asked-not-guessed">Price is asked, not guessed<a class="headerlink" href="#price-is-asked-not-guessed" title="Permanent link">&para;</a></h2>
 <p><code>cost</code> is optional in a fragment and required on PI's runtime model type, so the composer fills the
-gap with <code>{input:0,output:0,cacheRead:0,cacheWrite:0}</code> — and every session on this provider shows a
-flat <code>0.000</code> spend while really costing money.</p>
-<p>It is omitted rather than guessed because the price behind a proxy is whatever that deployment's
-operator configured, not the vendor's list price. To fix it, take
-<code>input_cost_per_token</code> / <code>output_cost_per_token</code> from <code>/model/info</code> and <strong>multiply by 1 000 000</strong>:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.25</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+gap with <code>{input:0,output:0,cacheRead:0,cacheWrite:0}</code> — and every session on a model that omits it
+shows a flat <code>0.000</code> spend while really costing money.</p>
+<p>The fragment cannot state the price, because the price behind a proxy is whatever that deployment's
+operator configured rather than the vendor's list price. So it asks, per model, and writes your
+answer into <code>config/models.json</code> before the first request. Two answers exist and there is no third:</p>
+<div class="language-json highlight"><span class="filename">metered — the four rates</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.25</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
+<div class="language-json highlight"><span class="filename">unmetered — this alias is not billed by the token</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>The second is a decision, not a gap: written down, it satisfies <code>bin/pi-check</code>'s <code>PC-27</code> and
+<a href="../../extensions/cost-gate/"><code>cost-gate</code></a> permanently. An omitted <code>cost</code> satisfies neither — it is
+what the gate ends the first billed turn on. To change an answer later, re-run
+<code>./scripts/install.sh --section providers</code>, or edit <code>cost</code> beside the model in <code>config/models.json</code>
+and re-run <code>bin/pi-check --all</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Six orders of magnitude, silently</p>
 <p>LiteLLM quotes <strong>dollars per token</strong>. PI's <code>cost</code> is <strong>dollars per million tokens</strong> and divides
@@ -4445,21 +4473,21 @@ adding matching rows to <code>egress</code> and <code>concurrency</code> in <cod
 <p>The installer writes these into <code>~/.pi/agent/provider-notes.md</code> with your base URL and credential
 variable already substituted in, and names that file in its closing list of manual steps. It does
 not run them: they need a credential collected later and a reachable endpoint.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># the proxy answers, and these are the ids it will serve you</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/model/info"</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[] | [.model_name, .model_info.max_input_tokens] | @tsv'</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># PI sees the provider as configured</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>pi<span class="w"> </span>--list-models<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'^litellm/'</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># reasoning_effort is accepted (expect 200; a 400 means answer `false` to the reasoning question)</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s1">'%{http_code}\n'</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"model":"&lt;id&gt;","messages":[{"role":"user","content":"hi"}],"max_tokens":8,"reasoning_effort":"low"}'</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/chat/completions"</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="c1"># one real turn</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span>litellm/&lt;id&gt;
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># the proxy answers, and these are the ids it will serve you</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/model/info"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[] | [.model_name, .model_info.max_input_tokens] | @tsv'</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># PI sees the provider as configured</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>pi<span class="w"> </span>--list-models<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'^litellm/'</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># reasoning_effort is accepted (expect 200; a 400 means answer `false` to the reasoning question)</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s1">'%{http_code}\n'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"model":"&lt;id&gt;","messages":[{"role":"user","content":"hi"}],"max_tokens":8,"reasoning_effort":"low"}'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/chat/completions"</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c1"># one real turn</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span>litellm/&lt;id&gt;
 </span></code></pre></div>
 <p>A <strong>429</strong> is your key's budget, not an outage: LiteLLM enforces rpm/tpm and <code>max_budget</code> per virtual
 key. Lower the concurrency answer or ask for a larger budget — retrying harder makes it worse.</p>
