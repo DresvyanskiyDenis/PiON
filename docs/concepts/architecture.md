@@ -1,6 +1,6 @@
 # Architecture
 
-## One extension, thirty-one modules
+## One extension, thirty-two modules
 
 PI discovers extensions by scanning `extensions/*.ts` and `extensions/<dir>/index.ts`. This
 repository deliberately does **not** use that. `config/settings.json` names exactly one file:
@@ -42,7 +42,7 @@ flowchart TB
     end
     subgraph orch["4 — orchestration"]
         direction LR
-        dispatch --> teammates --> worktree --> jobs --> tasks
+        dispatch --> teammates --> ma["message-agent"] --> worktree --> jobs --> tasks
     end
     subgraph obs["5 — observability and lifecycle"]
         direction LR
@@ -59,7 +59,7 @@ The invariants encoded in that order, restated so nobody tidies them away:
 | **`trust` is second, immediately after `guard`** | Its `session_start` deadman reads a load registry in which `guard`'s entry is already written, and its `project_trust` handler must be bound before any project resource is considered. |
 | **`hooks` follows `guard`** | Hooks stack on the guard and may only *add* denial, never remove it. |
 | **`path-defaults`, `path-rules` and `skills-env` come before their readers** | They publish configuration later modules read. `skill-mask` keeps its slot beside them; it registers nothing now, and moving a registered id is a bigger change than leaving it in place. |
-| **`dispatch` precedes `teammates` / `worktree` / `jobs`** | Those register providers and vetoes into registries `dispatch` owns. |
+| **`dispatch` precedes `teammates` / `message-agent` / `worktree` / `jobs`** | Those register providers and vetoes into registries `dispatch` owns. |
 | **`doctor` is last** | So its `session_start` pass observes everything above it. |
 
 ## What the per-module `try/catch` does and does not cover
@@ -89,7 +89,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),<br/>rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 31 modules + config + bin/"]
+    OURS["this repository — 32 modules + config + bin/"]
     PI --- PKG --- OURS
 ```
 

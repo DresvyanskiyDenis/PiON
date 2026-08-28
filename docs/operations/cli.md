@@ -289,6 +289,7 @@ Registered by the extensions, available inside a session.
 | `/path-defaults-status` | the configured default tier and per-channel policy |
 | `/quota` | remaining provider quota |
 | `/teammates` | live teammates |
+| `/peers` | running sessions reachable with `message_agent` |
 | `/index` | build or refresh the session index `pi-log` reads |
 | `/ctx-dump` | the assembled instruction context, verbatim |
 | `/jobs` | background jobs: history, status, exit code, stdout/stderr — read-only |

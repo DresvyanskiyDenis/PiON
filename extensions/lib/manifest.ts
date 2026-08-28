@@ -57,6 +57,7 @@ export const DECLARED_MODULES = [
   // orchestration
   "dispatch",
   "teammates",
+  "message-agent",
   "worktree",
   "jobs",
   "tasks",

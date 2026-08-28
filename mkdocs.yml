@@ -170,6 +170,7 @@ nav:
       - Orchestration:
           - extensions/dispatch.md
           - extensions/teammates.md
+          - extensions/message-agent.md
           - extensions/worktree.md
           - extensions/jobs.md
           - extensions/tasks.md

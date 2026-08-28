@@ -55,6 +55,7 @@ import { id as askUserId, register as registerAskUser } from "./ask-user/index.t
 import { id as bigResultsId, register as registerBigResults } from "./big-results/index.ts";
 import { id as dispatchId, register as registerDispatch } from "./dispatch/index.ts";
 import { id as teammatesId, register as registerTeammates } from "./teammates/index.ts";
+import { id as messageAgentId, register as registerMessageAgent } from "./message-agent/index.ts";
 import { id as worktreeId, register as registerWorktree } from "./worktree/index.ts";
 import { id as jobsId, register as registerJobs } from "./jobs/index.ts";
 import { id as tasksId, register as registerTasks } from "./tasks/index.ts";
@@ -97,6 +98,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   // orchestration
   [dispatchId, registerDispatch],
   [teammatesId, registerTeammates],
+  [messageAgentId, registerMessageAgent],
   [worktreeId, registerWorktree],
   [jobsId, registerJobs],
   [tasksId, registerTasks],

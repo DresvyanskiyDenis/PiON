@@ -26,6 +26,7 @@ follow one shape, `<domain>.<action>:<subject>`, so a whole kind reads as one st
 |---|---|---|
 | `dispatch` | `teammate.spawn:<name>`, `teammate.send:<name>`, `teammate.close:<name>` | [teammates](teammates.md) |
 | `dispatch` | `dispatch.resolve:<agent>` | [dispatch](dispatch.md) |
+| `message` | `message_agent.send:<name>`, `message_agent.receive:<name>` | [message-agent](message-agent.md) |
 
 `dispatch.resolve` is the answer to *what model did this delegation run on, and why*: the `subagent`
 tool the call arrived on, the agent, the resolved provider, and the model record — the spec's origin,

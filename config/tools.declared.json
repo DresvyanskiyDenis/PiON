@@ -1,6 +1,6 @@
 {
   "description": "EXT-10 D-01's declared tool roster. Names here resolve for `/doctor` even when `pi.getAllTools()` does not currently list them — a package tool whose provider is present but uncredentialed this session, or a tool named in prose before its extension has loaded. Core PI built-ins (bash, read, edit, write, glob, grep, ...) are not listed: they are always present in `pi.getAllTools()` and D-01 checks that live roster first.",
-  "updated": "2026-08-07",
+  "updated": "2026-08-28",
   "tools": [
     {
       "name": "expand_result",
@@ -37,6 +37,12 @@
       "source": "package",
       "package": "@juicesharp/rpiv-todo",
       "note": "EXT-22: the task-list overlay's tool, replayed from the session transcript (no disk persistence)"
+    },
+    {
+      "name": "message_agent",
+      "source": "custom",
+      "module": "extensions/message-agent/index.ts",
+      "note": "EXT-32: fire-and-forget peer-to-peer messaging between running sessions, over the <state>/agents directory"
     }
   ]
 }
