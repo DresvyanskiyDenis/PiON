@@ -164,8 +164,8 @@ function loadFragment(file) {
   for (const p of frag.prompts ?? []) {
     if (!p.id) fatal(`${where}: a prompt has no id`);
     if (seen.has(p.id)) fatal(`${where}: duplicate prompt id "${p.id}"`);
-    if (!["string", "number", "port", "boolean", "choice"].includes(p.type)) {
-      fatal(`${where}: prompt "${p.id}" has type "${p.type}", which is not string|number|port|boolean|choice`);
+    if (!["string", "number", "decimal", "port", "boolean", "choice"].includes(p.type)) {
+      fatal(`${where}: prompt "${p.id}" has type "${p.type}", which is not string|number|decimal|port|boolean|choice`);
     }
     if (p.type === "choice" && !Array.isArray(p.choices)) {
       fatal(`${where}: prompt "${p.id}" is type choice and must carry choices[]`);
@@ -247,11 +247,15 @@ function tokenTable(frag, answers) {
     if (skipped || raw === undefined) raw = p.default !== undefined ? String(p.default) : "";
     rawById.set(p.id, raw);
 
-    // Rule 2: number/port/boolean substitute unquoted. PI does not coerce, so a context window
-    // arriving as the string "200000" is a config that silently never compacts.
+    // Rule 2: number/decimal/port/boolean substitute unquoted. PI does not coerce, so a context
+    // window arriving as the string "200000" is a config that silently never compacts, and a cost
+    // rate arriving as the string "2.5" is a `cost` object PI reads as unpriced (see
+    // bin/rules/pc-27-declared-models-are-priced.mjs) on a provider that is charging real money.
+    // `decimal` exists as its own type only because the installer validates by type and a price is
+    // the one answer here that is legitimately fractional; the coercion is the same Number().
     let value = raw;
     if (raw === "") value = "";
-    else if (p.type === "number" || p.type === "port") {
+    else if (p.type === "number" || p.type === "decimal" || p.type === "port") {
       const n = Number(raw);
       if (!Number.isFinite(n)) fatal(`${frag.id}: the answer for "${p.id}" is "${raw}", which is not a number`);
       value = n;
@@ -267,8 +271,18 @@ function tokenTable(frag, answers) {
       fatal(`${frag.id}: derived "${d.id}" has no mapping for ${d.from}="${key}" (mapped keys: ${Object.keys(d.map).join(", ")})`);
     }
     let mapped = d.map[key];
-    // A map value may itself carry {{tokens}}, resolved against the answers already computed.
-    if (typeof mapped === "string") mapped = substituteString(frag, mapped, tokens);
+    // A map value may itself carry {{tokens}}, resolved against the answers already computed —
+    // and rule 2 applies to it exactly as it does inside `provider`: a map value that is EXACTLY
+    // one token takes that answer's NATIVE type. Without this, every derived value would be a
+    // string, and "the rate you typed, or zero if you said this endpoint is unmetered" could only
+    // ever be spelled "2.5", which PI reads as no price at all.
+    const whole = typeof mapped === "string" ? deferredTo(mapped) : null;
+    if (whole !== null) {
+      if (!tokens.has(whole)) {
+        fatal(`${frag.id}: derived "${d.id}" maps ${d.from}="${key}" to {{${whole}}}, which is not a prompt or an earlier derived value`);
+      }
+      mapped = tokens.get(whole);
+    } else if (typeof mapped === "string") mapped = substituteString(frag, mapped, tokens);
     tokens.set(d.id, mapped);
   }
   return tokens;
@@ -597,6 +611,36 @@ switch (cmd) {
     }
     if (Object.keys(models.providers).length === 0) {
       fatal("the generated models.json would contain no providers at all — nothing would be able to run");
+    }
+
+    // Every model this file declares leaves here with a price, or does not leave here at all.
+    //
+    // `cost` is optional in models.json and required on PI's runtime model type, and PI closes the
+    // gap by substituting {input:0,output:0,cacheRead:0,cacheWrite:0} — after which a rate somebody
+    // wrote and a rate nobody wrote are the same object, the status line reads a flat $0.000 for
+    // the whole session, and `extensions/cost-gate` ends the first BILLED turn rather than let it
+    // stand. Catching it here costs a re-run of the interview; catching it there costs the turn.
+    //
+    // Two declarations are accepted, the same two the gate and `bin/pi-check` rule PC-27 accept:
+    // the rates, in dollars per million tokens, or four written zeros for an endpoint that is
+    // unmetered on purpose. An omission says neither, and neither does a blank answer — which is
+    // the case this actually catches, an --answers file that names a metered model and no rate.
+    // Providers declaring no `models` array are skipped, exactly as both of those gates skip them:
+    // `modelOverrides` corrects a catalogue PI already prices, and `cost` is not overridable there.
+    for (const [id, block] of Object.entries(models.providers)) {
+      if (!block || typeof block !== "object" || !Array.isArray(block.models)) continue;
+      for (const m of block.models) {
+        if (!m || typeof m !== "object") continue;
+        const missing = ["input", "output", "cacheRead", "cacheWrite"]
+          .filter((f) => typeof m.cost?.[f] !== "number" || !Number.isFinite(m.cost[f]));
+        if (missing.length === 0) continue;
+        fatal(
+          `${id}/${m.id}: ${missing.map((f) => `cost.${f}`).join(", ")} is not a number, so PI would ` +
+            "substitute zeros and every session on this model would report $0.000 no matter what it " +
+            `charges. Answer ${id}'s pricing question with the rates in DOLLARS PER MILLION TOKENS, ` +
+            "or with the unmetered option, which writes four explicit zeros. Nothing was written.",
+        );
+      }
     }
 
     // --- tier bindings ------------------------------------------------------------------------

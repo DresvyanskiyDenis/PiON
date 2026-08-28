@@ -92,7 +92,7 @@ its models unavailable, and the harness must still start.
 ```jsonc
 {
   "id": "workspaceHost",        // referenced as {{workspaceHost}} in `provider`, `tiers`, `derived`
-  "type": "string" | "number" | "port" | "boolean" | "choice",
+  "type": "string" | "number" | "decimal" | "port" | "boolean" | "choice",
   "label": "…",                 // the question
   "help": "…",                  // optional, longer explanation shown on request
   "example": "…",               // optional, shown as a hint. NOT a default.
@@ -109,7 +109,12 @@ its models unavailable, and the harness must still start.
 - `when: { "x": <value> }` means "ask this only if the answer to `x` equals `<value>`".
 - A skipped prompt's answer is the empty string `""` (or the declared `default`, if the fragment gives
   one and the installer prefers that — either is acceptable, but be consistent).
-- `type: "number"` and `type: "port"` answers substitute **unquoted**. See rule 2 below.
+- `type: "number"`, `type: "decimal"` and `type: "port"` answers substitute **unquoted**. See rule 2
+  below.
+- `number` is a whole number; `decimal` accepts a fractional one. The split is not cosmetic: the
+  installer validates by type, and `number` refuses `2.5`. Prices are the reason `decimal` exists,
+  and the interview must be able to take the rate an operator actually reads off a gateway rather
+  than the rounded one it would accept.
 
 ### 2.3 `derived[]` — values computed from answers, not asked
 
@@ -123,7 +128,18 @@ its models unavailable, and the harness must still start.
 
 The value of `from` is stringified and looked up in `map` (so a boolean prompt maps under the keys
 `"true"` / `"false"`). Map values may themselves contain `{{token}}` references to earlier answers,
-resolved after the lookup. A map value of `null` is meaningful — see rule 3.
+resolved after the lookup, and **a map value that is exactly one `"{{token}}"` takes that answer's
+native type** — rule 2, applied here as it is inside `provider`. A map value of `null` is meaningful
+— see rule 3.
+
+That native-type rule is what lets one choice select between an answered value and a literal: the
+gateway fragments map `pricing` to `{ "metered": "{{model1CostInput}}", "unmetered": 0 }`, and the
+`metered` branch has to arrive as the number `2.5`, not the string `"2.5"`, or the `cost` object it
+lands in reads as unpriced (§5 item 5).
+
+A `from` whose answer has no key in `map` is fatal. A prompt that can be skipped therefore needs its
+skipped value mapped too: the gateway fragments' second model maps `""` alongside the two real
+answers, because a fragment where nobody wanted a second model must still resolve rather than fail.
 
 `derived` entries are resolved after all prompts, in array order.
 
@@ -217,9 +233,10 @@ deferred fields of 2.8) applying:
 
 1. **`{{id}}` inside a string is replaced by the answer for `id`.** Multiple tokens per string are
    allowed. An unknown id is an error, not an empty string.
-2. **A string that is exactly `"{{id}}"` and whose prompt `type` is `number`, `port` or `boolean`
-   substitutes as a JSON number/boolean, unquoted.** `"contextWindow": "{{contextWindow}}"` must
-   become `"contextWindow": 200000`, never `"200000"`. PI does not coerce.
+2. **A string that is exactly `"{{id}}"` and whose prompt `type` is `number`, `decimal`, `port` or
+   `boolean` substitutes as a JSON number/boolean, unquoted.** `"contextWindow": "{{contextWindow}}"`
+   must become `"contextWindow": 200000`, never `"200000"`. PI does not coerce. The same rule applies
+   to a `derived` map value that is exactly one token (§2.3).
 3. **A token that resolves to `null` deletes the key that holds it.** Used by `openai`'s derived
    `baseUrl`: no proxy means the `baseUrl` key must be *absent*, which is not the same as `null` or
    `""`.
@@ -314,13 +331,30 @@ Copy the closest fragment, change `id` to match the new filename, and answer the
 4. **Which `compat` flags did you measure?** Start with everything off and `maxTokensField:
    "max_tokens"`, get one successful turn, then enable one at a time — and write what you measured
    into `notes`, because the next person cannot re-derive it from the config alone.
-5. **What does a call cost, and did you probe it or copy it?** `cost` is optional here and required
-   on PI's runtime model type, so the provider composer fills the gap with
-   `{input:0,output:0,cacheRead:0,cacheWrite:0}` and every session on your provider shows a flat
-   `0.000` spend, silently. Units are **dollars per million tokens** — PI divides each rate by
-   1000000 before multiplying by the usage counter, so a per-token figure pasted straight in is
-   wrong by six orders of magnitude and still renders. Do not copy a vendor price page for anything
-   behind a gateway: the id you call is not the vendor's direct model, and its price is whatever
-   that deployment's operator configured. Probe it, or leave `cost` out and say in `notes` why the
-   zero is what it is — unmetered (local weights), unpriced (billed by something other than tokens),
-   or simply not established.
+5. **What does a call cost, and who is going to say so?** Every model a fragment defines must reach
+   `config/models.json` with a complete `cost` — all four of `input`, `output`, `cacheRead`,
+   `cacheWrite`, as finite numbers. **Leaving `cost` out is not an option, and a `notes[]` paragraph
+   explaining the absence is not a declaration.** `cost` is optional in the schema and required on
+   PI's runtime model type, so the composer fills the gap with
+   `{input:0,output:0,cacheRead:0,cacheWrite:0}`: after that substitution an authored zero and a
+   forgotten field are the same object, every session shows a flat `0.000` on a provider that may be
+   charging real money, and `extensions/cost-gate` ends the first billed turn on that model. Two
+   spellings are accepted, by that gate and by `bin/pi-check` rule PC-27 alike, and there is no
+   third:
+
+   - **Metered** — the rates, in **dollars per million tokens**. PI divides each rate by 1000000
+     before multiplying by the usage counter, so a per-token figure pasted straight in is wrong by
+     six orders of magnitude and still renders. A gateway's management route almost always quotes
+     dollars *per token* (LiteLLM serves it on `/model/info` as `input_cost_per_token`), so multiply
+     by 1000000 on the way in.
+   - **Unmetered on purpose** — four written zeros. It says the endpoint bills nothing, or bills by
+     something other than tokens, and it is accepted forever without another warning. `databricks`
+     is the shipped example: Model Serving bills by DBU per endpoint, so no per-token rate exists to
+     write.
+
+   Which of the two applies is often not knowable from the file, and that is a reason to **ask**,
+   not to omit. A fragment that knows the answer writes it as a literal (`databricks`); a gateway
+   fragment cannot, so it asks per model and maps the answer through `derived` into the `cost`
+   block (`litellm`, `openai-compatible` — see the `model1Pricing` prompt and §2.3). Do not copy a
+   vendor price page for anything behind a gateway: the id you call is not the vendor's direct
+   model, and its price is whatever that deployment's operator configured. Probe it, or ask.

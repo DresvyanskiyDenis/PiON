@@ -317,6 +317,16 @@ validate() { # validate <type> <value> <choices-csv>
         *.*|localhost) : ;;
         *) _verr "that does not look like a hostname"; return 1 ;;
       esac ;;
+    decimal)
+      # A price, not a count. 0, 2, 2.5 and 0.075 are all legal answers here and `int` rejects
+      # three of them, so a rate typed correctly would be refused until the operator rounded it —
+      # which is how an interview teaches someone to write down a number that is not the price.
+      # Globs rather than a regex: this runs before the fragment's own ECMAScript pattern and must
+      # be able to reject "abc" without node.
+      case "$val" in
+        ''|*[!0-9.]*|*.*.*|.*|*.)
+          _verr "must be a number, with a leading digit and at most one decimal point (e.g. 0.075)"; return 1 ;;
+      esac ;;
     port|int)
       case "$val" in ''|*[!0-9]*) _verr "must be a number"; return 1 ;; esac
       if [ "$type" = port ] && { [ "$val" -lt 1 ] || [ "$val" -gt 65535 ]; }; then
@@ -803,6 +813,7 @@ for p in $SELECTED; do
           boolean) ask "$p.$f1" "$f3" "${f4:-false}" enum "$f5" "true,false" "$_why" "" "" >/dev/null ;;
           port)    ask "$p.$f1" "$f3" "$f4" port "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
           number)  ask "$p.$f1" "$f3" "$f4" int  "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
+          decimal) ask "$p.$f1" "$f3" "$f4" decimal "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
           *)       ask "$p.$f1" "$f3" "$f4" string "$f5" "" "$_why" "$f10" "$f11" >/dev/null ;;
         esac ;;
     esac

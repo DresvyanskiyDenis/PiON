@@ -546,6 +546,208 @@ describe("install.sh", () => {
 });
 
 // =========================================================================================
+// the price question — scripts/lib/providers.mjs, which is what turns interview answers into
+// config/models.json
+// =========================================================================================
+//
+// A fresh install used to end "consistent" and die on its first billed turn: the gateway fragments
+// rendered a model with every field a turn needs and no `cost`, the composer substituted four zeros
+// nobody wrote, and `extensions/cost-gate` aborted turn one with the money already spent. The fix is
+// not another gate — there were two already — but moving the answer earlier, to the one point where
+// being wrong costs nothing. These tests drive the generator install.sh calls, with the answers an
+// operator would have typed.
+
+const PROVIDERS_TOOL = join(REAL_SCRIPTS, "lib", "providers.mjs");
+const PROVIDERS_DIR = join(REPO_ROOT, "config", "providers");
+
+/** providers.mjs delimits its TSV fields with US (0x1f), never a tab. See its own header for why. */
+const FIELD_SEP = "\u001f";
+
+/** The four rate fields of PI's `ModelCostRates`. All four, or the object is read as unpriced. */
+const COST_RATE_FIELDS = ["input", "output", "cacheRead", "cacheWrite"];
+
+/** The gateway-shaped fragments: their price is a fact about somebody else's deployment. */
+const GATEWAYS = ["litellm", "openai-compatible"];
+
+function providersTool(args) {
+  const res = spawnSync(process.execPath, [PROVIDERS_TOOL, ...args], { encoding: "utf8" });
+  if (res.error) throw res.error;
+  return { status: res.status ?? -1, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
+}
+
+/** `describe`'s PROMPT rows, keyed by prompt id. Field order is fixed by providers.mjs. */
+function promptRows(providerId) {
+  const res = providersTool(["describe", PROVIDERS_DIR, providerId]);
+  assert.equal(res.status, 0, res.stderr);
+  const rows = new Map();
+  for (const line of res.stdout.split("\n")) {
+    const f = line.split(FIELD_SEP);
+    if (f[0] !== "PROMPT") continue;
+    rows.set(f[1], {
+      type: f[2], label: f[3], required: f[5], choices: f[6], choiceLabels: f[7],
+      whenId: f[8], whenValue: f[9], help: f[12],
+    });
+  }
+  return rows;
+}
+
+/**
+ * Both gateways answer the same interview apart from `reasoning`, so one answer table with a
+ * per-fragment pricing branch covers both. `pricing` is what an operator picks on screen.
+ */
+function gatewayAnswers(providerId, { pricing, second = true }) {
+  const lines = [
+    `${providerId}.baseUrl=https://gateway.example.com/v1`,
+    `${providerId}.apiKeyEnv=GATEWAY_KEY_NAME`,
+    `${providerId}.egress=internal`,
+    `${providerId}.concurrency=4`,
+    `${providerId}.model1Id=strong-alias`,
+    `${providerId}.model1Context=200000`,
+    `${providerId}.model1Reasoning=true`,
+    `${providerId}.model1Pricing=${pricing}`,
+    `tier.strong=${providerId}/strong-alias`,
+  ];
+  if (pricing === "metered") {
+    lines.push(`${providerId}.model1CostInput=2.5`, `${providerId}.model1CostOutput=10`);
+  }
+  if (second) {
+    lines.push(
+      `${providerId}.model2Id=light-alias`,
+      `${providerId}.model2Context=128000`,
+      `${providerId}.model2Reasoning=false`,
+      `${providerId}.model2Pricing=${pricing}`,
+      `tier.light=${providerId}/light-alias`,
+    );
+    if (pricing === "metered") {
+      lines.push(`${providerId}.model2CostInput=0.075`, `${providerId}.model2CostOutput=0.3`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** Run the generator exactly as install.sh does, and return the models.json it would write. */
+function generateModels(providerId, answersText) {
+  const dir = freshDir("ext28-answers-");
+  const answers = join(dir, "answers.conf");
+  writeFileSync(answers, answersText);
+  const outModels = join(dir, "models.json");
+  const res = providersTool([
+    "generate",
+    "--providers-dir", PROVIDERS_DIR,
+    "--select", providerId,
+    "--answers", answers,
+    "--models-default", join(REPO_ROOT, "config", "models.default.json"),
+    "--routing-default", join(REPO_ROOT, "config", "routing.default.json"),
+    "--out-models", outModels,
+    "--out-routing", join(dir, "routing.json"),
+  ]);
+  assert.equal(res.status, 0, `generate failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+  return JSON.parse(readFileSync(outModels, "utf8")).providers[providerId].models;
+}
+
+describe("the installer asks what a call costs", () => {
+  for (const providerId of GATEWAYS) {
+    test(`${providerId}: the interview asks per model, and the opt-out is on the menu`, () => {
+      const prompts = promptRows(providerId);
+      for (const n of [1, 2]) {
+        const pricing = prompts.get(`model${n}Pricing`);
+        assert.ok(pricing, `model${n}Pricing is not asked at all`);
+        assert.equal(pricing.type, "choice");
+        assert.equal(pricing.required, "1", "a price nobody has to answer is a price nobody answers");
+        // Both declarations the runtime gate accepts, offered as answers rather than as advice.
+        assert.equal(pricing.choices, "metered,unmetered");
+        assert.match(pricing.choiceLabels, /bills nothing, or bills by something other than tokens/);
+        // The conversion the operator gets wrong: gateways quote dollars per TOKEN.
+        for (const side of ["Input", "Output"]) {
+          const rate = prompts.get(`model${n}Cost${side}`);
+          assert.ok(rate, `model${n}Cost${side} is not asked`);
+          assert.equal(rate.type, "decimal", "an int prompt would refuse 2.5");
+          assert.match(rate.label, /dollars per MILLION tokens/);
+          assert.equal(rate.whenId, `model${n}Pricing`);
+          assert.equal(rate.whenValue, "metered");
+        }
+      }
+      assert.match(prompts.get("model1CostInput").help, /MULTIPLY BY 1000000/);
+      // The second model is optional, so its price question must be too — otherwise a one-model
+      // install is asked to price a model it never declared.
+      assert.equal(prompts.get("model2Pricing").whenId, "model2Id");
+    });
+
+    test(`${providerId}: a metered answer lands the rates it was given, as numbers`, () => {
+      const models = generateModels(providerId, gatewayAnswers(providerId, { pricing: "metered" }));
+      assert.deepEqual(
+        models.map((m) => [m.id, m.cost]),
+        [
+          ["strong-alias", { input: 2.5, output: 10, cacheRead: 0, cacheWrite: 0 }],
+          ["light-alias", { input: 0.075, output: 0.3, cacheRead: 0, cacheWrite: 0 }],
+        ],
+        "the rates have to arrive as JSON numbers: PI does not coerce, and a quoted rate is read " +
+          "as no rate at all",
+      );
+    });
+
+    test(`${providerId}: the opt-out lands four written zeros, and nothing else`, () => {
+      const models = generateModels(providerId, gatewayAnswers(providerId, { pricing: "unmetered" }));
+      for (const model of models) {
+        assert.deepEqual(
+          model.cost,
+          { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          `${model.id} did not come out as the deliberate opt-out`,
+        );
+      }
+      // Four zeros, not a fifth spelling. A sentinel here would give the cost object two readings.
+      assert.equal(Object.keys(models[0].cost).length, COST_RATE_FIELDS.length);
+    });
+
+    test(`${providerId}: the silent-omission shape is gone, on both answers and on one model`, () => {
+      const shapes = [
+        gatewayAnswers(providerId, { pricing: "metered" }),
+        gatewayAnswers(providerId, { pricing: "unmetered" }),
+        gatewayAnswers(providerId, { pricing: "metered", second: false }),
+      ];
+      for (const answers of shapes) {
+        for (const model of generateModels(providerId, answers)) {
+          for (const field of COST_RATE_FIELDS) {
+            assert.equal(
+              typeof model.cost?.[field],
+              "number",
+              `${model.id} reaches models.json with cost.${field} unstated, which is the shape ` +
+                `extensions/cost-gate ends the first billed turn for and bin/pi-check rule PC-27 ` +
+                `reports before that turn is ever sent`,
+            );
+          }
+        }
+      }
+    });
+  }
+
+  test("a metered answer with no rate typed is refused, not zeroed", () => {
+    // The failure this whole change is about, inverted: the generator must not invent a price for
+    // an operator who said the endpoint is metered. An interactive run cannot get here (the prompt
+    // is required and has no default); an --answers file can, and it has to fail loudly.
+    const answers = gatewayAnswers("litellm", { pricing: "metered", second: false })
+      .split("\n")
+      .filter((l) => !l.startsWith("litellm.model1CostInput="))
+      .join("\n");
+    const dir = freshDir("ext28-answers-");
+    const file = join(dir, "answers.conf");
+    writeFileSync(file, answers);
+    const res = providersTool([
+      "generate",
+      "--providers-dir", PROVIDERS_DIR,
+      "--select", "litellm",
+      "--answers", file,
+      "--models-default", join(REPO_ROOT, "config", "models.default.json"),
+      "--routing-default", join(REPO_ROOT, "config", "routing.default.json"),
+      "--print-only",
+    ]);
+    assert.equal(res.status, 2, `expected a refusal, got:\n${res.stdout}${res.stderr}`);
+    assert.match(res.stderr, /litellm\/strong-alias: cost\.input is not a number/);
+    assert.match(res.stderr, /Nothing was written/);
+  });
+});
+
+// =========================================================================================
 // postinstall-verify.sh
 // =========================================================================================
 

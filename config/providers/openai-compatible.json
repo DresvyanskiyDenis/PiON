@@ -91,6 +91,35 @@
       "required": true
     },
     {
+      "id": "model1Pricing",
+      "type": "choice",
+      "label": "What does that model cost per token on this gateway?",
+      "help": "PI needs a rate for every model it can call, and there is no third answer to this. A price left out does not stay out: the composer substitutes four zeros nobody wrote, the status line then reads 0.000 for the whole session on a gateway that may be billing you, and extensions/cost-gate ends the first billed turn rather than let that stand. Both answers below are declarations the gate accepts for good.",
+      "choices": [
+        { "value": "metered", "label": "it bills per token, and I will type the two rates" },
+        { "value": "unmetered", "label": "it bills nothing, or bills by something other than tokens" }
+      ],
+      "required": true
+    },
+    {
+      "id": "model1CostInput",
+      "type": "decimal",
+      "label": "Input rate for that model, in dollars per MILLION tokens",
+      "help": "Ask the gateway, not the vendor: the id you call is not the vendor's direct model and its price is whatever this deployment's operator configured. Most management routes quote DOLLARS PER TOKEN (LiteLLM serves it on /model/info as input_cost_per_token), so MULTIPLY BY 1000000 before typing it here. PI divides this rate by 1000000 again before multiplying by the usage counter, so a per-token figure pasted straight in is wrong by six orders of magnitude and still renders.",
+      "example": "2.5",
+      "required": true,
+      "when": { "model1Pricing": "metered" }
+    },
+    {
+      "id": "model1CostOutput",
+      "type": "decimal",
+      "label": "Output rate for that model, in dollars per MILLION tokens",
+      "help": "The output side of the same quote, converted the same way. Output is typically several times input; if the two come out equal, check that you read two different fields.",
+      "example": "10",
+      "required": true,
+      "when": { "model1Pricing": "metered" }
+    },
+    {
       "id": "model2Id",
       "type": "string",
       "label": "A second model id, or blank if you only want one",
@@ -104,7 +133,44 @@
       "default": 32768,
       "required": true,
       "when": { "model2Id": "*" }
+    },
+    {
+      "id": "model2Pricing",
+      "type": "choice",
+      "label": "What does the second model cost per token on this gateway?",
+      "help": "Same question, same two answers, asked again because the second model has its own price on this gateway. See the first model's help if you skipped it.",
+      "choices": [
+        { "value": "metered", "label": "it bills per token, and I will type the two rates" },
+        { "value": "unmetered", "label": "it bills nothing, or bills by something other than tokens" }
+      ],
+      "required": true,
+      "when": { "model2Id": "*" }
+    },
+    {
+      "id": "model2CostInput",
+      "type": "decimal",
+      "label": "Input rate for the second model, in dollars per MILLION tokens",
+      "help": "Read the same way as the first model's, and converted the same way: MULTIPLY BY 1000000.",
+      "example": "2.5",
+      "required": true,
+      "when": { "model2Pricing": "metered" }
+    },
+    {
+      "id": "model2CostOutput",
+      "type": "decimal",
+      "label": "Output rate for the second model, in dollars per MILLION tokens",
+      "help": "The output side of the same quote, converted the same way.",
+      "example": "10",
+      "required": true,
+      "when": { "model2Pricing": "metered" }
     }
+  ],
+
+  "derived": [
+    { "id": "model1RateInput",  "from": "model1Pricing", "map": { "metered": "{{model1CostInput}}",  "unmetered": 0 } },
+    { "id": "model1RateOutput", "from": "model1Pricing", "map": { "metered": "{{model1CostOutput}}", "unmetered": 0 } },
+    { "id": "model2RateInput",  "from": "model2Pricing", "map": { "metered": "{{model2CostInput}}",  "unmetered": 0, "": 0 } },
+    { "id": "model2RateOutput", "from": "model2Pricing", "map": { "metered": "{{model2CostOutput}}", "unmetered": 0, "": 0 } }
   ],
 
   "tiers": {
@@ -129,7 +195,13 @@
         "name": "[gateway] {{model1Id}}",
         "input": ["text"],
         "contextWindow": "{{model1Context}}",
-        "maxTokens": 8192
+        "maxTokens": 8192,
+        "cost": {
+          "input": "{{model1RateInput}}",
+          "output": "{{model1RateOutput}}",
+          "cacheRead": 0,
+          "cacheWrite": 0
+        }
       },
       {
         "$omitIfBlank": "model2Id",
@@ -137,7 +209,13 @@
         "name": "[gateway] {{model2Id}}",
         "input": ["text"],
         "contextWindow": "{{model2Context}}",
-        "maxTokens": 8192
+        "maxTokens": 8192,
+        "cost": {
+          "input": "{{model2RateInput}}",
+          "output": "{{model2RateOutput}}",
+          "cacheRead": 0,
+          "cacheWrite": 0
+        }
       }
     ]
   },
@@ -151,7 +229,7 @@
     "THE compat BLOCK STARTS FULLY CONSERVATIVE ON PURPOSE, AND EACH `false` COSTS SOMETHING. Everything off plus max_tokens is the setting most likely to complete one turn against an unknown endpoint. What you are giving up until you test: supportsUsageInStreaming:false means no token counts arrive during a stream, so the quota extension cannot track spend on this provider. supportsReasoningEffort:false means PI's thinking levels are not forwarded, so a reasoning model behind the gateway runs at its own default. supportsDeveloperRole:false sends the system prompt as `system` rather than `developer`. supportsFinishReason:false makes PI infer stop/toolUse when the stream closes rather than reading finish_reason. Turn them on one at a time, keeping a turn working between changes: a flag turned off that was needed costs a feature, a flag turned on that is unsupported costs a 400 on every request.",
     "A MODEL ID CONTAINING A SLASH IS FINE. Aggregators serve ids like `vendor/model-name`, which makes the qualified form `openai-compatible/vendor/model-name`. The provider is split off at the FIRST slash and everything after it is the model id, so this resolves correctly in routing.json, in --model, and in PC-01/PC-02. Do not rewrite the id to remove the slash - it has to match what the gateway serves, byte for byte.",
     "apiKey MUST BE PRESENT AND MUST RESOLVE, EVEN IF YOUR GATEWAY IGNORES IT. models.json holds `$YOUR_VARIABLE_NAME`, never a key. If that variable is unset at session start, PI reads the provider as unconfigured and its models never appear in /model or --list-models - which looks like the harness being broken rather than a missing credential. A gateway that genuinely checks nothing still needs a non-empty value here; export any inert string.",
-    "PRICE IS A PROPERTY OF THE GATEWAY, NOT OF THE MODEL BEHIND IT, SO NO `cost` IS SHIPPED HERE. A model id served by a gateway is not the vendor's direct model, and what a call costs is whatever the operator configured on that deployment - which is frequently nothing at all. Copying the vendor's public list price would put an invented number on your status line, so the fragment leaves `cost` out. The consequence is worth knowing: `cost` is optional in this file and required on PI's runtime model type, and the provider composer substitutes {input:0,output:0,cacheRead:0,cacheWrite:0} rather than refusing, so every session on this provider displays a flat 0.000 spend, silently. To fix it, probe rather than assume - most gateways answer their own pricing on a management route, and one that will not may still return its verdict in the response headers of an ordinary completion. Units are DOLLARS PER MILLION TOKENS: PI divides each rate by 1000000 before multiplying by the usage counter, so an unconverted per-token price is wrong by six orders of magnitude and still renders. Re-probe when adding a model; gateway pricing is a deployment setting and can be switched on without anything in this repository changing.",
+    "THE PRICE IS ASKED DURING THE INTERVIEW, BECAUSE THIS FILE CANNOT KNOW IT. A model id served by a gateway is not the vendor's direct model, and what a call costs is whatever that deployment's operator configured - frequently nothing at all. So no rate is shipped here and none is guessed; the installer asks you, per model, before the first request. What it cannot do is stay silent: `cost` is optional in this file and required on PI's runtime model type, so an omission gets {input:0,output:0,cacheRead:0,cacheWrite:0} substituted by the composer, every session then displays a flat 0.000 spend, and extensions/cost-gate ends the first billed turn rather than let that stand. The interview writes one of the two declarations that gate accepts - the rates you type, or four written zeros - and bin/pi-check's PC-27 re-asks the same question of the generated config/models.json before you start a session. Probe rather than assume: most gateways answer their own pricing on a management route, and one that will not may still return its verdict in the response headers of an ordinary completion. Units are DOLLARS PER MILLION TOKENS, and a management route almost always quotes DOLLARS PER TOKEN, so MULTIPLY BY 1000000 - PI divides each rate by 1000000 before multiplying by the usage counter, so an unconverted per-token price is wrong by six orders of magnitude and still renders. cacheRead and cacheWrite are written as literal zeros because cacheControlFormat is not declared here, so PI sends no cache breakpoints through the gateway and both counters stay at zero. Re-probe when you add a model, and after any change on the gateway: pricing is a deployment setting that can be switched on without anything in this repository changing.",
     "THERE IS NO FAILOVER, HERE OR ANYWHERE. A gateway that is down, rate-limited or returning 5xx aborts the request naming the provider, the model, the error class and the cause chain. It does not silently move the work to another provider you also configured. That is deliberate (see the no-provider-failover ADR): a quiet substitution sends a confidential prompt somewhere you did not choose, and it hides an outage until the bill or the audit log shows it.",
     "ONE FRAGMENT, ONE GATEWAY. The id `openai-compatible` is the key in models.json, and a second gateway would collide with it. If you need two, install this one, then copy `providers.openai-compatible` in config/models.json to a second key (any name), give it its own baseUrl, apiKey variable and models, and add matching rows to `egress` and `concurrency` in config/routing.json. Both files are yours after installation; the fragment is only how the first one gets written."
   ],
