@@ -69,6 +69,7 @@ export const DECLARED_MODULES = [
   "context-imports",
   "session-index",
   "auto-title",
+  "auto-update",
   "skills-lint",
   // presentation — reads the level PI already tracks, changes nothing else
   "thinking-indicator",

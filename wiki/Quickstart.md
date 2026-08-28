@@ -38,7 +38,7 @@ menu, defaulting to **3**:
 ```
    What should this run do?
      1) reconfigure everything  — the full interview, your answers pre-filled
-     2) reconfigure one section — providers, tiers, agent, safety, tools or shell
+     2) reconfigure one section — providers, tiers, agent, safety, tools, shell or maintenance
      3) repair                  — re-link and re-verify, ask nothing
      4) leave it alone          — exit now, change nothing
    choice [3]:
@@ -49,7 +49,7 @@ treated as repair and regenerate. It never silently re-interviews you.
 
 ---
 
-## The six sections
+## The seven sections
 
 `--section` takes exactly one of these names.
 
@@ -61,6 +61,7 @@ treated as repair and regenerate. It never silently re-interviews you.
 | `safety` | The safety posture — chiefly which branches count as protected. The catastrophic shapes are refused in code and are not configurable |
 | `tools` | Web search backend, language servers, quota metering, and the MCP servers you opt into |
 | `shell` | The `pi-config` block appended to your shell rc: `PATH`, the environment file, proxy variables |
+| `maintenance` | Whether a cron job checks `origin/main` for updates every 30 minutes, and whether the next session applies them or just tells you |
 
 The credential *values* are asked once, later in the run, and go to `~/.pi/secrets.env` (mode
 `0600`) or the macOS Keychain — never into a config file, never into git.

@@ -785,5 +785,47 @@ describe("scripts/update.sh", () => {
       rmSync(fx.dir, { recursive: true, force: true });
     }
   });
-});
+  test("a successful update clears the update-pending flag", () => {
+    // The reminder auto-update-check.sh wrote names an update. This is that update; leaving the
+    // flag behind would announce it again at the next session start, forever.
+    const fx = makeFixture();
+    try {
+      const flag = join(fx.agentDir, "update-pending");
+      writeFileSync(flag, "range=aaaaaaa..bbbbbbb\ncommits=1\n");
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+      assert.equal(existsSync(flag), false, "the update ran but the reminder for it survived");
+      assert.match(r.stdout, /cleared .*update-pending/);
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
 
+  test("--dry-run announces the flag it would clear, and clears nothing", () => {
+    const fx = makeFixture();
+    try {
+      const flag = join(fx.agentDir, "update-pending");
+      writeFileSync(flag, "range=aaaaaaa..bbbbbbb\ncommits=1\n");
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+      const r = update(fx, "--dry-run", "--yes", "--no-verify");
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /a real run would clear .*update-pending/);
+      assert.equal(existsSync(flag), true, "--dry-run removed the flag file");
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("no flag file is not a step: an update with nothing pending says nothing about it", () => {
+    const fx = makeFixture();
+    try {
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+      assert.doesNotMatch(r.stdout, /update-pending/);
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+});

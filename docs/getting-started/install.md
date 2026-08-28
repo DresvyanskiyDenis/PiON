@@ -272,7 +272,7 @@ Other useful flags:
 ```
 
 Adding a provider six months from now is a re-run, not a hand-edit. Sections:
-`providers` · `tiers` · `agent` · `safety` · `tools` · `shell`.
+`providers` · `tiers` · `agent` · `safety` · `tools` · `shell` · `maintenance`.
 
 ---
 

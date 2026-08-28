@@ -1,0 +1,7 @@
+{
+  "autoUpdate": {
+    "enabled": false,
+    "mode": "prompt",
+    "intervalMinutes": 30
+  }
+}

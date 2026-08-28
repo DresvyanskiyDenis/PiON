@@ -23,6 +23,8 @@
 #   GENERATED  config/*.json built from your answers removed (never a *.default.json template)
 #   PATCHED    a TRACKED repo file it edited         NEVER removed — reported, restore with git
 #   RCBLOCK    a fenced block in a shell rc file     the block is cut out, the rest is left alone
+#   CRON       a user crontab entry it scheduled     only the marked line is dropped; every other
+#              (the auto-update check)               line in your crontab is written back as-is
 #   BACKUP     something it moved aside for you      kept unless you say otherwise
 #   SECRETS    your credentials file                 kept unless you say otherwise
 #   KEYCHAIN   a macOS Keychain item it created      kept unless you say otherwise
@@ -226,6 +228,7 @@ FILES="$SCRATCH/files";       : > "$FILES"      # path<TAB>why
 GENERATED="$SCRATCH/gen";     : > "$GENERATED"
 PATCHED="$SCRATCH/patched";   : > "$PATCHED"
 RCBLOCKS="$SCRATCH/rc";       : > "$RCBLOCKS"   # path<TAB>marker
+CRONROWS="$SCRATCH/cron";     : > "$CRONROWS"  # script path<TAB>the marker its line carries
 DIRS="$SCRATCH/dirs";         : > "$DIRS"
 BACKUPS="$SCRATCH/backups";   : > "$BACKUPS"
 KEYCHAIN="$SCRATCH/keychain"; : > "$KEYCHAIN"
@@ -252,6 +255,7 @@ if [ -f "$MANIFEST" ]; then
       GENERATED) printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$GENERATED" ;;
       PATCHED)   printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$PATCHED" ;;
       RCBLOCK)   printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$RCBLOCKS" ;;
+      CRON)      printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$CRONROWS" ;;
       DIR)       printf '%s\n'     "$m_path" >> "$DIRS" ;;
       TREE)      printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$TREES" ;;
       BACKUP)    printf '%s\t%s\n' "$m_path" "${m_detail:-}" >> "$BACKUPS" ;;
@@ -302,7 +306,7 @@ else
   ok "reconstructed $(wc -l < "$LINKS" | tr -d ' ') symlink(s) and $(wc -l < "$RCBLOCKS" | tr -d ' ') rc block(s) by scanning"
 fi
 
-if [ ! -s "$LINKS" ] && [ ! -s "$FILES" ] && [ ! -s "$GENERATED" ] && [ ! -s "$RCBLOCKS" ] && [ ! -s "$NPMGLOBAL" ]; then
+if [ ! -s "$LINKS" ] && [ ! -s "$FILES" ] && [ ! -s "$GENERATED" ] && [ ! -s "$RCBLOCKS" ] && [ ! -s "$CRONROWS" ] && [ ! -s "$NPMGLOBAL" ]; then
   printf '\nNothing to remove: no manifest, no symlinks into this checkout, no rc blocks.\n'
   printf 'If you expected an install here, check --prefix (currently %s).\n' "$PREFIX"
   exit 0
@@ -349,6 +353,12 @@ if [ -s "$RCBLOCKS" ]; then
   printf '\n   %sshell rc blocks%s (%s) — only the fenced block, the rest of the file stays\n' \
     "$C_B" "$C_0" "$(count_of "$RCBLOCKS")"
   while IFS=$'\t' read -r r_path r_marker; do printf '     %-40s %s%s%s\n' "$r_path" "$C_D" "$r_marker" "$C_0"; done < "$RCBLOCKS"
+fi
+
+if [ -s "$CRONROWS" ]; then
+  printf '\n   %scron entries%s (%s) — only the marked line; the rest of your crontab is written back unchanged\n' \
+    "$C_B" "$C_0" "$(count_of "$CRONROWS")"
+  while IFS=$'\t' read -r c_path c_mark; do printf '     %-40s %s%s%s\n' "$c_path" "$C_D" "$c_mark" "$C_0"; done < "$CRONROWS"
 fi
 
 if [ -s "$NPMGLOBAL" ]; then
@@ -532,6 +542,29 @@ while IFS=$'\t' read -r r_path r_marker; do
   fi
   gone "$r_path: removed the '$_name' block"
 done < "$RCBLOCKS"
+
+# --- cron entries. A crontab is one shared document per user, so this is a read-filter-write of
+# the whole thing rather than a delete of a line: every entry that is not ours is written back
+# byte for byte. The filter is the marker install.sh wrote, never the script path — a line
+# somebody added by hand that calls the same script is theirs, and stays.
+while IFS=$'\t' read -r c_path c_mark; do
+  [ -n "$c_mark" ] || continue
+  if ! command -v crontab >/dev/null 2>&1; then
+    warn "crontab is not on PATH — the entry marked '$c_mark' could not be removed; drop it by hand"
+    continue
+  fi
+  _cron_cur="$SCRATCH/cron.cur"; _cron_new="$SCRATCH/cron.new"
+  crontab -l > "$_cron_cur" 2>/dev/null || : > "$_cron_cur"
+  if ! grep -qF "$c_mark" "$_cron_cur" 2>/dev/null; then ok "no crontab entry marked '$c_mark'"; continue; fi
+  grep -vF "$c_mark" "$_cron_cur" > "$_cron_new" 2>/dev/null || : > "$_cron_new"
+  if [ "$DRY_RUN" = 0 ]; then
+    if ! crontab "$_cron_new"; then
+      warn "crontab refused the filtered table — the entry marked '$c_mark' is still scheduled; remove it with 'crontab -e'"
+      continue
+    fi
+  fi
+  gone "crontab: the entry marked '$c_mark' (it ran $c_path)"
+done < "$CRONROWS"
 
 # --- installer files. A FILE row for an rc file means the installer created that file; it is
 # removed only if cutting our block left nothing but blank lines behind.

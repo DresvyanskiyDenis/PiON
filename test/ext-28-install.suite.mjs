@@ -32,6 +32,7 @@ import {
   readlinkSync,
   rmSync,
   lstatSync,
+  existsSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -104,7 +105,7 @@ function makeRepoSkeleton() {
     symlinkSync(join(REPO_ROOT, "config", rel), join(repo, "config", rel));
   }
 
-  for (const rel of ["install.sh", "postinstall-verify.sh"]) {
+  for (const rel of ["install.sh", "postinstall-verify.sh", "auto-update-check.sh"]) {
     symlinkSync(join(REAL_SCRIPTS, rel), join(repo, "scripts", rel));
   }
   // Every helper in scripts/lib/, enumerated rather than listed: install.sh and
@@ -252,6 +253,49 @@ function baseEnv(fixtureHome, extra = {}) {
  * "What you now have" block below it. Matched as one anchored pattern, in one place, so the next
  * rewording is a single edit rather than a hunt. */
 const DONE_LINE = /^\s*Done — (\d+) step\(s\) changed\s*$/m;
+
+/**
+ * A `crontab(1)` that keeps the table in a file under the fixture $HOME instead of in the real
+ * per-user cron spool. Every scheduling assertion in this suite goes through it: `crontab` is
+ * per-USER, not per-$HOME, so a test that called the real one would rewrite the crontab of whoever
+ * ran `npm test` — on their laptop, with their jobs in it. The fixture PATH puts $HOME/bin first
+ * (see curatedPath), which is the same trick the offline runs use for `pi`.
+ *
+ * It implements exactly the three forms install.sh and uninstall.sh use: `-l` to read (exit 1 with
+ * "no crontab" when there is none, as the real one does — that exit status is load-bearing, the
+ * scripts branch on it), `FILE` to replace, and `-` to replace from stdin.
+ */
+function installFakeCrontab(fixtureHome) {
+  const tab = join(fixtureHome, "crontab.tab");
+  const bin = join(fixtureHome, "bin");
+  mkdirSync(bin, { recursive: true });
+  const fake = join(bin, "crontab");
+  writeFileSync(
+    fake,
+    [
+      "#!/usr/bin/env bash",
+      `TAB="${tab}"`,
+      'case "${1:-}" in',
+      '  -l) [ -f "$TAB" ] || { printf \'no crontab for fixture\\n\' >&2; exit 1; }; cat "$TAB" ;;',
+      '  -r) rm -f "$TAB" ;;',
+      '  -)  cat > "$TAB" ;;',
+      '  *)  cat "$1" > "$TAB" ;;',
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(fake, 0o755);
+  return tab;
+}
+
+/** The crontab as install.sh left it, or [] when no table was ever written. */
+function cronLines(tab) {
+  return existsSync(tab) ? readFileSync(tab, "utf8").split("\n").filter((l) => l.trim() !== "") : [];
+}
+
+const CRON_MARK = "# pi-config:auto-update";
+const markedLines = (tab) => cronLines(tab).filter((l) => l.includes(CRON_MARK));
+
 
 // =========================================================================================
 // install.sh
@@ -556,6 +600,95 @@ describe("install.sh", () => {
 // not another gate — there were two already — but moving the answer earlier, to the one point where
 // being wrong costs nothing. These tests drive the generator install.sh calls, with the answers an
 // operator would have typed.
+
+// =========================================================================================
+// install.sh — the maintenance section: auto-update scheduling
+// =========================================================================================
+
+describe("the installer schedules the update check", () => {
+  const platform = platformAsset();
+
+  /** A real (not --dry-run) offline install, run through the fake crontab. */
+  function offlineInstall(fixtureHome, answersText, extraArgs = []) {
+    const repo = makeRepoSkeleton();
+    const stageDir = freshDir("ext28-offline-cron-");
+    const { sha256 } = stageFakePiTarball(stageDir, platform);
+    writeLock(repo, { platform, sha256 });
+    const answers = join(freshDir("ext28-answers-cron-"), "answers.conf");
+    writeFileSync(answers, answersText);
+    const run = (...args) =>
+      runScript(
+        join(repo, "scripts", "install.sh"),
+        ["--mode", "binary", "--offline", "--offline-dir", stageDir, "--answers", answers, ...extraArgs, ...args],
+        baseEnv(fixtureHome),
+      );
+    return { repo, run, answers };
+  }
+
+  test("enabled: exactly one marked 30-minute entry, and a second run adds no second one", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const tab = installFakeCrontab(fixtureHome);
+    const { run } = offlineInstall(fixtureHome, "autoupdate.enabled=true\nautoupdate.mode=prompt\n");
+
+    const first = run();
+    assert.equal(first.status, 0, `install failed:\nSTDOUT:${first.stdout}\nSTDERR:${first.stderr}`);
+
+    const marked = markedLines(tab);
+    assert.equal(marked.length, 1, `expected one marked entry, got:\n${cronLines(tab).join("\n")}`);
+    assert.match(marked[0], /^\*\/30 \* \* \* \* \S+\/scripts\/auto-update-check\.sh /);
+    // Cron mails every byte a job writes. The entry has to be silent or the user gets 48 mails a day.
+    assert.match(marked[0], />\/dev\/null 2>&1/);
+
+    // Idempotency, which for a crontab means the read-filter-write produced a byte-identical table
+    // rather than an appended duplicate — the failure mode `crontab -l | { cat; echo …; }` has.
+    const second = run();
+    assert.equal(second.status, 0, `second run failed:\nSTDOUT:${second.stdout}\nSTDERR:${second.stderr}`);
+    assert.deepEqual(markedLines(tab), marked, "the second run rewrote or duplicated the entry");
+    const summary = second.stdout.match(DONE_LINE);
+    assert.ok(summary, `no summary line:\n${second.stdout}`);
+    assert.equal(summary[1], "0", `second run reported ${summary[1]} changed step(s):\n${second.stdout}`);
+  });
+
+  test("disabled by default: no crontab is written at all", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const tab = installFakeCrontab(fixtureHome);
+    const { run } = offlineInstall(fixtureHome, "");
+    const res = run();
+    assert.equal(res.status, 0, `install failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.deepEqual(cronLines(tab), [], "an opt-in feature touched the crontab while opted out");
+  });
+
+  test("--section maintenance turns it off again, and leaves every other entry alone", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const tab = installFakeCrontab(fixtureHome);
+    // Somebody else's job, already in the table. The installer edits ONE marked line; a rewrite
+    // that dropped this would be the most expensive bug in the feature.
+    const theirs = "0 5 * * * /usr/bin/true # nightly backup";
+    writeFileSync(tab, `${theirs}\n`);
+
+    const on = offlineInstall(fixtureHome, "autoupdate.enabled=true\nautoupdate.mode=auto\n");
+    const enabled = on.run();
+    assert.equal(enabled.status, 0, `install failed:\nSTDOUT:${enabled.stdout}\nSTDERR:${enabled.stderr}`);
+    assert.equal(markedLines(tab).length, 1);
+    assert.ok(cronLines(tab).includes(theirs), "the installer dropped an unrelated cron entry");
+
+    const off = join(freshDir("ext28-answers-off-"), "answers.conf");
+    writeFileSync(off, "autoupdate.enabled=false\n");
+    const res = runScript(
+      join(on.repo, "scripts", "install.sh"),
+      ["--section", "maintenance", "--answers", off],
+      baseEnv(fixtureHome),
+    );
+    assert.equal(res.status, 0, `--section maintenance failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.deepEqual(markedLines(tab), [], "turning it off left the cron entry behind");
+    assert.deepEqual(cronLines(tab), [theirs], "turning it off disturbed an unrelated entry");
+    assert.equal(
+      readFileSync(join(on.repo, "config", "auto-update.json"), "utf8").includes('"enabled": false'),
+      true,
+      "the preference file still says enabled",
+    );
+  });
+});
 
 const PROVIDERS_TOOL = join(REAL_SCRIPTS, "lib", "providers.mjs");
 const PROVIDERS_DIR = join(REPO_ROOT, "config", "providers");
