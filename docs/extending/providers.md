@@ -1,7 +1,8 @@
 # Adding a provider
 
-Four provider fragments ship: `github-copilot`, `litellm`, `databricks` and `openai-compatible`.
-Adding a fifth is a JSON file, and the installer picks it up with no code change.
+Five provider fragments ship: `github-copilot`, `openai`, `litellm`, `databricks` and
+`openai-compatible`. Adding a sixth is a JSON file, and the installer picks it up with no code
+change.
 
 !!! tip "Check `openai-compatible` first"
 
@@ -17,7 +18,9 @@ Adding a fifth is a JSON file, and the installer picks it up with no code change
     behaviour that is knowable for a **named** product can only be stated as a literal by a fragment
     that names it. That is why [`litellm`](../configuration/litellm.md) exists beside
     `openai-compatible` although both fit a LiteLLM proxy: they differ in no answer, and in four
-    fields nobody can be asked about.
+    fields nobody can be asked about. [`openai`](../configuration/openai.md) is the other case: a
+    ChatGPT subscription needs a block with **no** `apiKey` key at all, and no answer to a gateway
+    fragment's questions can produce an absent field.
 
 There are two ways in, and they are not equivalent:
 

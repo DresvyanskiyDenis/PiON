@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "id": "openai",
+  "displayName": "OpenAI (first-party)",
+  "summary": "GPT-5.6 straight from api.openai.com, on either of the two ways OpenAI sells it: a pay-as-you-go API key billed per token, or a ChatGPT Plus/Pro/Business sign-in billed as a flat subscription.",
+  "builtIn": true,
+  "default": false,
+  "egress": "public",
+  "concurrency": 4,
+
+  "requires": [
+    {
+      "kind": "env",
+      "name": "OPENAI_API_KEY",
+      "required": false,
+      "secret": true,
+      "description": "A platform API key (sk-...). Required on the pay-as-you-go branch and unused on the subscription branch, which is why it is not marked required here: half the operators who select this fragment correctly do not have one.",
+      "howTo": "platform.openai.com -> Settings -> API keys -> Create new secret key. Put it in ~/.pi/secrets.env (chmod 600), one line, as OPENAI_API_KEY followed by an equals sign and the key. Never in this repository."
+    },
+    {
+      "kind": "service",
+      "name": "ChatGPT Plus, Pro, Business, Enterprise or Edu subscription",
+      "required": false,
+      "secret": false,
+      "description": "The other half of the fragment. A paid ChatGPT plan carries model access for coding clients, which PI reaches through its own sign-in rather than through an API key.",
+      "howTo": "Run `/login` inside PI and pick the ChatGPT Plus/Pro (Codex) method. The credential lands in ~/.pi/agent/auth.json (0600) and is refreshed there; nothing is written into this repository or into secrets.env."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "acquisition",
+      "type": "choice",
+      "label": "How do you pay OpenAI for these models?",
+      "help": "This is the pricing question every fragment has to answer, asked once in the only form that is true for OpenAI: the two ways they sell the same models are metered and unmetered respectively. Pay-as-you-go bills per token, so the rates below are written into the cost block and the status line reports real money. A ChatGPT subscription bills a flat monthly rate that no per-token number describes, so the cost block is four written zeros - a declaration, not an omission, and not a rate this repository invented.",
+      "default": "metered",
+      "required": true,
+      "choices": [
+        {
+          "value": "metered",
+          "label": "Pay-as-you-go API key (OPENAI_API_KEY) - billed per token at the published rates"
+        },
+        {
+          "value": "unmetered",
+          "label": "ChatGPT Plus/Pro/Business sign-in - a flat subscription, not billed per token"
+        }
+      ]
+    },
+    {
+      "id": "endpoint",
+      "type": "choice",
+      "label": "Do your requests go straight to api.openai.com, or through something of your own?",
+      "help": "A corporate egress proxy or an audit gateway that speaks the same wire and forwards to OpenAI. Answering `direct` leaves the baseUrl key out of the block entirely, which is how PI is told to use the vendor default it already knows - not the same as writing an empty string.",
+      "default": "direct",
+      "required": true,
+      "choices": [
+        { "value": "direct", "label": "Straight to api.openai.com (the normal answer)" },
+        { "value": "proxy", "label": "Through a proxy or gateway of my own" }
+      ]
+    },
+    {
+      "id": "proxyBaseUrl",
+      "type": "string",
+      "label": "Base URL of that proxy, including the scheme and any /v1 suffix",
+      "help": "Substituted literally at install time. PI does NOT expand $VAR or !cmd inside baseUrl, so this cannot be an environment variable.",
+      "example": "https://openai-egress.internal.example.com/v1",
+      "required": true,
+      "when": { "endpoint": "proxy" },
+      "validate": {
+        "pattern": "^https?://[^\\s]+$",
+        "message": "a full URL with scheme - no trailing spaces"
+      }
+    }
+  ],
+
+  "derived": [
+    { "id": "baseUrl",   "from": "endpoint",    "map": { "direct": null, "proxy": "{{proxyBaseUrl}}" } },
+    { "id": "apiKeyRef", "from": "acquisition", "map": { "metered": "$OPENAI_API_KEY", "unmetered": null } },
+
+    { "id": "solInput",    "from": "acquisition", "map": { "metered": 4,    "unmetered": 0 } },
+    { "id": "solCached",   "from": "acquisition", "map": { "metered": 0.4,  "unmetered": 0 } },
+    { "id": "solOutput",   "from": "acquisition", "map": { "metered": 20,   "unmetered": 0 } },
+    { "id": "terraInput",  "from": "acquisition", "map": { "metered": 2,    "unmetered": 0 } },
+    { "id": "terraCached", "from": "acquisition", "map": { "metered": 0.2,  "unmetered": 0 } },
+    { "id": "terraOutput", "from": "acquisition", "map": { "metered": 12,   "unmetered": 0 } },
+    { "id": "lunaInput",   "from": "acquisition", "map": { "metered": 0.2,  "unmetered": 0 } },
+    { "id": "lunaCached",  "from": "acquisition", "map": { "metered": 0.02, "unmetered": 0 } },
+    { "id": "lunaOutput",  "from": "acquisition", "map": { "metered": 1.2,  "unmetered": 0 } }
+  ],
+
+  "tiers": {
+    "strong": "openai/gpt-5.6-sol",
+    "light": "openai/gpt-5.6-luna"
+  },
+
+  "provider": {
+    "baseUrl": "{{baseUrl}}",
+    "apiKey": "{{apiKeyRef}}",
+    "modelOverrides": {
+      "gpt-5.6-sol": {
+        "contextWindow": 200000,
+        "cost": { "input": "{{solInput}}", "output": "{{solOutput}}", "cacheRead": "{{solCached}}", "cacheWrite": 0 }
+      },
+      "gpt-5.6-terra": {
+        "contextWindow": 200000,
+        "cost": { "input": "{{terraInput}}", "output": "{{terraOutput}}", "cacheRead": "{{terraCached}}", "cacheWrite": 0 }
+      },
+      "gpt-5.6-luna": {
+        "contextWindow": 200000,
+        "cost": { "input": "{{lunaInput}}", "output": "{{lunaOutput}}", "cacheRead": "{{lunaCached}}", "cacheWrite": 0 }
+      }
+    }
+  },
+
+  "notes": [
+    "WHY THIS FRAGMENT EXISTS AT ALL, GIVEN openai-compatible.json. A pay-as-you-go OpenAI account genuinely is that fragment with different answers, and it was retired for exactly that reason on 2026-08-15. The subscription half is not: a ChatGPT sign-in has no API key, and openai-compatible cannot express an apiKey that must be ABSENT so PI's own OAuth resolver supplies the credential. That branch, and the published per-token rates for a NAMED product, are knowledge no interview can carry - which is the one justification config/providers/README.md section 5 gives for a separate file. The retirement stands for the case it was about; this file is the case it was not.",
+    "PRICES ARE THE PUBLISHED LIST RATES, IN DOLLARS PER MILLION TOKENS, READ ON 2026-08-28 FROM https://developers.openai.com/api/docs/pricing.md - gpt-5.6-sol 4.00 in / 0.40 cached / 20.00 out, gpt-5.6-terra 2.00 / 0.20 / 12.00, gpt-5.6-luna 0.20 / 0.02 / 1.20. PI divides each rate by 1000000 before multiplying by the usage counter, so these are per MILLION tokens and a per-token figure pasted here would be wrong by six orders of magnitude and still render. Sol's rate is promotional through at least 2026-11-21 and Terra/Luna were cut on 2026-07-30, so this is a snapshot with a date on it, not a constant: check the page and edit config/models.json (or this file and re-run the installer) if your invoice disagrees. A discounted or committed-use account pays less than the list, and nothing here can know that.",
+    "cacheWrite IS ZERO BECAUSE OPENAI DOES NOT CHARGE FOR IT. Prompt caching on this API discounts cached INPUT and bills nothing to place an entry, so the zero is the rate, not a gap. cacheRead carries the published cached-input rate, which is what makes the saving visible in the status line rather than invisible in the invoice.",
+    "THE FOUR ZEROS ON THE SUBSCRIPTION BRANCH ARE A DECLARATION, NOT AN OMISSION. A ChatGPT plan bills a flat monthly rate and meters usage in plan credits, so no per-token rate exists to write, and any number here would be a conversion this repository invented. extensions/cost-gate and bin/pi-check rule PC-27 both read four written zeros as authored and accept them forever; an ABSENT `cost` is what they end a session for, and the units they would have been written in are DOLLARS PER MILLION TOKENS. A session on that branch reports a flat 0.000 spend on purpose. Track the plan's own usage in ChatGPT settings.",
+    "THE CONTEXT WINDOW IS DELIBERATELY UNDER-DECLARED. OpenAI documents 1050000 tokens for all three ids. This fragment declares 200000, for two reasons that point the same way. PI's compaction threshold is contextWindow - reserveTokens, so an over-declared window makes compaction fire too late; and above 272000 input tokens OpenAI prices the WHOLE request at 2x input and 1.5x output, so a window that lets a session drift past that line silently doubles the bill on every subsequent turn. Under-declaring only makes compaction fire earlier. Raise it in config/models.json if you have measured your own need for the room and priced it.",
+    "builtIn IS true, AND THAT IS LOAD-BEARING FOR THE SUBSCRIPTION BRANCH. PI ships `openai` in its own catalogue together with the ChatGPT Plus/Pro sign-in, so this fragment overrides the minimum and never declares a `models` array. A custom model whose id matches a built-in id REPLACES that built-in model, so re-declaring these three would drop everything PI knows about them, the sign-in included. modelOverrides is the documented way to correct name, reasoning, thinkingLevelMap, input, cost, contextWindow, maxTokens, samplingParams, headers and compat on a built-in model without touching the rest.",
+    "NOTHING HERE OVERRIDES thinkingLevelMap, compat OR api, ON PURPOSE. The vendor documents reasoning effort as none/low/medium/high/xhigh/max and serves both Chat Completions and Responses, but this repository has measured neither on a live key, and PI's bundled catalogue for its own first-party provider is a better source than a fragment's guess. The rule in config/providers/README.md section 5 is that compat flags are measured, not copied; an unmeasured flag written here would read as measured. Override them in config/models.json once you have a turn on the wire that proves the value.",
+    "THE apiKey KEY IS DELETED, NOT EMPTIED, ON THE SUBSCRIPTION BRANCH. The derived apiKeyRef resolves to null, and README section 3 rule 3 makes a null token delete the key that holds it, so the composed block carries no apiKey at all and PI resolves the credential from ~/.pi/agent/auth.json where /login put it. An empty string would be a credential that resolves to nothing and fails at request time; a placeholder would be worse, because a present-but-wrong apiKey takes precedence over the sign-in. The same rule deletes baseUrl on the `direct` answer, which is what tells PI to use the endpoint it already knows.",
+    "THE VERIFY LINE FOR THE SUBSCRIPTION BRANCH IS `pi --list-models`, AND IT IS NOT CEREMONY. This is the one claim in this file that was not measured here: a built-in provider whose block carries no apiKey is expected to fall through to the OAuth credential, which is how all six of PI's subscription logins are designed to work, but it was not observed on this tree. If the openai models are missing from that listing after a successful /login, the block is the suspect - report it rather than pasting an API key in to make the symptom go away, because that silently moves you onto the metered branch with the unmetered cost block still in place."
+  ],
+
+  "verify": [
+    {
+      "label": "the key is accepted (pay-as-you-go branch only)",
+      "command": "curl -sS -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $OPENAI_API_KEY\" https://api.openai.com/v1/models"
+    },
+    {
+      "label": "PI can see the models (the check that matters on the subscription branch)",
+      "command": "pi --list-models | grep -c '^openai/'"
+    },
+    {
+      "label": "PI can complete one turn",
+      "command": "pi -p 'reply with OK' --model openai/gpt-5.6-sol"
+    }
+  ]
+}

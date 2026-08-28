@@ -126,6 +126,7 @@ nav:
       - Configured at install:
           - configuration/models.md
           - configuration/github-copilot.md
+          - configuration/openai.md
           - configuration/litellm.md
           - configuration/openai-compatible.md
           - configuration/routing.md

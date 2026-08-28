@@ -92,7 +92,7 @@ worse to do wrongly than to skip:
 |---|---|
 | `models.json` unreadable or malformed | Somebody else's error to report, and [`doctor`](doctor.md) already does |
 | provider not declared in `models.json` | PI knows providers this install never configured; their catalogues are PI's own and already priced |
-| provider uses `modelOverrides` | `cost` is not overridable there, so an omission is the only possible spelling |
+| provider uses `modelOverrides` and the override says nothing about `cost` | the built-in catalogue's own rate stands, and PI prices its catalogues completely |
 | model id absent from the declared catalogue | A `--model` flag, a subagent or a stale id can name a model this file never declared |
 | response billed no tokens | No evidence. The gate never fires on a guess |
 

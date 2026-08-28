@@ -403,12 +403,14 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the `notes[]` that JSON cannot carry as comments.
 
-Three ship:
+Five ship:
 
 | Fragment | Built-in to PI? | Egress | Notes worth reading before you touch it |
 |---|---|---|---|
-| `github-copilot.json` | yes | `public` | Never run `/login` on this path — the OAuth resolver silently overrides your `baseUrl` |
-| `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured |
+| [`github-copilot.json`](github-copilot.md) | yes | `public` | Never run `/login` on this path — the OAuth resolver silently overrides your `baseUrl` |
+| [`openai.json`](openai.md) | yes | `public` | Asks which way you buy the models: an API key priced per token, or a ChatGPT plan that deletes the `apiKey` key so `/login` supplies it |
+| [`litellm.json`](litellm.md) | no | **you choose** | A LiteLLM proxy specifically — the four wire fields nobody can be asked about are stated as literals |
+| `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured. Asks per endpoint whether it is pay-per-token or billed by DBU-hour |
 | [`openai-compatible.json`](openai-compatible.md) | no | **you choose** | Any gateway serving its own model names. The context window and the egress class are *answers*, not facts about the URL |
 
 !!! warning "A fragment that defines models must state a complete cost — in numbers, or in answers"
@@ -419,11 +421,18 @@ Three ship:
     answer. Silence is not, in any of the three places that read this: the test here, `PC-27` at
     install time, and [`cost-gate`](../extensions/cost-gate.md) on the first billed turn.
 
-    A fragment that cannot know the price **asks** for it instead. `litellm.json` and
-    `openai-compatible.json` state each rate as a `{{token}}` filled in by the interview, so the same
-    test also insists the prompt behind such a token is `type: "number"` with a numeric `default` —
-    that default is what the "unmetered" answer writes, and without it the opt-out would compose
-    `"input": ""` rather than a zero.
+    A fragment that cannot know the price **asks** for it instead. `litellm.json`,
+    `openai-compatible.json` and `databricks.json` state each rate as a `{{token}}` filled in by the
+    interview, and the same test pins the shape of that question: the token must resolve to a
+    `derived` entry reading a `choice` prompt that offers exactly `metered` and `unmetered`, mapping
+    `metered` onto a `type: "decimal"` prompt (a `number` prompt would refuse `2.5`) and `unmetered`
+    onto the literal `0`. The opt-out is an answer somebody gives, not something they fall into by
+    leaving a price blank.
+
+    A fragment that *does* know the price may **write** it — but only for a model it names by id,
+    and only with the source. `openai.json` maps the metered branch straight onto the published list
+    rate, and the test then requires a `notes[]` entry giving the URL those rates were read from:
+    vendor prices move, and a written rate is only as good as its provenance.
 
     A `notes[]` entry that discusses `cost` must state the units in the literal words
     `DOLLARS PER MILLION TOKENS`, which the test greps for, because the units are the easy thing to get
@@ -431,12 +440,15 @@ Three ship:
     declaration: nothing reads notes at runtime, so a fragment explaining an absent `cost` in prose
     still renders a model the gate ends the session on.
 
-    `builtIn` fragments are exempt by construction: they override PI's own catalogues, which already
-    carry complete non-zero costs.
+    `builtIn` fragments used to be exempt by construction, on the ground that `cost` is not
+    overridable in `modelOverrides`. It is — PI's model documentation lists `cost` (partial) among
+    the overridable fields — so the rule now follows the field rather than the fragment: an override
+    that says nothing about price is the built-in catalogue's own number and is left alone, and an
+    override that states one is authored here and is checked here, in all three places.
 
 The fragment schema, the substitution rules and the merge algorithm are documented in
 `config/providers/README.md`, which is the contract between the fragments and the installer. To
-add a fourth provider, see [Adding a provider](../extending/providers.md) — but check first
+add another provider, see [Adding a provider](../extending/providers.md) — but check first
 whether [`openai-compatible`](openai-compatible.md) already covers your endpoint.
 
 ---

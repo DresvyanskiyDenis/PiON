@@ -30,9 +30,22 @@
 // A third spelling would be worse than either: it would give the `cost` object two readings, and
 // that is how this class of defect starts.
 //
-// Fragments with `builtIn: true` are out of scope by construction: they override PI's own
-// catalogues, which already carry complete non-zero cost objects, so they were never part of this
-// defect.
+// `modelOverrides` IS THE SAME SURFACE, AND USED TO BE EXEMPT FOR A REASON THAT WAS WRONG
+//
+// A fragment with `builtIn: true` corrects PI's own catalogue instead of declaring models, and this
+// file used to skip those whole, on the stated ground that `cost` is not overridable there. It is:
+// PI's model documentation lists `cost` (partial) among the overridable fields, and the override
+// preserves the built-in pricing metadata it does not mention. So a built-in fragment CAN author a
+// rate, `openai` does — the published list price of a named product, which is knowledge a fragment
+// has and an interview does not — and an authored rate is exactly the thing this file exists to
+// keep honest. What stays out of scope is an override that says nothing about price: that is the
+// built-in catalogue's own number, which was never part of this defect.
+//
+// Hence the two spellings of the metered branch. A price that is a fact about somebody else's
+// deployment has to be ASKED (`litellm`, `openai-compatible`, `databricks`). A price a vendor
+// publishes for a model this fragment names by id may be WRITTEN — and then the note that carries
+// the units has to carry the URL it was read from too, so the next reader can check it against the
+// page rather than against this repository's memory.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -66,7 +79,35 @@ interface Fragment {
   notes?: string[];
   prompts?: Prompt[];
   derived?: Derived[];
-  provider?: { models?: Array<{ id: string; cost?: Record<string, unknown> }> };
+  provider?: {
+    models?: Array<{ id: string; cost?: Record<string, unknown> }>;
+    modelOverrides?: Record<string, { cost?: Record<string, unknown> }>;
+  };
+}
+
+/** One priced thing a fragment ships, from either surface that can carry a `cost`. */
+interface Priced {
+  id: string;
+  surface: string;
+  cost?: Record<string, unknown>;
+}
+
+/**
+ * Every model whose price this fragment is answerable for. A declared model always is: it reaches
+ * `config/models.json` with whatever `cost` the fragment gave it, or with four zeros nobody wrote.
+ * An override is answerable only once it mentions `cost` at all — an override silent on price
+ * leaves PI's own catalogue rate in place, which is not this file's business.
+ */
+function priced(fragment: Fragment): Priced[] {
+  const models = (fragment.provider?.models ?? []).map((m) => ({
+    id: m.id,
+    surface: "models",
+    cost: m.cost,
+  }));
+  const overrides = Object.entries(fragment.provider?.modelOverrides ?? {})
+    .filter(([, ov]) => ov?.cost !== undefined)
+    .map(([id, ov]) => ({ id, surface: "modelOverrides", cost: ov.cost }));
+  return [...models, ...overrides];
 }
 
 function fragments(): Array<{ file: string; fragment: Fragment }> {
@@ -87,17 +128,15 @@ function fragments(): Array<{ file: string; fragment: Fragment }> {
 const COST_NOTE = /`cost`/;
 
 describe("provider fragments — the silent 0.000", () => {
-  const defining = fragments().filter(
-    ({ fragment }) => !fragment.builtIn && (fragment.provider?.models?.length ?? 0) > 0,
-  );
+  const defining = fragments().filter(({ fragment }) => priced(fragment).length > 0);
 
-  it("there is at least one fragment that defines models, or this file is testing nothing", () => {
+  it("there is at least one fragment that prices a model, or this file is testing nothing", () => {
     assert.ok(defining.length > 0);
   });
 
   for (const { file, fragment } of defining) {
     it(`${file}: every model states all four rates, as a number or as an asked token`, () => {
-      for (const model of fragment.provider?.models ?? []) {
+      for (const model of priced(fragment)) {
         assert.ok(
           model.cost !== undefined && model.cost !== null,
           `${file} defines "${model.id}" with no \`cost\` at all. That is the shape the composer ` +
@@ -111,7 +150,8 @@ describe("provider fragments — the silent 0.000", () => {
             (typeof rate === "string" && WHOLE_TOKEN.test(rate));
           assert.ok(
             ok,
-            `${file}: "${model.id}" states cost.${field} as ${JSON.stringify(rate)}. It has to be a ` +
+            `${file}: ${model.surface} entry "${model.id}" states cost.${field} as ` +
+              `${JSON.stringify(rate)}. It has to be a ` +
               `finite number or a lone {{token}} the interview fills; a partial cost object is read ` +
               `as unpriced, because the composer's substitution replaces the whole object rather ` +
               `than merging into it.`,
@@ -123,7 +163,7 @@ describe("provider fragments — the silent 0.000", () => {
     it(`${file}: an asked rate offers both accepted declarations and no third one`, () => {
       const prompts = new Map((fragment.prompts ?? []).map((p) => [p.id, p]));
       const derived = new Map((fragment.derived ?? []).map((d) => [d.id, d]));
-      const asked = (fragment.provider?.models ?? []).flatMap((model) =>
+      const asked = priced(fragment).flatMap((model) =>
         COST_RATE_FIELDS.map((field) => model.cost?.[field]).filter(
           (rate): rate is string => typeof rate === "string",
         ),
@@ -161,11 +201,14 @@ describe("provider fragments — the silent 0.000", () => {
         // this map would be a rate nobody was asked for.
         const metered = entry.map.metered;
         const meteredPrompt = typeof metered === "string" ? prompts.get(WHOLE_TOKEN.exec(metered)?.[1] ?? "") : undefined;
-        assert.equal(
-          meteredPrompt?.type,
-          "decimal",
-          `${file}: derived "${id}" maps metered to ${JSON.stringify(metered)}, which is not a ` +
-            `decimal prompt. A price is fractional; a number prompt would refuse 2.5.`,
+        const written = typeof metered === "number" && Number.isFinite(metered) && metered > 0;
+        assert.ok(
+          meteredPrompt?.type === "decimal" || written,
+          `${file}: derived "${id}" maps metered to ${JSON.stringify(metered)}. The metered branch ` +
+            `is either a \`decimal\` prompt (a price only the operator knows) or a positive number ` +
+            `written down (a rate the vendor publishes for a model this fragment names). A ` +
+            `\`number\` prompt would refuse 2.5, and a zero here would make the two branches ` +
+            `indistinguishable.`,
         );
         assert.equal(
           entry.map.unmetered,
@@ -205,6 +248,29 @@ describe("provider fragments — the silent 0.000", () => {
     assert.ok(notes.length > 0, "no cost note found at all");
     for (const note of notes) {
       assert.match(note, /DOLLARS PER MILLION TOKENS/, note.slice(0, 60));
+    }
+  });
+
+  it("a written rate names the page it was read from", () => {
+    // The other half of allowing a literal in the metered branch. A rate nobody was asked for is
+    // only as good as its provenance, and vendor list prices move — OpenAI cut two of these in the
+    // month before they were written down here. A URL in the units note is what lets the next
+    // reader check the number against the page instead of against this repository's memory, and
+    // what stops a plausible-looking rate from being invented in an editor.
+    for (const { file, fragment } of defining) {
+      const writesRates = (fragment.derived ?? []).some(
+        (d) => typeof d.map?.metered === "number" && d.map.metered > 0,
+      );
+      if (!writesRates) continue;
+      const sourced = (fragment.notes ?? []).filter(
+        (n) => /DOLLARS PER MILLION TOKENS/.test(n) && /https?:\/\/\S+/.test(n),
+      );
+      assert.ok(
+        sourced.length > 0,
+        `${file} writes per-token rates into the metered branch but no note gives the URL they ` +
+          `were read from. State the page and the date you read it: these are somebody else's ` +
+          `list prices, and they change.`,
+      );
     }
   });
 

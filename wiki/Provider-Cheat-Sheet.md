@@ -1,6 +1,6 @@
 # Provider cheat sheet
 
-The three provider fragments that ship in `config/providers/`. The installer offers exactly these
+The five provider fragments that ship in `config/providers/`. The installer offers exactly these
 and composes `config/models.json` from whichever you select.
 
 Reasoning and the full fragment schema:
@@ -12,6 +12,8 @@ Reasoning and the full fragment schema:
 | Provider | Built into PI | Egress class | Concurrency | Needs |
 |---|---|---|---|---|
 | `github-copilot` | yes | `public` | 4 | `COPILOT_GITHUB_TOKEN` |
+| `openai` | yes | `public` | 4 | `OPENAI_API_KEY` — **or** nothing at all, on a ChatGPT plan |
+| `litellm` | **no** | **you choose** | **you choose** (default 2) | a proxy URL, an env-var name you pick, and the proxy's own model ids |
 | `databricks` | **no** | `confidential` | 4 | `DATABRICKS_HOST` (+ a token or the CLI) |
 | `openai-compatible` | **no** | **you choose** | **you choose** (default 2) | a base URL, an env-var name you pick, and the gateway's own model ids |
 
@@ -20,9 +22,12 @@ model names — a gateway (LiteLLM, vLLM, OpenRouter, an in-house router), a fir
 a server on your own loopback. `openai` in that fragment's name is the **wire protocol**, not a
 vendor: the fragment has nothing to do with any particular company's account.
 
-Fragments for individual vendors used to ship alongside it and no longer do (owner decision,
-2026-08-15: the provider set is exactly these three). They bought a second entry in the provider menu
-and nothing else — each was this fragment with different answers.
+Fragments for individual vendors are the exception, not the pattern: one exists only when it knows
+something the interview cannot ask for. `litellm` knows four wire fields that may not be deferred to
+a prompt. `openai` knows that a ChatGPT subscription has no API key at all, which a gateway fragment
+cannot express — no answer produces an *absent* field — and it knows the published list prices for
+models it names by id. The `local` fragment knew neither and was retired for it (owner decision,
+2026-08-15): it was this fragment with different answers.
 
 "Built into PI" matters: for a built-in provider you **override the minimum** and never re-declare
 the whole catalogue. Re-declaring `models` on a built-in provider is how an OAuth block gets
@@ -59,6 +64,25 @@ because it is the one seat that reaches several model families at once.
   what the endpoint actually serves — do not "fix" those numbers upwards. See
   [Context windows](https://dresvyanskiydenis.github.io/PiON/concepts/context-windows/).
 
+## `openai`
+
+GPT-5.6 straight from OpenAI, on either of the two ways they sell it. The interview asks which one
+you have before anything else.
+
+- **Credential:** `OPENAI_API_KEY` on the pay-as-you-go branch; **none** on the ChatGPT
+  Plus/Pro/Business branch, where `/login` puts the sign-in in `~/.pi/agent/auth.json` and the
+  fragment writes a block with no `apiKey` key at all so PI resolves it from there.
+- **Do not set the key *and* sign in.** A configured key wins over the sign-in, which puts you on
+  metered billing while the cost block still says unmetered — a real invoice beside a `$0.000`
+  status line. Re-run the installer instead.
+- **Prices are written down, dated, and sourced:** 4.00 / 20.00 per million tokens for
+  `gpt-5.6-sol`, 2.00 / 12.00 for `gpt-5.6-terra`, 0.20 / 1.20 for `gpt-5.6-luna`, read from
+  OpenAI's pricing page on 2026-08-28. On the subscription branch all four rates are explicit zeros:
+  a flat monthly plan has no per-token rate, and inventing one would be worse than declaring none.
+- **Watch out:** the fragment declares a 200 000 context window where the vendor documents
+  1 050 000. That is deliberate twice over — compaction fires on the declared window, and above
+  272 000 input tokens OpenAI charges 2x input and 1.5x output for the *whole* request.
+
 ## `databricks`
 
 Models served from **your own** workspace over its OpenAI-compatible surface. The usual choice for
@@ -75,6 +99,15 @@ the `confidential` tier.
 
   Do not copy ids out of anyone else's configuration, including the illustrative ones in the
   fragment.
+- **Pay-per-token endpoints are the same surface, not a second one.** A Foundation Model endpoint
+  billed per token lives on the same workspace host, under the same `/serving-endpoints` path,
+  behind the same token as a provisioned one; only the billing differs, which is why the interview
+  asks per endpoint rather than offering a second provider. Answer `metered` and you type the two
+  rates; answer `unmetered` and the endpoint composes four explicit zeros, which is correct for
+  provisioned-throughput, custom and external-model endpoints that bill by DBU-hour.
+- **The rates have to be converted, and only you can do it.** Databricks publishes pay-per-token
+  prices in **DBUs** per million tokens; the dollar value of a DBU depends on your cloud, region and
+  contract. Multiply before you type, or read the dollar figure off the pricing calculator.
 - **Why the API is pinned to `openai-completions`:** Model Serving exposes Chat Completions and *not*
   a Responses surface, so leaving the API to default would pick the wrong one.
 - **Why the credential is a cached wrapper rather than a bare `!databricks auth token`:** PI

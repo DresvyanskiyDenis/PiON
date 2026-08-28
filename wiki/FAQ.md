@@ -46,8 +46,8 @@ installer cannot assume. See recipes 17 and 18 in the [[Cookbook]].
 
 ## Does it work with my provider?
 
-Three fragments ship (`github-copilot`, `databricks`, `openai-compatible`) and adding another is a
-fragment file plus one installer re-run. Anything speaking an OpenAI-compatible Chat Completions
+Five fragments ship (`github-copilot`, `openai`, `litellm`, `databricks`, `openai-compatible`) and
+adding another is a fragment file plus one installer re-run. Anything speaking an OpenAI-compatible Chat Completions
 surface — a gateway, a vendor API, a server on your own loopback — is already covered by
 `openai-compatible`: you give it the base URL, the model ids and their real context windows. See
 [[Provider Cheat Sheet]].

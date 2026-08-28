@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "databricks",
   "displayName": "Databricks Model Serving",
-  "summary": "Models served from your own Databricks workspace over its OpenAI-compatible surface. The usual choice for the `confidential` tier: the endpoint is inside a boundary you control.",
+  "summary": "Models served from your own Databricks workspace over its OpenAI-compatible surface, on either billing mode: a provisioned or custom endpoint you pay for by the hour, or a pay-per-token Foundation Model endpoint you pay for by the token. The usual choice for the `confidential` tier: the endpoint is inside a boundary you control.",
   "builtIn": false,
   "default": false,
   "egress": "confidential",
@@ -48,7 +48,7 @@
       "id": "workspaceHost",
       "type": "string",
       "label": "Databricks workspace host, without the scheme",
-      "help": "The hostname from your workspace URL. PI does NOT expand $VAR or !cmd inside baseUrl, so this is substituted literally at install time - it cannot be an environment variable.",
+      "help": "The hostname from your workspace URL. PI does NOT expand $VAR or !cmd inside baseUrl, so this is substituted literally at install time - it cannot be an environment variable. Pay-per-token Foundation Model endpoints live on this same host, under the same /serving-endpoints path, behind the same token: there is no separate pay-as-you-go URL to enter.",
       "example": "dbc-00000000-0000.cloud.databricks.com",
       "required": true,
       "validate": {
@@ -77,7 +77,7 @@
       "id": "primaryEndpoint",
       "type": "string",
       "label": "Serving-endpoint name for your main / confidential model",
-      "help": "Model ids on Databricks are the SERVING-ENDPOINT NAMES in your own workspace. They are per-workspace and nobody can guess them. Discover them with: databricks serving-endpoints list --output json | jq -r '.[].name'",
+      "help": "Model ids on Databricks are the SERVING-ENDPOINT NAMES in your own workspace. They are per-workspace and nobody can guess them, including the pay-per-token ones, which are pre-provisioned per region and named with a `databricks-` prefix. Discover them with: databricks serving-endpoints list --output json | jq -r '.[].name'",
       "example": "databricks-claude-sonnet-4-5",
       "required": true
     },
@@ -95,6 +95,42 @@
       "label": "Maximum output tokens for that endpoint",
       "default": 64000,
       "required": true
+    },
+    {
+      "id": "primaryPricing",
+      "type": "choice",
+      "label": "How does that endpoint bill?",
+      "help": "Databricks Model Serving has two billing modes and this fragment cannot tell them apart from the endpoint name. A PAY-PER-TOKEN Foundation Model endpoint is metered: the workspace charges DBUs per million tokens, in and out, so a real per-token rate exists and you can type it. A provisioned-throughput, custom or external-model endpoint is not: it bills by DBU-hour for the compute that is up, whether or not you send a token, so no per-token rate describes it and the cost block stays four written zeros. Pricing pages: https://www.databricks.com/product/pricing/foundation-model-serving and https://www.databricks.com/product/pricing/model-serving",
+      "default": "unmetered",
+      "required": true,
+      "choices": [
+        {
+          "value": "metered",
+          "label": "Pay-per-token Foundation Model endpoint - I will type the two rates"
+        },
+        {
+          "value": "unmetered",
+          "label": "Provisioned throughput, custom or external model - billed by DBU-hour, not by token"
+        }
+      ]
+    },
+    {
+      "id": "primaryCostInput",
+      "type": "decimal",
+      "label": "Input rate for that endpoint, in DOLLARS PER MILLION input tokens",
+      "help": "Databricks publishes pay-per-token rates as DBUs PER MILLION TOKENS, not dollars, because a DBU costs a different amount on each cloud, region and plan. Multiply: (DBUs per million input tokens for your model, from the pricing page) x (your dollar rate per DBU, from the account console or your contract). The pricing calculator at https://www.databricks.com/product/pricing/foundation-model-serving does that multiplication for you once you pick your region and plan.",
+      "example": "0.32",
+      "required": true,
+      "when": { "primaryPricing": "metered" }
+    },
+    {
+      "id": "primaryCostOutput",
+      "type": "decimal",
+      "label": "Output rate for that endpoint, in DOLLARS PER MILLION output tokens",
+      "help": "The same multiplication with the output DBU rate, which on these endpoints is typically a large multiple of the input rate - on some models more than twenty times it. Getting this one wrong is what makes an agent look cheap right up until the invoice.",
+      "example": "8.0",
+      "required": true,
+      "when": { "primaryPricing": "metered" }
     },
     {
       "id": "lightEndpoint",
@@ -119,6 +155,43 @@
       "default": 64000,
       "required": false,
       "when": { "lightEndpoint": "*" }
+    },
+    {
+      "id": "lightPricing",
+      "type": "choice",
+      "label": "How does the light endpoint bill?",
+      "help": "Asked separately because the two endpoints need not share a billing mode: a pay-per-token light model beside a provisioned primary is a common and sensible split.",
+      "default": "unmetered",
+      "required": false,
+      "when": { "lightEndpoint": "*" },
+      "choices": [
+        {
+          "value": "metered",
+          "label": "Pay-per-token Foundation Model endpoint - I will type the two rates"
+        },
+        {
+          "value": "unmetered",
+          "label": "Provisioned throughput, custom or external model - billed by DBU-hour, not by token"
+        }
+      ]
+    },
+    {
+      "id": "lightCostInput",
+      "type": "decimal",
+      "label": "Input rate for the light endpoint, in DOLLARS PER MILLION input tokens",
+      "help": "Same conversion as above: DBUs per million input tokens x your dollar rate per DBU.",
+      "example": "0.07",
+      "required": true,
+      "when": { "lightPricing": "metered" }
+    },
+    {
+      "id": "lightCostOutput",
+      "type": "decimal",
+      "label": "Output rate for the light endpoint, in DOLLARS PER MILLION output tokens",
+      "help": "Same conversion as above, with the output DBU rate.",
+      "example": "1.5",
+      "required": true,
+      "when": { "lightPricing": "metered" }
     }
   ],
 
@@ -130,6 +203,26 @@
         "cli": "!$HOME/bin/dbx-token-cached",
         "pat": "$DATABRICKS_TOKEN"
       }
+    },
+    {
+      "id": "primaryRateInput",
+      "from": "primaryPricing",
+      "map": { "metered": "{{primaryCostInput}}", "unmetered": 0 }
+    },
+    {
+      "id": "primaryRateOutput",
+      "from": "primaryPricing",
+      "map": { "metered": "{{primaryCostOutput}}", "unmetered": 0 }
+    },
+    {
+      "id": "lightRateInput",
+      "from": "lightPricing",
+      "map": { "metered": "{{lightCostInput}}", "unmetered": 0, "": 0 }
+    },
+    {
+      "id": "lightRateOutput",
+      "from": "lightPricing",
+      "map": { "metered": "{{lightCostOutput}}", "unmetered": 0, "": 0 }
     }
   ],
 
@@ -159,8 +252,8 @@
         "contextWindow": "{{primaryContextWindow}}",
         "maxTokens": "{{primaryMaxTokens}}",
         "cost": {
-          "input": 0,
-          "output": 0,
+          "input": "{{primaryRateInput}}",
+          "output": "{{primaryRateOutput}}",
           "cacheRead": 0,
           "cacheWrite": 0
         }
@@ -175,8 +268,8 @@
         "contextWindow": "{{lightContextWindow}}",
         "maxTokens": "{{lightMaxTokens}}",
         "cost": {
-          "input": 0,
-          "output": 0,
+          "input": "{{lightRateInput}}",
+          "output": "{{lightRateOutput}}",
           "cacheRead": 0,
           "cacheWrite": 0
         }
@@ -187,14 +280,16 @@
   "notes": [
     "THE ALL-NULL thinkingLevelMap IS DELIBERATE, AND IT IS NOT A CLAIM THAT YOUR ENDPOINT CANNOT THINK. It says only that no reasoning level is STEERABLE through this provider: `compat.supportsReasoningEffort` is false, so PI never emits `reasoning_effort` on this surface at all, and a model that declares no map at all is read by pi-ai as supporting off/minimal/low/medium/high - five levels that would be offered in the model menu and reach the wire as nothing. All-null is the honest statement of the same wire, and it makes any requested level clamp to `off`, which the emitter turns into no parameter. If your endpoint does accept `reasoning_effort` (an OSS/harmony-style endpoint typically does, and enumerates its own vocabulary in the 400 it returns for a junk value), give that model its own `compat: {\"supportsReasoningEffort\": true}` plus a map naming the levels it listed, and leave `off` absent so nothing is sent when thinking is off.",
     "THERE IS NO BUILT-IN `databricks` PROVIDER IN PI. This works because Model Serving exposes an OpenAI-compatible Chat Completions surface at https://<host>/serving-endpoints. There is no Responses surface, which is why `api` is `openai-completions` and not left to default.",
-    "MODEL IDS ARE SERVING-ENDPOINT NAMES, AND THEY ARE PER-WORKSPACE. `databricks serving-endpoints list --output json | jq -r '.[].name'` is the only way to learn them. Do not copy ids out of anyone else's config - including the examples above, which are illustrative names, not guaranteed to exist anywhere. `id` is the endpoint name on the wire; `name` is only the human label shown in /model.",
+    "PAY-PER-TOKEN ENDPOINTS ARE THE SAME SURFACE, NOT A SECOND ONE. This was the open question this fragment had to answer, and the answer is that there is nothing to add: a pay-per-token Foundation Model endpoint is reached at https://<your-workspace-host>/serving-endpoints/<name>/invocations, on your workspace host, with your workspace token, speaking the same OpenAI-compatible Chat Completions wire as a provisioned endpoint. It differs in how it BILLS and in who provisioned it (Databricks pre-provisions them per region, which is why their names carry a `databricks-` prefix and why you never created them), not in how it is addressed. So there is one entry, not two, and the only thing the interview needed was a billing question - which is https://docs.databricks.com/aws/en/machine-learning/foundation-model-apis/ read against this fragment's own baseUrl.",
+    "MODEL IDS ARE SERVING-ENDPOINT NAMES, AND THEY ARE PER-WORKSPACE. `databricks serving-endpoints list --output json | jq -r '.[].name'` is the only way to learn them. Do not copy ids out of anyone else's config - including the examples above, which are illustrative names, not guaranteed to exist anywhere. `id` is the endpoint name on the wire; `name` is only the human label shown in /model. Pay-per-token endpoints are the exception that proves the rule: they are pre-provisioned with stable regional names, but which ones your workspace and region actually expose is still a question only that command answers.",
     "ADDING MORE MODELS. Append another object to `providers.databricks.models` in config/models.json with the endpoint name as `id`. Databricks-specific request extras (usage_context, AI Gateway guardrail hints) go in that model's `samplingParams`, which is merged verbatim into the request body, or in `headers`.",
     "WHY apiKey IS A CACHED WRAPPER AND NOT `!databricks auth token`. PI re-executes an `!command` credential on EVERY request, with no TTL of its own. An unwrapped CLI call is therefore one OAuth round trip per LLM call. config/bin/dbx-token-cached puts a TTL cache (0600 file in a 0700 dir) in front of it, which turns that into a file read. `$HOME` is expanded by the shell that runs the command, so the reference stays user-agnostic.",
     "COMPAT FLAGS ARE MEASURED, NOT GUESSED. supportsDeveloperRole:false - the foundation-model API rejects the `developer` role with a 400 on every request. supportsReasoningEffort:false - it ignores or rejects reasoning_effort. maxTokensField:max_tokens - it expects the legacy field and 400s on max_completion_tokens. supportsUsageInStreaming:true and supportsFinishReason:true were both verified against a live endpoint. supportsFinishReason is the one whose absence looks like a hung agent rather than an error: if a turn never ends, flip it to false so PI infers the stop itself.",
     "TWO FLAGS DELIBERATELY LEFT UNSET. supportsStrictMode - tool calling works but strict JSON-schema mode is rejected, so expect occasional malformed tool JSON (a model-quality problem, not a config one). cacheControlFormat - Claude-on-Databricks does not surface cache_control breakpoints, and declaring \"anthropic\" here would report prompt-cache savings that do not exist.",
-    "EGRESS CLASS IS `confidential` BECAUSE THE WORKSPACE IS YOURS. That is a DECLARATION about where the data goes, not a network control - nothing in this harness can stop a request reaching a public provider if a tier is bound to one. It is what lets the dispatcher refuse to send a confidential session to a public-class provider by name.",
-    "AN IP ACCESS LIST ON THE WORKSPACE LOOKS LIKE AN AUTH FAILURE AND IS NOT ONE. If the workspace denies your current address, every call including inference returns 403 with a body that reads like a credential problem. Check your network position before regenerating tokens.",
-    "THE FOUR ZEROS ON THIS MODEL ARE WRITTEN DOWN, AND THEY MEAN UNPRICED PER TOKEN, NOT FREE. Model Serving bills by DBU consumption per endpoint rather than per token, so there is no per-token rate to write into a `cost` object at all, and any number here would be a conversion this repository invented. That is why this fragment answers the question rather than skipping it: `cost` is optional in this file and required on PI's runtime model type, and an omission gets {input:0,output:0,cacheRead:0,cacheWrite:0} substituted by the composer, which is the same object these four zeros are but with nobody's decision behind it. extensions/cost-gate and bin/pi-check's PC-27 both read that difference, and both accept what is written here, so a session on this provider starts and reports a flat 0.000 spend on purpose. Track the real bill in the Databricks account console, not in PI. If you do decide to put an estimate in, the units are DOLLARS PER MILLION TOKENS: PI divides each rate by 1000000 before multiplying by the usage counter."
+    "EGRESS CLASS IS `confidential` BECAUSE THE WORKSPACE IS YOURS. That is a DECLARATION about where the data goes, not a network control - nothing in this harness can stop a request reaching a public provider if a tier is bound to one. It is what lets the dispatcher refuse to send a confidential session to a public-class provider by name. Pay-per-token endpoints do not change the class: the model is hosted by Databricks inside your workspace's serving boundary, under your workspace's governance, which is the thing this class is about.",
+    "WHY THE PRICE IS ASKED HERE AND WRITTEN AS A LITERAL EVERYWHERE ELSE. Databricks publishes pay-per-token rates in DBUs PER MILLION TOKENS, and the dollar value of a DBU depends on your cloud, region, plan and contract, so no fragment can turn the published number into the dollars PI needs. That conversion is knowledge only the operator has, which is exactly what the interview is for. The units on both prompts are therefore DOLLARS PER MILLION TOKENS, because PI divides each rate by 1000000 before multiplying by the usage counter - a per-token figure typed there would be wrong by six orders of magnitude and would still render, as a spend of 0.000 forever.",
+    "FOUR ZEROS ON A MODEL ARE WRITTEN DOWN, AND THEY MEAN UNPRICED PER TOKEN, NOT FREE. That is what the `unmetered` answer produces, and it is the right answer for a provisioned-throughput, custom or external-model endpoint: those bill by DBU-hour for compute that is up whether or not you send a token, so there is no per-token rate to write and any number here would be a conversion this repository invented. `cost` is optional in this file and required on PI's runtime model type, and an omission gets {input:0,output:0,cacheRead:0,cacheWrite:0} substituted by the composer - the same object those four zeros are, but with nobody's decision behind it. extensions/cost-gate and bin/pi-check's PC-27 both read that difference and both accept what is written here, so a session on an unmetered endpoint starts and reports a flat 0.000 spend on purpose. Track that bill in the Databricks account console, not in PI. If you later decide to put an estimate in by hand, the units are DOLLARS PER MILLION TOKENS, the same as the two prompts above.",
+    "cacheRead AND cacheWrite ARE ZERO ON BOTH BILLING MODES, AND THAT IS NOT AN OVERSIGHT. This surface does not report prompt-cache hits back to the client, and cacheControlFormat is deliberately unset for the same reason, so PI has no cached-token counter to multiply on this provider. A rate written there would multiply a number that is always zero. If your endpoint starts reporting cached tokens, that is the day to fill these in - and to revisit cacheControlFormat with it."
   ],
 
   "verify": [
@@ -205,6 +300,10 @@
     {
       "label": "the endpoint names you configured exist",
       "command": "databricks serving-endpoints list --output json | jq -r '.[].name'"
+    },
+    {
+      "label": "which of them are pay-per-token (task = FOUNDATION_MODEL_API means metered)",
+      "command": "databricks serving-endpoints list --output json | jq -r '.[] | \"\\(.name)\\t\\(.task // \"-\")\"'"
     },
     {
       "label": "PI can complete one turn",

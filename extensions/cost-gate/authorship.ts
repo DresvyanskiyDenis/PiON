@@ -57,10 +57,17 @@ interface ModelEntry {
  *     to report, and `/doctor` already does.
  *   - provider absent from `models.json`: PI knows providers this install never configured. Their
  *     catalogues are PI's own and already priced.
- *   - provider present but declaring no `models` array: the `modelOverrides` shape, which corrects
- *     a built-in catalogue rather than replacing it. `cost` is not overridable there, so an
- *     omission is not an omission — it is the only possible spelling. A built-in catalogue is
- *     priced by PI, completely and non-zero, before this repository sees it.
+ *   - provider present but declaring no `models` array, and no override for this model that
+ *     mentions `cost`: the `modelOverrides` shape, which corrects a built-in catalogue rather than
+ *     replacing it. A built-in catalogue is priced by PI, completely and non-zero, before this
+ *     repository sees it, and an override silent on price leaves that rate standing.
+ *
+ *     An override that DOES state a `cost` is judged like any other declaration. This module used
+ *     to skip the whole shape, on the stated ground that `cost` is not overridable in an override.
+ *     It is: PI's model documentation lists `cost` (partial) among the overridable fields, and
+ *     `config/providers/openai.json` writes one — the vendor's published list rates for models it
+ *     names by id. A partial one there fails exactly as it does in a declared model, because the
+ *     composer's substitution is whole-object on both surfaces.
  *   - model absent from the provider's catalogue: a subagent, a `--model` flag or a stale id can
  *     name a model this file never declared. PI resolved it from somewhere else; the price came
  *     from there too.
@@ -82,10 +89,23 @@ export function classifyModelCost(raw: unknown, provider: string, model: string)
   }
   const models = (block as { models?: unknown }).models;
   if (!Array.isArray(models)) {
-    return {
-      verdict: "no-opinion",
-      reason: `provider "${provider}" declares no explicit model catalogue (cost is not overridable there)`,
-    };
+    const overrides = (block as { modelOverrides?: unknown }).modelOverrides;
+    const override =
+      overrides !== null && typeof overrides === "object" && !Array.isArray(overrides)
+        ? (overrides as Record<string, unknown>)[model]
+        : undefined;
+    const cost =
+      override !== null && typeof override === "object" && !Array.isArray(override)
+        ? (override as ModelEntry).cost
+        : undefined;
+    if (cost === undefined) {
+      return {
+        verdict: "no-opinion",
+        reason: `provider "${provider}" declares no explicit model catalogue, and its overrides say nothing about "${model}"'s price`,
+      };
+    }
+    const missingOverride = missingRates(cost);
+    return missingOverride.length === 0 ? { verdict: "authored" } : { verdict: "substituted", missing: missingOverride };
   }
   const entry = models.find(
     (m): m is ModelEntry => m !== null && typeof m === "object" && (m as ModelEntry).id === model,

@@ -23,7 +23,8 @@ fragments in `config/providers/`. Have the answers ready before you start:
 |---|---|---|
 | **`github-copilot`** (the default) | an endpoint and a tenant | you have a Copilot subscription. PI already ships this provider, so the fragment overrides PI's catalogue instead of defining one. |
 | **`openai-compatible`** | a base URL, the name of the environment variable holding the key, and two model ids with their context windows | anything that speaks `/v1/chat/completions` under its own model names — a **LiteLLM** proxy, vLLM, OpenRouter, or a router someone in your organisation runs. This is the fragment most people arrive through, and [it takes exactly one gateway](../configuration/openai-compatible.md). |
-| **`databricks`** | a workspace host, an auth method, and one or two serving endpoints | your models are served from Databricks. Egress is fixed at `confidential`. |
+| **`openai`** | which way you buy the models: a pay-as-you-go API key, or a ChatGPT Plus/Pro sign-in | you buy GPT-5.6 from OpenAI directly. On the subscription branch there is no key to supply — `/login` does it. |
+| **`databricks`** | a workspace host, an auth method, one or two serving endpoints, and how each one bills | your models are served from Databricks. Egress is fixed at `confidential`. Pay-per-token endpoints are the same host and token as provisioned ones; only the billing question differs. |
 
 ## Optional
 

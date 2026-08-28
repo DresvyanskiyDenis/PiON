@@ -645,11 +645,24 @@ switch (cmd) {
     // the rates, in dollars per million tokens, or four written zeros for an endpoint that is
     // unmetered on purpose. An omission says neither, and neither does a blank answer — which is
     // the case this actually catches, an --answers file that names a metered model and no rate.
-    // Providers declaring no `models` array are skipped, exactly as both of those gates skip them:
-    // `modelOverrides` corrects a catalogue PI already prices, and `cost` is not overridable there.
+    //
+    // Both surfaces that can carry a rate are checked. A declared model always carries one, because
+    // it reaches models.json with whatever the fragment gave it. A `modelOverrides` entry carries
+    // one only when it MENTIONS `cost` — PI's model documentation lists cost among the overridable
+    // fields, and an override silent on price leaves the built-in catalogue's own rate in place,
+    // which is not this gate's business. An override that does state a price is authored here and
+    // is checked here, and a half-stated one is the worst case of all: the substitution replaces
+    // the whole object rather than merging into it, so three good rates and one blank compose to a
+    // cost object PI cannot read.
     for (const [id, block] of Object.entries(models.providers)) {
-      if (!block || typeof block !== "object" || !Array.isArray(block.models)) continue;
-      for (const m of block.models) {
+      if (!block || typeof block !== "object") continue;
+      const priced = [
+        ...(Array.isArray(block.models) ? block.models : []),
+        ...Object.entries(block.modelOverrides ?? {})
+          .filter(([, ov]) => ov && typeof ov === "object" && ov.cost !== undefined)
+          .map(([mid, ov]) => ({ id: mid, cost: ov.cost })),
+      ];
+      for (const m of priced) {
         if (!m || typeof m !== "object") continue;
         const missing = ["input", "output", "cacheRead", "cacheWrite"]
           .filter((f) => typeof m.cost?.[f] !== "number" || !Number.isFinite(m.cost[f]));

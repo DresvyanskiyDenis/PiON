@@ -49,7 +49,16 @@ function modelsJson(overrides: Record<string, unknown> = {}): unknown {
           },
         ],
       },
-      builtin: { modelOverrides: { "some-model": { contextWindow: 200000 } } },
+      builtin: {
+        modelOverrides: {
+          "some-model": { contextWindow: 200000 },
+          // The `openai` fragment's shape: an override that states the vendor's published rates,
+          // and the same override on the subscription branch, where four zeros are the answer.
+          "priced-override": { contextWindow: 200000, cost: PRICED },
+          "zeroed-override": { contextWindow: 200000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+          "half-priced-override": { contextWindow: 200000, cost: { input: 4, output: 20 } },
+        },
+      },
       ...overrides,
     },
   };
@@ -89,6 +98,21 @@ describe("classifyModelCost", () => {
     assert.deepEqual(classifyModelCost(modelsJson(), "gateway", "as-declared"), { verdict: "authored" });
   });
 
+  it("an override that states the vendor's rates is authored, because cost IS overridable", () => {
+    assert.deepEqual(classifyModelCost(modelsJson(), "builtin", "priced-override"), { verdict: "authored" });
+  });
+
+  it("an override that states four zeros is authored too — the subscription branch", () => {
+    assert.deepEqual(classifyModelCost(modelsJson(), "builtin", "zeroed-override"), { verdict: "authored" });
+  });
+
+  it("a half-stated override is substituted, because the substitution is whole-object there too", () => {
+    assert.deepEqual(classifyModelCost(modelsJson(), "builtin", "half-priced-override"), {
+      verdict: "substituted",
+      missing: ["cacheRead", "cacheWrite"],
+    });
+  });
+
   it("a non-numeric rate does not count as declared", () => {
     const raw = { providers: { gateway: { models: [{ id: "m", cost: { input: "2", output: 12, cacheRead: 0.2, cacheWrite: 2 } }] } } };
     assert.deepEqual(classifyModelCost(raw, "gateway", "m"), { verdict: "substituted", missing: ["input"] });
@@ -104,7 +128,8 @@ describe("classifyModelCost", () => {
     ["a config that is not an object", "{}", "gateway", "unpriced-model"],
     ["a config with no providers", { nope: 1 }, "gateway", "unpriced-model"],
     ["a provider this install never declared", modelsJson(), "anthropic", "claude-opus-5"],
-    ["a modelOverrides provider, where cost is not overridable", modelsJson(), "builtin", "some-model"],
+    ["a modelOverrides entry that says nothing about price", modelsJson(), "builtin", "some-model"],
+    ["a model no override mentions at all", modelsJson(), "builtin", "never-mentioned"],
     ["a model absent from the declared catalogue", modelsJson(), "gateway", "typo-model"],
   ] as const) {
     it(`has no opinion about ${label}`, () => {

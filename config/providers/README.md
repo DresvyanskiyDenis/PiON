@@ -308,17 +308,26 @@ written once into `models.json` and read from there.
 
 ## 5. Adding another provider
 
-Four fragments ship. Before writing a fifth, check whether `openai-compatible.json` already covers
+Five fragments ship. Before writing a sixth, check whether `openai-compatible.json` already covers
 your case: any endpoint speaking `/v1/chat/completions` under its own model names is that fragment,
-answered differently, and a new file buys you nothing. That is what retired the `local` and `openai`
-fragments — a loopback model server and a first-party OpenAI account are both just that fragment with
-different answers.
+answered differently, and a new file buys you nothing. That is what retired the `local` fragment — a
+loopback model server is just that fragment with different answers.
 
 The one thing that does justify a separate file is knowledge the interview cannot carry. `compat`,
 `reasoning` and `thinkingLevelMap` may not be deferred to a prompt (§2.8), so wire behaviour that is
 knowable for a **named** product can only be stated as a literal by a fragment that names it. That is
 why `litellm.json` exists beside `openai-compatible.json` although both would fit: they differ in no
 answer, and in four fields nobody can be asked about.
+
+`openai.json` was retired for the first reason on 2026-08-15 and came back under the second one. A
+pay-as-you-go OpenAI account really is `openai-compatible.json` with different answers, and that half
+of the fragment earns nothing. The half that does is the ChatGPT subscription: it has no API key, so
+the block must carry **no** `apiKey` field at all for PI's own sign-in to supply the credential, and
+no answer to a gateway fragment's questions can produce an absent key. The vendor's published list
+prices for models the fragment names by id are the same kind of knowledge — a rate a template can
+state because it names the product, where a gateway fragment can only ask. A fragment that brings
+back a retired file owes the reader that argument in its own `notes[]`, and `openai.json` carries it
+as its first note.
 
 Copy the closest fragment, change `id` to match the new filename, and answer these before you ship it:
 
