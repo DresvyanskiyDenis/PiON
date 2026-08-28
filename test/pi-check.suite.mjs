@@ -258,6 +258,17 @@ const MUTATIONS = [
     },
   },
   {
+    id: "PC-27",
+    // The shape a gateway fragment renders by default: a complete model definition with no
+    // `cost` at all. The clean fixture prices gpt-nova and zeroes gpt-nova-mini, so this break
+    // also pins the distinction the rule is built on, that deleting the rates is a finding while
+    // writing them as zeros is not.
+    break: (dir) =>
+      edit(dir, "config/models.json", (t) =>
+        t.replace(',\n          "cost": { "input": 2, "output": 12, "cacheRead": 0.2, "cacheWrite": 2 }', ""),
+      ),
+  },
+  {
     id: "PC-26",
     // The clean fixture ships no config/slop-lint.json, so PC-26 runs on its built-in
     // defaults, whose budget is 0. That posture is the point: an unconfigured tree gets the

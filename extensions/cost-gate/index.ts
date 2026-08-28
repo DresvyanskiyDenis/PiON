@@ -8,8 +8,10 @@
  * unpriced model matters before knowing whether it will be used, and would have to fire on every
  * unpriced model in the file, including the ones that are unpriced on purpose. Waiting for
  * the response means the evidence exists when the gate fires: this model, this many tokens, and a
- * status line about to claim they were free. It is also the earliest such moment; on a fresh
- * session it is turn one, so what the abort costs is a turn, not a body of work.
+ * status line about to claim they were free. It is also the earliest moment at which that evidence
+ * exists, which is not the same as early: on a fresh install it is turn one, and the turn was
+ * billed before the gate could read it. That cost is why the same question is also asked without
+ * evidence, statically, by `bin/rules/pc-27-declared-models-are-priced.mjs` during install.
  *
  * **Why the verdict is re-read from `models.json` rather than carried on the model.** The
  * substituted-vs-authored bit is destroyed inside PI's provider composer, which is in

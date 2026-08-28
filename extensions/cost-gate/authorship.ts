@@ -22,6 +22,11 @@
  * The rule is deliberately NOT "a zero cost is an error". A zero is a legal, meaningful answer: an
  * endpoint can be genuinely unmetered, or billed somewhere this harness cannot see, and saying so
  * in four explicit zeros plus a `notes[]` entry is exactly right. What is not legal is silence.
+ *
+ * `bin/rules/pc-27-declared-models-are-priced.mjs` asks the same question of the same file with no
+ * response to judge, so `bin/pi-check --all` answers it during install and update rather than at
+ * the end of turn one. Both halves accept exactly the same two declarations, and neither accepts a
+ * note in place of one: a config that passes the install gate cannot then be ended by this one.
  */
 
 /** The four rate fields of PI's `ModelCostRates`. All four, or the object is incomplete. */
@@ -159,8 +164,14 @@ export function formatCostSubstitution(report: CostSubstitutionReport): string {
     `  billed   : ${report.tokens} token(s) on this response`,
     `  effect   : PI's provider composer substituted zeros for every missing rate, so this session` +
       ` reports $0.000 for every turn regardless of what the provider charges.`,
-    `  fix      : declare "cost" for this model in the file above. A genuinely free or unmetered` +
-      ` endpoint declares the zeros explicitly — that is what makes it a decision instead of an omission.`,
+    `  fix      : declare "cost" beside this model's "id" in the file above. Two declarations are`,
+    `             accepted, and a note explaining the absence is not: nothing reads notes.`,
+    `             metered  : "cost": { "input": IN, "output": OUT, "cacheRead": R, "cacheWrite": W }`,
+    `                        a gateway quotes DOLLARS PER TOKEN (LiteLLM serves them on /model/info as`,
+    `                        input_cost_per_token), so MULTIPLY BY 1000000 before writing them here.`,
+    `             unmetered: "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }`,
+    `                        four written zeros say the endpoint bills nothing, or bills by something`,
+    `                        other than tokens. That is a decision, and this gate accepts it forever.`,
     `  policy   : abort — an undeclared price is not a zero price, and a spend nobody can see is` +
       ` the failure this harness refuses to keep quiet about (REQ-PRV-32).`,
   ].join("\n");

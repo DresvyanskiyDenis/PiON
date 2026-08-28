@@ -40,12 +40,50 @@ Then it prints the failure block, notifies, sets a non-zero exit code in headles
     `models.json`, and the operator starts again. Weigh that against a session that runs to
     completion misreporting its spend, and it is not a close call.
 
+    It is still the *earliest moment the evidence exists*, which is not the same as early: on a
+    fresh install, turn one was billed before the gate could read it. That is what the static half
+    below is for.
+
+## The static half: `PC-27` { #the-static-half-pc-27 }
+
+The gate needs a response to judge, and that is what makes it late. `bin/pi-check`'s
+`PC-27` asks the same question of the same file with no response, no evidence and no consequence
+beyond a red line: **which declared models would the composer have to invent a price for?**
+
+It runs where a wrong answer is free:
+
+- `scripts/install.sh` ends with `bin/pi-check --all`, after `config/models.json` has been generated
+  from the provider fragments and before any session exists;
+- `scripts/postinstall-verify.sh` runs it again as one of its checks, which is what
+  `scripts/update.sh` invokes at the end of an update unless `--no-verify` was passed;
+- `bin/pi-check --all` by hand gives the same answer at any later time, which is the only defence
+  for a model group added to `models.json` after the install.
+
+Both halves accept exactly the same two declarations, so a config that passes `PC-27` cannot then be
+ended by the gate:
+
+```json
+"cost": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3 }   // metered
+"cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }      // unmetered, on purpose
+```
+
+A gateway quotes **dollars per token** (LiteLLM serves them on `/model/info` as
+`input_cost_per_token`); these rates are **dollars per million tokens**, so multiply by 1,000,000
+before writing them down. The abort block spells both declarations out verbatim, because the
+operator reading it has just lost turn one and should not have to go looking.
+
 ## What it will not do
 
 **A deliberate zero stays legal and stays silent, forever.** An endpoint that is genuinely unmetered
 is declared with four explicit zeros and a `notes[]` entry saying so, and this gate never looks at
 it again. The rule is not "every model must be priced" — it is that the zero must be *accounted
 for*.
+
+**A note is not a declaration.** `notes[]` satisfies
+[`test/providers-cost.test.ts`](../configuration/models.md), which governs the
+provider *fragments*; neither this gate nor `PC-27` reads notes, and both judge the composed
+`config/models.json`. A fragment that explains an absent `cost` in prose still renders a model the
+gate will stop the session on, so write the zeros as well.
 
 It also answers **no opinion** wherever certainty is unavailable, because ending a session is far
 worse to do wrongly than to skip:

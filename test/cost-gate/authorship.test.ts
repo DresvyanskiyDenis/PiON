@@ -28,6 +28,25 @@ function modelsJson(overrides: Record<string, unknown> = {}): unknown {
           { id: "unpriced-model" },
           { id: "zeroed-model", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
           { id: "half-priced-model", cost: { input: 2 } },
+          // The two shapes an interactive installer renders for a gateway model. `as-installed`
+          // is the default one: every field a turn needs, and no `cost`, because the price behind
+          // a proxy is the operator's setting and a fragment may not guess it. `as-declared` is
+          // the same entry after the operator answered the cost question with "unmetered".
+          {
+            id: "as-installed",
+            name: "[gateway] as-installed",
+            contextWindow: 200000,
+            maxTokens: 8192,
+            thinkingLevelMap: { low: "low", medium: "medium", high: "high" },
+          },
+          {
+            id: "as-declared",
+            name: "[gateway] as-declared",
+            contextWindow: 200000,
+            maxTokens: 8192,
+            thinkingLevelMap: { low: "low", medium: "medium", high: "high" },
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          },
         ],
       },
       builtin: { modelOverrides: { "some-model": { contextWindow: 200000 } } },
@@ -57,6 +76,17 @@ describe("classifyModelCost", () => {
       verdict: "substituted",
       missing: ["output", "cacheRead", "cacheWrite"],
     });
+  });
+
+  it("a model entry as a gateway installer renders it is substituted, cost being the one field it omits", () => {
+    assert.deepEqual(classifyModelCost(modelsJson(), "gateway", "as-installed"), {
+      verdict: "substituted",
+      missing: ["input", "output", "cacheRead", "cacheWrite"],
+    });
+  });
+
+  it("the same entry with the operator's four zeros is authored, which is the whole opt-in", () => {
+    assert.deepEqual(classifyModelCost(modelsJson(), "gateway", "as-declared"), { verdict: "authored" });
   });
 
   it("a non-numeric rate does not count as declared", () => {
@@ -126,6 +156,17 @@ describe("the report", () => {
   it("says the zeros were substituted rather than authored, in those words", () => {
     // The one conclusion a reader must not draw is that somebody decided this model is free.
     assert.match(formatCostSubstitution(report), /substituted zeros/);
+  });
+
+  it("carries both accepted declarations verbatim, so the fix is a paste and not a search", () => {
+    // The operator reading this has just lost turn one of a fresh install, and this repository's
+    // own provider fragments document the opposite fix: leave `cost` out and explain the zero in a
+    // note. Nothing reads notes, so the block has to say so itself.
+    const block = formatCostSubstitution(report);
+    assert.match(block, /"cost": \{ "input": IN, "output": OUT, "cacheRead": R, "cacheWrite": W \}/);
+    assert.match(block, /"cost": \{ "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 \}/);
+    assert.match(block, /MULTIPLY BY 1000000/);
+    assert.match(block, /nothing reads notes/);
   });
 
   it("summarises in one line for a UI that has no room for the block", () => {
@@ -202,6 +243,21 @@ describe("judgeResponse", () => {
     const { rec, ctx, sinks } = harness(true);
     judgeResponse(response("zeroed-model", billed), ctx, sinks);
     judgeResponse(response("zeroed-model", billed), ctx, sinks);
+    assert.deepEqual(rec.logs, []);
+    assert.equal(rec.aborted, 0);
+  });
+
+  it("aborts turn one on a model the installer rendered without a cost, which is the reported defect", () => {
+    const { rec, ctx, sinks } = harness(true);
+    assert.equal(judgeResponse(response("as-installed", billed), ctx, sinks), true);
+    assert.equal(rec.aborted, 1);
+    assert.match(rec.logs[0] ?? "", /missing {2}: input, output, cacheRead, cacheWrite/);
+  });
+
+  it("lets the same model run once the operator has declared it unmetered, turn one included", () => {
+    const { rec, ctx, sinks } = harness(true);
+    assert.equal(judgeResponse(response("as-declared", billed), ctx, sinks), false);
+    assert.equal(judgeResponse(response("as-declared", billed), ctx, sinks), false);
     assert.deepEqual(rec.logs, []);
     assert.equal(rec.aborted, 0);
   });

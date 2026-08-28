@@ -84,6 +84,7 @@ It asserts things that are invisible until they bite:
 | `PC-24` | every committed `path-rules` fixture has valid frontmatter and a supported glob |
 | `PC-25` | nothing on the [do-not-publish list](../skills-portability.md#skills-that-are-deliberately-absent) reaches a path, git history or a tracked file |
 | `PC-26` | user-facing prose carries exactly the number of em dashes recorded in `config/slop-lint.json` — [see below](#pc-26) |
+| `PC-27` | every model declared in `config/models.json` states all four `cost` rates, or four explicit zeros — the [cost-gate's](../extensions/cost-gate.md#the-static-half-pc-27) question, asked before the first request |
 
 Exit `0` = clean, `1` = findings, `2` = the checker could not run. That last distinction matters in
 CI: treating them the same hides broken tooling behind a red build.

@@ -201,6 +201,12 @@ An explicit catalogue, for a **custom** provider only. Each entry:
     "cost": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3 }
     ```
 
+    Two things ask this question for you. [`cost-gate`](../extensions/cost-gate.md) ends the session
+    the first time an unpriced model bills tokens, which is correct and late: on a fresh install that
+    is turn one, already billed. `bin/pi-check`'s `PC-27` asks it statically over this file, and the
+    installer runs `bin/pi-check --all` as its last step, so the answer normally arrives before the
+    first request. After hand-editing this file, re-run it.
+
 !!! warning "On a gateway, probe the rate — do not copy the upstream vendor's price page"
     A model id behind a gateway is not the vendor's direct model. You are billed whatever the gateway
     operator configured for that model group, in front of whatever deployment they chose, and that can
@@ -415,6 +421,12 @@ Three ship:
 
     `builtIn` fragments are exempt by construction: they override PI's own catalogues, which already
     carry complete non-zero costs.
+
+    A `notes[]` entry satisfies **that** test, which is about fragments. It does not satisfy
+    [`cost-gate`](../extensions/cost-gate.md) or `PC-27`, which read the composed
+    `config/models.json` and accept only a written `cost`. For a model whose price nobody can
+    establish, the fragment note explains *why* and the four explicit zeros are what make the file
+    pass. A note on its own leaves the session to be aborted on turn one.
 
 The fragment schema, the substitution rules and the merge algorithm are documented in
 `config/providers/README.md`, which is the contract between the fragments and the installer. To
