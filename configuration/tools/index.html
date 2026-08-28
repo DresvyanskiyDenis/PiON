@@ -4338,14 +4338,42 @@ denial, never remove it.</p>
 <h2 id="web">Web<a class="headerlink" href="#web" title="Permanent link">&para;</a></h2>
 <p>Two files that <strong>must agree</strong>, and a <code>session_start</code> assertion that fails loud when they do not.</p>
 <p>Both are <strong>generated</strong>: <code>web.default.json</code> and <code>web-search.default.json</code> are the tracked templates,
-and the installer writes the <code>.json</code> pair from your answer to one question — SearXNG, or nothing.
-Answering "none" is not a broken state; <code>web_search</code> is removed cleanly rather than left to fail at
-the first call.</p>
+and the installer writes the <code>.json</code> pair from your answer to one question — which single backend:</p>
+<table>
+<thead>
+<tr>
+<th>Answer</th>
+<th>What it costs you</th>
+<th>What it needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>searxng</code></td>
+<td>a service you host and keep running</td>
+<td>no key, no third party</td>
+</tr>
+<tr>
+<td><code>tavily</code> / <code>brave</code> / <code>exa</code></td>
+<td>a hosted search API sees your queries</td>
+<td>one API key, from a free tier you can sign up for without a card</td>
+</tr>
+<tr>
+<td><code>none</code></td>
+<td>no <code>web_search</code> tool at all</td>
+<td>nothing</td>
+</tr>
+</tbody>
+</table>
+<p>Answering "none" is not a broken state; <code>web_search</code> is removed cleanly rather than left to fail at
+the first call. It disables <strong>search only</strong> — <code>web_fetch</code> is unaffected and still needs no key,
+because the package's extraction path falls back to <a href="https://r.jina.ai">Jina Reader</a> (keyless) for
+the JavaScript-heavy pages a plain fetch cannot read. Hand PI a URL and it still reads it.</p>
 <h3 id="webjson"><code>web.json</code><a class="headerlink" href="#webjson" title="Permanent link">&para;</a></h3>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"search"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"backend"</span><span class="p">:</span><span class="w"> </span><span class="s2">"none"</span><span class="p">,</span><span class="w"> </span><span class="nt">"answerPath"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>This repository's declared pinned backend, for humans and for <code>jq</code>-based tooling. Ships <code>none</code>;
-the installer sets <code>searxng</code> if you asked for it.</p>
+the installer sets whichever single backend you asked for.</p>
 <table>
 <thead>
 <tr>
@@ -4401,17 +4429,17 @@ error, not silent drift.</p>
 <tr>
 <td><code>provider</code></td>
 <td><code>"none"</code></td>
-<td><code>searxng</code> or <code>none</code>. <strong>Change it in both files or the session refuses to start</strong></td>
+<td><code>searxng</code>, <code>tavily</code>, <code>brave</code>, <code>exa</code> or <code>none</code>. <strong>Change it in both files or the session refuses to start</strong></td>
 </tr>
 <tr>
 <td><code>searxngBaseUrl</code></td>
 <td><code>http://127.0.0.1:8080</code></td>
-<td>Your own search instance. Point it wherever yours runs. Ignored while <code>provider</code> is <code>none</code></td>
+<td>Your own search instance. Point it wherever yours runs. Read only while <code>provider</code> is <code>searxng</code></td>
 </tr>
 <tr>
 <td><code>webSearch.enabled</code></td>
 <td><code>false</code></td>
-<td><code>true</code> alongside <code>provider: "searxng"</code>. Leaving it <code>false</code> removes <code>web_search</code></td>
+<td><code>true</code> alongside any real <code>provider</code>. Leaving it <code>false</code> removes <code>web_search</code></td>
 </tr>
 <tr>
 <td><code>ssrf.trustEnvProxy</code></td>
@@ -4430,6 +4458,14 @@ error, not silent drift.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">The hosted backends' API keys are not in this file, on purpose</p>
+<p><code>tavily</code>, <code>brave</code> and <code>exa</code> authenticate with <code>TAVILY_API_KEY</code>, <code>BRAVE_API_KEY</code> and
+<code>EXA_API_KEY</code>, which the package reads <strong>from the environment</strong> — no entry in this file is
+needed, and none is written. The installer stores the key in <code>~/.pi/secrets.env</code> (chmod 0600),
+sourced by <code>config/shell/pi-env.sh</code>, so no secret ever lands in a tracked config file. Set the
+variable by hand and the same backend works with no installer run at all.</p>
+</div>
 <div class="admonition danger">
 <p class="admonition-title"><code>allowBrowserCookies: true</code> hands your logged-in sessions to a fetch tool</p>
 <p>It lets the fetcher reuse browser cookies, which means an agent following a link can retrieve
