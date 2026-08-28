@@ -2974,6 +2974,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="4. Threshold reporting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#autocompact-state-the-intent-the-current-model-actually-implies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /autocompact — state the intent the current model actually implies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4126,6 +4143,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="4. Threshold reporting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#autocompact-state-the-intent-the-current-model-actually-implies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        /autocompact — state the intent the current model actually implies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4179,7 +4213,7 @@
 <p>Four parts, in the order they matter. Configured by
 <a href="../../configuration/sessions/#compactionjson"><code>config/compaction.json</code></a>; PI's own three keys are in
 <a href="../../configuration/settings/#compaction"><code>settings.json</code></a>.</p>
-<p>Registers <code>/compaction-status</code>.</p>
+<p>Registers <code>/compaction-status</code> and <code>/autocompact</code>.</p>
 <h2 id="1-the-loop-guard">1. The loop guard<a class="headerlink" href="#1-the-loop-guard" title="Permanent link">&para;</a></h2>
 <p>N consecutive non-reducing automatic compaction passes abort the run with a typed error. Shipped:
 three passes, a 15 % minimum reduction ratio, and a minimum gap of two entries between passes.</p>
@@ -4214,6 +4248,24 @@ alongside the value</strong>, so a default can never again be printed as a measu
 <a href="../../configuration/models/#modeloverrides"><code>modelOverrides.&lt;id&gt;.contextWindow</code></a>. Full argument:
 <a href="../../concepts/context-windows/">Context windows</a>.</p>
 </div>
+<h3 id="autocompact-state-the-intent-the-current-model-actually-implies"><code>/autocompact</code> — state the intent the current model actually implies<a class="headerlink" href="#autocompact-state-the-intent-the-current-model-actually-implies" title="Permanent link">&para;</a></h3>
+<p><code>absoluteTokens</code> is a number somebody chose once, for one model, and it stays chosen when you switch
+to a model with a different window. <code>/autocompact [model-id]</code> rewrites it from the catalogue,
+defaulting to the session's model, and persists the change to <code>config/compaction.json</code>.</p>
+<p>It writes <strong><code>contextWindow − reserveTokens</code></strong>, not the window. That is the trigger PI already uses,
+so the declared absolute becomes exactly what <code>shouldCompact()</code> does and the verdict reads
+<code>aligned</code>. Writing the window itself would state an intent PI can never meet: the trigger is always
+<code>reserveTokens</code> below it, so the report would say <code>window-too-small</code> — and on a 64k model, with the
+16384-token default reserve, that is a 26 % divergence, past the 20 % tolerance, with a remedy line
+that correctly says no PI 0.84.0 setting closes the gap. <strong>The command moves no trigger.</strong> It only
+stops the declared number from describing a model you are not running.</p>
+<p>The window is read from <code>config/models.json</code> — <strong>declared, never probed</strong>, because that file carries
+this repo's deliberately understated windows. A model id that two providers declare differently is
+settled by the session's own provider and refused otherwise, naming both candidates; an explicitly
+named model the catalogue does not declare is refused rather than guessed. Only when you name no
+model at all does it fall back to the live session's window, and it says so in the report.</p>
+<p>The write is textual and re-parsed before it is offered: re-serialising the config would reformat 14
+lines to change one number, and <code>config/compaction.json</code> is tracked.</p>
 <h2 id="an-extension-cannot-abort-a-headless-run">An extension cannot abort a headless run<a class="headerlink" href="#an-extension-cannot-abort-a-headless-run" title="Permanent link">&para;</a></h2>
 <p>Answered against the shipped code of 0.84.0 rather than the docs. Both documented candidates fail,
 and the second fails for a reason the runbook did not anticipate:</p>
