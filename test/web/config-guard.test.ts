@@ -45,6 +45,24 @@ test("assertPinnedSearchBackend", async (t) => {
     assert.match(result.liveConfigPath, /web-search\.json$/);
   });
 
+  // EXT-07 pins how MANY backends are declared, never which one — so every backend the installer
+  // can write has to pass on exactly the same terms as searxng, and drift between the two files
+  // has to fail on exactly the same terms too. Table-driven so adding a backend to install.sh's
+  // enum without adding it here is a visible omission rather than an untested path.
+  for (const backend of ["tavily", "brave", "exa"]) {
+    await t.test(`both files agree on '${backend}' -> returns the pinned backend, no throw`, () => {
+      write("web.json", { version: 1, search: { backend } });
+      write("web-search.json", { provider: backend });
+      assert.equal(assertPinnedSearchBackend().backend, backend);
+    });
+
+    await t.test(`'${backend}' declared but web-search.json still says 'none' -> throws`, () => {
+      write("web.json", { version: 1, search: { backend } });
+      write("web-search.json", { provider: "none" });
+      assert.throws(() => assertPinnedSearchBackend(), /pinned-backend mismatch/);
+    });
+  }
+
   await t.test("config/web.json missing -> throws naming the path", () => {
     write("web-search.json", { provider: "searxng" });
     assert.throws(() => assertPinnedSearchBackend(), /EXT-07's declared-backend file.*web\.json/s);

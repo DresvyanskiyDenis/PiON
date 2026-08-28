@@ -117,9 +117,18 @@ denial, never remove it.
 Two files that **must agree**, and a `session_start` assertion that fails loud when they do not.
 
 Both are **generated**: `web.default.json` and `web-search.default.json` are the tracked templates,
-and the installer writes the `.json` pair from your answer to one question — SearXNG, or nothing.
+and the installer writes the `.json` pair from your answer to one question — which single backend:
+
+| Answer | What it costs you | What it needs |
+|---|---|---|
+| `searxng` | a service you host and keep running | no key, no third party |
+| `tavily` / `brave` / `exa` | a hosted search API sees your queries | one API key, from a free tier you can sign up for without a card |
+| `none` | no `web_search` tool at all | nothing |
+
 Answering "none" is not a broken state; `web_search` is removed cleanly rather than left to fail at
-the first call.
+the first call. It disables **search only** — `web_fetch` is unaffected and still needs no key,
+because the package's extraction path falls back to [Jina Reader](https://r.jina.ai) (keyless) for
+the JavaScript-heavy pages a plain fetch cannot read. Hand PI a URL and it still reads it.
 
 ### `web.json`
 
@@ -128,7 +137,7 @@ the first call.
 ```
 
 This repository's declared pinned backend, for humans and for `jq`-based tooling. Ships `none`;
-the installer sets `searxng` if you asked for it.
+the installer sets whichever single backend you asked for.
 
 | Key | Ships | Notes |
 |---|---|---|
@@ -162,12 +171,19 @@ error, not silent drift.
 
 | Key | Ships | Notes |
 |---|---|---|
-| `provider` | `"none"` | `searxng` or `none`. **Change it in both files or the session refuses to start** |
-| `searxngBaseUrl` | `http://127.0.0.1:8080` | Your own search instance. Point it wherever yours runs. Ignored while `provider` is `none` |
-| `webSearch.enabled` | `false` | `true` alongside `provider: "searxng"`. Leaving it `false` removes `web_search` |
+| `provider` | `"none"` | `searxng`, `tavily`, `brave`, `exa` or `none`. **Change it in both files or the session refuses to start** |
+| `searxngBaseUrl` | `http://127.0.0.1:8080` | Your own search instance. Point it wherever yours runs. Read only while `provider` is `searxng` |
+| `webSearch.enabled` | `false` | `true` alongside any real `provider`. Leaving it `false` removes `web_search` |
 | `ssrf.trustEnvProxy` | `true` | Honour `HTTPS_PROXY`/`NO_PROXY` when deciding what is reachable |
 | `allowBrowserCookies` | **`false`** | Do not change this casually — see below |
 | `toolNames.fetchContent` | `"web_fetch"` | Renames the package's default `fetch_content`. The alias is enforced at `session_start` |
+
+!!! note "The hosted backends' API keys are not in this file, on purpose"
+    `tavily`, `brave` and `exa` authenticate with `TAVILY_API_KEY`, `BRAVE_API_KEY` and
+    `EXA_API_KEY`, which the package reads **from the environment** — no entry in this file is
+    needed, and none is written. The installer stores the key in `~/.pi/secrets.env` (chmod 0600),
+    sourced by `config/shell/pi-env.sh`, so no secret ever lands in a tracked config file. Set the
+    variable by hand and the same backend works with no installer run at all.
 
 !!! danger "`allowBrowserCookies: true` hands your logged-in sessions to a fetch tool"
     It lets the fetcher reuse browser cookies, which means an agent following a link can retrieve

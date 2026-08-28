@@ -89,7 +89,7 @@ To try it without touching your real setup:
 | 4 | **Tier bindings** | Your agents and skills ask for a *tier*, never a model id. This is where a tier is pointed at a real model |
 | 5 | **Agent behaviour** | Which model PI opens with, how hard it thinks by default, how it looks. All changeable later inside PI |
 | 6 | **Safety posture** | What PI may do **without asking you first** — the one setting nobody should accept blindly |
-| 7 | **Tools and integrations** | Web search, language servers, quota metering, and where your own skills will live. Every one optional |
+| 7 | **Tools and integrations** | Web search (self-hosted SearXNG, a Tavily/Brave/Exa key, or none — with `none`, `web_fetch` still works keyless via Jina Reader), language servers, quota metering, and where your own skills will live. Every one optional |
 | 8 | **MCP servers** | Which MCP servers, if any, are declared. The default is none |
 | 9 | **Shell integration** | The most common reason an install "does not work": the config is perfect and the shell never loads it |
 

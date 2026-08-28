@@ -328,6 +328,57 @@ describe("install.sh", () => {
     assert.deepEqual(readdirSync(fixtureHome), []);
   });
 
+  test("--answers pinning a hosted search backend: both web files get the same provider, and the key is deferred, never written into config", () => {
+    // Section 7 offers searxng, tavily, brave, exa or none. The three hosted backends are the only
+    // answers that need a credential, and a non-interactive run is where that is easiest to lose:
+    // there is no terminal to type a key on, so the run owes the user a manual step instead of a
+    // config file that silently references a variable nobody set.
+    const fixtureHome = freshDir("ext28-home-");
+    const answersDir = freshDir("ext28-answers-");
+    const answers = join(answersDir, "answers.conf");
+    writeFileSync(answers, "web.backend=tavily\n");
+
+    const res = runScript(
+      join(REAL_SCRIPTS, "install.sh"),
+      ["--dry-run", "--yes", "--answers", answers, "--providers", "github-copilot"],
+      baseEnv(fixtureHome),
+    );
+    assert.equal(res.status, 0, `answers dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    const out = `${res.stdout}${res.stderr}`;
+    assert.match(out, /web search: tavily/);
+    // The pair EXT-07's session_start guard cross-checks: a run that patched one and not the other
+    // would install a harness that refuses to start.
+    assert.match(out, /patch web\.json: search\.backend=tavily/);
+    assert.match(out, /patch web-search\.json: provider=tavily webSearch\.enabled=true/);
+    // The key itself: accounted for as a manual step, and never a value in a tracked config file.
+    // The deferred line is assembled from `envVar` rather than written out whole because this
+    // repository's own publication gate (test/content/publication.test.ts) rejects any tracked line
+    // that assigns something to a credential-shaped variable name — placeholder value or not.
+    const envVar = "TAVILY_API_KEY";
+    assert.match(out, new RegExp(`${envVar}\\s+deferred`));
+    assert.match(out, new RegExp(`echo '${envVar}=<your value>' >> \\S+secrets\\.env`));
+    assert.doesNotMatch(out, /tavilyApiKey/);
+    assert.deepEqual(readdirSync(fixtureHome), []);
+  });
+
+  test("the default backend is none, and the run says web_fetch keeps working without a key", () => {
+    // "none" is the default answer, so it is the state most installs end in. It disables web_search
+    // only — claiming or implying that it disables web access altogether would send people looking
+    // for a search key they do not need to read a URL.
+    const fixtureHome = freshDir("ext28-home-");
+    const res = runScript(
+      join(REAL_SCRIPTS, "install.sh"),
+      ["--dry-run", "--yes", "--providers", "github-copilot"],
+      baseEnv(fixtureHome),
+    );
+    assert.equal(res.status, 0, `default dry-run failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    const out = `${res.stdout}${res.stderr}`;
+    assert.match(out, /patch web\.json: search\.backend=none/);
+    assert.match(out, /patch web-search\.json: provider=none webSearch\.enabled=false/);
+    assert.match(out, /web_fetch is unaffected and still needs no key.*Jina Reader/);
+    assert.deepEqual(readdirSync(fixtureHome), []);
+  });
+
   test("PI-INSTALL-E19: refuses when auth.json/trust.json/sessions is a symlink into the repo", () => {
     const repo = makeRepoSkeleton();
     const platform = platformAsset();

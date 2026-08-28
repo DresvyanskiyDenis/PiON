@@ -1104,18 +1104,39 @@ LSP_FILE="$REPO_DIR/config/pi-lsp.json"
 QUOTA_FILE="$REPO_DIR/config/quota.json"
 
 if ask_section tools && [ "$EXPRESS" = 0 ]; then
-  ask web.backend "web search backend" none enum 1 "searxng,none" \
-    "Web search is a self-hosted SearXNG instance or nothing. There is no third-party search key here by design; 'none' disables the web_search tool cleanly rather than letting it fail at runtime." >/dev/null
-  if [ "$(ans_get web.backend)" = "searxng" ]; then
-    ask web.searxngBaseUrl "SearXNG base URL" "http://127.0.0.1:8080" url 1 "" \
-      "The address of your own SearXNG. It must answer /search?format=json." >/dev/null
-  fi
+  ask web.backend "web search backend" none enum 1 "searxng,tavily,brave,exa,none" \
+    "Exactly one backend, pinned in config — pi-web-access's multi-provider auto-detection stays off whichever you pick.
+   searxng — an instance you host yourself: no key, no third party, but the service is yours to run.
+   tavily, brave, exa — a hosted search API. Each has a free tier you can sign up for without a card; the key is asked for in the credentials step and stored in $SECRETS_FILE, never in a config file.
+   none — the web_search tool is not registered at all, rather than left to fail at the first call. web_fetch still works and still needs no key: page extraction falls back to Jina Reader (r.jina.ai), which is what reads the JavaScript-heavy pages." >/dev/null
+  case "$(ans_get web.backend)" in
+    searxng)
+      ask web.searxngBaseUrl "SearXNG base URL" "http://127.0.0.1:8080" url 1 "" \
+        "The address of your own SearXNG. It must answer /search?format=json." >/dev/null ;;
+  esac
   ask web.proxy "HTTPS proxy for outbound requests (blank if none)" "${HTTPS_PROXY:-}" string 0 "" \
     "Only if your network forces one. It is exported from your shell rc, not stored in any config file." >/dev/null
 else
   ans_has web.backend || ans_set web.backend none
 fi
 ok "web search: $(ans_get web.backend)"
+
+# A hosted backend needs one API key, and pi-web-access reads it from the environment on its own
+# (TAVILY_API_KEY / BRAVE_API_KEY / EXA_API_KEY) — so it goes through cred_offer like every other
+# secret and never near a tracked config file. Outside the interview branch above on purpose:
+# --express, --yes and --answers can all pin a hosted backend too, and each of them still owes the
+# key an account of where it will come from.
+case "$(ans_get web.backend)" in
+  tavily) cred_offer tools "web search (tavily)" TAVILY_API_KEY \
+    "The key web_search authenticates with. pi-web-access reads it from the environment; it is never written into config/web-search.json." \
+    1 "" "https://app.tavily.com — sign up and copy the API key (free tier, no card)" ;;
+  brave) cred_offer tools "web search (brave)" BRAVE_API_KEY \
+    "The key web_search authenticates with. pi-web-access reads it from the environment; it is never written into config/web-search.json." \
+    1 "" "https://brave.com/search/api/ — subscribe to the free plan and copy the key" ;;
+  exa) cred_offer tools "web search (exa)" EXA_API_KEY \
+    "The key web_search authenticates with. pi-web-access reads it from the environment; it is never written into config/web-search.json." \
+    1 "" "https://dashboard.exa.ai — sign up and create an API key (signup credit, no card)" ;;
+esac
 
 # Language servers. Detected, never assumed: PI's LSP integration silently does nothing when the
 # server binary is missing, which is the most confusing possible failure mode.
@@ -1618,14 +1639,22 @@ cfg_set "$PATHS_FILE" \
   "egress=json:{\"web\": \"allow\", \"mcp\": \"allow\", \"publicModels\": \"allow\"}"
 
 # web.json / web-search.json — the two must agree, and extensions/web asserts it at every start.
-if [ "$(ans_get web.backend)" = "searxng" ]; then
-  cfg_set "$WEB_FILE" "search.backend=searxng"
-  cfg_set "$WEBSEARCH_FILE" "provider=searxng" "searxngBaseUrl=str:$(ans_get web.searxngBaseUrl)" "webSearch.enabled=true"
-else
-  cfg_set "$WEB_FILE" "search.backend=none"
-  cfg_set "$WEBSEARCH_FILE" "provider=none" "webSearch.enabled=false"
-  info "web_search is disabled — PI will say so rather than returning empty results"
-fi
+case "$(ans_get web.backend)" in
+  searxng)
+    cfg_set "$WEB_FILE" "search.backend=searxng"
+    cfg_set "$WEBSEARCH_FILE" "provider=searxng" "searxngBaseUrl=str:$(ans_get web.searxngBaseUrl)" "webSearch.enabled=true" ;;
+  tavily|brave|exa)
+    # No key here, deliberately: pi-web-access falls back to TAVILY_API_KEY/BRAVE_API_KEY/EXA_API_KEY
+    # from the environment, which is where the credentials step below puts it. Writing the key into
+    # web-search.json would be a secret in a config file this repository tracks.
+    cfg_set "$WEB_FILE" "search.backend=$(ans_get web.backend)"
+    cfg_set "$WEBSEARCH_FILE" "provider=$(ans_get web.backend)" "webSearch.enabled=true" ;;
+  *)
+    cfg_set "$WEB_FILE" "search.backend=none"
+    cfg_set "$WEBSEARCH_FILE" "provider=none" "webSearch.enabled=false"
+    info "web_search is disabled — PI will say so rather than returning empty results"
+    info "web_fetch is unaffected and still needs no key: extraction falls back to Jina Reader (r.jina.ai)" ;;
+esac
 
 [ ! -f "$(cfg_seed quota)" ] || cfg_set "$QUOTA_FILE" "quota.enabled=$(ans_get quota.enabled)"
 
