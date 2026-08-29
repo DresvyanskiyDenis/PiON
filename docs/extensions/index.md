@@ -42,6 +42,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 |---|---|
 | `ask_user` | [ask-user](ask-user.md) |
 | `expand_result` | [big-results](big-results.md) |
+| `fact` | [compaction](compaction.md) |
 | `job` | [jobs](jobs.md) |
 | `message_agent` | [message-agent](message-agent.md) |
 | `teammate` | [teammates](teammates.md) |

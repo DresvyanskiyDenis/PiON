@@ -4,7 +4,7 @@ Four parts, in the order they matter. Configured by
 [`config/compaction.json`](../configuration/sessions.md#compactionjson); PI's own three keys are in
 [`settings.json`](../configuration/settings.md#compaction).
 
-Registers `/compaction-status` and `/autocompact`.
+Registers `/compaction-status`, `/autocompact` and the `fact` tool.
 
 ## 1. The loop guard
 
@@ -29,6 +29,55 @@ Regenerating is a guarantee.
 
 Capped at 4 KB per source and 16 KB total, because the budget being re-spent is the one compaction
 just reclaimed.
+
+### Facts, and why they need the same treatment
+
+Regeneration covers what the project *declares*. Nothing covered what the session *learned*, and
+that gap is not symmetric with the first: an instruction file is re-read from disk on every pass and
+so survives indefinitely, while a discovery lives only inside the summary — and each compaction
+summarises the previous summary rather than the original dialogue. Detail does not fade linearly
+under that arrangement, it fades geometrically, and it fades in one direction. A long session ends
+up holding its rules perfectly and its results barely at all.
+
+The symptom is an agent paying twice. The base URL that was confirmed by hand in the first hour is
+gone by the ninth compaction, so it gets confirmed again — another request, another remote run,
+another round of the operator repeating a correction he already gave.
+
+`facts` applies regeneration to a second source. `extensions/compaction/facts.ts` owns an
+append-only Markdown file, one fact per line carrying an ISO timestamp, the fact, and how it was
+established. It is restated after each compaction beside the pinned block.
+
+The file is a sibling of the session transcript under the agent directory, and that single choice
+buys three properties that are each requirements rather than conveniences:
+
+- **Outside every working tree.** It cannot be committed by accident, which matters because facts
+  are exactly the content that quotes hostnames, identifiers and raw error bodies.
+- **Keyed by session id.** A parent and its subagent, or two terminals in one project, cannot write
+  into each other's file.
+- **Session-scoped.** It dies with the session. This is not a memory system: no store, no index, no
+  retrieval, nothing accumulating across sessions for nobody to curate.
+
+Both caps — 40 entries and 8 KB, in
+[`compaction.json`](../configuration/sessions.md#pinnedfacts-what-the-session-learned) — are applied
+on every read, oldest first, and the block states how many entries were dropped and names the file
+holding the rest. A silently shortened list is worse than no list, because it reads as complete and
+its absences then look like evidence.
+
+### The `fact` tool
+
+```
+fact(fact: "…", provenance: "…")
+```
+
+`provenance` is optional in the schema and effectively mandatory in practice: a fact without it is
+recorded as `not stated`, and a later turn that cannot tell a verified thing from an assumed one
+will re-derive it anyway. Pass the command that proved it, a `file:line`, a run id, or
+`"operator correction"`.
+
+It is a tool rather than an instruction to keep a notes file by hand because hand-editing is the
+step that gets skipped under time pressure — and time pressure is exactly the condition under which
+a fact was expensive enough to be worth keeping. `SYSTEM.md` carries the doctrine that makes it
+fire, which is the load-bearing half: the mechanism without it is a tool nobody calls.
 
 ## 4. Threshold reporting
 

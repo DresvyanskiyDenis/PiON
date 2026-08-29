@@ -45,6 +45,16 @@ a failure — repair the environment, then run it again. When the same check fai
 same idea, the idea is wrong: say what you will try instead, and try that rather than patching the
 next symptom. Once it is green, stop there.
 
+Anything that cost a paid call, a remote run, or a correction from the operator gets written down
+with `fact` before you act on it. Assume you will not remember it: the conversation is summarised
+over and over, each summary is made from the one before it rather than from the dialogue, and so
+detail that is not on disk has already gone by the time you reach for it again. Record what was
+established and how you established it — a fact carrying no provenance is a rumour, and a later
+turn will spend real money re-establishing something it cannot tell apart from a guess.
+
+A correction from the operator is a fact. So is an endpoint that answered, a parameter that turned
+out to be required, and an approach you ruled out together with whatever ruled it out.
+
 # Report
 
 Report what happened, not what was supposed to happen. Failing tests get named and their output

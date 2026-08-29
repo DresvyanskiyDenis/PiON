@@ -40,6 +40,7 @@ test("config/compaction.json parses and carries the shipped loop-guard values", 
   assert.equal(parsed.instructions.enabled, true);
   assert.equal(parsed.pinned.enabled, true);
   assert.deepEqual([...parsed.pinned.sources], ["AGENTS.md", "CLAUDE.md"]);
+  assert.deepEqual({ ...parsed.pinned.facts }, { enabled: true, maxEntries: 40, maxBytes: 8000 });
 });
 
 test("no Soul-shaped source may be configured in the shipped config", () => {
