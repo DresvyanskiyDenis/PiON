@@ -3279,10 +3279,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-nine-checks" class="md-nav__link">
+  <a href="#the-ten-checks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The nine checks
+        The ten checks
       
     </span>
   </a>
@@ -3316,6 +3316,17 @@
     <span class="md-ellipsis">
       
         Why D-06 does not gate on an event
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#d-10-and-the-guidelines-a-custom-prompt-deletes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D-10 and the guidelines a custom prompt deletes
       
     </span>
   </a>
@@ -4224,10 +4235,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-nine-checks" class="md-nav__link">
+  <a href="#the-ten-checks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The nine checks
+        The ten checks
       
     </span>
   </a>
@@ -4261,6 +4272,17 @@
     <span class="md-ellipsis">
       
         Why D-06 does not gate on an event
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#d-10-and-the-guidelines-a-custom-prompt-deletes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D-10 and the guidelines a custom prompt deletes
       
     </span>
   </a>
@@ -4307,7 +4329,7 @@
 <p><strong>Composes last</strong>, so its report observes every module above it.</p>
 <p>Registers <code>/doctor</code>. A cheap subset also runs automatically at every <code>session_start</code> — everything
 except <code>D-04</code>, which needs the model registry and is therefore network-shaped.</p>
-<h2 id="the-nine-checks">The nine checks<a class="headerlink" href="#the-nine-checks" title="Permanent link">&para;</a></h2>
+<h2 id="the-ten-checks">The ten checks<a class="headerlink" href="#the-ten-checks" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -4352,6 +4374,10 @@ except <code>D-04</code>, which needs the model registry and is therefore networ
 <td><code>D-09</code></td>
 <td>the hook layer is carrying rules rather than sitting degraded</td>
 </tr>
+<tr>
+<td><code>D-10</code></td>
+<td>every tool <code>promptGuidelines</code> bullet dropped by <code>SYSTEM.md</code> has a recorded disposition (<strong>warn</strong>, not error)</td>
+</tr>
 </tbody>
 </table>
 <p><strong><code>D-06</code> is the only finding that shuts the session down.</strong> Everything else reports and continues.</p>
@@ -4378,6 +4404,50 @@ it.</p>
 rather than assumed from its type declarations.</p>
 <p>The subscription is kept anyway — cheap, harmless, and it starts working the moment the composition
 order changes. Its payload is surfaced as an enrichment, <strong>never</strong> as the pass/fail signal.</p>
+<h2 id="d-10-and-the-guidelines-a-custom-prompt-deletes"><code>D-10</code> and the guidelines a custom prompt deletes<a class="headerlink" href="#d-10-and-the-guidelines-a-custom-prompt-deletes" title="Permanent link">&para;</a></h2>
+<p><code>SYSTEM.md</code> replaces PI's base prompt. PI's prompt builder returns early when a custom prompt is
+set: the <code>Available tools:</code> summary and <strong>the entire <code>Guidelines:</code> section</strong> are never assembled.
+Losing the tools summary costs nothing — the full schemas still travel with every request. Losing
+<code>Guidelines:</code> costs every tool's <code>promptGuidelines</code> array at once, PI's own and every adopted
+package's, because that section is the only place they reach the model.</p>
+<p><code>SYSTEM.md</code> restates the ones worth restating, in its own words. That is exactly why <code>D-10</code> cannot
+work by matching guideline text against the prompt: the covered ones are the ones that would be
+flagged. Instead <code>extensions/doctor/guidelines.ts</code> records a <strong>disposition</strong> per bullet, keyed
+<code>tool:index</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Disposition</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system-prompt</code></td>
+<td>restated in <code>SYSTEM.md</code>, in different words</td>
+</tr>
+<tr>
+<td><code>tool-contract</code></td>
+<td>carried by the tool's own <code>description</code> or parameter descriptions, which a custom prompt does not touch</td>
+</tr>
+<tr>
+<td><code>elsewhere</code></td>
+<td>carried by another deliberate mechanism, named in the row's comment</td>
+</tr>
+<tr>
+<td><code>dropped</code></td>
+<td>deliberately let go, for the reason in the row's comment</td>
+</tr>
+</tbody>
+</table>
+<p><code>D-10</code> warns about any live guideline with no row, and about any whose text no longer contains the
+distinctive fragment its row recorded — so a package rewording a bullet in place is visible rather
+than silent. Rows whose tool is not registered are inert and are never reported.</p>
+<p><code>"dropped"</code> being a first-class value is the point. The table records what <em>happened</em> to a bullet;
+it is not a way to silence the check, and writing <code>system-prompt</code> for something <code>SYSTEM.md</code> does
+not say would make the file worse than having none.</p>
+<p>The check switches itself off when PI's own <code>Guidelines:</code> block is present in the assembled prompt:
+no custom prompt means nothing is being dropped.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../getting-started/first-run/">First run</a> · <a href="../guard/">guard</a> · <a href="../trust/">trust</a> ·
 <a href="../../operations/verification/">Verification</a></p>
