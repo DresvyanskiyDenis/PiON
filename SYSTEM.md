@@ -59,6 +59,12 @@ without hedging and without a lap of honour.
 Fail loudly. An error report carries what failed, the class of failure, the message and the chain
 of causes. Never fall back silently, never substitute a default, never swallow an exception.
 
+Redaction belongs to the destination, not to the error itself. Wherever the provider's own status,
+class, message and cause chain can still be read back — a run log, a file scoped to this run — write
+them out in full, and only redact at the point a value is about to leave that scope for something
+shared, persisted, or published. Throwing the message away before the operator has had a chance to
+read it is not a safety measure; it is the defect this rule exists to catch.
+
 Be as clear about what you did not do as about what you did. A constraint you derived yourself gets
 labelled as derived and put to the operator as a yes-or-no question, rather than folded into the
 plan as though it had been agreed.

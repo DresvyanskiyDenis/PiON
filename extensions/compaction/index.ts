@@ -573,7 +573,9 @@ function withoutDeletedHeaders(
 async function summariseWithContract(
   event: SessionBeforeCompactEvent,
   ctx: ExtensionContext,
+  pi: ExtensionAPI,
 ): Promise<BeforeCompactResult | undefined> {
+  const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
   const model = ctx.model;
   if (!model) {
     surfaceOnce(ctx, "compaction:no-model", () =>
@@ -615,6 +617,7 @@ async function summariseWithContract(
         message: `credential resolution threw while preparing a compaction summary: ${describeError(err)}`,
         cause: err,
       }),
+      sinks,
     );
     return undefined;
   }
@@ -626,6 +629,7 @@ async function summariseWithContract(
         model: model.id,
         message: `cannot resolve credentials for a compaction summary: ${auth.error}`,
       }),
+      sinks,
     );
     return undefined;
   }
@@ -657,6 +661,7 @@ async function summariseWithContract(
         message: `compaction summary with the keep/drop contract failed: ${describeError(err)}`,
         cause: err,
       }),
+      sinks,
     );
     return undefined;
   }
@@ -727,7 +732,7 @@ export function register(pi: ExtensionAPI): void {
 
       if (!cfg.instructions.enabled) return undefined;
       try {
-        return await summariseWithContract(event, ctx);
+        return await summariseWithContract(event, ctx, pi);
       } catch (err) {
         surfaceOnce(ctx, `compaction:summarise:${describeError(err).slice(0, 120)}`, () =>
           announce(

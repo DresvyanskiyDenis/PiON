@@ -86,6 +86,7 @@ interface ObservedResponse {
  */
 function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
   let observed: ObservedResponse | undefined;
+  const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
 
   pi.on("before_provider_request", () => {
     observed = undefined;
@@ -124,6 +125,7 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
             usage: message.usage,
             ...(response?.headers !== undefined ? { headers: response.headers } : {}),
           }),
+          sinks,
         );
       }
       return;
@@ -146,6 +148,7 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
         // like a preserved chain while adding nothing.
         diagnostics: message.diagnostics,
       }),
+      sinks,
     );
   });
 }
