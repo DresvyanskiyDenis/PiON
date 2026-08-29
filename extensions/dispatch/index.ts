@@ -98,6 +98,7 @@ import {
   noteAsyncSpawn,
   reconcile,
   renderAsyncFleet,
+  retireSettledRuns,
   takeAnnouncements,
 } from "./async-fleet.ts";
 
@@ -282,7 +283,11 @@ export function register(pi: ExtensionAPI): void {
   pi.on("turn_end", (_event, ctx) => {
     try {
       fleetWidget.refresh(ctx);
-      const announcement = formatAnnouncement(takeAnnouncements(fleet, reconcile(fleet)));
+      const reports = reconcile(fleet);
+      const announcement = formatAnnouncement(takeAnnouncements(fleet, reports));
+      // After announcing, never before: a run becomes retirable BY being announced, and the sweep
+      // must not be able to drop one on the same pass that would have reported it.
+      retireSettledRuns(fleet, reports);
       if (announcement === undefined) return;
       pi.sendMessage(
         { customType: "dispatch-async-terminal", content: [{ type: "text", text: announcement }], display: true },

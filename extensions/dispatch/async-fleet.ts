@@ -61,6 +61,13 @@ import { reorderFailureText } from "./failure-slot.ts";
  *
  * `paused` is NOT terminal — a paused run can be resumed and reach a real end, and announcing it
  * once here would consume its one announcement and hide the real ending. It is reported as live.
+ *
+ * That reasoning holds only while there is still a runner that could resume it. Once the runner has
+ * provably exited, the run stays paused forever unless a person restarts it, and treating it as
+ * live is what let 106 of them sit on one panel for four and a half hours. `abandonedPause` is
+ * where that case is recognised; the verdict deliberately stays `live`, because the run really can
+ * still be resumed from disk and calling it `terminal` would put a false ending into an
+ * announcement.
  */
 const TERMINAL_STATES: ReadonlySet<string> = new Set(["complete", "failed", "stopped", "rejected"]);
 
@@ -107,10 +114,29 @@ export interface AsyncFleet {
   readonly announced: Set<string>;
   /** Runs the model has already inspected itself, which therefore need no announcement. */
   readonly consumed: Set<string>;
+  /**
+   * When each settled run was first *seen* to be settled — the clock `retireSettledRuns` counts
+   * from. Stamped lazily on the first sweep that finds a run both finished and told about, so
+   * nothing else in this module has to carry a second timestamp around. Entries leave with their
+   * run.
+   */
+  readonly settledAt: Map<string, number>;
 }
 
 export function createAsyncFleet(): AsyncFleet {
-  return { tracked: new Map(), announced: new Set(), consumed: new Set() };
+  return { tracked: new Map(), announced: new Set(), consumed: new Set(), settledAt: new Map() };
+}
+
+/**
+ * Whether this run is in the ledger: announced to the model, or read by it.
+ *
+ * Those two sets are the "say it once" record, and they are deliberately NOT swept with the runs
+ * they name — they are ids, a few dozen bytes each, and they are what stops a retired run from
+ * being tracked or announced a second time. What grows without bound and costs something is
+ * `tracked`, because every entry in it is a `readFileSync` on every repaint.
+ */
+function ledgered(fleet: AsyncFleet, runId: string): boolean {
+  return fleet.announced.has(runId) || fleet.consumed.has(runId);
 }
 
 function str(value: unknown): string | undefined {
@@ -187,7 +213,8 @@ export function trackedAsyncRuns(result: unknown, now: number = Date.now()): Tra
 export function noteAsyncSpawn(fleet: AsyncFleet, result: unknown, now: number = Date.now()): string[] {
   const added: string[] = [];
   for (const run of trackedAsyncRuns(result, now)) {
-    if (fleet.tracked.has(run.runId)) continue;
+    // `ledgered` as well as `tracked`: a retired run's spawn result must not resurrect it.
+    if (fleet.tracked.has(run.runId) || ledgered(fleet, run.runId)) continue;
     fleet.tracked.set(run.runId, run);
     added.push(run.runId);
   }
@@ -302,7 +329,7 @@ export function noteAsyncConsumption(fleet: AsyncFleet, result: unknown, now: nu
   const consumed: string[] = [];
   for (const run of fleet.tracked.values()) {
     if (introduced.has(run.runId)) continue;
-    if (fleet.consumed.has(run.runId) || fleet.announced.has(run.runId)) continue;
+    if (ledgered(fleet, run.runId)) continue;
     const shows = shown.some(
       (text) => text.includes(run.runId) || text === run.asyncDir || text.startsWith(`${run.asyncDir}${sep}`),
     );
@@ -337,12 +364,162 @@ export function takeAnnouncements(
   const due: AsyncRunReport[] = [];
   for (const report of reports) {
     if (report.verdict.kind === "live") continue;
-    if (fleet.announced.has(report.run.runId) || fleet.consumed.has(report.run.runId)) continue;
+    if (ledgered(fleet, report.run.runId)) continue;
     if (report.verdict.kind === "no-status" && now - report.run.firstSeenAt < graceMs) continue;
     fleet.announced.add(report.run.runId);
     due.push(report);
   }
   return due;
+}
+
+/**
+ * How long a settled run stays in the fleet after it ends.
+ *
+ * Long enough that a run is seen to finish on a panel repainting at 1 Hz, short enough that a
+ * session which dispatched fifty runs is not still reading fifty status files a second an hour
+ * later. Nothing is lost at the end of it: the run directory stays on disk and `/subagents-fleet`
+ * re-derives past runs from it, which is exactly why this module can afford to forget them.
+ */
+export const SETTLED_TTL_MS = 120_000;
+
+/**
+ * Removes runs that are over, so the fleet stops growing for the life of the session.
+ *
+ * ## The defects
+ *
+ * **Runs that reached a terminal state.** Nothing ever deleted from `tracked`. Every completed,
+ * failed and never-started run stayed in it until the session ended, and three separate things are
+ * a function of its size:
+ *
+ *   - `reconcile` does one `readFileSync` of `status.json` per tracked run, and the panel calls it
+ *     once a second (`fleet-widget.ts` `POLL_MS`). Fifty finished runs is fifty synchronous reads
+ *     per second, forever, of files that can no longer change.
+ *   - `renderFleetPanel` returns `undefined` — the signal the widget's poll uses to stop itself —
+ *     only when `tracked.size === 0`. With nothing ever removed that never happened again, so the
+ *     poll's own promise that "an idle session carries no timer" was false the moment a session
+ *     dispatched its first async run.
+ *   - the panel shows runs in insertion order, oldest first. Past nine tracked runs it is full of
+ *     history and the RUNNING children are the ones behind "… and N more" — the exact outcome its
+ *     own comment calls worse than saying less about each.
+ *
+ * **Paused runs whose runner is gone.** `paused` is not in `TERMINAL_STATES`, so such a run is
+ * classified `live` and was skipped here forever — because the only process that could have
+ * changed that status is the one that exited. Observed: 106 such records on one panel, the oldest
+ * 276 minutes old, every one of them rendered as a running child.
+ *
+ * ## The rule
+ *
+ * A **finished** run — `terminal` or `no-status` — is retired when it is in the ledger, i.e. the
+ * model has been told about it or has read it itself, AND `SETTLED_TTL_MS` has passed since the
+ * first sweep that saw both. Its id stays in `announced`/`consumed`, so it can never be re-tracked
+ * or re-announced.
+ *
+ * An **abandoned pause** is retired on the TTL alone, and the ledger gate is deliberately skipped
+ * for it. That gate exists so nothing is dropped before the model hears its ending, and such a run
+ * has no ending to hear: `takeAnnouncements` returns early on every `live` verdict, so a paused run
+ * is never announced, and `consumed` is only stamped for a run whose own `status.json` is terminal.
+ * Requiring the ledger here would be requiring something that can never happen — the 106-record
+ * panel with the gate left in place is the same 106-record panel.
+ *
+ * The verdicts are passed in rather than re-read: the caller has just reconciled, and re-reading
+ * the same status files to decide whether to stop reading them would be its own joke. The one file
+ * read here is a different one — `process-terminal.json`, which `reconcile` never opens — and only
+ * for the runs `status.json` calls `paused`, which is a handful even on the panel that prompted it.
+ */
+export function retireSettledRuns(
+  fleet: AsyncFleet,
+  reports: readonly AsyncRunReport[],
+  now: number = Date.now(),
+  ttlMs: number = SETTLED_TTL_MS,
+): string[] {
+  const retired: string[] = [];
+  for (const { run, verdict } of reports) {
+    const abandoned = abandonedPause(run, verdict);
+    if (verdict.kind === "live" && !abandoned) {
+      // Not settled, and must not be treated as such later either: a run that was `no-status`
+      // during its grace and has since come up is starting, not ending.
+      fleet.settledAt.delete(run.runId);
+      continue;
+    }
+    if (!abandoned && !ledgered(fleet, run.runId)) continue;
+    const since = fleet.settledAt.get(run.runId);
+    if (since === undefined) {
+      fleet.settledAt.set(run.runId, now);
+      continue;
+    }
+    if (now - since < ttlMs) continue;
+    fleet.tracked.delete(run.runId);
+    fleet.settledAt.delete(run.runId);
+    retired.push(run.runId);
+  }
+  return retired;
+}
+
+/** The four states `process-terminal.json` may carry (`process-terminal.ts:146`). */
+const PROOF_STATES: ReadonlySet<string> = new Set(["pending", "observed", "unknown", "not-started"]);
+
+/**
+ * The runner's own record of its exit: `<asyncDir>/process-terminal.json`'s `state`.
+ *
+ * `"observed"` is the only value that means the runner process is gone and was *seen* to go. The
+ * package writes the file itself (`node_modules/pi-subagents/src/runs/background/process-terminal.ts`,
+ * `processTerminalPath` at `:68`) and validates `observed` hard: it must carry a finite `observedAt`
+ * and an `instances` array containing a `runner` entry whose `processInstanceId` matches the
+ * proof's own (`validateProof`, `:156-161`), each instance carrying `closeObservedAt`, `exitCode`
+ * and `signal` (`validProcessInstance`, `:37-44`). The other three states are `pending`, `unknown`
+ * and `not-started`, and none of them is evidence of an exit.
+ *
+ * `undefined` when the file is absent, unparseable, or carries none of the four states — every one
+ * of which means "cannot say", never "the runner is gone". This reader deliberately does not import
+ * the package's own `readProcessTerminal`: that one is `src/`-only TypeScript inside `node_modules`,
+ * it throws on a proof whose `runId` disagrees with the caller's, and it fabricates an `unknown`
+ * proof out of a read error — three behaviours this module does not want at 1 Hz.
+ */
+export function readRunnerExit(run: TrackedAsyncRun): string | undefined {
+  try {
+    const proof = record(JSON.parse(readFileSync(join(run.asyncDir, "process-terminal.json"), "utf8")) as unknown);
+    const state = proof === undefined ? undefined : str(proof.state);
+    return state !== undefined && PROOF_STATES.has(state) ? state : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A `paused` run whose runner has provably exited — settled in every sense that matters to a panel,
+ * and still resumable on disk.
+ *
+ * ## Why the exit proof and not the pid
+ *
+ * The obvious probe is `process.kill(pid, 0)` against the `pid` in `status.json`. It is not used
+ * here, and the reason is not taste:
+ *
+ *   - **pid reuse makes it unsound in the wrong direction.** A pid freed hours ago is very likely
+ *     reissued to an unrelated process, and the probe then reports the dead runner as alive. That
+ *     is precisely the failure being fixed, made permanent and undiagnosable.
+ *   - **`EPERM` reads as alive.** `kill` on a pid owned by another user throws `EPERM`, not
+ *     `ESRCH`, so a reused pid outside this uid is "alive" too.
+ *   - **the field is optional.** `pid` is `pid?: number` on the package's status shapes
+ *     (`node_modules/pi-subagents/src/shared/types.ts:1497`, `:1548`), so an AND-condition on it
+ *     cannot fire at all for a run whose status file never carried one.
+ *   - **the proof is strictly better evidence.** `state: "observed"` is not an inference from a
+ *     pid's absence; it is the runner's close, recorded with `closeObservedAt`, `exitCode` and
+ *     `signal` at the moment it happened, by the code that owns the process. Second-guessing it
+ *     with a syscall — once per tracked run per second, on the panel's poll — would add cost and
+ *     subtract certainty.
+ *
+ * The proof carries no pid at all, which settles the question: there is nothing to AND against.
+ *
+ * ## What retiring does and does not do
+ *
+ * It removes the run from `fleet.tracked`. The directory, its `status.json`, its session file and
+ * its resumability are untouched — the package's own `resumeDisposition` still calls a paused run
+ * with a live session file `resumable` (`process-terminal.ts:128-131`) — and `/subagents-fleet`
+ * still lists it, because that view re-derives runs from disk.
+ */
+export function abandonedPause(run: TrackedAsyncRun, verdict: AsyncRunVerdict): boolean {
+  if (verdict.kind !== "live" || verdict.state !== "paused") return false;
+  return readRunnerExit(run) === "observed";
 }
 
 export function shortId(runId: string): string {
@@ -394,9 +571,14 @@ export function formatAnnouncement(reports: readonly AsyncRunReport[]): string |
 }
 
 /**
- * The `/agents` section: every async run this session started, with the state its own status file
- * reports right now. This is the human-facing twin of the message above — the point of both is
- * that the state is re-read, never remembered.
+ * The `/agents` section: every async run this session is still tracking, with the state its own
+ * status file reports right now. This is the human-facing twin of the message above — the point of
+ * both is that the state is re-read, never remembered.
+ *
+ * "Still tracking", not "ever started": a run that ended and was reported is retired after
+ * `SETTLED_TTL_MS` (`retireSettledRuns`). The durable list of past runs is `/subagents-fleet`,
+ * which re-derives it from the run directories on disk — the pointer `index.ts` already prints
+ * under this section.
  */
 export function renderAsyncFleet(fleet: AsyncFleet): string {
   if (fleet.tracked.size === 0) return "";
@@ -410,5 +592,5 @@ export function renderAsyncFleet(fleet: AsyncFleet): string {
     const why = verdict.error !== undefined ? ` — ${verdict.error}` : "";
     return `  ${label}: ${verdict.state}${why}`;
   });
-  return ["", `async runs started by this session (${fleet.tracked.size}):`, ...rows].join("\n");
+  return ["", `async runs tracked by this session (${fleet.tracked.size}):`, ...rows].join("\n");
 }
