@@ -90,6 +90,13 @@ of the job belongs in `AGENTS.md`.
     rewrite that section, keep them**, or upgrade a package that adds a guideline and re-read what
     it now contributes — nothing compares the two.
 
+    The stock template's closing block goes too, for the plainer reason that it is template text and
+    `SYSTEM.md` replaces the template: PI's own README, `docs/` and `examples/` paths, plus the map
+    of which of its files answers which question. That block is a thousand characters charged to
+    every session and repaid only in a session about pi itself. Put it behind a skill instead —
+    [Writing a skill](../extending/skills.md#recipe-pis-own-documentation-on-demand) has the recipe,
+    including how to resolve the paths on your own machine.
+
     The parts that are *not* dropped: context files, the skills catalogue and the working-directory
     line are appended on both branches.
 
