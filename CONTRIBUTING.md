@@ -36,7 +36,7 @@ uv run --with-requirements requirements-docs.txt mkdocs serve
 All three must pass, and CI runs them on every pull request:
 
 ```bash
-./bin/pi-check --all      # 27 repository invariants
+./bin/pi-check --all      # 28 repository invariants
 npm run typecheck
 npm test
 ```

@@ -45,10 +45,13 @@ management and control only.
 ## Models
 
 Every child in a `workflowScript` must carry its own fully-qualified `model`, e.g.
-`model: "github-copilot/claude-opus-5"`, taken from `config/routing.json`. Never a bare tier word,
-never omitted: children launched inside a workflow are past the point where a tier resolves, and an
-unmatched string is substring-matched across the whole model catalogue into a provider that may not
-be configured — which fails as a credentials error rather than as a routing error.
+`model: "github-copilot/claude-opus-5:high"`, taken from `config/routing.json`. Never a bare tier
+word, never omitted: children launched inside a workflow are past the point where a tier resolves,
+and an unmatched string is substring-matched across the whole model catalogue into a provider that
+may not be configured — which fails as a credentials error rather than as a routing error.
+
+A bare `provider/id` on a `workflowScript` child takes the provider's default effort, not the
+tier's `thinkingLevel`. On this path the tier does not resolve — spell out the level.
 
 A plain `{agent, task}` call needs no `model`. It runs on the tier `config/dispatch.json` names as
 `defaultTier`.
