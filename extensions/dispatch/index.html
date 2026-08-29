@@ -2807,6 +2807,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The fleet is on screen, not behind a command">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-fleet-forgets-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the fleet forgets, and when
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4375,6 +4392,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="The fleet is on screen, not behind a command">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-fleet-forgets-and-when" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the fleet forgets, and when
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4610,9 +4644,9 @@ and the model are reading different lists, the one nobody can see is the one tha
 <h2 id="the-fleet-is-on-screen-not-behind-a-command">The fleet is on screen, not behind a command<a class="headerlink" href="#the-fleet-is-on-screen-not-behind-a-command" title="Permanent link">&para;</a></h2>
 <p>The announcement above is written for the model. It fires once per run, and only after the run is
 over — so it is not the surface that answers <em>"is anything still running?"</em>.</p>
-<p>In the TUI, a panel above the editor carries that: every async run this session started, with the
-state its own <code>status.json</code> reports right now, present exactly while at least one run is tracked and
-gone the moment none is.</p>
+<p>In the TUI, a panel above the editor carries that: every async run this session is still tracking,
+with the state its own <code>status.json</code> reports right now, present exactly while at least one run is
+tracked and gone the moment none is.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>async subagents — 1 running · 1 done · 1 needs attention
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ▸ data-engineer [66971211] running
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  ✓ code-reviewer [6e77fc27] complete
@@ -4623,10 +4657,9 @@ shape rather than hue, so it survives a screenshot, a colour-blind reader and a 
 quantised the palette. <code>NEVER STARTED</code> is the case only this module can report — a run the package
 handed back an id for and then never recorded a start for, which a fleet view built on the
 package's own run list cannot show, because the run never registered.</p>
-<p><code>/agents</code> is unchanged. It carries the dispatch registry as well — what <em>can</em> be dispatched, on what
-model — which is a catalogue, not live state, and would be wrong as a permanent panel; and it is the
-only fleet surface that exists outside the TUI. The panel makes the common case free; it does not
-take a diagnostic away.</p>
+<p><code>/agents</code> prints the same verdicts outside the TUI. It carries the dispatch registry as well — what
+<em>can</em> be dispatched, on what model — which is a catalogue, not live state, and would be wrong as a
+permanent panel. The panel makes the common case free; it does not take a diagnostic away.</p>
 <div class="admonition note">
 <p class="admonition-title">Why it polls, and what that costs</p>
 <p>The state lives on disk and changes with no event reaching the process: a run completes while
@@ -4635,11 +4668,38 @@ produce a panel that is confidently wrong for exactly as long as you are looking
 repainting on a per-token event would re-read every status file per token.</p>
 <p>So there is one interval — one <code>readFileSync</code> per tracked run per second — and it exists only
 while a run is tracked. It is <code>unref()</code>d, so it can never hold the process open; it stops itself
-on the first tick that finds nothing to show; and it is torn down at session shutdown. The tests
+on the first tick that finds nothing to show; and it is torn down at session shutdown. That
+middle bound was unreachable until the fleet learned to retire what it had reported — with
+nothing ever removed, a session was never empty again after its first async run — which is why
+the tick runs the retirement sweep itself: the poll is the only thing still ticking once a
+session goes idle, so it is the only place that can retire the last settled run. The tests
 wrap <code>setInterval</code>/<code>clearInterval</code> and require zero timers created outside the TUI, zero while
 the fleet is empty, exactly one across repeated refreshes, and zero still open afterwards.</p>
 <p>Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
 <code>hasUI</code> — <code>hasUI</code> is true in RPC mode too, where there is no editor for a widget to sit above.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">It is a display, not a control, and <code>/compact</code> does not change that</p>
+<p>Reported as "after <code>/compact</code> the panel is still displayed but the down arrow no longer selects
+the async runs", with a prescribed fix of repainting the panel from a <code>session_compact</code> handler.
+Both halves are wrong, and no code change was warranted.</p>
+<p>The panel has never been selectable, before or after any compaction. It is published as a
+<code>string[]</code>, which the host wraps in a <code>Container</code> of <code>Text</code> components — there is no
+<code>handleInput</code> on that, and <code>ExtensionWidgetOptions</code> carries <code>placement</code> and nothing else.
+Widgets are never given focus either; <code>setFocus</code> is applied to overlays and selectors only. A
+repaint cannot make a <code>Text</code> container take a keypress, and this panel already repaints every
+second.</p>
+<p>Compaction does not disturb widgets at all. <code>/compact</code> only compacts the session; the host's
+widget and terminal-input registries are cleared solely on session replacement and on <code>/reload</code>,
+which are also the only events that make a captured <code>ExtensionContext</code> go stale — which is why
+the pinned context this poll paints from survives a compaction.</p>
+<p>Selection lives in the <code>pi-subagents</code> fleet view, the <code>belowEditor</code> line reading "↓/← to
+inspect": it registers a component <em>factory</em> and owns a terminal-input subscription, and it
+stays enabled. One thing there does go quiet around a compaction, and it is upstream policy
+rather than anything this module can shorten: an <strong>automatic</strong> pass suspends the package's
+widgets, clearing the fleet view and making its key handler decline the key until the agent
+settles. A manual <code>/compact</code> is exempt by the same guard, and either way it is a window inside a
+turn, not a stuck state.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Why this is the <em>only</em> widget above the editor</p>
@@ -4671,6 +4731,36 @@ silently.</p>
 inspector (<code>Ctrl+Alt+F</code>), <code>/subagents-fleet</code>, completion notifications and lifecycle events are
 all untouched.</p>
 </div>
+<h3 id="what-the-fleet-forgets-and-when">What the fleet forgets, and when<a class="headerlink" href="#what-the-fleet-forgets-and-when" title="Permanent link">&para;</a></h3>
+<p>Both surfaces list what the fleet is still <em>tracking</em>, which is not the same as everything it ever
+started. A run is retired from the fleet two minutes after it settles:</p>
+<ul>
+<li>a run that reached a terminal state, or never wrote a <code>status.json</code> at all, is retired once it has
+  been <strong>reported</strong> — announced to the model, or read by the model itself — and two minutes have
+  passed since the first sweep that saw both. The ledger gate is what stops a run being dropped
+  before its ending is in the session;</li>
+<li>a <code>paused</code> run whose runner has <strong>provably exited</strong> is retired on the two minutes alone. The proof
+  is the runner's own <code>&lt;asyncDir&gt;/process-terminal.json</code> in state <code>observed</code>; the other three states
+  it may carry (<code>pending</code>, <code>unknown</code>, <code>not-started</code>), and an absent or unparseable file, all mean
+  "cannot say" and keep the run. Such a run is never announced — <code>paused</code> is not terminal, because
+  it really can be resumed — so requiring the ledger for it would be requiring something that can
+  never happen.</li>
+</ul>
+<p>The pid in <code>status.json</code> is deliberately <strong>not</strong> consulted. A pid freed hours ago is very likely
+reissued, so <code>process.kill(pid, 0)</code> reports a dead runner as alive — the exact failure being fixed,
+made permanent; <code>kill</code> across uids throws <code>EPERM</code>, which also reads as alive; and the field is
+optional, so a condition resting on it cannot fire at all for a run whose status file never carried
+one.</p>
+<p>Retiring removes the run from the panel and from <code>/agents</code> and does nothing else: the run directory,
+its <code>status.json</code>, its session file and its resumability are untouched, and <code>/subagents-fleet</code> still
+lists it, because that view re-derives runs from disk. That is the cost, stated plainly — <code>/agents</code>
+no longer lists a run that ended more than two minutes ago, and it says <em>tracked by this session</em>
+rather than <em>started by</em> because of it.</p>
+<p>Without this the fleet only ever grew. Every finished run stayed in it for the life of the session,
+so the poll above re-read fifty dead status files a second for an hour; the panel filled with
+history and pushed the running children behind "… and N more"; and — measured on one real session —
+106 paused runs whose runners had exited sat on the panel as running children, the oldest 276
+minutes old.</p>
 <h2 id="what-a-detached-child-leaves-in-the-session-file">What a detached child leaves in the session file<a class="headerlink" href="#what-a-detached-child-leaves-in-the-session-file" title="Permanent link">&para;</a></h2>
 <p>A run that was detached or interrupted is still <em>running</em> when its result is handed back, and the
 package's own compaction of a finished result bails out on exactly that condition. So those runs —
