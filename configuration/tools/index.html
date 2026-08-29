@@ -4488,6 +4488,14 @@ block for the one action that shells out.</p>
 </span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="nt">match</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> pattern</span><span class="p">:</span><span class="w"> </span><span class="s">'\b([Ii]mplement|[Rr]efactor|[Ff]ix</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">bug)\b'</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warn</span>
 </span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="s">"Reminder:</span><span class="nv"> </span><span class="s">coding</span><span class="nv"> </span><span class="s">work</span><span class="nv"> </span><span class="s">happens</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">a</span><span class="nv"> </span><span class="s">git</span><span class="nv"> </span><span class="s">worktree,</span><span class="nv"> </span><span class="s">never</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">primary</span><span class="nv"> </span><span class="s">checkout."</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">preflight-before-remote-job</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="nt">event</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool_call</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="nt">match</span><span class="p">:</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">      </span><span class="nt">tool</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bash</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">      </span><span class="nt">pattern</span><span class="p">:</span><span class="w"> </span><span class="s">'databricks\s+jobs\s+run-now\b|databricks\s+bundle\s+deploy\b|gcloud\s+\S+\s+jobs\s+submit\b|aws\s+batch\s+submit-job\b|kubectl\s+create\s+job\b'</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">    </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">confirm</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">    </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="s">"A</span><span class="nv"> </span><span class="s">local</span><span class="nv"> </span><span class="s">run</span><span class="nv"> </span><span class="s">against</span><span class="nv"> </span><span class="s">real,</span><span class="nv"> </span><span class="s">committed</span><span class="nv"> </span><span class="s">input</span><span class="nv"> </span><span class="s">should</span><span class="nv"> </span><span class="s">have</span><span class="nv"> </span><span class="s">passed</span><span class="nv"> </span><span class="s">first</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">submit</span><span class="nv"> </span><span class="s">anyway?"</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -4540,6 +4548,16 @@ rule carries a comment saying exactly this, because it cost somebody the discove
 <p>A <code>run</code> rule with <code>match: { tool: bash }</code> and no script yet in place blocks <strong>every</strong> bash call
 — by design, since a missing script fails closed. Wire one in only once the script exists at
 the path you name. That is why no <code>run</code> rule ships enabled.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Why <code>preflight-before-remote-job</code> confirms instead of blocking</p>
+<p>The rule cannot know whether a local run against real input already passed this session — it
+only sees the shape of the command. <code>block</code> would refuse a legitimate ninth submit along with
+the first, and get routed around within the hour; <code>warn</code> is easy to miss in a long transcript.
+<code>confirm</code> costs one keypress on a legitimate submit and reliably interrupts a repeat of the
+same failing one. It matches five command shapes on purpose, not "anything that looks remote":
+a rule that also fires on <code>databricks jobs list</code> or <code>kubectl get jobs</code> trains you to reflexively
+accept the dialog, which defeats it for the submit that matters.</p>
 </div>
 <p>Merge order: the global file loads first, then <code>&lt;project&gt;/.pi/hooks.yaml</code> <strong>when the project is
 trusted</strong>. Rule ids should be unique across both. Hooks stack on the guard and may only <em>add</em>
