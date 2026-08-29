@@ -2810,6 +2810,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-a-detached-child-leaves-in-the-session-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a detached child leaves in the session file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#load-order" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4367,6 +4378,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-a-detached-child-leaves-in-the-session-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a detached child leaves in the session file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#load-order" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4649,6 +4671,22 @@ silently.</p>
 inspector (<code>Ctrl+Alt+F</code>), <code>/subagents-fleet</code>, completion notifications and lifecycle events are
 all untouched.</p>
 </div>
+<h2 id="what-a-detached-child-leaves-in-the-session-file">What a detached child leaves in the session file<a class="headerlink" href="#what-a-detached-child-leaves-in-the-session-file" title="Permanent link">&para;</a></h2>
+<p>A run that was detached or interrupted is still <em>running</em> when its result is handed back, and the
+package's own compaction of a finished result bails out on exactly that condition. So those runs —
+and only those — hand the parent the child's live message array inside the tool result's <code>details</code>.</p>
+<p>That costs nothing at the model: <code>details</code> is documented as not sent to the LLM, and the provider
+layer serialises the tool call id, the content and the error flag and reads nothing else. It is
+written verbatim into the session file, though, and <code>bin/pi-digest-drain</code> summarises that file <strong>by
+byte count</strong> — the last <code>maxTranscriptBytes</code> of it. A child transcript landing there pushes an equal
+number of bytes of real conversation out of the window the summariser is shown, and nothing in the
+resulting <a href="../digest/">digest</a> says anything is missing.</p>
+<p>So the <code>tool_result</code> handler drops that array, and <strong>only while the child still says where its full
+record lives</strong> — its <code>transcriptPath</code> or its <code>sessionFile</code>. When neither survives, the array in hand
+is the only copy of what that child did, and a run that died without writing a transcript is exactly
+the run somebody will want to read; it is kept, and the result is passed on untouched. Nothing else
+is ever removed: the bounded <code>progress</code> snapshot, the final output, the error, the tool-call
+summaries and the async run's own <code>asyncId</code>/<code>asyncDir</code> all ride through as they arrived.</p>
 <h2 id="load-order">Load order<a class="headerlink" href="#load-order" title="Permanent link">&para;</a></h2>
 <p><a href="../guard/"><code>guard</code></a> <strong>must</strong> load before this module. PI iterates <code>tool_call</code> handlers in load order
 and returns on the first block; a blocked dispatch must never have had its arguments rewritten
