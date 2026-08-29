@@ -22,6 +22,7 @@ import {
   PI_DEFAULT_RESERVE_TOKENS,
   readReserveTokens,
   thresholdKey,
+  UNIVERSAL_ABSOLUTE_TOKENS,
 } from "../../extensions/compaction/threshold.ts";
 
 const CONFIG_PATH = fileURLToPath(new URL("../../config/compaction.json", import.meta.url));
@@ -207,8 +208,11 @@ test("readReserveTokens falls through malformed settings rather than throwing", 
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("the shipped absolute threshold is what REQ-CTX-31 asks for", () => {
+test("the shipped absolute threshold is the flat one, so session_start writes nothing", () => {
   const parsed = parseConfig(JSON.parse(readFileSync(CONFIG_PATH, "utf8")));
-  assert.equal(parsed.threshold.absoluteTokens, 180_000);
+  // A flat 200 000 on every model, not 180 000 — which was the trigger of the one model this file
+  // used to be written for. The session_start hook writes only when the value differs, so a
+  // shipped value that drifts off this makes every session start rewrite a tracked file.
+  assert.equal(parsed.threshold.absoluteTokens, UNIVERSAL_ABSOLUTE_TOKENS);
   assert.equal(parsed.threshold.toleranceRatio, 0.2);
 });

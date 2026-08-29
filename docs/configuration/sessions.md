@@ -27,7 +27,7 @@ configures the loop guard, the pinned-instruction re-injection, and the advisory
       "maxBytesPerSource": 4096,
       "maxTotalBytes": 16384
     },
-    "threshold": { "absoluteTokens": 180000, "toleranceRatio": 0.2 }
+    "threshold": { "absoluteTokens": 200000, "toleranceRatio": 0.2 }
   }
 }
 ```
@@ -71,18 +71,77 @@ had absorbed from `AGENTS.md`. `pinned` re-injects those sources so the rules su
 larger than 4 KB, the right fix is a shorter `AGENTS.md` — everything past the cap was not
 surviving compaction anyway.
 
-### `threshold`
+### `threshold` — the flat 200 000
 
 ```json
-"threshold": { "absoluteTokens": 180000, "toleranceRatio": 0.2 }
+"threshold": { "absoluteTokens": 200000, "toleranceRatio": 0.2 }
 ```
 
-**Advisory, not a trigger.** PI's actual trigger is
-`contextTokens > contextWindow − reserveTokens` and it has no absolute-threshold key at all. This
-block is what `extensions/compaction/threshold.ts` compares the *effective* trigger against, so it
-can warn you once when the two disagree by more than `toleranceRatio`.
+One number on every model, whatever its window: the same 200 000 for a 1 000 000-token model, a
+200 000-token one and a 60 000-token local GGUF. Nothing has to be run to get it. Every session
+start puts it in force and prints one line:
 
-That module resolves the reserve exactly the way PI does — compaction event → project settings →
+```
+[pi-config] compaction: auto-compact: 200K tokens
+```
+
+The number used to be `contextWindow − reserveTokens` — PI's own trigger, and therefore a different
+number on every model, whichever one you last ran `/autocompact` on. A flat number is a line you
+can state once and recognise later.
+
+Three things write this key, and only these three:
+
+| Who | Writes | When |
+|---|---|---|
+| `session_start` | `200000` | every session, **only when the file does not already say it** |
+| `/autocompact` | `200000` | on demand, to put the flat number back after an override |
+| `/autocompact <model-id>` | that model's `contextWindow − compaction.reserveTokens` | on demand, an explicit per-model override |
+
+The write-only-on-change guard is what keeps a session-start hook from rewriting a tracked file on
+every start — and on every `/new`, which fires `session_start` again. The shipped config already
+says `200000`, so a fresh clone writes nothing, ever. A per-model override lasts until the next
+session start; one that should survive belongs in this file as a committed change, not in a
+command.
+
+!!! warning "Advisory, not a trigger. Setting it to 200 000 does not make anything compact at 200 000"
+    PI's actual trigger is `contextTokens > contextWindow − reserveTokens` and 0.84.0 has **no
+    absolute-threshold key at all**. `absoluteTokens` is a *stated intent*:
+    `extensions/compaction/threshold.ts` compares it against the effective per-model trigger and
+    reports the gap. On a 1 000 000-token model the flat number does not move compaction to
+    200 000; it makes the harness say, once, that the model compacts 780 000 tokens later than
+    intended, and name the one setting that would close it.
+
+With a `reserveTokens` of 20 000 and the shipped tolerance of `0.2`, that comparison verdicts as:
+
+| Declared window | PI's real trigger | Verdict |
+|---|---|---|
+| below 180 000 | below 160 000 | `window-too-small` — no PI 0.84.0 setting closes this gap |
+| 180 000 … 260 000 | 160 000 … 240 000 | `aligned` — within tolerance of 200 000 |
+| above 260 000 | above 240 000 | `trigger-too-high` — actionable, see below |
+
+Most of the shipped catalogue is `aligned`, because [its windows are capped at
+200 000](../concepts/context-windows.md#the-200-000-cap-and-what-it-costs) already. The models that
+are not are the large-window ones, and for those there is exactly one lever — declare the window
+you want PI to compact against, in
+[`models.json`](models.md#modeloverrides):
+
+```json
+"modelOverrides": { "<model-id>": { "contextWindow": 220000 } }
+```
+
+`220000` is `200000 + 20000`, so PI's own trigger lands on 200 000 exactly. Two costs before you
+reach for it: PI clamps every request's `max_tokens` to `contextWindow − context − 4096`, so a
+declared window is also an output ceiling; and a deliberately shrunk window no longer matches what
+the endpoint serves. The harness reports this lever and never applies it — it is your decision.
+
+!!! danger "Do not raise `compaction.reserveTokens` instead"
+    It is a single **global** scalar, not per model. Setting it to `window − 200000` for a
+    1 000 000-token model makes `contextWindow − reserveTokens` negative on every smaller model,
+    `shouldCompact()` then returns true at any context size, and the session compacts after every
+    assistant message until the loop guard aborts the run. Full argument:
+    [Context windows](../concepts/context-windows.md#why-raising-reservetokens-is-not-the-answer).
+
+`threshold.ts` resolves the reserve exactly the way PI does — compaction event → project settings →
 global settings → PI default — and **carries the source alongside the value**. That is a direct
 consequence of an earlier bug in this repository where a hard-coded PI default was printed as if it
 were a measurement, and the resulting advice would have broken three of five providers. A default

@@ -1,15 +1,16 @@
 /**
- * EXT-33 — `/autocompact`: the declared threshold follows the model's declared window.
+ * EXT-33 — `/autocompact`: the flat threshold, and the per-model trigger the argument asks for.
  *
  * What is unit-testable here is the whole chain minus the command handler itself, which needs a
  * live PI session: the catalogue reader, the id -> window lookup, the pure config transform, and
  * the writer's two promised properties — one line changes, and the file's mode does not.
  *
- * The last test pins the *arithmetic* the handler performs, which is the one thing about it that
- * is a decision rather than plumbing: it writes `contextWindow - reserveTokens`, because writing
- * the window itself would state an intent `thresholdReport()` can only ever call
- * `window-too-small`. That is cheap to reverse by accident and expensive to notice, so it fails
- * here instead.
+ * Two decisions are pinned rather than described, because both are cheap to reverse by accident
+ * and expensive to notice. The flat default is `UNIVERSAL_ABSOLUTE_TOKENS`, the same number on
+ * every model, and the shipped config already carries it so the `session_start` hook's
+ * write-only-on-change guard makes a fresh clone write nothing. `/autocompact <model-id>` writes
+ * `contextWindow - reserveTokens`, because writing the window itself would state an intent
+ * `thresholdReport()` can only ever call `window-too-small`.
  */
 import assert from "node:assert/strict";
 import {
@@ -35,6 +36,7 @@ import {
   findContextWindow,
   thresholdReport,
   PI_DEFAULT_RESERVE_TOKENS,
+  UNIVERSAL_ABSOLUTE_TOKENS,
 } from "../../extensions/compaction/threshold.ts";
 import { shippedConfig } from "../lib/repo-config.ts";
 
@@ -152,7 +154,9 @@ test("writeAbsoluteTokens changes exactly one line of the shipped config and kee
     const before = readFileSync(path, "utf8");
     const mode = statSync(path).mode;
 
-    writeAbsoluteTokens(path, 200000);
+    // Deliberately not 200000: that is what the shipped file already says, and a write that
+    // changes nothing cannot demonstrate that exactly one line changed.
+    writeAbsoluteTokens(path, 128000);
 
     const after = readFileSync(path, "utf8");
     assert.equal(statSync(path).mode, mode);
@@ -162,11 +166,11 @@ test("writeAbsoluteTokens changes exactly one line of the shipped config and kee
       .map((line, i) => [line, before.split("\n")[i]] as const)
       .filter(([now, was]) => now !== was);
     assert.equal(changed.length, 1);
-    assert.match(changed[0]![0]!, /"absoluteTokens": 200000/);
+    assert.match(changed[0]![0]!, /"absoluteTokens": 128000/);
     assert.equal(
       (JSON.parse(after) as { compaction: { threshold: { absoluteTokens: number } } }).compaction
         .threshold.absoluteTokens,
-      200000,
+      128000,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -216,7 +220,65 @@ test("writeAbsoluteTokens leaves no temp file behind and is idempotent", () => {
   }
 });
 
-test("/autocompact writes window - reserve, which is the only value that reads as aligned", () => {
+/* ---------------------------------------------------------------------------------------------
+ * The flat threshold — one number on every model
+ *
+ * `/autocompact` with no argument and the `session_start` hook both write exactly
+ * `UNIVERSAL_ABSOLUTE_TOKENS`. Neither reads `models.json` or the reserve, so there is no
+ * arithmetic left on that path to test. What is worth pinning is that the number does not move,
+ * that the shipped config already carries it, and what the flat number verdicts as across the
+ * fleet — including where it does not get what it asks for.
+ * ------------------------------------------------------------------------------------------- */
+
+test("the flat threshold is 200000 and the shipped config already says it", () => {
+  assert.equal(UNIVERSAL_ABSOLUTE_TOKENS, 200000);
+  const shipped = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as {
+    compaction: { threshold: { absoluteTokens: number } };
+  };
+  // The session_start hook writes only when the value would change. If the shipped value drifts
+  // off this, every session start rewrites a tracked file for no reason.
+  assert.equal(shipped.compaction.threshold.absoluteTokens, UNIVERSAL_ABSOLUTE_TOKENS);
+});
+
+test("the flat threshold does not vary with the model, but the per-model form does", () => {
+  const windows = declaredContextWindows(JSON.parse(readFileSync(MODELS_PATH, "utf8")));
+  assert.ok(windows.length > 1);
+
+  // What /autocompact writes with no argument, on each declared model in turn: one value.
+  const flat = new Set(windows.map(() => UNIVERSAL_ABSOLUTE_TOKENS));
+  assert.deepEqual([...flat], [UNIVERSAL_ABSOLUTE_TOKENS]);
+
+  // What /autocompact <model-id> writes for the same models, which is why a flat default was
+  // asked for at all: the derived number follows the window, so it is a different number on
+  // several of them and the one left standing is whichever model was named last.
+  const derived = new Set(windows.map((w) => w.contextWindow - 20000));
+  assert.ok(derived.size > 1, `expected several derived triggers, got ${[...derived].join(", ")}`);
+});
+
+test("what a flat 200000 verdicts as, across the declared fleet", () => {
+  // The cost of the flat number, pinned rather than described. With a 20000-token reserve and the
+  // shipped 20 % tolerance, `aligned` holds for any window in [180000, 260000] — so a 200K model
+  // reads aligned, not broken, even though PI actually compacts at 180000. Outside that band the
+  // verdict is honest about which way it misses.
+  const at = (window: number) =>
+    thresholdReport(window, 20000, UNIVERSAL_ABSOLUTE_TOKENS, 0.2).verdict;
+  assert.equal(at(200000), "aligned");
+  assert.equal(at(220000), "aligned");
+  assert.equal(at(128000), "window-too-small");
+  assert.equal(at(1000000), "trigger-too-high");
+
+  // Only `trigger-too-high` reaches the session-start notice, and only there is there a fix to
+  // name: declare a 220000 window and PI's own trigger lands on 200000 exactly.
+  const large = thresholdReport(1000000, 20000, UNIVERSAL_ABSOLUTE_TOKENS, 0.2);
+  assert.equal(large.suggestedContextWindow, 220000);
+  // ...whereas a window too small to host it has no such lever, which is why it stays silent.
+  assert.equal(
+    thresholdReport(128000, 20000, UNIVERSAL_ABSOLUTE_TOKENS, 0.2).suggestedContextWindow,
+    0,
+  );
+});
+
+test("/autocompact <model-id> writes window - reserve, which is the only value that reads as aligned", () => {
   const tolerance = 0.2;
   const reserve = PI_DEFAULT_RESERVE_TOKENS;
   for (const window of [200000, 128000, 64000, 32000]) {

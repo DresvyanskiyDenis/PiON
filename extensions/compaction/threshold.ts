@@ -66,6 +66,26 @@ export const PI_DEFAULT_RESERVE_TOKENS = 16384;
 /** PI's own default for `keepRecentTokens` (`SettingsManager.getCompactionKeepRecentTokens`). */
 export const PI_DEFAULT_KEEP_RECENT_TOKENS = 20000;
 
+/**
+ * The declared auto-compact threshold: a flat 200 000 tokens on every model, whatever its window.
+ *
+ * Chosen, not derived. The number this harness used to declare was `contextWindow - reserveTokens`
+ * — PI's own trigger — and therefore a different number on every model: 980 000 on a
+ * 1 000 000-token model, 180 000 on a 200 000-token one. One line, at 200 000, everywhere is what
+ * this repository now states, so `/autocompact` with no argument writes this constant and
+ * `session_start` keeps it written. `/autocompact <model-id>` still computes the per-model trigger,
+ * for the case where matching one model exactly is the point.
+ *
+ * What the number can do is bounded by {@link thresholdReport} and by this module's header:
+ * `absoluteTokens` is a stated intent that gets checked against PI's real trigger, not a lever PI
+ * reads. A flat 200 000 does not make a 1 000 000-token model compact at 200 000; it makes the
+ * report say, once, how far that model's trigger is from where the operator wants the line. With a
+ * 20 000-token reserve and the shipped 20 % tolerance it reads `aligned` for any declared window in
+ * [180 000, 260 000], `window-too-small` below that (no setting closes the gap) and
+ * `trigger-too-high` above it, where declaring `modelOverrides.contextWindow = 220000` does.
+ */
+export const UNIVERSAL_ABSOLUTE_TOKENS = 200000;
+
 export type ThresholdVerdict =
   /** `absoluteTokens: 0` — the operator opted out of the check. */
   | "disabled"
@@ -392,6 +412,7 @@ export function findContextWindow(
     reason:
       `"${modelId}" is declared by ${matches.length} providers with different windows ` +
       `(${matches.map((w) => `${w.provider}=${w.contextWindow}`).join(", ")}); ` +
-      `there is no single answer. Switch to the model you mean and run /autocompact with no argument.`,
+      `there is no single answer. Switch to the model you mean, so the session's own provider ` +
+      `settles it.`,
   };
 }

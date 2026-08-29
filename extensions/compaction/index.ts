@@ -109,6 +109,7 @@ import {
   readReserveTokens,
   thresholdKey,
   thresholdReport,
+  UNIVERSAL_ABSOLUTE_TOKENS,
   type DeclaredWindow,
   type ReserveTokens,
   type ThresholdReport,
@@ -241,8 +242,47 @@ const cfg = loaded.config;
  */
 let activeThreshold: CompactionConfig["threshold"] = cfg.threshold;
 
+/**
+ * Puts {@link UNIVERSAL_ABSOLUTE_TOKENS} in force for this session, so the flat threshold is what
+ * you get without running anything.
+ *
+ * The write is guarded on the value actually differing, and that guard is what makes writing from
+ * a session-start hook tolerable at all: `config/compaction.json` is a tracked file, and a hook
+ * that rewrote it unconditionally would put a spurious diff in front of every `git status` and
+ * touch the file again on every `/new`, which fires `session_start` a second time. The shipped
+ * config already says 200 000, so a fresh clone writes nothing, ever.
+ *
+ * The line is printed either way, because it states what this session will do rather than what
+ * this function just did.
+ */
+function applyUniversalThreshold(ctx: ExtensionContext): void {
+  const path = loaded.source;
+  if (activeThreshold.absoluteTokens !== UNIVERSAL_ABSOLUTE_TOKENS) {
+    if (path === undefined) {
+      // No file to persist into: this session runs on the built-in defaults, so the number is held
+      // in memory only and the next session starts from the same place. Said, not hidden.
+      activeThreshold = { ...activeThreshold, absoluteTokens: UNIVERSAL_ABSOLUTE_TOKENS };
+      announce(
+        ctx,
+        `auto-compact: ${formatUniversal()} tokens (in this session only: no config/compaction.json ` +
+          `exists to write to, looked in ${configPaths().join(", ")})`,
+        "warning",
+      );
+      return;
+    }
+    writeAbsoluteTokens(path, UNIVERSAL_ABSOLUTE_TOKENS);
+    activeThreshold = { ...activeThreshold, absoluteTokens: UNIVERSAL_ABSOLUTE_TOKENS };
+  }
+  announce(ctx, `auto-compact: ${formatUniversal()} tokens`, "info");
+}
+
+/** `200000` the way an operator says it. Kept next to the constant so the two cannot drift. */
+function formatUniversal(): string {
+  return `${UNIVERSAL_ABSOLUTE_TOKENS / 1000}K`;
+}
+
 /* ---------------------------------------------------------------------------------------------
- * `/autocompact` — sync the declared threshold to the trigger a model's declared window implies
+ * `/autocompact` — declare the flat threshold, or one model's own trigger instead
  * ------------------------------------------------------------------------------------------- */
 
 /** Test seam, mirroring `cost-gate`'s: the same `PI_CONFIG_MODELS_JSON` override. */
@@ -343,47 +383,24 @@ interface WindowResolution {
 }
 
 /**
- * The window `/autocompact` will write, for the model the operator named or for this session's.
+ * The window `/autocompact <model-id>` will write from.
  *
- * `models.json` is consulted first and is authoritative: it is the file this repo owns, the one
- * whose windows are deliberately understated to match what the endpoints actually serve, and the
- * only source that exists for a model the session is not currently running. The live session window is used only as a **named** fallback,
- * for the case where the current model is served from PI's built-in catalogue with no override of
- * ours — reporting where the number came from is what keeps that from being a silent substitution.
- *
- * An explicitly named model has no such fallback: there is no live window for a model that is not
+ * `models.json` is authoritative and is now the only source. Before the flat threshold this
+ * function also served the no-argument form, which needed a named fallback to the live session
+ * window for a model served from PI's built-in catalogue with no override of ours; the no-argument
+ * form reads no window at all any more, so the fallback went with it rather than staying as
+ * unreachable code. A named model never had one: there is no live window for a model that is not
  * running, so an undeclared one is refused rather than guessed.
  */
 function resolveTargetWindow(ctx: ExtensionContext, requested: string): WindowResolution {
   const models = readModelsJson();
   const declared: readonly DeclaredWindow[] = declaredContextWindows(models.raw);
-  const currentModel = ctx.model?.id;
-  const modelId = requested !== "" ? requested : currentModel;
-
-  if (modelId === undefined || modelId === "") {
-    throw new Error(
-      `no model is selected in this session, so there is nothing to read a context window from. ` +
-        `Name one: /autocompact <model-id>.`,
-    );
-  }
-
-  const lookup = findContextWindow(declared, modelId, ctx.model?.provider);
-  if (lookup.ok) {
-    return {
-      contextWindow: lookup.window.contextWindow,
-      model: modelId,
-      source: `${lookup.window.provider} ${lookup.window.declaredIn} in ${models.source}`,
-    };
-  }
-
-  if (requested !== "") throw new Error(lookup.reason);
-
-  const live = ctx.getContextUsage()?.contextWindow ?? 0;
-  if (live <= 0) throw new Error(lookup.reason);
+  const lookup = findContextWindow(declared, requested, ctx.model?.provider);
+  if (!lookup.ok) throw new Error(lookup.reason);
   return {
-    contextWindow: live,
-    model: modelId,
-    source: `the live session; PI's own catalogue, since ${models.source} declares no window for it`,
+    contextWindow: lookup.window.contextWindow,
+    model: requested,
+    source: `${lookup.window.provider} ${lookup.window.declaredIn} in ${models.source}`,
   };
 }
 
@@ -653,6 +670,8 @@ export function register(pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     try {
       guards.set(sid(ctx), createLoopGuardState());
+      // Before the report, so what it reports is the number this session will actually use.
+      applyUniversalThreshold(ctx);
       reportThreshold(ctx);
     } catch (err) {
       announce(ctx, `session_start failed internally and was skipped: ${describeError(err)}`, "error");
@@ -753,24 +772,32 @@ export function register(pi: ExtensionAPI): void {
   /**
    * `REQ-CTX-31`'s absolute threshold is a *stated intent*, not a lever — PI's `shouldCompact()`
    * only ever knows `contextWindow - reserveTokens` (see this module's header and `threshold.ts`).
-   * So what this command does is state the intent that matches the model actually in use, instead
-   * of leaving a number chosen for a different one standing. It moves no trigger.
+   * So what this command does is state an intent, not move a trigger, and the report says so in
+   * the same breath rather than letting the name imply otherwise.
    *
-   * What it writes is `contextWindow - reserveTokens`, **not** the window itself. The window is
-   * where the number comes from; the trigger is what the number is compared against, and writing
-   * the window would state an intent that PI can never meet — `thresholdReport()` would then read
-   * `effectiveTrigger < configuredAbsolute` and call it `window-too-small` on every model whose
-   * window is small enough for the reserve to exceed the 20 % tolerance (a 64k model, with the
-   * 16384-token default reserve, diverges by 26 %). That verdict's own remedy line says no PI
-   * 0.84.0 setting closes the gap, which would be true and permanent and entirely self-inflicted.
-   * Subtracting the reserve makes `effectiveTrigger === configuredAbsolute` by construction, which
-   * is exactly what `aligned` is for.
+   * Two intents are available and the argument chooses between them:
+   *
+   * - **no argument** writes {@link UNIVERSAL_ABSOLUTE_TOKENS}, flat, on every model. It is what
+   *   `session_start` already keeps written, so the command exists mainly to put the number back
+   *   after a per-model override. It reads nothing — no `models.json`, no reserve, no arithmetic
+   *   that could refuse — which is the point of a flat number and also why this branch cannot fail
+   *   the way the other one can.
+   * - **`<model-id>`** writes that model's own trigger, `contextWindow - reserveTokens`, for the
+   *   case where matching one model exactly is the point. It writes the trigger and **not** the
+   *   window: the window is where the number comes from, the trigger is what the number is
+   *   compared against, and writing the window would state an intent PI can never meet —
+   *   `thresholdReport()` would read `effectiveTrigger < configuredAbsolute` and call it
+   *   `window-too-small` on every model whose window is small enough for the reserve to exceed the
+   *   20 % tolerance (a 64k model, with the 16384-token default reserve, diverges by 26 %). That
+   *   verdict's own remedy line says no PI 0.84.0 setting closes the gap, which would be true and
+   *   permanent and entirely self-inflicted.
    */
   pi.registerCommand("autocompact", {
     description:
-      "Align the compaction threshold with a model's declared context window (window - reserve): " +
-      "/autocompact [model-id], defaulting to the current model. Writes config/compaction.json, so " +
-      "it persists across sessions.",
+      "Set the compaction threshold. With no argument, the flat 200000 tokens, the same on every " +
+      "model. With /autocompact <model-id>, that model's own trigger instead (its declared context " +
+      "window minus compaction.reserveTokens). Writes config/compaction.json, so it persists " +
+      "across sessions.",
     handler: async (args: string, ctx) => {
       try {
         const path = loaded.source;
@@ -780,7 +807,28 @@ export function register(pi: ExtensionAPI): void {
               `this session is running on the built-in defaults.`,
           );
         }
-        const target = resolveTargetWindow(ctx, args.trim());
+        const requested = args.trim();
+        const previous = activeThreshold.absoluteTokens;
+
+        if (requested === "") {
+          writeAbsoluteTokens(path, UNIVERSAL_ABSOLUTE_TOKENS);
+          activeThreshold = { ...activeThreshold, absoluteTokens: UNIVERSAL_ABSOLUTE_TOKENS };
+          const resolved = resolveThreshold(ctx);
+          announce(
+            ctx,
+            [
+              `Compaction threshold set to ${UNIVERSAL_ABSOLUTE_TOKENS} tokens (was ${previous})`,
+              `  intent     : the flat ${formatUniversal()} threshold, the same on every model`,
+              `  written to : ${path} (a tracked file, so commit it to keep the change)`,
+              `  verdict    : /compaction-status now reports ` +
+                `${resolved ? resolved.report.verdict : "nothing, until a model is selected"}`,
+            ].join("\n"),
+            "info",
+          );
+          return;
+        }
+
+        const target = resolveTargetWindow(ctx, requested);
         const reserve = readReserveTokens({
           observed: lastReserveTokens,
           agentDir: configDir(),
@@ -795,7 +843,6 @@ export function register(pi: ExtensionAPI): void {
               `would leave room for a turn. Nothing was written.`,
           );
         }
-        const previous = activeThreshold.absoluteTokens;
         writeAbsoluteTokens(path, absolute);
         activeThreshold = { ...activeThreshold, absoluteTokens: absolute };
 
@@ -808,8 +855,10 @@ export function register(pi: ExtensionAPI): void {
             `  read from  : ${target.source}`,
             `  written to : ${path} (a tracked file, so commit it to keep the change)`,
             `  note       : this moves no trigger. PI already compacts above ${absolute} tokens on ` +
-              `this model; what changed is that REQ-CTX-31 now states that number instead of one ` +
-              `chosen for a different model, so /compaction-status reads "aligned".`,
+              `this model; what changed is that REQ-CTX-31 now states that number instead of the ` +
+              `flat ${UNIVERSAL_ABSOLUTE_TOKENS}, so /compaction-status reads "aligned".`,
+            `  lifetime   : the next session start puts the flat ${formatUniversal()} back. An ` +
+              `override that should survive belongs in ${path} as a committed change.`,
           ].join("\n"),
           "info",
         );
@@ -835,7 +884,8 @@ export function register(pi: ExtensionAPI): void {
         `  keep/drop  : ${cfg.instructions.enabled ? "on" : "off"}`,
         `  pinned     : ${cfg.pinned.enabled ? cfg.pinned.sources.join(", ") || "(none)" : "off"}`,
         `  ${thresholdLine(ctx)}`,
-        `  /autocompact [model-id] sets that configured absolute to this model's declared window minus the reserve`,
+        `  /autocompact sets that configured absolute to the flat ${UNIVERSAL_ABSOLUTE_TOKENS}; ` +
+          `/autocompact <model-id> sets it to that model's declared window minus the reserve instead`,
       ];
       announce(ctx, lines.join("\n"), "info");
     },

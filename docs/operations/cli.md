@@ -286,7 +286,7 @@ Registered by the extensions, available inside a session.
 | `/context` | where the context window has actually gone |
 | `/agents` | the sub-agent registry, including invalid and restricted entries |
 | `/compaction-status` | compaction thresholds and what the last pass did |
-| `/autocompact [model-id]` | rewrite the declared threshold from a model's window (window − reserve) |
+| `/autocompact [model-id]` | declare the flat 200 000 threshold, or one model's own trigger (window − reserve) |
 | `/path-defaults-status` | the configured default tier and per-channel policy |
 | `/quota` | remaining provider quota |
 | `/teammates` | live teammates |

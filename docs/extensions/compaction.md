@@ -32,10 +32,17 @@ just reclaimed.
 
 ## 4. Threshold reporting
 
+The declared threshold is a **flat 200 000 tokens on every model**. `session_start` puts it in
+force and prints one line — `auto-compact: 200K tokens` — writing `config/compaction.json` only
+when the file does not already say it, which the shipped config does.
+
 PI has **no absolute-count key**. The effective trigger is `contextWindow − reserveTokens`, which is
-per-model. `threshold.ts` computes it for the active model, classifies the gap against your declared
-`absoluteTokens`, and says so **once ever** per `(model, window, reserve, absolute)` tuple rather
-than once per session.
+per-model, so the flat number is a *stated intent*, not a lever: it does not make a
+1 000 000-token model compact at 200 000. `threshold.ts` computes the real trigger for the active
+model, classifies the gap against the declared `absoluteTokens`, and says so **once ever** per
+`(model, window, reserve, absolute)` tuple rather than once per session. The verdict band, the one
+lever that closes a `trigger-too-high` gap, and what that lever costs are on
+[`compaction.json`](../configuration/sessions.md#threshold-the-flat-200-000).
 
 !!! danger "Read this module's own history before changing a number"
     An earlier version printed advice recommending a `reserveTokens` value that, applied globally,
@@ -51,25 +58,32 @@ than once per session.
     [`modelOverrides.<id>.contextWindow`](../configuration/models.md#modeloverrides). Full argument:
     [Context windows](../concepts/context-windows.md).
 
-### `/autocompact` — state the intent the current model actually implies
+### `/autocompact` — the flat number, or one model's own trigger
 
-`absoluteTokens` is a number somebody chose once, for one model, and it stays chosen when you switch
-to a model with a different window. `/autocompact [model-id]` rewrites it from the catalogue,
-defaulting to the session's model, and persists the change to `config/compaction.json`.
+The argument chooses between two intents, and **neither moves a trigger**. Both persist to
+`config/compaction.json`.
 
-It writes **`contextWindow − reserveTokens`**, not the window. That is the trigger PI already uses,
-so the declared absolute becomes exactly what `shouldCompact()` does and the verdict reads
-`aligned`. Writing the window itself would state an intent PI can never meet: the trigger is always
-`reserveTokens` below it, so the report would say `window-too-small` — and on a 64k model, with the
-16384-token default reserve, that is a 26 % divergence, past the 20 % tolerance, with a remedy line
-that correctly says no PI 0.84.0 setting closes the gap. **The command moves no trigger.** It only
-stops the declared number from describing a model you are not running.
+| Form | Writes | Reads |
+|---|---|---|
+| `/autocompact` | the flat `200000` | nothing — no catalogue, no reserve, no arithmetic that can refuse |
+| `/autocompact <model-id>` | that model's `contextWindow − reserveTokens` | `config/models.json` and the resolved reserve |
+
+The no-argument form is what `session_start` already keeps written, so it exists mainly to put the
+flat number back after an override. The named form is for the case where matching one model exactly
+is the point rather than holding the line at 200 000 — and the next session start puts the flat
+number back, so an override that should survive belongs in the file as a committed change.
+
+The named form writes **`contextWindow − reserveTokens`**, not the window. That is the trigger PI
+already uses, so the declared absolute becomes exactly what `shouldCompact()` does and the verdict
+reads `aligned`. Writing the window itself would state an intent PI can never meet: the trigger is
+always `reserveTokens` below it, so the report would say `window-too-small` — and on a 64k model,
+with the 16384-token default reserve, that is a 26 % divergence, past the 20 % tolerance, with a
+remedy line that correctly says no PI 0.84.0 setting closes the gap.
 
 The window is read from `config/models.json` — **declared, never probed**, because that file carries
 this repo's deliberately understated windows. A model id that two providers declare differently is
-settled by the session's own provider and refused otherwise, naming both candidates; an explicitly
-named model the catalogue does not declare is refused rather than guessed. Only when you name no
-model at all does it fall back to the live session's window, and it says so in the report.
+settled by the session's own provider and refused otherwise, naming both candidates; a named model
+the catalogue does not declare is refused rather than guessed.
 
 The write is textual and re-parsed before it is offered: re-serialising the config would reformat 14
 lines to change one number, and `config/compaction.json` is tracked.
