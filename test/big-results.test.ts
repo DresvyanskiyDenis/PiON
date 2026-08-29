@@ -7,18 +7,27 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition, ToolResultEvent } 
 import { DEFAULT_MAX_BYTES } from "@earendil-works/pi-coding-agent";
 
 import { register as registerBigResults } from "../extensions/big-results/index.ts";
+import { CARD_ENTRY, PREVIEW_LINES, type ExternalisedCard } from "../extensions/big-results/card.ts";
 import { resetSurfaced } from "../extensions/lib/once.ts";
 import { scratchDir } from "../extensions/lib/paths.ts";
 
-/** Captures every `pi.on` handler and `pi.registerTool` call the extension makes. */
-function fakePi(): { pi: ExtensionAPI; handlers: Map<string, Function>; tools: Map<string, ToolDefinition> } {
+/** Captures every `pi.on` handler, `pi.registerTool` call and appended entry the extension makes. */
+function fakePi(): {
+  pi: ExtensionAPI;
+  handlers: Map<string, Function>;
+  tools: Map<string, ToolDefinition>;
+  entries: Array<{ customType: string; data: unknown }>;
+} {
   const handlers = new Map<string, Function>();
   const tools = new Map<string, ToolDefinition>();
+  const entries: Array<{ customType: string; data: unknown }> = [];
   const pi = {
     on: (event: string, handler: Function) => void handlers.set(event, handler),
     registerTool: (tool: ToolDefinition) => void tools.set(tool.name, tool),
+    registerEntryRenderer: () => {},
+    appendEntry: (customType: string, data: unknown) => void entries.push({ customType, data }),
   } as unknown as ExtensionAPI;
-  return { pi, handlers, tools };
+  return { pi, handlers, tools, entries };
 }
 
 function fakeCtx(sessionId: string, opts: { hasUI?: boolean; notify?: (msg: string, type?: string) => void } = {}): ExtensionContext {
@@ -87,7 +96,7 @@ describe("big-results (EXT-29)", () => {
   });
 
   it("an oversized text result is externalised: short summary, handle, file on disk", async () => {
-    const { pi, handlers } = fakePi();
+    const { pi, handlers, entries } = fakePi();
     registerBigResults(pi);
     const handler = handlers.get("tool_result")!;
     const ctx = fakeCtx(sessionId);
@@ -117,6 +126,15 @@ describe("big-results (EXT-29)", () => {
     const meta = JSON.parse(await readFile(join(scratchDir(sessionId), "results", `${handle}.json`), "utf8"));
     assert.equal(meta.reusedExisting, false);
     assert.equal(meta.lines, 3000);
+
+    // The same externalisation, once more as a display-only card for the human.
+    const cards = entries.filter((e) => e.customType === CARD_ENTRY);
+    assert.equal(cards.length, 1, "exactly one card per externalisation");
+    const card = cards[0]!.data as ExternalisedCard;
+    assert.equal(card.handle, handle);
+    assert.equal(card.lines, 3000);
+    assert.equal(card.toolName, "some_tool");
+    assert.deepEqual(card.preview, lines.slice(0, PREVIEW_LINES));
   });
 
   it("existing details survive the patch (spread, not replaced)", async () => {

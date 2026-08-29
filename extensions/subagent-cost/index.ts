@@ -24,6 +24,7 @@ import type {
   ToolResultEvent,
   TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
+import { registerMessageCost } from "./message-cost.ts";
 import { renderSubagentCost, summarizeSubagentCost } from "./summary.ts";
 import { describeError } from "../lib/once.ts";
 
@@ -35,6 +36,9 @@ const STATUS_KEY = "subagent-cost";
 const WATCHED_TOOLS = new Set(["subagent", "subagent_wait"]);
 
 export function register(pi: ExtensionAPI): void {
+  // The same money question, asked per message rather than per session.
+  registerMessageCost(pi, isSubscriptionModel);
+
   const refresh = (ctx: ExtensionContext): void => {
     const summary = summarizeSubagentCost(ctx.sessionManager.getEntries(), (modelRef) =>
       isSubscriptionModel(ctx, modelRef),
