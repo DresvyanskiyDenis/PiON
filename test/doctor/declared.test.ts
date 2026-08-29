@@ -8,6 +8,7 @@ import {
   discoverDeclaredSkills,
   readDeclaredServers,
   readDeclaredTools,
+  readOnProviderErrorReport,
   readPackagesLock,
   readRoutingTiers,
   resolveInstalledPackageVersion,
@@ -105,6 +106,29 @@ describe("readRoutingTiers", () => {
     assert.equal(strong?.optional, false);
     assert.equal(local?.modelRef, "local/unsloth/Qwen3.6-35B-A3B-MTP-GGUF");
     assert.equal(local?.optional, true);
+  });
+});
+
+describe("readOnProviderErrorReport", () => {
+  it("returns [] when routing.json is absent", () => {
+    assert.deepEqual(readOnProviderErrorReport(join(root, "no-routing")), []);
+  });
+
+  it("returns [] when onProviderError.report is absent — no default field list is assumed", async () => {
+    const d = join(root, "provider-error-report-absent");
+    await mkdir(join(d, "config"), { recursive: true });
+    await writeFile(join(d, "config", "routing.json"), JSON.stringify({ tiers: {} }));
+    assert.deepEqual(readOnProviderErrorReport(d), []);
+  });
+
+  it("reads the declared field list verbatim, in the declared order", async () => {
+    const d = join(root, "provider-error-report-case");
+    await mkdir(join(d, "config"), { recursive: true });
+    await writeFile(
+      join(d, "config", "routing.json"),
+      JSON.stringify({ onProviderError: { report: ["provider", "model", "errorClass", "message", "causeChain"] } }),
+    );
+    assert.deepEqual(readOnProviderErrorReport(d), ["provider", "model", "errorClass", "message", "causeChain"]);
   });
 });
 

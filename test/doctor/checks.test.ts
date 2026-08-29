@@ -9,10 +9,12 @@ import {
   checkModels,
   checkModuleLoad,
   checkPackages,
+  checkProviderErrorReport,
   checkServers,
   checkSkills,
   checkTools,
   EXPECTED_GUARD_SELF_TEST_PATTERN_ID,
+  IMPLEMENTED_PROVIDER_ERROR_FIELDS,
   runAllChecks,
   type DoctorInputs,
 } from "../../extensions/doctor/checks.ts";
@@ -33,6 +35,7 @@ function baseInputs(overrides: Partial<DoctorInputs> = {}): DoctorInputs {
     packages: [],
     hooksDegradedReason: undefined,
     toolGuidelines: [],
+    onProviderErrorReport: [],
     ...overrides,
   };
 }
@@ -502,6 +505,42 @@ describe("D-10 checkGuidelines", () => {
       toolGuidelines: [{ tool: "read", guidelines: ["Always read the file backwards on Tuesdays."] }],
     });
     assert.equal(buildReport(inputs, runAllChecks(inputs)).ok, true);
+  });
+});
+
+describe("D-11 checkProviderErrorReport", () => {
+  it("pass: an empty report array is not a missing contract", () => {
+    assert.deepEqual(checkProviderErrorReport(baseInputs({ onProviderErrorReport: [] })), []);
+  });
+
+  it("pass: every field in IMPLEMENTED_PROVIDER_ERROR_FIELDS is rendered, nothing to report", () => {
+    const findings = checkProviderErrorReport(
+      baseInputs({ onProviderErrorReport: [...IMPLEMENTED_PROVIDER_ERROR_FIELDS] }),
+    );
+    assert.deepEqual(findings, []);
+  });
+
+  it("warn: a field routing.json declares that provider-error.ts does not render", () => {
+    const findings = checkProviderErrorReport(baseInputs({ onProviderErrorReport: ["provider", "retryAfter"] }));
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.check, "D-11");
+    assert.equal(findings[0]?.severity, "warn");
+    assert.equal(findings[0]?.subject, "retryAfter");
+    assert.match(findings[0]?.message ?? "", /"retryAfter"/);
+    assert.match(findings[0]?.action ?? "", /formatProviderFailure/);
+  });
+
+  it("warn: reports one finding per unrendered field, not just the first", () => {
+    const findings = checkProviderErrorReport(baseInputs({ onProviderErrorReport: ["retryAfter", "requestId"] }));
+    assert.deepEqual(
+      findings.map((f) => f.subject),
+      ["retryAfter", "requestId"],
+    );
+  });
+
+  it("D-11 is in the cheap session_start pass — a dropped report field is a config/code drift, not a network probe", () => {
+    const inputs = baseInputs({ onProviderErrorReport: ["retryAfter"] });
+    assert.ok(runAllChecks(inputs, { cheapOnly: true }).some((f) => f.check === "D-11"));
   });
 });
 

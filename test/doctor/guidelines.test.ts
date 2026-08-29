@@ -25,6 +25,7 @@ function inputsFor(tool: string, guidelines: readonly string[]): DoctorInputs {
     packages: [],
     hooksDegradedReason: undefined,
     toolGuidelines: [{ tool, guidelines }],
+    onProviderErrorReport: [],
   };
 }
 
