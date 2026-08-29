@@ -12,6 +12,7 @@ second copy to keep in sync.
 ├── settings.json      -> ~/pi-config/config/settings.json     global agent behaviour
 ├── models.json        -> ~/pi-config/config/models.json       providers, credential *references*
 ├── routing.json       -> ~/pi-config/config/routing.json      tiers / egress / concurrency (ours, not PI's)
+├── SYSTEM.md          -> ~/pi-config/SYSTEM.md                the system prompt (replaces PI's own)
 ├── AGENTS.md          -> ~/pi-config/AGENTS.md                the standing instructions
 ├── prompts            -> ~/pi-config/prompts/
 ├── hooks.yaml         -> ~/pi-config/config/hooks.yaml
@@ -63,6 +64,37 @@ entries, so you can move or rename the checkout without editing anything.
     directory itself is the one place your own skills go: it is git-ignored, and the installer
     links it to `~/.pi/agent/skills`, the single search path `settings.json` names. See
     [Writing a skill](../extending/skills.md).
+
+## The prompt layer
+
+Three of the links above feed the system prompt, and they are not interchangeable.
+
+| File | What PI does with it |
+|---|---|
+| `SYSTEM.md` | **Replaces** PI's built-in base prompt. Looked up as `<project>/.pi/SYSTEM.md` first — only in a trusted project — then `~/.pi/agent/SYSTEM.md` |
+| `APPEND_SYSTEM.md` | **Appends** to whichever base is in force. Same two-step lookup. Not tracked: the row is `optional`, and a fork adds `config/APPEND_SYSTEM.md` if it wants one |
+| `AGENTS.md` | Arrives further down, quoted inside a `<project_context>` block as *project-specific instructions*. Reference material, not identity |
+
+`SYSTEM.md` ships populated, and what it says is deliberately narrow: how to work — act, delegate,
+verify, report, disagree, and which tool to use for what. Anything true of one machine rather than
+of the job belongs in `AGENTS.md`.
+
+!!! warning "A custom base prompt silently drops PI's `Guidelines:` section"
+    When `SYSTEM.md` is present, PI takes a different branch when it assembles the prompt: it emits
+    neither the `Available tools:` summary nor the `Guidelines:` section that each tool contributes
+    through its `promptGuidelines`. Losing the tools summary costs nothing — the full tool schemas
+    still reach the provider, and the summary was only a list of names. Losing `Guidelines:` costs
+    real behaviour: `edit`'s exact-match rules, `read`'s "use the tool, not `cat`", `write`'s
+    "new files or complete rewrites only" and the todo package's task discipline all disappear with
+    it. The shipped `SYSTEM.md` restates every one of them in its `# Tools` section. **If you
+    rewrite that section, keep them**, or upgrade a package that adds a guideline and re-read what
+    it now contributes — nothing compares the two.
+
+    The parts that are *not* dropped: context files, the skills catalogue and the working-directory
+    line are appended on both branches.
+
+Changing any of these three takes effect on the next `pi` start. The prompt is assembled once, at
+session start.
 
 ## Which process reads what
 
