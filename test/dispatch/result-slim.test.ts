@@ -41,7 +41,7 @@ function detachedChild(extra: Record<string, unknown> = {}): Record<string, unkn
     messages: MESSAGES,
     usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 3 },
     transcriptPath: "/tmp/pi-subagents-uid-1000/artifacts/8a005b51_debugger_0_transcript.jsonl",
-    sessionFile: "/home/pi/.pi/agent/sessions/child.jsonl",
+    sessionFile: "/home/user/.pi/agent/sessions/child.jsonl",
     finalOutput: "the transcript is in details.results[].messages",
     ...extra,
   };
