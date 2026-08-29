@@ -149,15 +149,22 @@ installed.
 | `@narumitw/pi-statusline` | 0.49.5 | MIT | narumiruna | the statusline |
 | `@narumitw/pi-lsp` | 0.49.3 | MIT | narumiruna | language-server diagnostics |
 | `@narumitw/pi-usage` | 0.49.3 | MIT | narumiruna | the quota read path |
-| `@99percentpeople/pi-background-tasks` | 2.0.0 | MIT | 99percentpeople | the bash face of background work |
-| `@nklisch/pi-plugins` | 0.3.3 | MIT | nklisch | package lifecycle |
 | `pi-sandbox` | 0.6.2 | MIT | Chris Arderne | OS-level containment. **Reviewed; the guard never delegates to it** |
-| `pi-hashline-edit-pro` | 1.1.0 | MIT | YuGiMob | edit trial |
 | `pi-hermes-memory` | 0.9.3 | MIT | chandra447 | session search |
-| `pi-web-search` | 1.3.1 | MIT | ttttmr | alternative search backend |
-| `pi-opa-net` | 0.6.0 | MIT | buihongduc132 | policy-engine option |
-| `pi-smart-compact` | 7.22.0 | MIT | alpertarhan | compaction summary quality |
 | `pi-lean-ctx` | 3.9.17 | **Apache-2.0** | Yves Gugger | tool-output shrinking |
+| `yaml` | 2.9.0 | ISC | Eemeli Aro | YAML parsing for agent front-matter, hook rules and path rules |
+
+### Uninstalled 2026-08-29
+
+Six packages were reviewed and pinned on 2026-08-06 and never loaded — none of them appeared in
+`config/settings.json`'s `packages` array and nothing under `extensions/` imported them — so they
+were removed from `package.json` rather than left redistributed and dead:
+`@99percentpeople/pi-background-tasks`, `@nklisch/pi-plugins`, `pi-hashline-edit-pro`,
+`pi-opa-net`, `pi-smart-compact` and `pi-web-search`. The last of those had a second and
+independent reason: it declares MIT and ships no licence text, so carrying it meant redistributing
+an unlicensed copy for no benefit. Reasons per package are in `config/packages.lock.json`'s
+`not_installed[]`; the reviews are kept in [the package ledger](../PACKAGES.md), marked
+**UNINSTALLED**.
 
 ### Build-time only
 

@@ -78,6 +78,7 @@ import type {
   SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { compact, estimateTokens } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { configPaths as sharedConfigPaths } from "../dispatch/config.ts";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
@@ -94,6 +95,14 @@ import {
   type LoopGuardConfig,
   type LoopGuardState,
 } from "./loop-guard.ts";
+import {
+  appendFact,
+  DEFAULT_FACTS_LIMITS,
+  factsPathFor,
+  readFacts,
+  renderFacts,
+  type FactsLimits,
+} from "./facts.ts";
 import {
   DEFAULT_PINNED_LIMITS,
   readPinned,
@@ -136,7 +145,16 @@ type BeforeCompactResult = { cancel?: boolean; compaction?: CompactionResult };
 interface CompactionConfig {
   readonly loopGuard: LoopGuardConfig & { readonly headlessExitCode: number };
   readonly instructions: { readonly enabled: boolean };
-  readonly pinned: PinnedLimits & { readonly enabled: boolean; readonly sources: readonly string[] };
+  readonly pinned: PinnedLimits & {
+    readonly enabled: boolean;
+    readonly sources: readonly string[];
+    /**
+     * The session facts file (`./facts.ts`). It sits under `pinned` because it is restated on the
+     * same event under the same rule; what separates it from `sources` is only that its content is
+     * written during the session instead of being read out of the project.
+     */
+    readonly facts: FactsLimits & { readonly enabled: boolean };
+  };
   /**
    * `REQ-CTX-31`'s absolute count. PI cannot act on it (`shouldCompact()` only knows
    * `contextWindow - reserveTokens`), so it is a *stated intent* this module checks the effective
@@ -148,7 +166,12 @@ interface CompactionConfig {
 const DEFAULT_CONFIG: CompactionConfig = {
   loopGuard: { ...DEFAULT_LOOP_GUARD, headlessExitCode: 91 },
   instructions: { enabled: true },
-  pinned: { ...DEFAULT_PINNED_LIMITS, enabled: true, sources: ["AGENTS.md", "CLAUDE.md"] },
+  pinned: {
+    ...DEFAULT_PINNED_LIMITS,
+    enabled: true,
+    sources: ["AGENTS.md", "CLAUDE.md"],
+    facts: { ...DEFAULT_FACTS_LIMITS, enabled: true },
+  },
   threshold: { absoluteTokens: 0, toleranceRatio: 0.2 },
 };
 
@@ -180,6 +203,7 @@ export function parseConfig(raw: unknown): CompactionConfig {
   const lg = (root.loopGuard ?? {}) as Record<string, unknown>;
   const ins = (root.instructions ?? {}) as Record<string, unknown>;
   const pin = (root.pinned ?? {}) as Record<string, unknown>;
+  const facts = (pin.facts ?? {}) as Record<string, unknown>;
   const thr = (root.threshold ?? {}) as Record<string, unknown>;
   return {
     loopGuard: {
@@ -201,6 +225,14 @@ export function parseConfig(raw: unknown): CompactionConfig {
         : DEFAULT_CONFIG.pinned.sources,
       maxBytesPerSource: num(pin.maxBytesPerSource, DEFAULT_CONFIG.pinned.maxBytesPerSource),
       maxTotalBytes: num(pin.maxTotalBytes, DEFAULT_CONFIG.pinned.maxTotalBytes),
+      // An absent key means the defaults, and the defaults are indistinguishable from the old
+      // behaviour on a tree that never records a fact: no file exists, so nothing is restated.
+      // Compatibility here rests on the absence of the file, not on the absence of the key.
+      facts: {
+        enabled: bool(facts.enabled, DEFAULT_CONFIG.pinned.facts.enabled),
+        maxEntries: Math.max(0, Math.trunc(num(facts.maxEntries, DEFAULT_CONFIG.pinned.facts.maxEntries))),
+        maxBytes: Math.max(0, Math.trunc(num(facts.maxBytes, DEFAULT_CONFIG.pinned.facts.maxBytes))),
+      },
     },
     threshold: {
       absoluteTokens: Math.trunc(num(thr.absoluteTokens, DEFAULT_CONFIG.threshold.absoluteTokens)),
@@ -573,7 +605,9 @@ function withoutDeletedHeaders(
 async function summariseWithContract(
   event: SessionBeforeCompactEvent,
   ctx: ExtensionContext,
+  pi: ExtensionAPI,
 ): Promise<BeforeCompactResult | undefined> {
+  const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
   const model = ctx.model;
   if (!model) {
     surfaceOnce(ctx, "compaction:no-model", () =>
@@ -615,6 +649,7 @@ async function summariseWithContract(
         message: `credential resolution threw while preparing a compaction summary: ${describeError(err)}`,
         cause: err,
       }),
+      sinks,
     );
     return undefined;
   }
@@ -626,6 +661,7 @@ async function summariseWithContract(
         model: model.id,
         message: `cannot resolve credentials for a compaction summary: ${auth.error}`,
       }),
+      sinks,
     );
     return undefined;
   }
@@ -657,8 +693,65 @@ async function summariseWithContract(
         message: `compaction summary with the keep/drop contract failed: ${describeError(err)}`,
         cause: err,
       }),
+      sinks,
     );
     return undefined;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Re-statement after a compaction
+ * ------------------------------------------------------------------------------------------- */
+
+/** This session's facts file: one per session id, beside the transcript, outside every project. */
+function factsPath(ctx: Pick<ExtensionContext, "sessionManager">): string {
+  return factsPathFor(ctx.sessionManager.getSessionFile() ?? undefined, sid(ctx), stateRoot());
+}
+
+async function restatePinnedSources(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+  if (!cfg.pinned.enabled || cfg.pinned.sources.length === 0) return;
+  try {
+    const result = await readPinned(resolvePinnedSources(ctx.cwd, cfg.pinned.sources), cfg.pinned);
+    for (const problem of result.problems) {
+      surfaceOnce(ctx, `compaction:pinned:${problem}`, () => announce(ctx, `pinned source ${problem}`, "warning"));
+    }
+    const content = renderPinned(result);
+    if (content.length === 0) return;
+    // `display:false` keeps it out of the transcript view; `nextTurn` + `triggerTurn:false`
+    // guarantee it never interrupts a turn — the same idiom `extensions/tasks/` uses.
+    pi.sendMessage(
+      { customType: "pinned_context", content, display: false },
+      { deliverAs: "nextTurn", triggerTurn: false },
+    );
+  } catch (err) {
+    surfaceOnce(ctx, `compaction:pinned-regen:${describeError(err).slice(0, 120)}`, () =>
+      announce(ctx, `pinned-block regeneration failed and was skipped: ${describeError(err)}`, "error"),
+    );
+  }
+}
+
+/**
+ * The same restatement over what the session *learned* rather than what the project *declares*.
+ * A session that recorded nothing has no file, `renderFacts` returns `""`, and no message is sent,
+ * which is why this path can default to on: it is invisible until the first `fact` call.
+ */
+async function restateFacts(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+  if (!cfg.pinned.facts.enabled) return;
+  try {
+    const result = await readFacts(factsPath(ctx), cfg.pinned.facts);
+    for (const problem of result.problems) {
+      surfaceOnce(ctx, `compaction:facts:${problem}`, () => announce(ctx, `facts file ${problem}`, "warning"));
+    }
+    const content = renderFacts(result);
+    if (content.length === 0) return;
+    pi.sendMessage(
+      { customType: "pinned_facts", content, display: false },
+      { deliverAs: "nextTurn", triggerTurn: false },
+    );
+  } catch (err) {
+    surfaceOnce(ctx, `compaction:facts-restate:${describeError(err).slice(0, 120)}`, () =>
+      announce(ctx, `facts re-statement failed and was skipped: ${describeError(err)}`, "error"),
+    );
   }
 }
 
@@ -727,7 +820,7 @@ export function register(pi: ExtensionAPI): void {
 
       if (!cfg.instructions.enabled) return undefined;
       try {
-        return await summariseWithContract(event, ctx);
+        return await summariseWithContract(event, ctx, pi);
       } catch (err) {
         surfaceOnce(ctx, `compaction:summarise:${describeError(err).slice(0, 120)}`, () =>
           announce(
@@ -743,26 +836,14 @@ export function register(pi: ExtensionAPI): void {
 
   // REQ-CTX-37 — regenerate, then re-state. Runs after PI has appended the compaction entry, so
   // the block lands on the far side of the cut and survives it by construction.
+  //
+  // Two sources, restated as two independent blocks: the project's instruction files, and this
+  // session's facts file. Independent because they are configured and fail separately. A project
+  // with no `AGENTS.md` still has to get its facts back, and a session that recorded no facts
+  // still has to get its instructions back.
   pi.on("session_compact", async (_event, ctx: ExtensionContext) => {
-    if (!cfg.pinned.enabled || cfg.pinned.sources.length === 0) return;
-    try {
-      const result = await readPinned(resolvePinnedSources(ctx.cwd, cfg.pinned.sources), cfg.pinned);
-      for (const problem of result.problems) {
-        surfaceOnce(ctx, `compaction:pinned:${problem}`, () => announce(ctx, `pinned source ${problem}`, "warning"));
-      }
-      const content = renderPinned(result);
-      if (content.length === 0) return;
-      // `display:false` keeps it out of the transcript view; `nextTurn` + `triggerTurn:false`
-      // guarantee it never interrupts a turn — the same idiom `extensions/tasks/` uses.
-      pi.sendMessage(
-        { customType: "pinned_context", content, display: false },
-        { deliverAs: "nextTurn", triggerTurn: false },
-      );
-    } catch (err) {
-      surfaceOnce(ctx, `compaction:pinned-regen:${describeError(err).slice(0, 120)}`, () =>
-        announce(ctx, `pinned-block regeneration failed and was skipped: ${describeError(err)}`, "error"),
-      );
-    }
+    await restatePinnedSources(pi, ctx);
+    await restateFacts(pi, ctx);
   });
 
   pi.on("session_shutdown", (_event, ctx: ExtensionContext) => {
@@ -883,6 +964,7 @@ export function register(pi: ExtensionAPI): void {
         `  headless   : exit ${cfg.loopGuard.headlessExitCode} on trip (0 = cancel only)`,
         `  keep/drop  : ${cfg.instructions.enabled ? "on" : "off"}`,
         `  pinned     : ${cfg.pinned.enabled ? cfg.pinned.sources.join(", ") || "(none)" : "off"}`,
+        `  facts      : ${factsLine(ctx)}`,
         `  ${thresholdLine(ctx)}`,
         `  /autocompact sets that configured absolute to the flat ${UNIVERSAL_ABSOLUTE_TOKENS}; ` +
           `/autocompact <model-id> sets it to that model's declared window minus the reserve instead`,
@@ -890,6 +972,59 @@ export function register(pi: ExtensionAPI): void {
       announce(ctx, lines.join("\n"), "info");
     },
   });
+
+  // The cheap call the `SYSTEM.md` doctrine names. A tool rather than an instruction to hand-edit
+  // a file, because hand-editing is the step that gets dropped under time pressure, and time
+  // pressure is exactly the condition under which a fact was expensive enough to be worth keeping.
+  if (cfg.pinned.facts.enabled) {
+    pi.registerTool({
+      name: "fact",
+      label: "Record a fact",
+      description:
+        "Write one established fact to this session's facts file, which is re-read from disk and "
+        + "restated after every compaction. Use it for anything that cost a paid call, a remote "
+        + "run, or a correction from the operator: the conversation is summarised repeatedly and "
+        + "every summary loses detail, so a fact that is not on disk is gone by the time it is "
+        + "needed again.",
+      promptSnippet: "Record an established fact so it survives compaction",
+      promptGuidelines: [
+        "Record a fact the moment it is established, before you act on it, not at the end of the task.",
+        "An operator correction is a fact. So is a confirmed URL, a working parameter, a ruled-out approach.",
+        "Always pass provenance: the command, the file:line, the run id, or \"operator correction\".",
+      ],
+      parameters: Type.Object({
+        fact: Type.String({
+          description: "The fact, in one sentence, stated so a later turn can act on it without context.",
+        }),
+        provenance: Type.Optional(
+          Type.String({
+            description:
+              "How it was established: the command that proved it, a file:line, a run id, or "
+              + "\"operator correction\". A fact without provenance is recorded as unverified.",
+          }),
+        ),
+      }),
+      async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+        const path = factsPath(ctx);
+        const line = await appendFact(path, params.fact, params.provenance);
+        const { total } = await readFacts(path, cfg.pinned.facts);
+        return {
+          content: [{ type: "text" as const, text: `recorded fact ${total} of this session\n${line}\n${path}` }],
+          details: { path, total },
+        };
+      },
+    });
+  }
+}
+
+/** `/compaction-status`'s facts line: the caps in force, and the file this session writes to. */
+function factsLine(ctx: ExtensionContext): string {
+  if (!cfg.pinned.facts.enabled) return "off";
+  const path = factsPath(ctx);
+  return (
+    `max ${cfg.pinned.facts.maxEntries} entries / ${cfg.pinned.facts.maxBytes} bytes restated, ` +
+    `appended by the fact tool, in ${path}`
+  );
 }
 
 /**

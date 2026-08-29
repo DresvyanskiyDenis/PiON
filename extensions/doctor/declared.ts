@@ -167,6 +167,17 @@ export function readRoutingTiers(root: string): readonly RoutingTierDeclaration[
   return out;
 }
 
+/** `config/routing.json`'s `onProviderError.report` array — `D-11`. Read verbatim and unvalidated;
+ *  `checks.ts` is where an unrenderable field name turns into a finding, not here. */
+export function readOnProviderErrorReport(root: string): readonly string[] {
+  const doc = readJson(join(root, "config", "routing.json"), () => ({})) as {
+    onProviderError?: { report?: unknown };
+  };
+  const report = doc.onProviderError?.report;
+  if (!Array.isArray(report)) return [];
+  return report.filter((field): field is string => typeof field === "string");
+}
+
 /** `config/packages.lock.json`'s `packages` array — `D-08`. */
 export function readPackagesLock(root: string): readonly PackageLockDeclaration[] {
   const doc = readJson(join(root, "config", "packages.lock.json"), () => ({ packages: [] })) as {

@@ -115,7 +115,8 @@ export async function readPinned(
   return { blocks, problems };
 }
 
-function capBytes(s: string, maxBytes: number): { text: string; truncated: boolean } {
+/** Shared with `./facts.ts`, which caps a fact block the same way and must not cut a character in half. */
+export function capBytes(s: string, maxBytes: number): { text: string; truncated: boolean } {
   const buf = Buffer.from(s, "utf8");
   if (buf.byteLength <= maxBytes) return { text: s, truncated: false };
   // A cut inside a multi-byte sequence decodes to a trailing U+FFFD; drop it rather than ship it.

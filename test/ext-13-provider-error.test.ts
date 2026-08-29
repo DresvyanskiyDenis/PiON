@@ -465,6 +465,39 @@ describe("surfaceProviderFailure", () => {
     assert.match(lines[0] ?? "", /provider : local/);
   });
 
+  it("persists the whole classified block to appendEntry, not the one-line summary", () => {
+    const failure = buildProviderFailure({ provider: "local", model: "qwen", status: 503, message: "down" });
+    const entries: { customType: string; data: unknown }[] = [];
+    surfaceProviderFailure(undefined, failure, {
+      log: () => {},
+      appendEntry: (customType, data) => entries.push({ customType, data }),
+    });
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0]?.customType, "provider_failure");
+    const data = entries[0]?.data as { classified: string };
+    assert.equal(data.classified, formatProviderFailure(failure));
+    assert.match(data.classified, /down/);
+  });
+
+  it("omitting appendEntry is safe — the sink is optional, not required", () => {
+    assert.doesNotThrow(() =>
+      surfaceProviderFailure(undefined, buildProviderFailure({ provider: "local", model: "qwen", message: "x" }), {
+        log: () => {},
+      }),
+    );
+  });
+
+  it("survives an appendEntry that throws — a broken session write must not eat the error report", () => {
+    assert.doesNotThrow(() =>
+      surfaceProviderFailure(undefined, buildProviderFailure({ provider: "local", model: "qwen", message: "x" }), {
+        log: () => {},
+        appendEntry: () => {
+          throw new Error("session write failed");
+        },
+      }),
+    );
+  });
+
   it("survives a log sink that throws — an error reporter must not become the error", () => {
     assert.doesNotThrow(() =>
       surfaceProviderFailure(
