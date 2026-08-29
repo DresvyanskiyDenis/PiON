@@ -3128,10 +3128,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#autocompact-state-the-intent-the-current-model-actually-implies" class="md-nav__link">
+  <a href="#autocompact-the-flat-number-or-one-models-own-trigger" class="md-nav__link">
     <span class="md-ellipsis">
       
-        /autocompact — state the intent the current model actually implies
+        /autocompact — the flat number, or one model's own trigger
       
     </span>
   </a>
@@ -4297,10 +4297,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#autocompact-state-the-intent-the-current-model-actually-implies" class="md-nav__link">
+  <a href="#autocompact-the-flat-number-or-one-models-own-trigger" class="md-nav__link">
     <span class="md-ellipsis">
       
-        /autocompact — state the intent the current model actually implies
+        /autocompact — the flat number, or one model's own trigger
       
     </span>
   </a>
@@ -4381,10 +4381,16 @@ Regenerating is a guarantee.</p>
 <p>Capped at 4 KB per source and 16 KB total, because the budget being re-spent is the one compaction
 just reclaimed.</p>
 <h2 id="4-threshold-reporting">4. Threshold reporting<a class="headerlink" href="#4-threshold-reporting" title="Permanent link">&para;</a></h2>
+<p>The declared threshold is a <strong>flat 200 000 tokens on every model</strong>. <code>session_start</code> puts it in
+force and prints one line — <code>auto-compact: 200K tokens</code> — writing <code>config/compaction.json</code> only
+when the file does not already say it, which the shipped config does.</p>
 <p>PI has <strong>no absolute-count key</strong>. The effective trigger is <code>contextWindow − reserveTokens</code>, which is
-per-model. <code>threshold.ts</code> computes it for the active model, classifies the gap against your declared
-<code>absoluteTokens</code>, and says so <strong>once ever</strong> per <code>(model, window, reserve, absolute)</code> tuple rather
-than once per session.</p>
+per-model, so the flat number is a <em>stated intent</em>, not a lever: it does not make a
+1 000 000-token model compact at 200 000. <code>threshold.ts</code> computes the real trigger for the active
+model, classifies the gap against the declared <code>absoluteTokens</code>, and says so <strong>once ever</strong> per
+<code>(model, window, reserve, absolute)</code> tuple rather than once per session. The verdict band, the one
+lever that closes a <code>trigger-too-high</code> gap, and what that lever costs are on
+<a href="../../configuration/sessions/#threshold-the-flat-200-000"><code>compaction.json</code></a>.</p>
 <div class="admonition danger">
 <p class="admonition-title">Read this module's own history before changing a number</p>
 <p>An earlier version printed advice recommending a <code>reserveTokens</code> value that, applied globally,
@@ -4398,22 +4404,44 @@ alongside the value</strong>, so a default can never again be printed as a measu
 <a href="../../configuration/models/#modeloverrides"><code>modelOverrides.&lt;id&gt;.contextWindow</code></a>. Full argument:
 <a href="../../concepts/context-windows/">Context windows</a>.</p>
 </div>
-<h3 id="autocompact-state-the-intent-the-current-model-actually-implies"><code>/autocompact</code> — state the intent the current model actually implies<a class="headerlink" href="#autocompact-state-the-intent-the-current-model-actually-implies" title="Permanent link">&para;</a></h3>
-<p><code>absoluteTokens</code> is a number somebody chose once, for one model, and it stays chosen when you switch
-to a model with a different window. <code>/autocompact [model-id]</code> rewrites it from the catalogue,
-defaulting to the session's model, and persists the change to <code>config/compaction.json</code>.</p>
-<p>It writes <strong><code>contextWindow − reserveTokens</code></strong>, not the window. That is the trigger PI already uses,
-so the declared absolute becomes exactly what <code>shouldCompact()</code> does and the verdict reads
-<code>aligned</code>. Writing the window itself would state an intent PI can never meet: the trigger is always
-<code>reserveTokens</code> below it, so the report would say <code>window-too-small</code> — and on a 64k model, with the
-16384-token default reserve, that is a 26 % divergence, past the 20 % tolerance, with a remedy line
-that correctly says no PI 0.84.0 setting closes the gap. <strong>The command moves no trigger.</strong> It only
-stops the declared number from describing a model you are not running.</p>
+<h3 id="autocompact-the-flat-number-or-one-models-own-trigger"><code>/autocompact</code> — the flat number, or one model's own trigger<a class="headerlink" href="#autocompact-the-flat-number-or-one-models-own-trigger" title="Permanent link">&para;</a></h3>
+<p>The argument chooses between two intents, and <strong>neither moves a trigger</strong>. Both persist to
+<code>config/compaction.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Writes</th>
+<th>Reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/autocompact</code></td>
+<td>the flat <code>200000</code></td>
+<td>nothing — no catalogue, no reserve, no arithmetic that can refuse</td>
+</tr>
+<tr>
+<td><code>/autocompact &lt;model-id&gt;</code></td>
+<td>that model's <code>contextWindow − reserveTokens</code></td>
+<td><code>config/models.json</code> and the resolved reserve</td>
+</tr>
+</tbody>
+</table>
+<p>The no-argument form is what <code>session_start</code> already keeps written, so it exists mainly to put the
+flat number back after an override. The named form is for the case where matching one model exactly
+is the point rather than holding the line at 200 000 — and the next session start puts the flat
+number back, so an override that should survive belongs in the file as a committed change.</p>
+<p>The named form writes <strong><code>contextWindow − reserveTokens</code></strong>, not the window. That is the trigger PI
+already uses, so the declared absolute becomes exactly what <code>shouldCompact()</code> does and the verdict
+reads <code>aligned</code>. Writing the window itself would state an intent PI can never meet: the trigger is
+always <code>reserveTokens</code> below it, so the report would say <code>window-too-small</code> — and on a 64k model,
+with the 16384-token default reserve, that is a 26 % divergence, past the 20 % tolerance, with a
+remedy line that correctly says no PI 0.84.0 setting closes the gap.</p>
 <p>The window is read from <code>config/models.json</code> — <strong>declared, never probed</strong>, because that file carries
 this repo's deliberately understated windows. A model id that two providers declare differently is
-settled by the session's own provider and refused otherwise, naming both candidates; an explicitly
-named model the catalogue does not declare is refused rather than guessed. Only when you name no
-model at all does it fall back to the live session's window, and it says so in the report.</p>
+settled by the session's own provider and refused otherwise, naming both candidates; a named model
+the catalogue does not declare is refused rather than guessed.</p>
 <p>The write is textual and re-parsed before it is offered: re-serialising the config would reformat 14
 lines to change one number, and <code>config/compaction.json</code> is tracked.</p>
 <h2 id="an-extension-cannot-abort-a-headless-run">An extension cannot abort a headless run<a class="headerlink" href="#an-extension-cannot-abort-a-headless-run" title="Permanent link">&para;</a></h2>

@@ -1561,10 +1561,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#threshold" class="md-nav__link">
+  <a href="#threshold-the-flat-200-000" class="md-nav__link">
     <span class="md-ellipsis">
       
-        threshold
+        threshold — the flat 200 000
       
     </span>
   </a>
@@ -4291,10 +4291,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#threshold" class="md-nav__link">
+  <a href="#threshold-the-flat-200-000" class="md-nav__link">
     <span class="md-ellipsis">
       
-        threshold
+        threshold — the flat 200 000
       
     </span>
   </a>
@@ -4398,7 +4398,7 @@ configures the loop guard, the pinned-instruction re-injection, and the advisory
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">"maxBytesPerSource"</span><span class="p">:</span><span class="w"> </span><span class="mi">4096</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">"maxTotalBytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">180000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">}</span>
 </span></code></pre></div>
@@ -4484,14 +4484,105 @@ had absorbed from <code>AGENTS.md</code>. <code>pinned</code> re-injects those s
 <p><strong>What breaks:</strong> raising the caps eats the budget compaction just reclaimed. If your <code>AGENTS.md</code> is
 larger than 4 KB, the right fix is a shorter <code>AGENTS.md</code> — everything past the cap was not
 surviving compaction anyway.</p>
-<h3 id="threshold"><code>threshold</code><a class="headerlink" href="#threshold" title="Permanent link">&para;</a></h3>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">180000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
+<h3 id="threshold-the-flat-200-000"><code>threshold</code> — the flat 200 000<a class="headerlink" href="#threshold-the-flat-200-000" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p><strong>Advisory, not a trigger.</strong> PI's actual trigger is
-<code>contextTokens &gt; contextWindow − reserveTokens</code> and it has no absolute-threshold key at all. This
-block is what <code>extensions/compaction/threshold.ts</code> compares the <em>effective</em> trigger against, so it
-can warn you once when the two disagree by more than <code>toleranceRatio</code>.</p>
-<p>That module resolves the reserve exactly the way PI does — compaction event → project settings →
+<p>One number on every model, whatever its window: the same 200 000 for a 1 000 000-token model, a
+200 000-token one and a 60 000-token local GGUF. Nothing has to be run to get it. Every session
+start puts it in force and prints one line:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[pi-config] compaction: auto-compact: 200K tokens
+</span></code></pre></div>
+<p>The number used to be <code>contextWindow − reserveTokens</code> — PI's own trigger, and therefore a different
+number on every model, whichever one you last ran <code>/autocompact</code> on. A flat number is a line you
+can state once and recognise later.</p>
+<p>Three things write this key, and only these three:</p>
+<table>
+<thead>
+<tr>
+<th>Who</th>
+<th>Writes</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>session_start</code></td>
+<td><code>200000</code></td>
+<td>every session, <strong>only when the file does not already say it</strong></td>
+</tr>
+<tr>
+<td><code>/autocompact</code></td>
+<td><code>200000</code></td>
+<td>on demand, to put the flat number back after an override</td>
+</tr>
+<tr>
+<td><code>/autocompact &lt;model-id&gt;</code></td>
+<td>that model's <code>contextWindow − compaction.reserveTokens</code></td>
+<td>on demand, an explicit per-model override</td>
+</tr>
+</tbody>
+</table>
+<p>The write-only-on-change guard is what keeps a session-start hook from rewriting a tracked file on
+every start — and on every <code>/new</code>, which fires <code>session_start</code> again. The shipped config already
+says <code>200000</code>, so a fresh clone writes nothing, ever. A per-model override lasts until the next
+session start; one that should survive belongs in this file as a committed change, not in a
+command.</p>
+<div class="admonition warning">
+<p class="admonition-title">Advisory, not a trigger. Setting it to 200 000 does not make anything compact at 200 000</p>
+<p>PI's actual trigger is <code>contextTokens &gt; contextWindow − reserveTokens</code> and 0.84.0 has <strong>no
+absolute-threshold key at all</strong>. <code>absoluteTokens</code> is a <em>stated intent</em>:
+<code>extensions/compaction/threshold.ts</code> compares it against the effective per-model trigger and
+reports the gap. On a 1 000 000-token model the flat number does not move compaction to
+200 000; it makes the harness say, once, that the model compacts 780 000 tokens later than
+intended, and name the one setting that would close it.</p>
+</div>
+<p>With a <code>reserveTokens</code> of 20 000 and the shipped tolerance of <code>0.2</code>, that comparison verdicts as:</p>
+<table>
+<thead>
+<tr>
+<th>Declared window</th>
+<th>PI's real trigger</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>below 180 000</td>
+<td>below 160 000</td>
+<td><code>window-too-small</code> — no PI 0.84.0 setting closes this gap</td>
+</tr>
+<tr>
+<td>180 000 … 260 000</td>
+<td>160 000 … 240 000</td>
+<td><code>aligned</code> — within tolerance of 200 000</td>
+</tr>
+<tr>
+<td>above 260 000</td>
+<td>above 240 000</td>
+<td><code>trigger-too-high</code> — actionable, see below</td>
+</tr>
+</tbody>
+</table>
+<p>Most of the shipped catalogue is <code>aligned</code>, because <a href="../../concepts/context-windows/#the-200-000-cap-and-what-it-costs">its windows are capped at
+200 000</a> already. The models that
+are not are the large-window ones, and for those there is exactly one lever — declare the window
+you want PI to compact against, in
+<a href="../models/#modeloverrides"><code>models.json</code></a>:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"modelOverrides"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"&lt;model-id&gt;"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"contextWindow"</span><span class="p">:</span><span class="w"> </span><span class="mi">220000</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p><code>220000</code> is <code>200000 + 20000</code>, so PI's own trigger lands on 200 000 exactly. Two costs before you
+reach for it: PI clamps every request's <code>max_tokens</code> to <code>contextWindow − context − 4096</code>, so a
+declared window is also an output ceiling; and a deliberately shrunk window no longer matches what
+the endpoint serves. The harness reports this lever and never applies it — it is your decision.</p>
+<div class="admonition danger">
+<p class="admonition-title">Do not raise <code>compaction.reserveTokens</code> instead</p>
+<p>It is a single <strong>global</strong> scalar, not per model. Setting it to <code>window − 200000</code> for a
+1 000 000-token model makes <code>contextWindow − reserveTokens</code> negative on every smaller model,
+<code>shouldCompact()</code> then returns true at any context size, and the session compacts after every
+assistant message until the loop guard aborts the run. Full argument:
+<a href="../../concepts/context-windows/#why-raising-reservetokens-is-not-the-answer">Context windows</a>.</p>
+</div>
+<p><code>threshold.ts</code> resolves the reserve exactly the way PI does — compaction event → project settings →
 global settings → PI default — and <strong>carries the source alongside the value</strong>. That is a direct
 consequence of an earlier bug in this repository where a hard-coded PI default was printed as if it
 were a measurement, and the resulting advice would have broken three of five providers. A default
@@ -4499,15 +4590,15 @@ must never again be printed as a measurement.</p>
 <hr />
 <h2 id="digestjson"><code>digest.json</code><a class="headerlink" href="#digestjson" title="Permanent link">&para;</a></h2>
 <p>Read by <a href="../../extensions/digest/"><code>extensions/digest</code></a>. Writes an end-of-session summary.</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">"minTurns"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">"maxTranscriptBytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">"outputDir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"~/.pi/agent/digests"</span><span class="p">,</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">"summarizer"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pi"</span><span class="p">,</span><span class="w"> </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"light"</span><span class="p">,</span><span class="w"> </span><span class="nt">"timeoutMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"digest"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">"minTurns"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">"maxTranscriptBytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">"outputDir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"~/.pi/agent/digests"</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">"summarizer"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pi"</span><span class="p">,</span><span class="w"> </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"light"</span><span class="p">,</span><span class="w"> </span><span class="nt">"timeoutMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">120000</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -4561,7 +4652,7 @@ bound to an expensive model, this is where you will notice. Rebinding <code>ligh
 <hr />
 <h2 id="tasksjson"><code>tasks.json</code><a class="headerlink" href="#tasksjson" title="Permanent link">&para;</a></h2>
 <p>Read by <a href="../../extensions/tasks/"><code>extensions/tasks</code></a>, which sits on top of the task-list package.</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"tasks"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"nudgeEveryTurns"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"staleAfterTurns"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"tasks"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"nudgeEveryTurns"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="nt">"staleAfterTurns"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -4593,15 +4684,15 @@ persisted to disk, so nothing here survives a session.</p>
 a usage endpoint.</p>
 <p><strong>Generated</strong> from the tracked <code>config/quota.default.json</code>; the installer sets <code>enabled</code> from one
 question at the tools step.</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"quota"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">"ttlMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">300000</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">"timeoutMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">"tokenFile"</span><span class="p">:</span><span class="w"> </span><span class="s2">"~/.config/pi/copilot-quota-token.json"</span><span class="p">,</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">"preflight"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"thresholdPct"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"quota"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">"ttlMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">300000</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">"timeoutMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">"tokenFile"</span><span class="p">:</span><span class="w"> </span><span class="s2">"~/.config/pi/copilot-quota-token.json"</span><span class="p">,</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">"preflight"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"thresholdPct"</span><span class="p">:</span><span class="w"> </span><span class="mi">15</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>

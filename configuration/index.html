@@ -4372,6 +4372,11 @@ Fact 2.</p>
 <td><a href="settings/#compaction">settings.json</a> · <a href="../concepts/context-windows/">Context windows</a></td>
 </tr>
 <tr>
+<td>change the declared auto-compact threshold, a flat 200 000 on every model</td>
+<td><code>threshold</code> in <code>config/compaction.json</code></td>
+<td><a href="sessions/#threshold-the-flat-200-000">Session lifecycle</a></td>
+</tr>
+<tr>
 <td>protect more branches from force-push</td>
 <td><code>protectedBranches</code> in <code>config/guard.json</code></td>
 <td><a href="guard/#protectedbranches">guard.json</a></td>
@@ -4540,7 +4545,7 @@ Fact 2.</p>
 <tbody>
 <tr>
 <td><a href="sessions/#compactionjson"><code>compaction.json</code></a></td>
-<td>loop guard, pinned instruction sources, absolute threshold</td>
+<td>loop guard, pinned instruction sources, the flat 200 000 auto-compact threshold</td>
 </tr>
 <tr>
 <td><a href="sessions/#digestjson"><code>digest.json</code></a></td>
