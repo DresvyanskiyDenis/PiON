@@ -51,6 +51,7 @@ import { destructiveGitGate } from "./guard/gates/destructive-git.ts";
 import { privilegedCommandsGate } from "./guard/gates/privileged-commands.ts";
 import { writeSurfaceGate } from "./guard/gates/write-surface.ts";
 import { agentRoutingGate } from "./guard/gates/agent-routing.ts";
+import { registerDenialRenderer } from "./guard/denial-card.ts";
 
 export const id = "guard";
 export const GUARD_VERSION = "2.1.0";
@@ -80,6 +81,11 @@ export function buildRules(policy: Policy, services: GuardServices): GuardRule[]
 }
 
 export function register(pi: ExtensionAPI): void {
+  // The card renders `guard.block` entries this module has already been writing; registering it
+  // first and unconditionally means a session whose policy fails to load below still gets the
+  // card for whatever it blocked before the failure, instead of losing the renderer along with it.
+  registerDenialRenderer(pi);
+
   const policy = loadPolicy();
   const services = defaultServices({ audit: (type, data) => pi.appendEntry(type, data) });
 
