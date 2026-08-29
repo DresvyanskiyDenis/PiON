@@ -170,6 +170,14 @@ export function summarizeSubagentCost(
 }
 
 /**
+ * Dollars at the package's own precision, so every figure this tree prints lines up with the one
+ * the footer prints beside it: two decimals from $1, three below.
+ */
+export function formatUsd(costUsd: number): string {
+  return `$${costUsd.toFixed(costUsd >= 1 ? 2 : 3)}`;
+}
+
+/**
  * Renders the summary, or `undefined` when this session has spawned nothing — an empty statusline
  * slot is the honest display for "no children", and it keeps the segment out of the package's
  * five-status cap on sessions that never fan out.
@@ -197,7 +205,7 @@ export function renderSubagentCost(summary: SubagentCostSummary): string | undef
   if (costUsd === 0 && unknownRuns > 0) {
     money = "+$?";
   } else {
-    money = `+$${costUsd.toFixed(costUsd >= 1 ? 2 : 3)}`;
+    money = `+${formatUsd(costUsd)}`;
     if (unknownRuns > 0) marks.unshift(`?${unknownRuns}`);
   }
   return [money, ...marks].join(" ");
