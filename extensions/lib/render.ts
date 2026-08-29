@@ -35,7 +35,7 @@ export function safeEntryRenderer<T>(owner: string, render: EntryRenderer<T>): E
     try {
       return render(entry, options, theme);
     } catch (err) {
-      process.stderr.write(`[pion] ${owner}: entry renderer failed: ${describeError(err)}\n`);
+      process.stderr.write(`[pi-config] ${owner}: entry renderer failed: ${describeError(err)}\n`);
       return undefined;
     }
   };
