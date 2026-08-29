@@ -282,6 +282,16 @@ const MUTATIONS = [
       );
     },
   },
+  {
+    id: "PC-28",
+    // The exact defect shape (00-postmortem.md \u00a7D4): AGENTS.md asserts a default tier that
+    // config/dispatch.json no longer agrees with. The clean fixture ships no AGENTS.md and no
+    // dispatch.json, so the break adds both.
+    break: (dir) => {
+      writeFileSync(join(dir, "config", "dispatch.json"), JSON.stringify({ defaultTier: "fast" }, null, 2) + "\n");
+      writeFileSync(join(dir, "AGENTS.md"), "Every subagent defaults to the `strong` tier.\n");
+    },
+  },
 ];
 
 describe("each rule fires exactly on its own broken fixture", () => {
@@ -943,6 +953,70 @@ test("PC-26: config widens the scan but cannot silence it", () => {
     const findings = pc26Findings(dir);
     assert.equal(findings.length, 1, `expected one PC-26 finding, got: ${JSON.stringify(findings)}`);
     assert.match(findings[0].message, /carries 0 em dashes but the budget .* is still 4/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------------------
+// 9. PC-28 — routing prose matches config/routing.default.json and config/dispatch.json
+//     (FIX-ROUTING-SINGLE-AUTHORITY). The MUTATIONS entry above proves the exact historical
+//     defect shape fires; these prove the two directions the fix spec calls for by name: a
+//     matching pair passes, and a bare mention of a tier — the false-positive shape the spec
+//     warns a "suppressed rule is worth less than no rule" about — never fires on its own.
+// ---------------------------------------------------------------------------------------
+
+/** The PC-28 findings from an --all run against `dir`. */
+function pc28Findings(dir) {
+  const { json } = runPiCheck(dir);
+  assert.ok(json, "expected valid --json output");
+  return json.findings.filter((f) => f.rule === "PC-28");
+}
+
+test("PC-28: a model:level pairing that matches config/routing.json produces no findings", () => {
+  const dir = freshCopy();
+  try {
+    // Fixture's "strong" tier is acme/gpt-nova at thinkingLevel high — restated exactly.
+    writeFileSync(join(dir, "AGENTS.md"), 'A child carries `model: "acme/gpt-nova:high"`.\n');
+    assert.deepEqual(pc28Findings(dir), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-28: a model:level pairing that disagrees with config/routing.json fires, naming both values", () => {
+  const dir = freshCopy();
+  try {
+    // Fixture's "strong" tier declares thinkingLevel high, not medium.
+    writeFileSync(join(dir, "AGENTS.md"), 'A child carries `model: "acme/gpt-nova:medium"`.\n');
+    const findings = pc28Findings(dir);
+    assert.equal(findings.length, 1, `expected one PC-28 finding, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /pins "acme\/gpt-nova" at thinkingLevel "medium"/);
+    assert.match(findings[0].message, /tier "strong" declares thinkingLevel "high"/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-28: a defaultTier claim that agrees with config/dispatch.json produces no findings", () => {
+  const dir = freshCopy();
+  try {
+    writeFileSync(join(dir, "config", "dispatch.json"), JSON.stringify({ defaultTier: "strong" }, null, 2) + "\n");
+    writeFileSync(join(dir, "AGENTS.md"), "Every subagent defaults to the `strong` tier.\n");
+    assert.deepEqual(pc28Findings(dir), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-28: a bare tier mention, with no model:level pairing and no defaults-to claim, never fires", () => {
+  const dir = freshCopy();
+  try {
+    writeFileSync(
+      join(dir, "AGENTS.md"),
+      "Deviate only consciously: `fast` for a mechanical one-liner, `strong` for hard debugging.\n",
+    );
+    assert.deepEqual(pc28Findings(dir), []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

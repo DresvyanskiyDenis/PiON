@@ -7,7 +7,7 @@ Fast triage. When the answer here is not enough, the long form is on the site:
 
 ```bash
 /doctor                            # inside pi — which modules loaded, which are expected-but-absent
-~/pi-config/bin/pi-check --all     # 27 repository invariants
+~/pi-config/bin/pi-check --all     # 28 repository invariants
 ./scripts/postinstall-verify.sh    # the install layout itself
 ```
 
