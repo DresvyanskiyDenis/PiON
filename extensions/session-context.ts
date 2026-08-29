@@ -1,13 +1,21 @@
 /**
  * EXT-02 — session context.
  *
- * Today's date, the per-session scratchpad directory (created, `0700`), the operator-identity
- * file resolved from an ordered path list with an **announced** miss, project state and git
- * facts — injected into the system prompt exactly once per turn.
+ * Today's date, the per-session scratchpad directory (created, `0700`), the runtime facts the
+ * agent cannot otherwise see (active model, thinking level, context window, subagent default
+ * tier), the operator-identity file resolved from an ordered path list with an **announced**
+ * miss, project state and git facts — injected into the system prompt exactly once per turn.
  *
  * The split is load-bearing, not cosmetic: **all I/O runs in `session_start`**, which fires once
  * per session (plus `reload`/`new`/`resume`/`fork`); **injection runs in `before_agent_start`**,
  * which fires on every user prompt and must therefore touch no disk and spawn no process.
+ *
+ * The one thing read on every prompt is `ctx.model` / `ctx.thinkingLevel`. That is not a
+ * violation of the split: PI resolves both through in-memory getters at call time
+ * (`dist/core/extensions/runner.js` `createContext()`), no file and no process is touched, and
+ * `/model` mid-session would otherwise leave the block asserting a model the session no longer
+ * runs. The config half of `## Runtime` — the subagent default tier — is file-backed and is
+ * therefore resolved once, in `session_start`, like everything else.
  *
  * The Soul boundary is enforced here mechanically. A generic `OPERATOR.md` ships in the repo;
  * a personal overlay lives OUTSIDE the repo at `<configDir>/OPERATOR.local.md`. Any candidate
@@ -26,6 +34,7 @@ import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { mkdir, chmod, open, writeFile } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { loadDispatchSettings, type DispatchSettings } from "./dispatch/config.ts";
 import { configDir, ensureStateRoot, repoRoot } from "./lib/paths.ts";
 import { emitNotice } from "./lib/announce.ts";
 import { describeError, surfaceOnce } from "./lib/once.ts";
@@ -81,6 +90,38 @@ export interface OperatorResolution {
   readonly refusals: readonly string[];
 }
 
+/**
+ * What model this session is actually running, read from the live session runtime.
+ *
+ * Every field is nullable and a null is ALWAYS accompanied by `problem`: an agent that cannot be
+ * told which model it is must be told that, not left to infer one. There is no configured-default
+ * fallback here on purpose — `config/routing.json`'s `strong` tier is what the session was *asked*
+ * to run, which is a different claim from what it *is* running after a `/model`.
+ */
+export interface LiveModel {
+  /** `provider/id`, e.g. `github-copilot/claude-opus-5`. Null when the runtime exposed no model. */
+  readonly model: string | null;
+  readonly thinkingLevel: string | null;
+  readonly contextWindow: number | null;
+  /** Why the fields above are null. Rendered into the block, never swallowed. */
+  readonly problem: string | null;
+}
+
+/** The tier a subagent gets when a dispatch names none — `config/dispatch.json` × `routing.json`. */
+export interface SubagentDefault {
+  readonly tier: string;
+  /** `provider/id` the tier resolves to, or null with a `problem` saying why not. */
+  readonly model: string | null;
+  readonly thinkingLevel: string | null;
+  readonly problem: string | null;
+}
+
+/** The shape `readLiveModel` needs. `ExtensionContext` satisfies it structurally. */
+export interface LiveModelSource {
+  readonly model?: { readonly provider?: string; readonly id?: string; readonly contextWindow?: number };
+  readonly thinkingLevel?: string;
+}
+
 export interface GitFacts {
   readonly branch: string;
   readonly log: string;
@@ -94,6 +135,10 @@ export interface SessionContextState {
   dateKey: string;
   /** Bumped by every `session_start`; part of the render-memo key, so the memo re-arms. */
   readonly epoch: number;
+  /** Refreshed from `ctx` on every prompt — a model switch must not leave a stale claim behind. */
+  live: LiveModel;
+  /** File-backed, so resolved once in `session_start`. */
+  readonly subagent: SubagentDefault;
   readonly operator: OperatorResolution;
   readonly projectState: string;
   readonly architecture: string;
@@ -149,6 +194,8 @@ export function register(pi: ExtensionAPI): void {
           state.dateKey = today;
           renderMemo = null;
         }
+        // In-memory getters only — see the module docstring on why this one read lives here.
+        state.live = readLiveModel(ctx);
         return { systemPrompt: injectOnce(event.systemPrompt, blockFor(state)) };
       } catch (err) {
         // Fail open on an internal error of this module, loudly and exactly once: a bug here
@@ -174,6 +221,7 @@ export function register(pi: ExtensionAPI): void {
       // only input of a `pi -p` invocation never triggers before_agent_start. injectOnce is
       // idempotent, so applying it here yields exactly what the next turn would carry,
       // whether or not a turn has already run.
+      if (state) state.live = readLiveModel(ctx);
       const prompt = state ? injectOnce(ctx.getSystemPrompt(), blockFor(state)) : ctx.getSystemPrompt();
       try {
         await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -229,7 +277,8 @@ export function stripBlock(s: string): string {
 }
 
 function blockFor(s: SessionContextState): string {
-  const key = `${s.epoch}:${s.dateKey}`;
+  const l = s.live;
+  const key = `${s.epoch}:${s.dateKey}:${l.model}:${l.thinkingLevel}:${l.contextWindow}:${l.problem}`;
   if (renderMemo && renderMemo.key === key) return renderMemo.block;
   const block = render(s);
   renderMemo = { key, block };
@@ -272,12 +321,82 @@ export async function collect(
     scratch,
     dateKey: todayKey(),
     epoch: epochValue,
+    live: readLiveModel(ctx),
+    subagent: resolveSubagentDefault(announce),
     operator,
     projectState: capBytes(projectState, MAX_DOC_BYTES, `[truncated to ${MAX_DOC_BYTES} bytes]`),
     architecture: capBytes(architecture, MAX_DOC_BYTES, `[truncated to ${MAX_DOC_BYTES} bytes]`),
     git: await gitFacts(pi, ctx.cwd, announce),
     failure,
   };
+}
+
+/**
+ * The session's own model, thinking level and context window, straight off the live runtime.
+ *
+ * `ctx.model` is `Model<TApi>` from `@earendil-works/pi-ai` — `provider`, `id` and `contextWindow`
+ * are fields on it; `ctx.thinkingLevel` is a sibling getter on `ExtensionContext`. Both are
+ * guarded getters that throw once the runner is torn down, so both are read inside the try and a
+ * throw becomes a rendered `problem` rather than a lost section.
+ */
+export function readLiveModel(ctx: LiveModelSource): LiveModel {
+  try {
+    const model = ctx.model;
+    const level = ctx.thinkingLevel ?? null;
+    if (!model || !model.provider || !model.id) {
+      return {
+        model: null,
+        thinkingLevel: level,
+        contextWindow: null,
+        problem: "the session runtime exposed no active model (ctx.model is undefined)",
+      };
+    }
+    const window = typeof model.contextWindow === "number" && Number.isFinite(model.contextWindow)
+      ? model.contextWindow
+      : null;
+    return {
+      model: `${model.provider}/${model.id}`,
+      thinkingLevel: level,
+      contextWindow: window,
+      problem: window === null ? "the active model declares no context window" : null,
+    };
+  } catch (err) {
+    return {
+      model: null,
+      thinkingLevel: null,
+      contextWindow: null,
+      problem: `the session runtime refused to report its model: ${describeError(err)}`,
+    };
+  }
+}
+
+/**
+ * `config/dispatch.json`'s `defaultTier` resolved through `config/routing.json`'s tier table.
+ *
+ * Synchronous file reads, so this belongs to `session_start` and nowhere else. The tier is
+ * reported even when it does not resolve: "the default tier is `light` and this repo cannot say
+ * what `light` is" is a fact worth injecting, and it is announced as well as rendered.
+ */
+export function resolveSubagentDefault(
+  announce: Announce,
+  settings: DispatchSettings = loadDispatchSettings(),
+): SubagentDefault {
+  const tier = settings.dispatch.defaultTier;
+  const unresolved = (problem: string): SubagentDefault => {
+    announce(`subagent default tier "${tier}" could not be resolved: ${problem}`, "warning");
+    return { tier, model: null, thinkingLevel: null, problem };
+  };
+  if (!settings.routing) {
+    return unresolved(
+      `config/routing.json could not be loaded (${settings.problems.join("; ") || "no reason reported"})`,
+    );
+  }
+  const def = settings.routing.tiers[tier];
+  if (!def) {
+    const known = Object.keys(settings.routing.tiers).join(", ") || "none";
+    return unresolved(`config/routing.json declares no tier "${tier}" (declared: ${known})`);
+  }
+  return { tier, model: def.model, thinkingLevel: def.thinkingLevel ?? null, problem: null };
 }
 
 /**
@@ -411,6 +530,7 @@ export function render(s: SessionContextState): string {
     );
   }
   parts.push(`## Today\n${s.dateKey}`); // REQ-CTX-11
+  parts.push(renderRuntime(s));
   parts.push(
     `## Scratchpad\n${s.scratch}\n` + // REQ-CTX-12
       `This directory exists and is yours for this session. Never write temporary files to /tmp.`,
@@ -419,6 +539,39 @@ export function render(s: SessionContextState): string {
   const project = renderProject(s); // REQ-CTX-14
   if (project) parts.push(project);
   return parts.join("\n\n");
+}
+
+/**
+ * What model this is, how hard it is thinking, how much room it has, and what a subagent gets.
+ *
+ * Every branch renders something. An unresolved model prints `UNRESOLVED` with the reason and an
+ * instruction not to name one from memory — the failure mode this section exists to close is an
+ * agent confidently answering "which model are you" out of its training data, and a silently
+ * omitted section restores exactly that.
+ */
+function renderRuntime(s: SessionContextState): string {
+  const { model, thinkingLevel, contextWindow, problem } = s.live;
+  const level = thinkingLevel ?? "UNRESOLVED";
+  const window = contextWindow === null ? "UNRESOLVED" : `${contextWindow} tokens`;
+  const lines = [`## Runtime`];
+  if (model) {
+    lines.push(`model ${model} · thinking ${level} · context window ${window}`);
+  } else {
+    lines.push(
+      `model UNRESOLVED — ${problem ?? "no reason reported"} · thinking ${level} · context window ${window}`,
+      `Say the model is unknown when asked; never name one from memory.`,
+    );
+  }
+  const sub = s.subagent;
+  lines.push(
+    sub.model
+      ? `Subagent default tier: ${sub.tier} (${sub.model} @ ${sub.thinkingLevel ?? "provider default"}).`
+      : `Subagent default tier: ${sub.tier} — UNRESOLVED: ${sub.problem ?? "no reason reported"}`,
+  );
+  lines.push(
+    `Routing questions are answered from config/models.json and config/routing.json, never from memory.`,
+  );
+  return lines.join("\n");
 }
 
 function renderOperator(op: OperatorResolution): string {

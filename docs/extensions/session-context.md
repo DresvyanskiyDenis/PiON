@@ -1,7 +1,8 @@
-# `session-context` — date, scratchpad, identity, git facts
+# `session-context` — date, runtime, scratchpad, identity, git facts
 
-Injects a small, stable block into the system prompt exactly once per turn: today's date, the
-per-session scratchpad directory, an operator-identity file, project state and git facts.
+Injects a small, stable block into the system prompt exactly once per turn: today's date, which
+model this session is actually running, the per-session scratchpad directory, an operator-identity
+file, project state and git facts.
 
 Registers `/ctx-dump`, which prints what was injected.
 
@@ -15,10 +16,47 @@ Registers `/ctx-dump`, which prints what was injected.
 Getting that backwards puts a `git` invocation and several file reads on the critical path of every
 message you type. It is the single most common performance mistake in an extension of this shape.
 
+The one value read on every prompt is the active model, and that is not an exception to the rule:
+PI resolves it through an in-memory getter, so no file is opened and no process is spawned.
+
 ## Today's date
 
 Cheap and load-bearing. A model's knowledge has a cutoff; it cannot know what today is unless
 something tells it. Every "is this still current?" judgement downstream depends on this line.
+
+## What model this is
+
+A model cannot read its own name plate. Ask an agent which model it is and it answers from training
+data — confidently, and often wrongly, because a harness can point it at something that did not
+exist when it was trained. Worse, it cannot calibrate: how much to attempt in one turn depends on
+the window and the thinking level it is actually running at.
+
+So the block states it:
+
+```text
+## Runtime
+model github-copilot/claude-opus-5 · thinking high · context window 200000 tokens
+Subagent default tier: strong (github-copilot/claude-opus-5 @ high).
+Routing questions are answered from config/models.json and config/routing.json, never from memory.
+```
+
+Model, thinking level and window come from the **live session**, re-read on every prompt, so
+switching model mid-session updates the line instead of leaving a stale claim in the prompt. The
+subagent default tier is file-backed — `config/dispatch.json`'s `defaultTier` resolved through
+`config/routing.json`'s tier table — and is therefore resolved once, in `session_start`, like every
+other read.
+
+!!! warning "The section is never silently omitted"
+    If the runtime exposes no model, or `routing.json` has not been generated yet, the section
+    still renders and names the reason:
+
+    ```text
+    model UNRESOLVED — the session runtime exposed no active model (ctx.model is undefined) · …
+    Subagent default tier: strong — UNRESOLVED: routing.json not found … run scripts/install.sh
+    ```
+
+    A dropped section would put the agent straight back to guessing, which is the failure this
+    exists to close.
 
 ## The scratchpad
 
