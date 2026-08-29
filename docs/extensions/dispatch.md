@@ -192,6 +192,26 @@ take a diagnostic away.
     inspector (`Ctrl+Alt+F`), `/subagents-fleet`, completion notifications and lifecycle events are
     all untouched.
 
+## What a detached child leaves in the session file
+
+A run that was detached or interrupted is still *running* when its result is handed back, and the
+package's own compaction of a finished result bails out on exactly that condition. So those runs —
+and only those — hand the parent the child's live message array inside the tool result's `details`.
+
+That costs nothing at the model: `details` is documented as not sent to the LLM, and the provider
+layer serialises the tool call id, the content and the error flag and reads nothing else. It is
+written verbatim into the session file, though, and `bin/pi-digest-drain` summarises that file **by
+byte count** — the last `maxTranscriptBytes` of it. A child transcript landing there pushes an equal
+number of bytes of real conversation out of the window the summariser is shown, and nothing in the
+resulting [digest](digest.md) says anything is missing.
+
+So the `tool_result` handler drops that array, and **only while the child still says where its full
+record lives** — its `transcriptPath` or its `sessionFile`. When neither survives, the array in hand
+is the only copy of what that child did, and a run that died without writing a transcript is exactly
+the run somebody will want to read; it is kept, and the result is passed on untouched. Nothing else
+is ever removed: the bounded `progress` snapshot, the final output, the error, the tool-call
+summaries and the async run's own `asyncId`/`asyncDir` all ride through as they arrived.
+
 ## Load order
 
 [`guard`](guard.md) **must** load before this module. PI iterates `tool_call` handlers in load order
