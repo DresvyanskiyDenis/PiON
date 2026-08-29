@@ -850,6 +850,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-prompt-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The prompt layer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#which-process-reads-what" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4218,6 +4229,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-prompt-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The prompt layer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#which-process-reads-what" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4296,34 +4318,35 @@ second copy to keep in sync.</p>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── settings.json      -&gt; ~/pi-config/config/settings.json     global agent behaviour
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├── models.json        -&gt; ~/pi-config/config/models.json       providers, credential *references*
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>├── routing.json       -&gt; ~/pi-config/config/routing.json      tiers / egress / concurrency (ours, not PI's)
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── AGENTS.md          -&gt; ~/pi-config/AGENTS.md                the standing instructions
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>├── prompts            -&gt; ~/pi-config/prompts/
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>├── hooks.yaml         -&gt; ~/pi-config/config/hooks.yaml
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>├── web.json           -&gt; ~/pi-config/config/web.json
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>├── web-search.json    -&gt; ~/pi-config/config/web-search.json
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>├── guard.json  mcp.json  digest.json  quota.json              …and the rest of config/, one link each
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>├── path-defaults.json  trusted-roots.json  pi-lsp.json
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>├── keybindings.json  pi-statusline.json
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>├── extensions/subagent/config.json -&gt; ~/pi-config/config/subagent.json   the ONE nested link — see below
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>├── agents             -&gt; ~/pi-config/agents/                  sub-agent definitions
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>├── agents-private     -&gt; ~/pi-config/agents-private/          yours, git-ignored (if it exists)
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>├── auth.json                                                  0600, written by /login — never committed
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── trust.json                                                 PI's own project-trust decisions
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>├── install-manifest.tsv                                       what the installer created; uninstall reads it
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>├── provider-notes.md                                          why your models.json looks the way it does
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>└── sessions/  models-store.json                               PI-owned, never linked
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>~/bin/
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>├── pi-run          -&gt; ~/pi-config/bin/pi-run                the fail-closed headless wrapper
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>├── pi-check        -&gt; ~/pi-config/bin/pi-check              offline config rules
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>├── pi-tier         -&gt; ~/pi-config/config/bin/pi-tier        tier -&gt; provider/model-id
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>└── mcp-stdio-guard -&gt; ~/pi-config/config/bin/mcp-stdio-guard
-</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
-</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>~/.pi/secrets.env                    0600, git-ignored, NOT in the repo
-</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>~/.local/state/pi-config/            (or $XDG_STATE_HOME/pi-config) runtime state — see below
-</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
-</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>&lt;project&gt;/.pi/settings.json          deep-merged OVER global, only after the project is trusted
-</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>&lt;project&gt;/.pi/hooks.yaml             merged after the global hooks, only when trusted
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>├── SYSTEM.md          -&gt; ~/pi-config/SYSTEM.md                the system prompt (replaces PI's own)
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>├── AGENTS.md          -&gt; ~/pi-config/AGENTS.md                the standing instructions
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>├── prompts            -&gt; ~/pi-config/prompts/
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>├── hooks.yaml         -&gt; ~/pi-config/config/hooks.yaml
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>├── web.json           -&gt; ~/pi-config/config/web.json
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>├── web-search.json    -&gt; ~/pi-config/config/web-search.json
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>├── guard.json  mcp.json  digest.json  quota.json              …and the rest of config/, one link each
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>├── path-defaults.json  trusted-roots.json  pi-lsp.json
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>├── keybindings.json  pi-statusline.json
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>├── extensions/subagent/config.json -&gt; ~/pi-config/config/subagent.json   the ONE nested link — see below
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>├── agents             -&gt; ~/pi-config/agents/                  sub-agent definitions
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>├── agents-private     -&gt; ~/pi-config/agents-private/          yours, git-ignored (if it exists)
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>├── auth.json                                                  0600, written by /login — never committed
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>├── trust.json                                                 PI's own project-trust decisions
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>├── install-manifest.tsv                                       what the installer created; uninstall reads it
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>├── provider-notes.md                                          why your models.json looks the way it does
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>└── sessions/  models-store.json                               PI-owned, never linked
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>~/bin/
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>├── pi-run          -&gt; ~/pi-config/bin/pi-run                the fail-closed headless wrapper
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>├── pi-check        -&gt; ~/pi-config/bin/pi-check              offline config rules
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>├── pi-tier         -&gt; ~/pi-config/config/bin/pi-tier        tier -&gt; provider/model-id
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>└── mcp-stdio-guard -&gt; ~/pi-config/config/bin/mcp-stdio-guard
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>~/.pi/secrets.env                    0600, git-ignored, NOT in the repo
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>~/.local/state/pi-config/            (or $XDG_STATE_HOME/pi-config) runtime state — see below
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>&lt;project&gt;/.pi/settings.json          deep-merged OVER global, only after the project is trusted
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>&lt;project&gt;/.pi/hooks.yaml             merged after the global hooks, only when trusted
 </span></code></pre></div>
 <p><code>~/pi-config</code> is a <em>stable symlink</em> to wherever you actually cloned, created by the installer. Every
 link above goes through it, and so do <code>config/settings.json</code>'s own <code>extensions</code> and <code>packages</code>
@@ -4345,6 +4368,49 @@ directory itself is the one place your own skills go: it is git-ignored, and the
 links it to <code>~/.pi/agent/skills</code>, the single search path <code>settings.json</code> names. See
 <a href="../../extending/skills/">Writing a skill</a>.</p>
 </div>
+<h2 id="the-prompt-layer">The prompt layer<a class="headerlink" href="#the-prompt-layer" title="Permanent link">&para;</a></h2>
+<p>Three of the links above feed the system prompt, and they are not interchangeable.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What PI does with it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SYSTEM.md</code></td>
+<td><strong>Replaces</strong> PI's built-in base prompt. Looked up as <code>&lt;project&gt;/.pi/SYSTEM.md</code> first — only in a trusted project — then <code>~/.pi/agent/SYSTEM.md</code></td>
+</tr>
+<tr>
+<td><code>APPEND_SYSTEM.md</code></td>
+<td><strong>Appends</strong> to whichever base is in force. Same two-step lookup. Not tracked: the row is <code>optional</code>, and a fork adds <code>config/APPEND_SYSTEM.md</code> if it wants one</td>
+</tr>
+<tr>
+<td><code>AGENTS.md</code></td>
+<td>Arrives further down, quoted inside a <code>&lt;project_context&gt;</code> block as <em>project-specific instructions</em>. Reference material, not identity</td>
+</tr>
+</tbody>
+</table>
+<p><code>SYSTEM.md</code> ships populated, and what it says is deliberately narrow: how to work — act, delegate,
+verify, report, disagree, and which tool to use for what. Anything true of one machine rather than
+of the job belongs in <code>AGENTS.md</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">A custom base prompt silently drops PI's <code>Guidelines:</code> section</p>
+<p>When <code>SYSTEM.md</code> is present, PI takes a different branch when it assembles the prompt: it emits
+neither the <code>Available tools:</code> summary nor the <code>Guidelines:</code> section that each tool contributes
+through its <code>promptGuidelines</code>. Losing the tools summary costs nothing — the full tool schemas
+still reach the provider, and the summary was only a list of names. Losing <code>Guidelines:</code> costs
+real behaviour: <code>edit</code>'s exact-match rules, <code>read</code>'s "use the tool, not <code>cat</code>", <code>write</code>'s
+"new files or complete rewrites only" and the todo package's task discipline all disappear with
+it. The shipped <code>SYSTEM.md</code> restates every one of them in its <code># Tools</code> section. <strong>If you
+rewrite that section, keep them</strong>, or upgrade a package that adds a guideline and re-read what
+it now contributes — nothing compares the two.</p>
+<p>The parts that are <em>not</em> dropped: context files, the skills catalogue and the working-directory
+line are appended on both branches.</p>
+</div>
+<p>Changing any of these three takes effect on the next <code>pi</code> start. The prompt is assembled once, at
+session start.</p>
 <h2 id="which-process-reads-what">Which process reads what<a class="headerlink" href="#which-process-reads-what" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
     subgraph repo["your clone"]
