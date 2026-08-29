@@ -1,15 +1,16 @@
 /**
- * Two small guards that every custom entry renderer in this repository ends up needing, because
- * PI's host API gives an extension the hook (`registerEntryRenderer`) but not the safety net
- * around it.
+ * Two small guards for custom entry renderers. Neither is a safety net against a crash — PI
+ * already has one — and it is worth being exact about what they do instead.
  *
- * WHY A WRAPPER AROUND A RENDERER AT ALL. A registered renderer runs inside PI's transcript
- * paint, once per repaint of every entry currently on screen. If it throws, the throw happens on
- * that repaint — not once, but on every subsequent redraw of a scrollback the operator cannot
- * scroll away from without ending the session. PI's own behaviour for a renderer that returns
- * `undefined` is graceful (it falls back to a generic view of the entry), so the fix is to make
- * "renderer throws" behave like "renderer returned nothing": log once to stderr and let the
- * fallback take over, rather than let one extension's bug take the whole transcript down.
+ * WHY A WRAPPER AROUND A RENDERER AT ALL. PI does catch: `custom-entry.js` invokes a registered
+ * renderer inside a try/catch and, on a throw, paints a themed error box reading
+ * `[<customType>] renderer failed: <message>`. So a throwing renderer never takes the session
+ * down. What it does do is leave that error box in the transcript, repainted on every redraw of
+ * a scrollback the operator cannot scroll past without ending the session, with the message
+ * visible only there. PI's behaviour for a renderer that returns `undefined` is nicer: it falls
+ * back to a generic view of the entry. This wrapper converts "renderer throws" into "renderer
+ * returned nothing" — the generic fallback in the transcript, and the error written once to
+ * stderr where it can be read after the fact.
  *
  * WHY `keyHintOr`. PI's `keyHint()` reads the process-wide interactive theme and throws
  * `Theme not initialized` when no theme has been set up — which is the normal state outside an
