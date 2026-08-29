@@ -3113,6 +3113,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="3. Pinned-block regeneration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#facts-and-why-they-need-the-same-treatment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Facts, and why they need the same treatment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-fact-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fact tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4282,6 +4310,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="3. Pinned-block regeneration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#facts-and-why-they-need-the-same-treatment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Facts, and why they need the same treatment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-fact-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fact tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4363,7 +4419,7 @@
 <p>Four parts, in the order they matter. Configured by
 <a href="../../configuration/sessions/#compactionjson"><code>config/compaction.json</code></a>; PI's own three keys are in
 <a href="../../configuration/settings/#compaction"><code>settings.json</code></a>.</p>
-<p>Registers <code>/compaction-status</code> and <code>/autocompact</code>.</p>
+<p>Registers <code>/compaction-status</code>, <code>/autocompact</code> and the <code>fact</code> tool.</p>
 <h2 id="1-the-loop-guard">1. The loop guard<a class="headerlink" href="#1-the-loop-guard" title="Permanent link">&para;</a></h2>
 <p>N consecutive non-reducing automatic compaction passes abort the run with a typed error. Shipped:
 three passes, a 15 % minimum reduction ratio, and a minimum gap of two entries between passes.</p>
@@ -4380,6 +4436,45 @@ rewrites the transcript, and a region you asked it not to touch is a request, no
 Regenerating is a guarantee.</p>
 <p>Capped at 4 KB per source and 16 KB total, because the budget being re-spent is the one compaction
 just reclaimed.</p>
+<h3 id="facts-and-why-they-need-the-same-treatment">Facts, and why they need the same treatment<a class="headerlink" href="#facts-and-why-they-need-the-same-treatment" title="Permanent link">&para;</a></h3>
+<p>Regeneration covers what the project <em>declares</em>. Nothing covered what the session <em>learned</em>, and
+that gap is not symmetric with the first: an instruction file is re-read from disk on every pass and
+so survives indefinitely, while a discovery lives only inside the summary — and each compaction
+summarises the previous summary rather than the original dialogue. Detail does not fade linearly
+under that arrangement, it fades geometrically, and it fades in one direction. A long session ends
+up holding its rules perfectly and its results barely at all.</p>
+<p>The symptom is an agent paying twice. The base URL that was confirmed by hand in the first hour is
+gone by the ninth compaction, so it gets confirmed again — another request, another remote run,
+another round of the operator repeating a correction he already gave.</p>
+<p><code>facts</code> applies regeneration to a second source. <code>extensions/compaction/facts.ts</code> owns an
+append-only Markdown file, one fact per line carrying an ISO timestamp, the fact, and how it was
+established. It is restated after each compaction beside the pinned block.</p>
+<p>The file is a sibling of the session transcript under the agent directory, and that single choice
+buys three properties that are each requirements rather than conveniences:</p>
+<ul>
+<li><strong>Outside every working tree.</strong> It cannot be committed by accident, which matters because facts
+  are exactly the content that quotes hostnames, identifiers and raw error bodies.</li>
+<li><strong>Keyed by session id.</strong> A parent and its subagent, or two terminals in one project, cannot write
+  into each other's file.</li>
+<li><strong>Session-scoped.</strong> It dies with the session. This is not a memory system: no store, no index, no
+  retrieval, nothing accumulating across sessions for nobody to curate.</li>
+</ul>
+<p>Both caps — 40 entries and 8 KB, in
+<a href="../../configuration/sessions/#pinnedfacts-what-the-session-learned"><code>compaction.json</code></a> — are applied
+on every read, oldest first, and the block states how many entries were dropped and names the file
+holding the rest. A silently shortened list is worse than no list, because it reads as complete and
+its absences then look like evidence.</p>
+<h3 id="the-fact-tool">The <code>fact</code> tool<a class="headerlink" href="#the-fact-tool" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>fact(fact: "…", provenance: "…")
+</span></code></pre></div>
+<p><code>provenance</code> is optional in the schema and effectively mandatory in practice: a fact without it is
+recorded as <code>not stated</code>, and a later turn that cannot tell a verified thing from an assumed one
+will re-derive it anyway. Pass the command that proved it, a <code>file:line</code>, a run id, or
+<code>"operator correction"</code>.</p>
+<p>It is a tool rather than an instruction to keep a notes file by hand because hand-editing is the
+step that gets skipped under time pressure — and time pressure is exactly the condition under which
+a fact was expensive enough to be worth keeping. <code>SYSTEM.md</code> carries the doctrine that makes it
+fire, which is the load-bearing half: the mechanism without it is a tool nobody calls.</p>
 <h2 id="4-threshold-reporting">4. Threshold reporting<a class="headerlink" href="#4-threshold-reporting" title="Permanent link">&para;</a></h2>
 <p>The declared threshold is a <strong>flat 200 000 tokens on every model</strong>. <code>session_start</code> puts it in
 force and prints one line — <code>auto-compact: 200K tokens</code> — writing <code>config/compaction.json</code> only

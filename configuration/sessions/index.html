@@ -1561,6 +1561,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pinnedfacts-what-the-session-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pinned.facts — what the session learned
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#threshold-the-flat-200-000" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4291,6 +4302,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pinnedfacts-what-the-session-learned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pinned.facts — what the session learned
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#threshold-the-flat-200-000" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4396,11 +4418,12 @@ configures the loop guard, the pinned-instruction re-injection, and the advisory
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">      </span><span class="nt">"sources"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"AGENTS.md"</span><span class="p">,</span><span class="w"> </span><span class="s2">"CLAUDE.md"</span><span class="p">],</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">"maxBytesPerSource"</span><span class="p">:</span><span class="w"> </span><span class="mi">4096</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">"maxTotalBytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">}</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">"maxTotalBytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">16384</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">"facts"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxEntries"</span><span class="p">:</span><span class="w"> </span><span class="mi">40</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxBytes"</span><span class="p">:</span><span class="w"> </span><span class="mi">8000</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="loopguard"><code>loopGuard</code><a class="headerlink" href="#loopguard" title="Permanent link">&para;</a></h3>
 <p>The failure this exists for: compaction fires, reclaims almost nothing, and fires again — forever,
@@ -4484,6 +4507,50 @@ had absorbed from <code>AGENTS.md</code>. <code>pinned</code> re-injects those s
 <p><strong>What breaks:</strong> raising the caps eats the budget compaction just reclaimed. If your <code>AGENTS.md</code> is
 larger than 4 KB, the right fix is a shorter <code>AGENTS.md</code> — everything past the cap was not
 surviving compaction anyway.</p>
+<h3 id="pinnedfacts-what-the-session-learned"><code>pinned.facts</code> — what the session learned<a class="headerlink" href="#pinnedfacts-what-the-session-learned" title="Permanent link">&para;</a></h3>
+<p><code>sources</code> re-injects what the project <em>declares</em>. <code>facts</code> re-injects what the session <em>established</em>,
+and it exists because the two decay at completely different rates. An instruction file is re-read
+from disk every pass, so it survives forever. A discovery lives only in the summary, and the next
+compaction summarises that summary rather than the dialogue — so findings fade geometrically while
+doctrine does not, and a long session ends up knowing its rules and not its results.</p>
+<p>The <a href="../../extensions/compaction/#the-fact-tool"><code>fact</code></a> tool appends one line to a session-scoped
+Markdown file; the file is re-read and restated after every compaction, exactly like <code>AGENTS.md</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Ships</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>true</code></td>
+<td><code>false</code> unregisters the <code>fact</code> tool and restates nothing</td>
+</tr>
+<tr>
+<td><code>maxEntries</code></td>
+<td><code>40</code></td>
+<td>Newest 40 entries are restated</td>
+</tr>
+<tr>
+<td><code>maxBytes</code></td>
+<td><code>8000</code></td>
+<td>Applied after <code>maxEntries</code>, dropping from the oldest end</td>
+</tr>
+</tbody>
+</table>
+<p>Both caps are enforced on every read and the block states how many entries it dropped and where the
+rest are. That marker is load-bearing: a list quietly cut to fit looks complete, so its <em>absences</em>
+get read as evidence that something was never established — which sends the agent off to establish
+it again, at whatever it cost the first time.</p>
+<p>Omitting the key entirely changes nothing. The defaults above apply, and a session that never calls
+the tool has no file, so nothing is restated.</p>
+<p><strong>What breaks:</strong> nothing on disk in your project. The file is a sibling of the session transcript
+under the agent directory, so it cannot be committed, cannot collide with another session, and is
+deleted along with the session. If you want cross-session memory, this is not it and is not meant
+to become it.</p>
 <h3 id="threshold-the-flat-200-000"><code>threshold</code> — the flat 200 000<a class="headerlink" href="#threshold-the-flat-200-000" title="Permanent link">&para;</a></h3>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">"threshold"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"absoluteTokens"</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">"toleranceRatio"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.2</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
