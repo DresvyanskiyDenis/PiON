@@ -91,6 +91,7 @@ import {
 } from "./catalogue.ts";
 import { requestedLevel, splitThinkingSuffix } from "./thinking.ts";
 import { reorderResultContent } from "./failure-slot.ts";
+import { slimDispatchDetails } from "./result-slim.ts";
 import {
   createAsyncFleet,
   formatAnnouncement,
@@ -252,12 +253,20 @@ export function register(pi: ExtensionAPI): void {
     }
   });
 
+  // Two edits to a finished dispatch, both of which need the one PI event documented to modify a
+  // result — `tool_execution_end` above is notification-only and cannot.
+  //
   // The failure slot. `pi-subagents` hands the parent the child's WHOLE stderr tail as the run's
   // error text, so a classified provider abort ends up underneath whichever extension announced
   // itself first at the child's session_start. This reorders that one text part — nothing is
-  // dropped, filtered or shortened; see `failure-slot.ts`. `tool_result` is used because it is the
-  // only PI event documented to modify a result; `tool_execution_end` above is notification-only
-  // and cannot.
+  // dropped, filtered or shortened; see `failure-slot.ts`.
+  //
+  // The transcript slot. A detached or interrupted child slips past the package's own
+  // `compactForegroundDetails` and carries its live `messages` array into `details`, which is
+  // written verbatim to the session JSONL that `bin/pi-digest-drain` slices BY BYTES and feeds to a
+  // summariser. It costs no provider tokens — `details` never reaches the model — but it evicts
+  // real conversation from that slice. Dropped only while the child still names where its full
+  // record lives; see `result-slim.ts` for the measurement and for the case it refuses.
   //
   // The return type is inferred rather than annotated: PI's `ToolResultEventResult` type is not
   // re-exported from the package root as of 0.84.0, unlike its `ToolCallEventResult` sibling.
@@ -267,11 +276,14 @@ export function register(pi: ExtensionAPI): void {
     try {
       if (!state.settings.dispatch.dispatchTools.includes(event.toolName)) return undefined;
       const content = reorderResultContent(event.content);
-      if (content === undefined) return undefined;
-      // `content` only. `details` carries the async run's own metadata (`noteAsyncSpawn` reads
-      // it), and `isError` is the runner's own verdict — neither is ours to restate, and this
-      // change is about ordering, not about re-judging the run.
-      return { content };
+      // `isError` is the runner's own verdict and is never restated: this handler reorders text and
+      // drops a transcript the child already wrote to disk, and neither re-judges the run.
+      // `details` is patched only when a child carried a droppable `messages` array — the async
+      // run's own metadata (`asyncId`, `asyncDir`, which `noteAsyncSpawn` reads) and every other
+      // field are copied through untouched.
+      const details = slimDispatchDetails(event.details);
+      if (content === undefined && details === undefined) return undefined;
+      return { ...(content !== undefined ? { content } : {}), ...(details !== undefined ? { details } : {}) };
     } catch (err) {
       surfaceOnce(undefined, "dispatch:failure-slot", () => {
         pi.appendEntry("dispatch_problem", { phase: "failure-slot", problem: describeError(err) });
