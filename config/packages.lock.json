@@ -55,34 +55,6 @@
       "vendor": false
     },
     {
-      "name": "pi-web-search",
-      "version": "1.3.1",
-      "tarball": "https://registry.npmjs.org/pi-web-search/-/pi-web-search-1.3.1.tgz",
-      "sha256": "d7bf017acbe0d0294d8a4a86cf0cc4dcafe366272f346499a28fbd45ef4008ab",
-      "npm_dist_shasum_sha1": "45d28ffc5bccf0b8eef28cb8d76411e32f9e6f5c",
-      "license": "MIT",
-      "repository": "https://github.com/ttttmr/pi-web-search",
-      "reviewed": "2026-08-06",
-      "status": "adopted-conditional",
-      "role": "EXT-07 web (enterprise profile)",
-      "vendor": false,
-      "licenseTextShipped": false,
-      "licenseTextNote": "declared-but-textless licence: the package excludes its LICENSE via package.json `files`. docs/PACKAGES.md trap 2 reviewed and accepted this on 2026-08-06. Recorded here because PC-17's title is \"ships a licence file (or the ledger says why not)\" and this is the ledger saying why not."
-    },
-    {
-      "name": "@99percentpeople/pi-background-tasks",
-      "version": "2.0.0",
-      "tarball": "https://registry.npmjs.org/@99percentpeople/pi-background-tasks/-/pi-background-tasks-2.0.0.tgz",
-      "sha256": "2221dbdb58b53ea812c2fbbaacdfa4dfa8ae420972f275c6ff0704d1585c7907",
-      "npm_dist_shasum_sha1": "5cf8beadb397efbb0125c7155063d0f31b3a3b8f",
-      "license": "MIT",
-      "repository": "https://github.com/99percentpeople/pi-extensions",
-      "reviewed": "2026-08-06",
-      "status": "adopted-hardened",
-      "role": "EXT-24 bash face",
-      "vendor": false
-    },
-    {
       "name": "@mrclrchtr/supi-bash-timeout",
       "version": "4.6.0",
       "tarball": "https://registry.npmjs.org/@mrclrchtr/supi-bash-timeout/-/supi-bash-timeout-4.6.0.tgz",
@@ -137,19 +109,6 @@
       "vendor": false
     },
     {
-      "name": "pi-hashline-edit-pro",
-      "version": "1.1.0",
-      "tarball": "https://registry.npmjs.org/pi-hashline-edit-pro/-/pi-hashline-edit-pro-1.1.0.tgz",
-      "sha256": "37a4e1abc66191300cd7e5c646a6ef5fa87be1fed224bdf00229eb3c3b8fcd68",
-      "npm_dist_shasum_sha1": "96e525ede6d0cf1a7a61d087bf64adac3da0abfe",
-      "license": "MIT",
-      "repository": "https://github.com/YuGiMob/pi-hashline-edit-pro",
-      "reviewed": "2026-08-06",
-      "status": "adopted-trial",
-      "role": "EXT-19t edit trial",
-      "vendor": false
-    },
-    {
       "name": "@narumitw/pi-worktree",
       "version": "0.49.3",
       "tarball": "https://registry.npmjs.org/@narumitw/pi-worktree/-/pi-worktree-0.49.3.tgz",
@@ -175,32 +134,6 @@
       "role": "W3-LSP language-server diagnostics",
       "vendor": false,
       "pinNote": "Adoption notes carried a 1.4.2 pin for this package. That version does not exist \u2014 `npm view @narumitw/pi-lsp versions` tops out at 0.49.4 (checked 2026-08-07). Pinned to 0.49.3 instead, matching the sibling pins for @narumitw/pi-usage and @narumitw/pi-worktree."
-    },
-    {
-      "name": "@nklisch/pi-plugins",
-      "version": "0.3.3",
-      "tarball": "https://registry.npmjs.org/@nklisch/pi-plugins/-/pi-plugins-0.3.3.tgz",
-      "sha256": "e88f68b217244352237bd81dc368851854136f66b1a0a9de55b906a5bfb781ff",
-      "npm_dist_shasum_sha1": "a605ac51884eb9a23374c2a179a00188a28eec6e",
-      "license": "MIT",
-      "repository": "https://github.com/nklisch/pi-extensions",
-      "reviewed": "2026-08-06",
-      "status": "adopted-hardened",
-      "role": "package lifecycle (not the install path)",
-      "vendor": false
-    },
-    {
-      "name": "pi-smart-compact",
-      "version": "7.22.0",
-      "tarball": "https://registry.npmjs.org/pi-smart-compact/-/pi-smart-compact-7.22.0.tgz",
-      "sha256": "ed0b77491b7207eec0e356bb2bf8890d1278c3a7f61782d2f39d2448be3663ac",
-      "npm_dist_shasum_sha1": "484d8f500a6f6aca629e509bb3ad26b2540ad61a",
-      "license": "MIT",
-      "repository": "https://github.com/alpertarhan/pi-smart-compact",
-      "reviewed": "2026-08-06",
-      "status": "adopted-optional",
-      "role": "compaction summary quality",
-      "vendor": false
     },
     {
       "name": "pi-hermes-memory",
@@ -229,19 +162,6 @@
       "vendor": false,
       "licenseTextShipped": false,
       "licenseTextNote": "declared-but-textless licence: the package excludes its LICENSE via package.json `files`. docs/PACKAGES.md trap 2 reviewed and accepted this on 2026-08-06. Recorded here because PC-17's title is \"ships a licence file (or the ledger says why not)\" and this is the ledger saying why not."
-    },
-    {
-      "name": "pi-opa-net",
-      "version": "0.6.0",
-      "tarball": "https://registry.npmjs.org/pi-opa-net/-/pi-opa-net-0.6.0.tgz",
-      "sha256": "075b000cf64c98b5a8ef43fcc649149ade6aec3f8007e4764f378da5b88b2672",
-      "npm_dist_shasum_sha1": "20adc0bea71c1a12ebac7cb8d88872e219a3f9e1",
-      "license": "MIT",
-      "repository": "https://github.com/buihongduc132/pi-opa-net",
-      "reviewed": "2026-08-06",
-      "status": "adopted-conditional",
-      "role": "OPA policy engine",
-      "vendor": false
     }
   ],
   "transitive_pins": [
@@ -283,12 +203,42 @@
       "name": "pi-llama-cpp",
       "version": "0.9.1",
       "reason": "Reviewed and adopted 2026-08-06 for the EXT-13 local lane, then made moot: owner decision, 2026-08-15, the provider set is exactly github-copilot, an OpenAI-compatible gateway and databricks, and the whole local-model-server lane is deleted. The package served nothing else - it never registered the provider id `local` (its own prefix is `llama-server`, its default port :8080) and nothing in extensions/ ever imported it. Uninstalled 2026-08-15 rather than left pinned-but-dead. A model server on loopback is still reachable through config/providers/openai-compatible.json, which needs no package at all. Re-adopting it needs a fresh review AND a provider to adopt it for."
+    },
+    {
+      "name": "pi-hashline-edit-pro",
+      "version": "1.1.0",
+      "reason": "Uninstalled 2026-08-29, dead-dependency sweep. Adopted 2026-08-06 as the EXT-19t edit trial; the trial never ran - it was never added to config/settings.default.json's packages[], which is the only load list, and nothing under extensions/ ever imported it, so PI never loaded it. docs/limitations.md records that it cannot load under the Bun runtime `pi` ships as (`No such built-in module: node:sqlite`), so wiring it was never an option either. It also carries its own typebox as a regular dependency, which would put two typebox realms in one process. Re-adopting it needs a fresh review AND an actual trial to adopt it for."
+    },
+    {
+      "name": "pi-opa-net",
+      "version": "0.6.0",
+      "reason": "Uninstalled 2026-08-29, dead-dependency sweep. Adopted-conditional 2026-08-06 for an OPA policy engine that needs an external `opa` binary this harness does not ship and does not require; never in config/settings.default.json's packages[], never imported. The deny path is EXT-15's own hook layer, which is custom and fails closed - see docs/DENYLIST.md's `pi-yaml-hooks` row for why that is deliberate. docs/limitations.md records it aborting startup outright when wired (`undefined is not an object (evaluating '_index.default')`), a packaging bug on its side, so its fail-mode polarity was never exercised here."
+    },
+    {
+      "name": "pi-smart-compact",
+      "version": "7.22.0",
+      "reason": "Uninstalled 2026-08-29, dead-dependency sweep. docs/PACKAGES.md already carried it as adopted-optional and not wired: never in config/settings.default.json's packages[], never imported. EXT-11 did not adopt it on the merits - it competes on summary quality, which is not the requirement, and implements no compaction loop guard, which is. docs/limitations.md records that it cannot load under the Bun runtime `pi` ships as (`NameTooLong while resolving package 'data:text/javascript;base64,...'`). No `smartCompact` key was ever shipped in config/settings.default.json, so nothing was left behind by removing it."
+    },
+    {
+      "name": "pi-web-search",
+      "version": "1.3.1",
+      "reason": "Uninstalled 2026-08-29, dead-dependency sweep, on the licence ground docs/DENYLIST.md names first: it declares MIT and ships no licence text anywhere, so a tree that redistributes it redistributes an unlicensed copy. It was carried here with `licenseTextShipped: false` - the ledger acknowledgement PC-17 accepts - which is defensible for a package that earns its place and indefensible for one that never loaded. It never did: not in config/settings.default.json's packages[], never imported, and docs/limitations.md records that wiring it is impossible anyway because its `web_search` tool name collides with the adopted pi-web-access. Nothing is lost: pi-web-access serves `web_search`/`web_fetch` and extensions/web/answer.ts serves `web_answer` off the same backend."
+    },
+    {
+      "name": "@99percentpeople/pi-background-tasks",
+      "version": "2.0.0",
+      "reason": "Uninstalled 2026-08-29, dead-dependency sweep. Adopted-hardened 2026-08-06 as the bash face of background work; never wired - not in config/settings.default.json's packages[], and the only references under extensions/jobs were prose. EXT-24 shipped its own cross-session job directory instead, precisely because this package (like pi-subagents' async runs) is session-scoped and its work dies with the process that started it. docs/limitations.md also records it failing to load under Bun (`Cannot find module '@xterm/headless'`)."
+    },
+    {
+      "name": "@nklisch/pi-plugins",
+      "version": "0.3.3",
+      "reason": "Uninstalled 2026-08-29, dead-dependency sweep. It could never have loaded here: `engines.node` is >= 24 against this repository's floor of 22.19.0, and docs/limitations.md records the Bun failure too (`No such built-in module: node:sqlite`). It was never in config/settings.default.json's packages[] and docs/PACKAGES.md already recorded it as not this repository's install path. It also dragged in two unreviewed forks that appear in no ledger here (@nklisch/pi-subagents 18.1.0-nklisch.0, @nklisch/pi-mcp-adapter 2.20.1-nklisch.0)."
     }
   ],
   "sha256_method": "npm pack --ignore-scripts, then shasum -a 256 on the resulting tarball. The npm_dist_shasum_sha1 field is npm's own SHA-1 and is recorded only as a cross-check.",
   "counts": {
-    "adopted": 20,
+    "adopted": 12,
     "transitive_pins": 2,
-    "not_installed": 3
+    "not_installed": 9
   }
 }

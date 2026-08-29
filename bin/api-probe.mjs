@@ -194,9 +194,8 @@ function extractInstalledSurface(pkgDir) {
  * Not all of them belong to PI core. PI's SettingsManager JSON.parses settings.json verbatim,
  * applies a small key migration and keeps every unrecognised key (dist/core/settings-manager.js
  * loadFromStorage/migrateSettings — there is no schema strip), and installed PI packages read
- * their own top-level key straight off that object: `pi-smart-compact` reads `smartCompact`,
- * for instance. A key PI's own `Settings` interface never declares is therefore normal, not an
- * error — see the partition in probeCurrent().
+ * their own top-level key straight off that object. A key PI's own `Settings` interface never
+ * declares is therefore normal, not an error — see the partition in probeCurrent().
  */
 function readDependedSettingsKeys(repoRoot) {
   const path = join(repoRoot, "config", "settings.json");

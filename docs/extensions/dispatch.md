@@ -122,9 +122,9 @@ and the model are reading different lists, the one nobody can see is the one tha
 The announcement above is written for the model. It fires once per run, and only after the run is
 over — so it is not the surface that answers *"is anything still running?"*.
 
-In the TUI, a panel above the editor carries that: every async run this session started, with the
-state its own `status.json` reports right now, present exactly while at least one run is tracked and
-gone the moment none is.
+In the TUI, a panel above the editor carries that: every async run this session is still tracking,
+with the state its own `status.json` reports right now, present exactly while at least one run is
+tracked and gone the moment none is.
 
 ```
 async subagents — 1 running · 1 done · 1 needs attention
@@ -139,10 +139,9 @@ quantised the palette. `NEVER STARTED` is the case only this module can report �
 handed back an id for and then never recorded a start for, which a fleet view built on the
 package's own run list cannot show, because the run never registered.
 
-`/agents` is unchanged. It carries the dispatch registry as well — what *can* be dispatched, on what
-model — which is a catalogue, not live state, and would be wrong as a permanent panel; and it is the
-only fleet surface that exists outside the TUI. The panel makes the common case free; it does not
-take a diagnostic away.
+`/agents` prints the same verdicts outside the TUI. It carries the dispatch registry as well — what
+*can* be dispatched, on what model — which is a catalogue, not live state, and would be wrong as a
+permanent panel. The panel makes the common case free; it does not take a diagnostic away.
 
 !!! note "Why it polls, and what that costs"
     The state lives on disk and changes with no event reaching the process: a run completes while
@@ -152,12 +151,41 @@ take a diagnostic away.
 
     So there is one interval — one `readFileSync` per tracked run per second — and it exists only
     while a run is tracked. It is `unref()`d, so it can never hold the process open; it stops itself
-    on the first tick that finds nothing to show; and it is torn down at session shutdown. The tests
+    on the first tick that finds nothing to show; and it is torn down at session shutdown. That
+    middle bound was unreachable until the fleet learned to retire what it had reported — with
+    nothing ever removed, a session was never empty again after its first async run — which is why
+    the tick runs the retirement sweep itself: the poll is the only thing still ticking once a
+    session goes idle, so it is the only place that can retire the last settled run. The tests
     wrap `setInterval`/`clearInterval` and require zero timers created outside the TUI, zero while
     the fleet is empty, exactly one across repeated refreshes, and zero still open afterwards.
 
     Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
     `hasUI` — `hasUI` is true in RPC mode too, where there is no editor for a widget to sit above.
+
+!!! note "It is a display, not a control, and `/compact` does not change that"
+    Reported as "after `/compact` the panel is still displayed but the down arrow no longer selects
+    the async runs", with a prescribed fix of repainting the panel from a `session_compact` handler.
+    Both halves are wrong, and no code change was warranted.
+
+    The panel has never been selectable, before or after any compaction. It is published as a
+    `string[]`, which the host wraps in a `Container` of `Text` components — there is no
+    `handleInput` on that, and `ExtensionWidgetOptions` carries `placement` and nothing else.
+    Widgets are never given focus either; `setFocus` is applied to overlays and selectors only. A
+    repaint cannot make a `Text` container take a keypress, and this panel already repaints every
+    second.
+
+    Compaction does not disturb widgets at all. `/compact` only compacts the session; the host's
+    widget and terminal-input registries are cleared solely on session replacement and on `/reload`,
+    which are also the only events that make a captured `ExtensionContext` go stale — which is why
+    the pinned context this poll paints from survives a compaction.
+
+    Selection lives in the `pi-subagents` fleet view, the `belowEditor` line reading "↓/← to
+    inspect": it registers a component *factory* and owns a terminal-input subscription, and it
+    stays enabled. One thing there does go quiet around a compaction, and it is upstream policy
+    rather than anything this module can shorten: an **automatic** pass suspends the package's
+    widgets, clearing the fleet view and making its key handler decline the key until the agent
+    settles. A manual `/compact` is exempt by the same guard, and either way it is a window inside a
+    turn, not a stuck state.
 
 !!! warning "Why this is the *only* widget above the editor"
     `config/subagent.default.json` sets `asyncWidget: false`, which turns off the `pi-subagents`
@@ -191,6 +219,59 @@ take a diagnostic away.
     What this does not turn off: FleetView keeps its default `belowEditor` placement, so the Fleet
     inspector (`Ctrl+Alt+F`), `/subagents-fleet`, completion notifications and lifecycle events are
     all untouched.
+
+### What the fleet forgets, and when
+
+Both surfaces list what the fleet is still *tracking*, which is not the same as everything it ever
+started. A run is retired from the fleet two minutes after it settles:
+
+- a run that reached a terminal state, or never wrote a `status.json` at all, is retired once it has
+  been **reported** — announced to the model, or read by the model itself — and two minutes have
+  passed since the first sweep that saw both. The ledger gate is what stops a run being dropped
+  before its ending is in the session;
+- a `paused` run whose runner has **provably exited** is retired on the two minutes alone. The proof
+  is the runner's own `<asyncDir>/process-terminal.json` in state `observed`; the other three states
+  it may carry (`pending`, `unknown`, `not-started`), and an absent or unparseable file, all mean
+  "cannot say" and keep the run. Such a run is never announced — `paused` is not terminal, because
+  it really can be resumed — so requiring the ledger for it would be requiring something that can
+  never happen.
+
+The pid in `status.json` is deliberately **not** consulted. A pid freed hours ago is very likely
+reissued, so `process.kill(pid, 0)` reports a dead runner as alive — the exact failure being fixed,
+made permanent; `kill` across uids throws `EPERM`, which also reads as alive; and the field is
+optional, so a condition resting on it cannot fire at all for a run whose status file never carried
+one.
+
+Retiring removes the run from the panel and from `/agents` and does nothing else: the run directory,
+its `status.json`, its session file and its resumability are untouched, and `/subagents-fleet` still
+lists it, because that view re-derives runs from disk. That is the cost, stated plainly — `/agents`
+no longer lists a run that ended more than two minutes ago, and it says *tracked by this session*
+rather than *started by* because of it.
+
+Without this the fleet only ever grew. Every finished run stayed in it for the life of the session,
+so the poll above re-read fifty dead status files a second for an hour; the panel filled with
+history and pushed the running children behind "… and N more"; and — measured on one real session —
+106 paused runs whose runners had exited sat on the panel as running children, the oldest 276
+minutes old.
+## What a detached child leaves in the session file
+
+A run that was detached or interrupted is still *running* when its result is handed back, and the
+package's own compaction of a finished result bails out on exactly that condition. So those runs —
+and only those — hand the parent the child's live message array inside the tool result's `details`.
+
+That costs nothing at the model: `details` is documented as not sent to the LLM, and the provider
+layer serialises the tool call id, the content and the error flag and reads nothing else. It is
+written verbatim into the session file, though, and `bin/pi-digest-drain` summarises that file **by
+byte count** — the last `maxTranscriptBytes` of it. A child transcript landing there pushes an equal
+number of bytes of real conversation out of the window the summariser is shown, and nothing in the
+resulting [digest](digest.md) says anything is missing.
+
+So the `tool_result` handler drops that array, and **only while the child still says where its full
+record lives** — its `transcriptPath` or its `sessionFile`. When neither survives, the array in hand
+is the only copy of what that child did, and a run that died without writing a transcript is exactly
+the run somebody will want to read; it is kept, and the result is passed on untouched. Nothing else
+is ever removed: the bounded `progress` snapshot, the final output, the error, the tool-call
+summaries and the async run's own `asyncId`/`asyncDir` all ride through as they arrived.
 
 ## Load order
 

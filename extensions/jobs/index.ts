@@ -1,15 +1,14 @@
 /**
  * EXT-24 — background jobs: the cross-session job directory (`REQ-CTX-45`, `REQ-EXT-52`).
  *
- * Two faces of background work are already packaged and are **not** rebuilt here:
- * `pi-subagents`' async runs (the agent face — machine-readable lifecycle artifacts,
- * `subagent_wait`, the background-work registry) and `@99percentpeople/pi-background-tasks`
- * 2.0.0 (the bash face — start, wait, logs, stdin, signals, terminate, replay on reattach).
+ * The agent face of background work is already packaged and is **not** rebuilt here:
+ * `pi-subagents`' async runs — machine-readable lifecycle artifacts, `subagent_wait`, the
+ * background-work registry.
  *
- * Both are **session-scoped**. Neither survives the `pi` process that started the work, and
- * neither is discoverable from a different session. That gap is this module: `store.ts` owns
+ * It is **session-scoped**. It does not survive the `pi` process that started the work, and it
+ * is not discoverable from a different session. That gap is this module: `store.ts` owns
  * `<state>/jobs/<id>/`, this file exposes it as one `job` tool, and `registry.ts` publishes it
- * into `pi-subagents`' background-work and external-run registries so the packaged faces can
+ * into `pi-subagents`' background-work and external-run registries so the packaged face can
  * see our jobs too.
  *
  * Auto-discovered as a standalone extension via the `extensions/<dir>/index.ts` subdirectory
@@ -22,6 +21,15 @@
  * somebody started — and never at all if nobody came back. The self-arming watcher below is the
  * missing push; see `announce()` for why delivery differs between an in-flight run and an idle
  * session.
+ *
+ * **Two surfaces, and they are not the same thing.** The footer carries a count — `2 bg`, via
+ * `ctx.ui.setStatus` — and the fleet panel below the editor carries a *row per job*, via
+ * `pi-subagents`' external-run registry (`registry.ts`). Only the second one depicts a job, and
+ * for a while it depicted none: 0.57.0 moved that registry from a provider protocol to a record
+ * protocol under a new symbol, so every job we published went into a global object nobody reads.
+ * Both surfaces are now written wherever the store has just been read — `job(action=start)`,
+ * `refresh()`, `session_start` — which is what makes a started job appear immediately instead of
+ * at the next `turn_end`.
  *
  * `session_start` also auto-prunes finished jobs past `store.ts`'s retention window
  * (`PI_JOBS_PRUNE_HOURS`, default 7 days) — a cross-session store has no session responsible for
@@ -40,7 +48,7 @@ import { DEFAULT_MAX_BYTES, formatSize, truncateTail } from "@earendil-works/pi-
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { openJobHistory } from "./history-view.ts";
-import { registerJobProviders } from "./registry.ts";
+import { publishExternalRuns, registerJobProviders, unpublishExternalRuns } from "./registry.ts";
 import {
   AUTO_PRUNE_HOURS_ENV,
   autoPruneRetentionHours,
@@ -190,6 +198,28 @@ function report(ctx: ExtensionContext | undefined, key: string, line: string): v
   surfaceOnce(ctx, key, () => emitNotice(ctx, line, "error"));
 }
 
+/**
+ * Puts this session's running jobs on the fleet panel below the editor.
+ *
+ * Called from every place that has just read the store, which is what makes a job appear the
+ * instant it is started rather than at the next `turn_end`: `publishExternalRuns` is idempotent
+ * and removes its own stale rows, so "call it again" is always the correct thing to do and never
+ * needs to know what changed. Never throws — a display registry is not worth failing a tool call
+ * over, and the footer count is an independent surface that keeps working either way.
+ */
+function publishPanel(ctx: ExtensionContext, jobs: readonly JobState[]): void {
+  try {
+    // `pi-subagents` scopes the panel by `resolveCurrentSessionId`, which prefers the session
+    // *file path* and falls back to the id (`src/shared/session-identity.ts:6-10`); our own
+    // `parentSession` is the id. Both are needed, and they are not interchangeable.
+    const sessionId = ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
+    const owned = jobs.filter((job) => job.parentSession === ctx.sessionManager.getSessionId());
+    publishExternalRuns(sessionId, owned);
+  } catch (err) {
+    report(ctx, "jobs:publish", `[pi-config] jobs: fleet panel not updated: ${describeError(err)}`);
+  }
+}
+
 /** Reaps this session's view of the store and updates the footer. Never throws. */
 async function refresh(ctx: ExtensionContext): Promise<{ running: number; finished: JobState[] }> {
   const root = jobsRoot();
@@ -197,6 +227,7 @@ async function refresh(ctx: ExtensionContext): Promise<{ running: number; finish
   for (const problem of problems) {
     report(ctx, `jobs:unreadable:${problem.id}`, `[pi-config] jobs: ${problem.reason}`);
   }
+  publishPanel(ctx, jobs);
 
   const sessionId = ctx.sessionManager.getSessionId();
   const finished: JobState[] = [];
@@ -371,6 +402,10 @@ export function register(pi: ExtensionAPI): void {
           const { jobs } = await listJobs(root, { reap: false });
           const running = jobs.filter((job) => job.status === "running").length;
           if (ctx.hasUI) ctx.ui.setStatus("jobs", running > 0 ? `${running} bg` : undefined);
+          // Both surfaces, here, before the tool returns: the footer count and the fleet panel
+          // row. Waiting for the next sweep would mean the run the operator was just told about
+          // is the one thing the panel does not show.
+          publishPanel(ctx, jobs);
           arm(ctx, running);
           return {
             content: [
@@ -503,6 +538,9 @@ export function register(pi: ExtensionAPI): void {
       for (const job of jobs) if (job.status !== "running") announced.add(job.id);
       const running = jobs.filter((job) => job.status === "running").length;
       if (ctx.hasUI) ctx.ui.setStatus("jobs", running > 0 ? `${running} bg` : undefined);
+      // A resumed session keeps its session file, so its jobs from the previous process are
+      // still ours and belong back on the panel.
+      publishPanel(ctx, jobs);
       arm(ctx, running);
 
       disposeProviders?.();
@@ -543,6 +581,7 @@ export function register(pi: ExtensionAPI): void {
       stopWatch();
       disposeProviders?.();
       disposeProviders = undefined;
+      unpublishExternalRuns();
       if (ctx.hasUI) ctx.ui.setStatus("jobs", undefined);
     } catch (err) {
       report(ctx, "jobs:session_shutdown", `[pi-config] jobs: shutdown failed: ${describeError(err)}`);
