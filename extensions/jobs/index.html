@@ -2878,6 +2878,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#where-a-running-job-shows-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where a running job shows up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-you-hear-that-it-finished" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4257,6 +4268,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#where-a-running-job-shows-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where a running job shows up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-you-hear-that-it-finished" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4341,6 +4363,23 @@ module publishes it into the packaged registries so the packaged faces can see o
 want to start now and read the result of after a compaction, a <code>/reload</code>, or tomorrow.</p>
 <p>The alternative is a bash call with a very long timeout, which holds the session hostage for the
 duration and loses everything if the session ends.</p>
+<h2 id="where-a-running-job-shows-up">Where a running job shows up<a class="headerlink" href="#where-a-running-job-shows-up" title="Permanent link">&para;</a></h2>
+<p>Two surfaces, and they are not the same thing. The footer carries a <strong>count</strong> (<code>2 bg</code>). The fleet
+panel below the editor carries a <strong>row per job</strong>, rendered as <code>external · &lt;label&gt;</code> next to the
+sub-agent package's own children, because the store is published into that package's external-run
+registry.</p>
+<p>Both are written the moment <code>job(action="start")</code> returns, so a job you were just told about is on
+the panel straight away rather than at the end of the turn, and again on every sweep and at
+<code>session_start</code> — a session resumed with jobs still running gets its rows back. The rows are
+withdrawn at <code>session_shutdown</code>; the jobs themselves keep running, and the next session that opens
+the store re-publishes them.</p>
+<p>Only <em>running</em> jobs of <em>this</em> session are published, at most 20 of them: the panel renders active
+states only, filters by session, and cuts its snapshot at 20 rows, so anything beyond that could
+not be shown and would only spend a cache shared with every other producer.</p>
+<p>A job whose id or session path would not survive the panel's own display sanitiser is skipped
+rather than rewritten — an identifier quietly repaired is an identifier nothing else can find —
+and a registry that fails to accept our rows is reported once and otherwise ignored. The footer
+count is an independent surface and keeps working either way.</p>
 <h2 id="how-you-hear-that-it-finished">How you hear that it finished<a class="headerlink" href="#how-you-hear-that-it-finished" title="Permanent link">&para;</a></h2>
 <p>A detached child is deliberately <code>unref()</code>d so it can outlive the <code>pi</code> process, which means
 nothing observes its exit — the store is reconciled by whoever asks. So the extension polls while
