@@ -1,5 +1,5 @@
 /**
- * `D-01` .. `D-08`: pure functions over plain data, no `ExtensionAPI`/`ExtensionContext` import,
+ * `D-01` .. `D-10`: pure functions over plain data, no `ExtensionAPI`/`ExtensionContext` import,
  * so they run under `node --test` with fixtures instead of a live `pi` process. `doctor.ts` is the
  * only module that gathers `DoctorInputs` from a real session; `declared.ts` gathers the
  * filesystem half.
@@ -9,6 +9,7 @@
  */
 import { splitThinkingSuffix } from "../dispatch/thinking.ts";
 import { authoredInstructionText, extractReferences, type ExtractedReferences } from "./extract.ts";
+import { ACKNOWLEDGED_GUIDELINES } from "./guidelines.ts";
 import { reportIsOk, type DoctorReport, type Finding, type Severity } from "./types.ts";
 
 export interface ModelRef {
@@ -44,6 +45,14 @@ export interface GuardSelfTestInput {
   readonly selfTestPatternId: string | null;
 }
 
+/** `D-10`. One entry per registered tool that ships `promptGuidelines`, in `getAllTools()` order.
+ *  `guidelines` is the array exactly as PI holds it: the index is the ledger key, so nothing may
+ *  be filtered out or re-sorted on the way in. */
+export interface ToolGuidelinesInput {
+  readonly tool: string;
+  readonly guidelines: readonly string[];
+}
+
 export interface PackageAuditInput {
   readonly name: string;
   readonly declaredVersion: string;
@@ -70,6 +79,10 @@ export interface DoctorInputs {
   /** `D-09`. `extensions/hooks/index.ts`'s `hooksDegradedReason()` — `undefined` when the hook
    *  layer loaded normally, otherwise why it is carrying no rules at all. */
   readonly hooksDegradedReason: string | undefined;
+  /** `D-10`. `pi.getAllTools()` narrowed to the tools that ship `promptGuidelines`. Those entries
+   *  are copies, so reading them cannot disturb the live definitions and writing to them would
+   *  achieve nothing — this check only ever reads. */
+  readonly toolGuidelines: readonly ToolGuidelinesInput[];
 }
 
 /** `DB-RM-ROOT` is the literal pattern id the acceptance tests name.
@@ -404,11 +417,89 @@ export function checkHooks(inputs: DoctorInputs): Finding[] {
   ];
 }
 
+/**
+ * The header PI writes above the guidelines when it builds its stock system prompt, carrying
+ * enough of the preceding sentence to be unmistakable. Copied verbatim from `core/system-prompt.js`.
+ *
+ * Finding it is proof that this session has **no** `customPrompt` and PI is still rendering every
+ * tool's `promptGuidelines` itself — in which case nothing is being lost and `D-10` has nothing to
+ * report. `getSystemPromptOptions().customPrompt` answers the same question more directly but
+ * exists only on `ExtensionCommandContext`, which the `session_start` pass never receives; the
+ * assembled prompt is available to both.
+ *
+ * If a future PI release rewords this block the probe stops matching, and `D-10` runs and reports.
+ * That polarity is deliberate: a template change should make the check louder, never quietly
+ * switch it off.
+ */
+const PI_GUIDELINES_SECTION_MARKER =
+  "In addition to the tools above, you may have access to other custom tools depending on the project.\n\nGuidelines:\n";
+
+/**
+ * `D-10` — every tool `promptGuidelines` bullet has a recorded disposition in
+ * `extensions/doctor/guidelines.ts`.
+ *
+ * `SYSTEM.md` is this configuration's `customPrompt`, and `buildSystemPrompt` returns on that
+ * branch before the `Guidelines:` section is built. Every registered tool's guidelines are
+ * discarded together — PI's own and every package's. `SYSTEM.md` restates the ones worth restating
+ * in its own words, which is precisely why matching guideline text against the prompt would flag
+ * the covered ones and miss the point. The ledger is the honest alternative: it records what
+ * became of each bullet, the deliberately abandoned ones included, and `D-10` fires on the ones
+ * nobody has looked at.
+ *
+ * `warn`, never `error`. A guideline nobody restated is a prompt-quality call to make, not a
+ * broken session. It belongs to the cheap `session_start` set because the failure it exists to
+ * catch — a package update quietly adding a bullet — has no other moment where anyone would see
+ * it, and the scan is string work over data already in memory.
+ *
+ * Ledger rows with no live tool behind them are **not** reported. They are inert, they cost a
+ * line, and reporting them would turn every package you do not install into recurring noise.
+ */
+export function checkGuidelines(inputs: DoctorInputs): Finding[] {
+  if (inputs.systemPrompt.includes(PI_GUIDELINES_SECTION_MARKER)) return [];
+
+  const findings: Finding[] = [];
+  for (const { tool, guidelines } of inputs.toolGuidelines) {
+    guidelines.forEach((text, index) => {
+      const key = `${tool}:${index}`;
+      const ack = ACKNOWLEDGED_GUIDELINES[key];
+      if (ack === undefined) {
+        findings.push(
+          finding(
+            "D-10",
+            "warn",
+            key,
+            `tool "${tool}" guideline ${index} is dropped by SYSTEM.md and has no recorded ` +
+              `disposition: "${text}"`,
+            `restate it in SYSTEM.md, or record it in extensions/doctor/guidelines.ts as ` +
+              `system-prompt / tool-contract / elsewhere / dropped`,
+          ),
+        );
+        return;
+      }
+      const [disposition, marker] = ack;
+      if (!text.includes(marker)) {
+        findings.push(
+          finding(
+            "D-10",
+            "warn",
+            key,
+            `tool "${tool}" guideline ${index} was recorded as "${disposition}" on the strength of ` +
+              `"${marker}", which its current text no longer contains: "${text}"`,
+            `re-read the guideline and update its row in extensions/doctor/guidelines.ts — the ` +
+              `package reworded it, so the recorded disposition may no longer hold`,
+          ),
+        );
+      }
+    });
+  }
+  return findings;
+}
+
 export interface RunAllOptions {
   /** The cheap subset run at `session_start` — everything except `D-04` (network-shaped: model
    *  registry availability) and `D-08` (filesystem stat per package). Both are still fast in
    *  practice, but the cheap/full split holds because D-06's self-test plus
-   *  D-01/02/03/05/07/09's string scans and getters are the part that must never be skipped — a broken guardrail
+   *  D-01/02/03/05/07/09/10's string scans and getters are the part that must never be skipped — a broken guardrail
    *  has to be caught every session, not only on an explicit `/doctor`. */
   readonly cheapOnly?: boolean;
 }
@@ -422,6 +513,7 @@ export function runAllChecks(inputs: DoctorInputs, opts?: RunAllOptions): Findin
     ...checkGuard(inputs),
     ...checkServers(inputs),
     ...checkHooks(inputs),
+    ...checkGuidelines(inputs),
   ];
   if (opts?.cheapOnly) return cheap;
   return [...cheap, ...checkModels(inputs), ...checkPackages(inputs)];
