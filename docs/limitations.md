@@ -74,11 +74,10 @@ on recorded state, not on an event. See [`doctor`](extensions/doctor.md)'s `D-06
 
 `pi` (`file` reports Mach-O with a `__BUN` section, `bun --version` on this machine is 1.3.11) uses
 Bun's own module resolver for every entry in `settings.packages`, not the system `node` these packages
-were written against. [Third-party components](reference/third-party.md) lists all of the following as
-*adopted* — reviewed, pinned, present in `node_modules` — but wiring them into `settings.packages` and
-starting a real session (`pi -p '...'`, not `pi --list-models`, which does not exercise extension
-registration) throws and **aborts startup entirely**, one failed extension being enough to abort all of
-them:
+were written against. Each of the packages below was reviewed, pinned and present in `node_modules`
+when it was tested — but wiring it into `settings.packages` and starting a real session (`pi -p '...'`,
+not `pi --list-models`, which does not exercise extension registration) throws and **aborts startup
+entirely**, one failed extension being enough to abort all of them:
 
 | Package | Failure, verbatim | Category |
 |---|---|---|
@@ -93,8 +92,14 @@ exercise the same registration path a real session does, so it is not a substitu
 `pi -p '...'` smoke call when validating a newly wired package. `settings.default.json` in this
 repository therefore ships only the four packages from this review that load cleanly under a real
 session start (`@narumitw/pi-usage`, `pi-lean-ctx`, `pi-hermes-memory`, `pi-sandbox`, alongside the
-packages already adopted before this review) — the five above are reviewed and pinned but **not** in
-`settings.default.json`'s `packages[]`, precisely because wiring any one of them breaks every session.
+packages already adopted before this review).
+
+All five packages in the table were **uninstalled on 2026-08-29**. None was ever in
+`settings.default.json`'s `packages[]`, precisely because wiring any one of them breaks every session
+— and a package that cannot be wired earns nothing by being carried in `package.json` and
+redistributed. The failures stay recorded here because they are the reason not to re-adopt any of
+them without re-testing against the pinned `pi`; the per-package reasons are in the
+[package ledger](PACKAGES.md) and in `config/packages.lock.json`'s `not_installed[]`.
 
 ### An interactive dialog cannot tell you *why* it got no answer
 
