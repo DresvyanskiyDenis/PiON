@@ -16,14 +16,17 @@
 |---|---|
 | **A credential for at least one provider** | Nothing starts a session usefully without one. A provider whose credential is missing does **not** stop `pi` from starting — it fails only when that provider is selected. |
 
-The installer asks which provider to configure and writes `config/models.json` from one of three
-fragments in `config/providers/`. Have the answers ready before you start:
+The installer asks which provider to configure and writes `config/models.json` from one of the
+eight fragments in `config/providers/`. Have the answers ready before you start:
 
 | Fragment | You will be asked for | Pick it when |
 |---|---|---|
 | **`github-copilot`** (the default) | an endpoint and a tenant | you have a Copilot subscription. PI already ships this provider, so the fragment overrides PI's catalogue instead of defining one. |
 | **`openai-compatible`** | a base URL, the name of the environment variable holding the key, and two model ids with their context windows | anything that speaks `/v1/chat/completions` under its own model names — a **LiteLLM** proxy, vLLM, OpenRouter, or a router someone in your organisation runs. This is the fragment most people arrive through, and [it takes exactly one gateway](../configuration/openai-compatible.md). |
 | **`openai`** | which way you buy the models: a pay-as-you-go API key, or a ChatGPT Plus/Pro sign-in | you buy GPT-5.6 from OpenAI directly. On the subscription branch there is no key to supply — `/login` does it. |
+| **`deepseek`** | whether you go straight to `api.deepseek.com` or through a proxy of your own | you call DeepSeek directly. The fragment exists to correct the price: PI's bundled rates for these ids were behind the vendor's page. |
+| **`qwen`** | which Model Studio deployment you call — Singapore, Beijing, or a workspace-scoped host | you buy Qwen per token from Alibaba Cloud. Not the same as PI's built-in `qwen-token-plan`, which is the flat-rate plan. |
+| **`ollama-cloud`** | how many requests your plan will run at once | you use the **hosted** ollama.com. A local ollama is `openai-compatible` with a loopback URL. |
 | **`databricks`** | a workspace host, an auth method, one or two serving endpoints, and how each one bills | your models are served from Databricks. Egress is fixed at `confidential`. Pay-per-token endpoints are the same host and token as provisioned ones; only the billing question differs. |
 
 ## Optional

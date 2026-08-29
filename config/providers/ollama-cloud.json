@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "id": "ollama-cloud",
+  "displayName": "Ollama Cloud (hosted)",
+  "summary": "The models ollama.com runs for you, over its OpenAI-compatible surface at https://ollama.com/v1. Billed by plan rather than by token. This is the HOSTED product; a local ollama on your own machine is openai-compatible.json answered with a loopback URL.",
+  "builtIn": false,
+  "default": false,
+  "egress": "public",
+  "concurrency": "{{concurrency}}",
+
+  "requires": [
+    {
+      "kind": "env",
+      "name": "OLLAMA_API_KEY",
+      "required": true,
+      "secret": true,
+      "description": "An ollama.com API key, sent as a Bearer token. models.json stores the $OLLAMA_API_KEY reference, never the value. The hosted endpoint refuses an unauthenticated completion with 401, unlike a local ollama, which accepts any string.",
+      "howTo": "ollama.com -> Settings -> Keys -> create. Put it in ~/.pi/secrets.env (chmod 600), one line, as OLLAMA_API_KEY followed by an equals sign and the key. Never in this repository."
+    },
+    {
+      "kind": "service",
+      "name": "an ollama.com plan that includes the models you intend to call",
+      "required": true,
+      "secret": false,
+      "description": "Cloud access is sold as a subscription with usage limits rather than as metered tokens, and the limits are what decide whether a long agent session completes. The free tier is small enough that a single subagent fan-out can exhaust it.",
+      "howTo": "Check the plan and its limits at ollama.com before binding a tier to this provider, and pick the concurrency answer to match."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "concurrency",
+      "type": "number",
+      "label": "How many requests may this harness have in flight to ollama.com at once?",
+      "help": "A cap, not a target, and the one number here that is genuinely a fact about YOUR account rather than about the endpoint: hosted capacity is sold by plan, and the plans differ by an order of magnitude in what they will run at the same time. 1 is the honest default on the free tier. The failure mode of guessing high is 429s in the middle of a task, and this harness does not fail over to another provider when that happens - it aborts the request.",
+      "default": 1,
+      "required": true
+    }
+  ],
+
+  "tiers": {
+    "strong": "ollama-cloud/kimi-k3",
+    "light": "ollama-cloud/glm-5.3-flash"
+  },
+
+  "provider": {
+    "baseUrl": "https://ollama.com/v1",
+    "api": "openai-completions",
+    "apiKey": "$OLLAMA_API_KEY",
+    "compat": {
+      "supportsDeveloperRole": false,
+      "supportsReasoningEffort": false,
+      "supportsUsageInStreaming": false,
+      "supportsFinishReason": false,
+      "maxTokensField": "max_tokens"
+    },
+    "models": [
+      {
+        "id": "kimi-k3",
+        "name": "[ollama cloud] kimi-k3",
+        "input": ["text"],
+        "contextWindow": 128000,
+        "maxTokens": 8192,
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+      },
+      {
+        "id": "kimi-k2.7-code",
+        "name": "[ollama cloud] kimi-k2.7-code",
+        "input": ["text"],
+        "contextWindow": 128000,
+        "maxTokens": 8192,
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+      },
+      {
+        "id": "glm-5.3",
+        "name": "[ollama cloud] glm-5.3",
+        "input": ["text"],
+        "contextWindow": 128000,
+        "maxTokens": 8192,
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+      },
+      {
+        "id": "glm-5.3-flash",
+        "name": "[ollama cloud] glm-5.3-flash",
+        "input": ["text"],
+        "contextWindow": 128000,
+        "maxTokens": 8192,
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+      }
+    ]
+  },
+
+  "notes": [
+    "THIS IS THE HOSTED PRODUCT, AND IT IS A DIFFERENT THING FROM A LOCAL ollama. A local server on your own machine is openai-compatible.json answered with http://127.0.0.1:11434/v1 - that is what retired this repository's old `local` fragment, and nothing here changes it. What justifies a separate file is knowledge the interview cannot carry: the base URL is fixed and named, the credential variable is the vendor's own rather than one you choose, and the billing answer is a property of the product rather than of somebody's deployment. Two things also differ from local in ways that bite: the hosted endpoint REQUIRES a key (an unauthenticated POST to /v1/chat/completions returns 401, measured on 2026-08-29, where a local one accepts any string), and the model ids carry the vendor's own tags.",
+    "THE FOUR ZEROS ARE A DECLARATION, NOT AN OMISSION, AND THE UNITS THEY WOULD HAVE BEEN IN ARE DOLLARS PER MILLION TOKENS. Ollama sells cloud access as a subscription with usage limits, not as metered tokens: there is no per-token rate to write, and any number here would be a conversion this repository invented. config/providers/README.md section 5 calls this the unmetered spelling, and extensions/cost-gate and bin/pi-check rule PC-27 both read four written zeros as authored and accept them permanently - an ABSENT `cost` is what ends the first billed turn. A session on this provider reports a flat 0.000 spend on purpose. Track the plan's own usage at ollama.com; the number that constrains you there is a rate limit, not a bill.",
+    "THE MODEL IDS WERE READ OFF THE LIVE ENDPOINT, NOT OFF A PAGE. On 2026-08-29 `curl -s https://ollama.com/v1/models` returned 19 ids, and the four declared here are from that list: kimi-k3, kimi-k2.7-code, glm-5.3 and glm-5.3-flash. The rest on that day were deepseek-v4-pro:0813, deepseek-v4-flash:0731, nemotron-3-nano:30b, nemotron-3-super, nemotron-3-ultra, minimax-m2.7, minimax-m3, gpt-oss:20b, gpt-oss:120b, glm-5.1, glm-5.2, gemma4:31b, mistral-large-3:675b and qwen3.5:397b. The catalogue moves - models arrive and are retired without notice - so re-run that curl rather than trusting this list, and note that an id there is what you must write byte for byte: a tag after a colon (`gpt-oss:120b`) is part of the id, and the qualified form is `ollama-cloud/gpt-oss:120b`, split at the FIRST slash.",
+    "EVERY CONTEXT WINDOW HERE IS A FLOOR THIS REPOSITORY CHOSE, NOT A NUMBER THE ENDPOINT PUBLISHED. The OpenAI-compatible listing route returns ids and nothing else - no window, no capability - and hosted deployments commonly serve a smaller window than the model card claims, because the window is a property of how the server was launched. 128000 is written for all four on the reasoning in config/providers/README.md section 5: PI's compaction fires against the declared number, so too high means the endpoint truncates before compaction ever triggers, which presents as the agent forgetting the start of the task. maxTokens 8192 is the same kind of conservative default. Measure with `/context` inside a session and raise both on purpose.",
+    "EGRESS IS `public`. config/providers/README.md section 5 states the rule: a third-party API is `public` even if the vendor is trustworthy, because the class records WHERE THE TRAFFIC PHYSICALLY GOES AND WHO CAN READ IT THERE. ollama.com runs these models on its own hardware, outside any boundary this harness controls, which is exactly the placement the word describes - and it is worth saying out loud because the LOCAL ollama this product shares a name with is the opposite case, where the prompt never leaves the machine. Do not carry an intuition about local ollama over to this fragment. routing.json's egress map is where a confidential session's ceiling is read from, and a class that is wrong there is wrong on every surface that tells a human or a model where a prompt is going.",
+    "THE compat BLOCK STARTS FULLY CONSERVATIVE, AND EACH `false` COSTS SOMETHING. Nothing here was measured on a live key beyond the 401 and the model listing, so the block is the same all-off shape openai-compatible.json ships for an unknown endpoint: everything off plus max_tokens is the setting most likely to complete one turn. What you give up until you test: supportsUsageInStreaming false means no token counts arrive during a stream, so the quota extension cannot track usage on this provider - which matters more here than elsewhere, because a plan's limit is the thing you actually need to watch. supportsReasoningEffort false means PI's thinking levels are not forwarded, so a reasoning model runs at its own default. Turn them on one at a time, keeping a turn working between changes.",
+    "concurrency IS AN ANSWER RATHER THAN A LITERAL, WHICH IS THE ONE DEFERRAL THIS FRAGMENT MAKES. config/providers/README.md section 2.8 allows exactly three deferred fields and asks for a reason each time: here the cap is a fact about YOUR PLAN, not about ollama.com, and the plans differ by an order of magnitude. The value becomes a semaphore in the dispatcher keyed on the provider id - it queues rather than errors, so a low number costs latency and never correctness. Raise it one step at a time and watch for 429s. There is no failover in this harness: a rate-limited request aborts naming the provider and the error class rather than quietly moving the work somewhere else."
+  ],
+
+  "verify": [
+    {
+      "label": "the key is accepted, and these are the ids the endpoint serves today",
+      "command": "curl -sS -H \"Authorization: Bearer $OLLAMA_API_KEY\" https://ollama.com/v1/models | jq -r '.data[].id'"
+    },
+    {
+      "label": "the ids you configured are ids the endpoint actually serves",
+      "command": "jq -r '.providers[\"ollama-cloud\"].models[].id' config/models.json"
+    },
+    {
+      "label": "PI sees the provider as configured",
+      "command": "pi --list-models | grep '^ollama-cloud/'"
+    },
+    {
+      "label": "PI can complete one turn",
+      "command": "pi -p 'reply with OK' --model ollama-cloud/glm-5.3-flash"
+    }
+  ]
+}

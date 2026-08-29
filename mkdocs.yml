@@ -127,6 +127,9 @@ nav:
           - configuration/models.md
           - configuration/github-copilot.md
           - configuration/openai.md
+          - configuration/deepseek.md
+          - configuration/qwen.md
+          - configuration/ollama-cloud.md
           - configuration/litellm.md
           - configuration/openai-compatible.md
           - configuration/routing.md

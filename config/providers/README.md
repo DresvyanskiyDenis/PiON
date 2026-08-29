@@ -308,7 +308,7 @@ written once into `models.json` and read from there.
 
 ## 5. Adding another provider
 
-Five fragments ship. Before writing a sixth, check whether `openai-compatible.json` already covers
+Eight fragments ship. Before writing a ninth, check whether `openai-compatible.json` already covers
 your case: any endpoint speaking `/v1/chat/completions` under its own model names is that fragment,
 answered differently, and a new file buys you nothing. That is what retired the `local` fragment — a
 loopback model server is just that fragment with different answers.
@@ -318,6 +318,15 @@ The one thing that does justify a separate file is knowledge the interview canno
 knowable for a **named** product can only be stated as a literal by a fragment that names it. That is
 why `litellm.json` exists beside `openai-compatible.json` although both would fit: they differ in no
 answer, and in four fields nobody can be asked about.
+
+Three fragments joined it on 2026-08-29 under the same second reason, and each states its own
+argument in `notes[]`. `deepseek.json` corrects a price PI's own bundled catalogue had let go stale:
+a vendor's published rate for a model the fragment names by id is exactly the knowledge an interview
+cannot carry, and an under-declared rate is the silent half of the defect §5 item 5 is about.
+`qwen.json` knows that Alibaba sells the same models twice — metered on Model Studio, flat-rate on
+the plan PI ships as `qwen-token-plan` — on two different hosts, which no answer to a gateway
+fragment can express. `ollama-cloud.json` knows that the hosted endpoint requires a credential where
+the local one ignores it, and that the product bills by plan rather than by token.
 
 `openai.json` was retired for the first reason on 2026-08-15 and came back under the second one. A
 pay-as-you-go OpenAI account really is `openai-compatible.json` with different answers, and that half

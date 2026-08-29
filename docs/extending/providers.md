@@ -1,8 +1,8 @@
 # Adding a provider
 
-Five provider fragments ship: `github-copilot`, `openai`, `litellm`, `databricks` and
-`openai-compatible`. Adding a sixth is a JSON file, and the installer picks it up with no code
-change.
+Eight provider fragments ship: `github-copilot`, `openai`, `deepseek`, `qwen`, `litellm`,
+`databricks`, `ollama-cloud` and `openai-compatible`. Adding a ninth is a JSON file, and the
+installer picks it up with no code change.
 
 !!! tip "Check `openai-compatible` first"
 
@@ -20,7 +20,12 @@ change.
     `openai-compatible` although both fit a LiteLLM proxy: they differ in no answer, and in four
     fields nobody can be asked about. [`openai`](../configuration/openai.md) is the other case: a
     ChatGPT subscription needs a block with **no** `apiKey` key at all, and no answer to a gateway
-    fragment's questions can produce an absent field.
+    fragment's questions can produce an absent field. [`deepseek`](../configuration/deepseek.md) is
+    a third: PI ships that provider with rates that had fallen behind the vendor's page, and a
+    correction to a **named** product's published price is knowledge no interview can carry.
+    [`qwen`](../configuration/qwen.md) and [`ollama-cloud`](../configuration/ollama-cloud.md) are
+    the same argument — a fixed base URL, the vendor's own credential variable, and a billing answer
+    that is a property of the product rather than of somebody's deployment.
 
 There are two ways in, and they are not equivalent:
 

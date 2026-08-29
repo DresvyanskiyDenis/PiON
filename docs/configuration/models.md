@@ -403,12 +403,15 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the `notes[]` that JSON cannot carry as comments.
 
-Five ship:
+Eight ship:
 
 | Fragment | Built-in to PI? | Egress | Notes worth reading before you touch it |
 |---|---|---|---|
 | [`github-copilot.json`](github-copilot.md) | yes | `public` | Never run `/login` on this path — the OAuth resolver silently overrides your `baseUrl` |
 | [`openai.json`](openai.md) | yes | `public` | Asks which way you buy the models: an API key priced per token, or a ChatGPT plan that deletes the `apiKey` key so `/login` supplies it |
+| [`deepseek.json`](deepseek.md) | yes | `public` | Overrides `cost` and `contextWindow` only — PI's bundled rates for these ids were behind the vendor's page when it was written |
+| [`qwen.json`](qwen.md) | no | `public` | Alibaba Model Studio bought per token. Not PI's built-in `qwen-token-plan`, which is the flat-rate plan on another host |
+| [`ollama-cloud.json`](ollama-cloud.md) | no | `public` | The *hosted* ollama.com, billed by plan — four written zeros. A local ollama is `openai-compatible` with a loopback URL |
 | [`litellm.json`](litellm.md) | no | **you choose** | A LiteLLM proxy specifically — the four wire fields nobody can be asked about are stated as literals |
 | `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured. Asks per endpoint whether it is pay-per-token or billed by DBU-hour |
 | [`openai-compatible.json`](openai-compatible.md) | no | **you choose** | Any gateway serving its own model names. The context window and the egress class are *answers*, not facts about the URL |
@@ -431,8 +434,10 @@ Five ship:
 
     A fragment that *does* know the price may **write** it — but only for a model it names by id,
     and only with the source. `openai.json` maps the metered branch straight onto the published list
-    rate, and the test then requires a `notes[]` entry giving the URL those rates were read from:
-    vendor prices move, and a written rate is only as good as its provenance.
+    rate; `qwen.json` and `deepseek.json` state the numbers in the `cost` block itself, having
+    nothing to ask because those vendors only ever bill per token. Either way the test requires a
+    `notes[]` entry giving the URL the rates were read from: vendor prices move, and a written rate
+    is only as good as its provenance.
 
     A `notes[]` entry that discusses `cost` must state the units in the literal words
     `DOLLARS PER MILLION TOKENS`, which the test greps for, because the units are the easy thing to get

@@ -69,8 +69,9 @@ egress ceiling that refuses a public dispatch from a confidential agent will the
 ./scripts/install.sh --section providers
 ```
 
-Five fragments ship: `github-copilot`, `openai`, `litellm` and `databricks` for those named
-products, and `openai-compatible` for anything serving its own model names over an OpenAI-compatible
+Eight fragments ship: `github-copilot`, `openai`, `deepseek`, `qwen`, `litellm`, `databricks` and
+`ollama-cloud` for those named products, and `openai-compatible` for anything serving its own model
+names over an OpenAI-compatible
 Chat Completions surface — a gateway, a vendor API, or a server on your own loopback. For anything else, add a fragment to `config/providers/` — see
 [Adding a provider](https://dresvyanskiydenis.github.io/PiON/extending/providers/) and
 [[Provider Cheat Sheet]].

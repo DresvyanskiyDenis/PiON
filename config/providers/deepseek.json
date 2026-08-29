@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "deepseek",
+  "displayName": "DeepSeek (first-party)",
+  "summary": "DeepSeek V4 straight from api.deepseek.com on a platform API key, billed per token. PI already ships this provider, so the fragment corrects the two things a bundled catalogue cannot keep current: the published rates and the declared context window.",
+  "builtIn": true,
+  "default": false,
+  "egress": "public",
+  "concurrency": 4,
+
+  "requires": [
+    {
+      "kind": "env",
+      "name": "DEEPSEEK_API_KEY",
+      "required": true,
+      "secret": true,
+      "description": "A DeepSeek platform API key. It is the only credential this API takes: a Bearer token in the Authorization header. models.json stores the $DEEPSEEK_API_KEY reference, never the value.",
+      "howTo": "platform.deepseek.com -> API keys -> create. Put it in ~/.pi/secrets.env (chmod 600), one line, as DEEPSEEK_API_KEY followed by an equals sign and the key. Never in this repository."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "endpoint",
+      "type": "choice",
+      "label": "Do your requests go straight to api.deepseek.com, or through something of your own?",
+      "help": "A corporate egress proxy or an audit gateway that speaks the same wire and forwards to DeepSeek. Answering `direct` leaves the baseUrl key out of the block entirely, which is how PI is told to use the endpoint its own catalogue already carries - not the same as writing an empty string.",
+      "default": "direct",
+      "required": true,
+      "choices": [
+        { "value": "direct", "label": "Straight to api.deepseek.com (the normal answer)" },
+        { "value": "proxy", "label": "Through a proxy or gateway of my own" }
+      ]
+    },
+    {
+      "id": "proxyBaseUrl",
+      "type": "string",
+      "label": "Base URL of that proxy, including the scheme",
+      "help": "Substituted literally at install time. PI does NOT expand $VAR or !cmd inside baseUrl, so this cannot be an environment variable. DeepSeek's own base URL carries no /v1 suffix; match whatever your proxy expects rather than copying that.",
+      "example": "https://deepseek-egress.internal.example.com",
+      "required": true,
+      "when": { "endpoint": "proxy" },
+      "validate": {
+        "pattern": "^https?://[^\\s]+$",
+        "message": "a full URL with scheme - no trailing spaces"
+      }
+    }
+  ],
+
+  "derived": [
+    { "id": "baseUrl", "from": "endpoint", "map": { "direct": null, "proxy": "{{proxyBaseUrl}}" } }
+  ],
+
+  "tiers": {
+    "strong": "deepseek/deepseek-v4-pro",
+    "light": "deepseek/deepseek-v4-flash"
+  },
+
+  "provider": {
+    "baseUrl": "{{baseUrl}}",
+    "apiKey": "$DEEPSEEK_API_KEY",
+    "modelOverrides": {
+      "deepseek-v4-pro": {
+        "contextWindow": 200000,
+        "cost": { "input": 1.32, "output": 3.96, "cacheRead": 0.044, "cacheWrite": 0 }
+      },
+      "deepseek-v4-flash": {
+        "contextWindow": 200000,
+        "cost": { "input": 0.44, "output": 1.32, "cacheRead": 0.014, "cacheWrite": 0 }
+      }
+    }
+  },
+
+  "notes": [
+    "WHY THIS FRAGMENT EXISTS WHEN PI ALREADY SHIPS THE PROVIDER. PI's bundled catalogue carries `deepseek` with both V4 ids, the right base URL and a compat block this repository has no better source for. What a bundled catalogue cannot do is stay current with a vendor's price list, and on 2026-08-29 it was behind: it states 0.14 / 0.28 for deepseek-v4-flash and 0.435 / 0.87 for deepseek-v4-pro, where the vendor's own pricing page states materially higher rates (below). An under-declared rate is the same defect as an absent one seen from the invoice: the status line reports less than you are paying, and nothing warns. So the fragment overrides exactly two fields per model, the cost block and `contextWindow`, and touches nothing else.",
+    "PRICES ARE THE VENDOR'S STANDARD-RATE COLUMN, IN DOLLARS PER MILLION TOKENS, READ ON 2026-08-29 FROM https://api-docs.deepseek.com/quick_start/pricing - deepseek-v4-pro 1.32 input on a cache miss / 0.044 on a cache hit / 3.96 output, deepseek-v4-flash 0.44 / 0.014 / 1.32. PI divides each rate by 1000000 before multiplying by the usage counter, so these are per MILLION tokens and a per-token figure pasted here would be wrong by six orders of magnitude and still render. DeepSeek publishes TWO columns, a standard rate and a lower off-peak one (roughly a third off), with the discount window stated on that page in UTC; the window has moved before, so read it there rather than here. This fragment writes the STANDARD column because a rate that is only true for part of the day would under-report the rest of it, and because the composed models.json carries one rate per model with no notion of the clock. A session run entirely inside the discount window therefore over-reports its spend.",
+    "cacheRead IS A REAL PUBLISHED RATE HERE, NOT A GUESS, AND IT IS WHY THE CACHE IS WORTH WATCHING. DeepSeek prices a cache hit at about a thirtieth of a miss on both models, which is the largest cache discount of any provider this repository ships a fragment for. cacheWrite is 0 because no charge for placing an entry is published: that zero is the rate, not a gap. The saving only shows up in the status line if the endpoint reports cached tokens back, so if cacheRead never moves off zero over a long session, check that before assuming the cache is working.",
+    "EGRESS IS `public`, AND THE RULE IS ABOUT PLACEMENT RATHER THAN TRUST. config/providers/README.md section 5: a third-party API is `public` even if the vendor is trustworthy, because the class records WHERE THE TRAFFIC PHYSICALLY GOES AND WHO CAN READ IT THERE. api.deepseek.com is a multi-tenant vendor API outside any boundary this harness controls, so `confidential` would be a false statement in the one map every surface reads to tell a human or a model where a prompt is going, and routing.json's egress map is where a confidential session's ceiling is read from. A private or self-hosted DeepSeek deployment inside your own boundary is `openai-compatible.json` answered with your host and your class, not this file.",
+    "THE CONTEXT WINDOW IS UNDER-DECLARED ON PURPOSE. The vendor and PI's own catalogue both state 1000000 tokens. This fragment declares 200000, per config/providers/README.md section 5's min(200000, measured): PI's compaction threshold is contextWindow - reserveTokens, so an over-declared window makes compaction fire too late and the endpoint truncates instead, which presents as the agent forgetting the start of the task. Under-declaring only makes compaction fire earlier. maxTokens is deliberately NOT overridden - PI's catalogue says 384000 and that is an output cap, not a context budget.",
+    "NOTHING HERE OVERRIDES compat, thinkingLevelMap, api OR maxTokens, ON PURPOSE. PI's bundled entries state thinkingFormat `deepseek`, requiresReasoningContentOnAssistantMessages true, supportsStore false, supportsDeveloperRole false, and a thinkingLevelMap that answers only `high` and `max`. Those are wire facts about a reasoning model, measured by whoever generated that catalogue and not re-measured on this tree; the rule in config/providers/README.md section 5 is that compat flags are measured, not copied, and an unmeasured flag written here would read exactly like a measured one. Override them in config/models.json once you have a turn on the wire that proves a different value.",
+    "A THIRD ID EXISTS AND IS NOT SHIPPED. The pricing page also lists deepseek-v4-flash-vision-exp at the same rates as deepseek-v4-flash. It is experimental, it is not in PI's bundled catalogue, and an override cannot introduce a model PI does not know - so adding it means declaring it in full. If you want it, add an entry to `providers.deepseek.models` in config/models.json (id, name, api, input including \"image\", contextWindow, maxTokens and all four cost rates); a `models` array on a built-in provider REPLACES the built-in model of the same id, so give it an id no built-in uses and the two coexist."
+  ],
+
+  "verify": [
+    {
+      "label": "the key is accepted",
+      "command": "curl -sS -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $DEEPSEEK_API_KEY\" https://api.deepseek.com/models"
+    },
+    {
+      "label": "PI sees the provider as configured",
+      "command": "pi --list-models | grep '^deepseek/'"
+    },
+    {
+      "label": "PI can complete one turn",
+      "command": "pi -p 'reply with OK' --model deepseek/deepseek-v4-flash"
+    },
+    {
+      "label": "the rates that reached models.json are the ones you meant to pay",
+      "command": "jq '.providers.deepseek.modelOverrides | to_entries[] | {model: .key, cost: .value.cost}' config/models.json"
+    }
+  ]
+}

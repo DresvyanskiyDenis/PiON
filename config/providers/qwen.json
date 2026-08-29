@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "id": "qwen",
+  "displayName": "Qwen on Alibaba Cloud Model Studio",
+  "summary": "Alibaba's own Qwen models, bought per token from Model Studio (DashScope) over its OpenAI-compatible surface. Not the same product as PI's built-in qwen-token-plan, which is the flat-rate coding plan on a different host.",
+  "builtIn": false,
+  "default": false,
+  "egress": "public",
+  "concurrency": 2,
+
+  "requires": [
+    {
+      "kind": "env",
+      "name": "DASHSCOPE_API_KEY",
+      "required": true,
+      "secret": true,
+      "description": "The Model Studio API key. It is the only credential the OpenAI-compatible surface accepts: a Bearer token in the Authorization header. models.json stores the $DASHSCOPE_API_KEY reference, never the value.",
+      "howTo": "Model Studio console -> API keys -> create. Put it in ~/.pi/secrets.env (chmod 600), one line, as DASHSCOPE_API_KEY followed by an equals sign and the key. Never in this repository."
+    },
+    {
+      "kind": "service",
+      "name": "an Alibaba Cloud account with Model Studio activated in the region you picked",
+      "required": true,
+      "secret": false,
+      "description": "Model Studio is activated per region, and a key issued in one region does not authenticate against the other. The Singapore (international) and Beijing (mainland China) deployments are separate services with separate consoles, separate keys and different prices for the same model id.",
+      "howTo": "Activate Model Studio in the console for the region you intend to call, then issue the key there. If a request returns 401 with a valid-looking key, check the region before checking the key."
+    }
+  ],
+
+  "prompts": [
+    {
+      "id": "endpoint",
+      "type": "choice",
+      "label": "Which Model Studio deployment do your requests go to?",
+      "help": "This decides the base URL, and the base URL is substituted literally at install time - PI does not expand $VAR or !cmd inside baseUrl, so it cannot be an environment variable. The shared hosts are the ones the vendor's quickstart uses. A workspace-scoped host is the newer form the console hands you for a specific workspace; the vendor documents it as the faster and more stable route, and it carries your workspace id in the hostname.",
+      "default": "singapore",
+      "required": true,
+      "choices": [
+        { "value": "singapore", "label": "Singapore / international (dashscope-intl.aliyuncs.com) - the prices this fragment writes" },
+        { "value": "beijing", "label": "Beijing / mainland China (dashscope.aliyuncs.com) - cheaper, see the pricing note" },
+        { "value": "workspace", "label": "A workspace-scoped host from my console" }
+      ]
+    },
+    {
+      "id": "workspaceHost",
+      "type": "string",
+      "label": "The workspace host, without the scheme and without the /compatible-mode/v1 suffix",
+      "help": "Copy the host out of the endpoint your console shows and drop everything from the first slash onwards. The fragment appends /compatible-mode/v1 itself, so a host pasted with the path already on it produces a doubled path and a 404 on every request.",
+      "example": "<workspace-id>.ap-southeast-1.maas.aliyuncs.com",
+      "required": true,
+      "when": { "endpoint": "workspace" },
+      "validate": {
+        "pattern": "^[a-z0-9.-]+\\.aliyuncs\\.com$",
+        "message": "a bare aliyuncs.com hostname - no scheme, no path"
+      }
+    }
+  ],
+
+  "derived": [
+    {
+      "id": "baseUrl",
+      "from": "endpoint",
+      "map": {
+        "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "workspace": "https://{{workspaceHost}}/compatible-mode/v1"
+      }
+    }
+  ],
+
+  "tiers": {
+    "strong": "qwen/qwen3.8-max",
+    "light": "qwen/qwen3.8-flash"
+  },
+
+  "provider": {
+    "baseUrl": "{{baseUrl}}",
+    "api": "openai-completions",
+    "apiKey": "$DASHSCOPE_API_KEY",
+    "compat": {
+      "thinkingFormat": "qwen",
+      "supportsDeveloperRole": false,
+      "supportsStore": false,
+      "supportsReasoningEffort": false
+    },
+    "models": [
+      {
+        "id": "qwen3.8-max",
+        "name": "Qwen3.8 Max",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": 200000,
+        "maxTokens": 65536,
+        "cost": { "input": 2, "output": 6, "cacheRead": 2, "cacheWrite": 0 }
+      },
+      {
+        "id": "qwen3.7-plus",
+        "name": "Qwen3.7 Plus",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": 200000,
+        "maxTokens": 65536,
+        "cost": { "input": 0.4, "output": 1.6, "cacheRead": 0.4, "cacheWrite": 0 }
+      },
+      {
+        "id": "qwen3.8-flash",
+        "name": "Qwen3.8 Flash",
+        "reasoning": true,
+        "input": ["text"],
+        "contextWindow": 200000,
+        "maxTokens": 65536,
+        "cost": { "input": 0.15, "output": 0.47, "cacheRead": 0.15, "cacheWrite": 0 }
+      },
+      {
+        "id": "qwen3-coder-plus",
+        "name": "Qwen3 Coder Plus",
+        "input": ["text"],
+        "contextWindow": 128000,
+        "maxTokens": 65536,
+        "cost": { "input": 1.8, "output": 9, "cacheRead": 1.8, "cacheWrite": 0 }
+      },
+      {
+        "id": "qwen-vl-max",
+        "name": "Qwen VL Max",
+        "input": ["text", "image"],
+        "contextWindow": 128000,
+        "maxTokens": 32768,
+        "cost": { "input": 0.8, "output": 3.2, "cacheRead": 0.8, "cacheWrite": 0 }
+      }
+    ]
+  },
+
+  "notes": [
+    "THIS IS NOT PI'S BUILT-IN qwen-token-plan, AND THE TWO MUST NOT BE CONFUSED. PI ships a `qwen-token-plan` provider pointed at token-plan.ap-southeast-1.maas.aliyuncs.com, which is Alibaba's FLAT-RATE plan: its catalogue carries four written zeros because a plan has no per-token rate, and it serves other vendors' models (MiniMax, GLM, Kimi, DeepSeek) alongside Qwen. This fragment is the PAY-PER-TOKEN Model Studio surface on a different host, under the id `qwen`, and every model here bills per token at the rates below. Installing this one does not disturb the built-in; a session using the plan should dispatch at `qwen-token-plan/...` and one buying tokens at `qwen/...`, and the status line is only truthful if you use the id that matches how you actually pay.",
+    "EGRESS IS `public`, DELIBERATELY, AND THAT IS NOT A COMMENT ON ALIBABA'S TRUSTWORTHINESS. config/providers/README.md section 5 states the rule this repository classifies by: a third-party API is `public` even if the vendor is trustworthy, because the class records WHERE THE TRAFFIC PHYSICALLY GOES AND WHO CAN READ IT THERE, not how much you like the company. Model Studio is a multi-tenant SaaS outside any boundary this harness controls, on the international deployment or the mainland one, so `confidential` would be a false statement in the one map every surface reads to tell a human or a model where a prompt is going. If your organisation has a private Model Studio deployment inside its own boundary, that is `openai-compatible.json` answered with your host and your class, not this file.",
+    "PRICES ARE THE SINGAPORE (INTERNATIONAL) LIST RATES, IN DOLLARS PER MILLION TOKENS, READ ON 2026-08-29 FROM https://www.alibabacloud.com/help/en/model-studio/model-pricing - qwen3.8-max 2.00 in / 6.00 out, qwen3.7-plus 0.40 / 1.60, qwen3.8-flash 0.15 / 0.47, qwen3-coder-plus 1.80 / 9.00, qwen-vl-max 0.80 / 3.20. PI divides each rate by 1000000 before multiplying by the usage counter, so these are per MILLION tokens and a per-token figure pasted here would be wrong by six orders of magnitude and still render. THE BEIJING DEPLOYMENT BILLS LESS FOR THE SAME IDS (on the same page and date: qwen3.8-max 1.65 / 4.951, qwen3.7-plus 0.276 / 1.101, qwen3.8-flash 0.113 / 0.382, qwen3-coder-plus 0.861 / 3.441, qwen-vl-max 0.23 / 0.574), and this fragment writes the international numbers whichever endpoint you pick, because the composed models.json carries one rate per model. If you answered `beijing`, edit those five cost blocks in config/models.json - until you do, the status line over-reports your spend, which is the safe direction to be wrong in but still wrong.",
+    "TWO OF THESE MODELS ARE PRICED IN BANDS BY REQUEST SIZE, AND THE DECLARED RATE IS THE TOP BAND THE DECLARED WINDOW CAN REACH. qwen3.7-plus is 0.40 / 1.60 up to 256K input tokens and 1.20 / 4.80 above it; the 200000 window here never crosses that line, so its rate is exact. qwen3-coder-plus is banded at 1.00 / 5.00 (to 32K), 1.80 / 9.00 (32K-128K), 3.00 / 15.00 (128K-256K) and 6.00 / 60.00 above, so its window is declared at 128000 and it is priced at the 1.80 / 9.00 band that a full context can reach. A short turn on that model therefore reports up to 1.8x what it cost. Over-reporting is the direction this repository prefers to be wrong in - extensions/cost-gate exists because the opposite direction is invisible - but if coder-plus is your main model and your turns are small, lower the declared window and the rate together rather than only the rate.",
+    "cacheRead IS SET TO THE MISS RATE BECAUSE NO CACHED-INPUT DISCOUNT WAS VERIFIED FOR THIS SURFACE. Model Studio documents a context cache, but the pricing page read on 2026-08-29 states one input rate per model rather than a separate cached-input rate, and this repository has not measured what the compatible-mode endpoint reports in prompt_tokens_details on a live key. Writing 0 there would claim cached reads are free, which is the under-reporting shape extensions/cost-gate exists to catch; writing the miss rate claims no discount, which can only over-report. cacheWrite is 0 because no charge for placing a cache entry is published. Correct both in config/models.json once you have an invoice that shows the real cached-input line.",
+    "THE CONTEXT WINDOWS ARE UNDER-DECLARED ON PURPOSE. The vendor documents 1000000 tokens for the qwen3.x ids. PI's compaction threshold is contextWindow - reserveTokens, so an over-declared window makes compaction fire too late and the endpoint truncates instead, which presents as the agent forgetting the start of the task. config/providers/README.md section 5 asks for min(200000, measured), so that is what is written; 128000 on coder-plus and vl-max is the price band and the smaller documented window respectively. Under-declaring only makes compaction fire earlier. Raise it in config/models.json once you have measured your own need for the room and priced it - `/context` inside a session prints the resolved window and where it came from.",
+    "THE compat BLOCK IS PI'S OWN MEASUREMENT OF THE SAME WIRE, CARRIED ACROSS AND ATTRIBUTED. thinkingFormat `qwen`, supportsDeveloperRole false and supportsStore false are what PI's bundled catalogue states for qwen-token-plan, which is Alibaba's compatible-mode surface on a different host - the same protocol, the same vendor, a different deployment. That is a stronger source than a guess and a weaker one than a turn on the wire, so it is written here with its provenance rather than presented as measured on this tree. supportsReasoningEffort is false for every model although PI's catalogue sets it TRUE for qwen3.8-max: config/providers/README.md section 5 says start with everything off, get one successful turn, then enable one at a time. Turning it on for qwen3.8-max is the first thing to try if you want thinking levels forwarded, and the cost of being wrong is a 400 on every request rather than a silent behaviour change.",
+    "THE API KEY IS THE ONLY CREDENTIAL THIS SURFACE TAKES. Alibaba Cloud also issues RAM access keys (an id and a secret) for its other APIs, and they do not authenticate the compatible-mode endpoint: it wants Authorization: Bearer <the Model Studio API key>, which is what $DASHSCOPE_API_KEY holds. If you have only an access-key pair, issue an API key in the Model Studio console instead of trying to convert them. As with every provider here, apiKey must be present AND must resolve at session start or PI reads the provider as unconfigured and its models never appear in /model or --list-models, which looks like a broken harness rather than a missing credential.",
+    "ADDING OR CHANGING MODELS AFTER INSTALLATION. Five ids ship because five cover the tiers plus a coder and a vision model; Model Studio serves many more, including other vendors' models on the same key. Append objects to `providers.qwen.models` in config/models.json - copy one of the blocks already there, change `id`, `name`, `contextWindow` and all four rates in its cost block. Nothing has to be re-run: models.json is read at session start. To route a tier at a new model, edit `tiers.<name>.model` in config/routing.json to `qwen/<the new id>`, then `bin/pi-check --all` (PC-01 wants every id provider-qualified, PC-02 wants every bound tier to resolve, PC-27 wants every declared model priced)."
+  ],
+
+  "verify": [
+    {
+      "label": "the key is accepted by the deployment you picked, and these are the ids it serves",
+      "command": "curl -sS -H \"Authorization: Bearer $DASHSCOPE_API_KEY\" {{baseUrl}}/models | head -c 400"
+    },
+    {
+      "label": "PI sees the provider as configured",
+      "command": "pi --list-models | grep '^qwen/'"
+    },
+    {
+      "label": "PI can complete one turn",
+      "command": "pi -p 'reply with OK' --model qwen/qwen3.8-flash"
+    }
+  ]
+}

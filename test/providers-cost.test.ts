@@ -258,18 +258,31 @@ describe("provider fragments — the silent 0.000", () => {
     // reader check the number against the page instead of against this repository's memory, and
     // what stops a plausible-looking rate from being invented in an editor.
     for (const { file, fragment } of defining) {
-      const writesRates = (fragment.derived ?? []).some(
-        (d) => typeof d.map?.metered === "number" && d.map.metered > 0,
-      );
+      // Two spellings of "written", and the provenance rule follows the rate rather than the
+      // spelling. `openai` writes its rates into the metered branch of a `derived` map, because the
+      // same fragment also has an unmetered branch to offer. A fragment naming a vendor that only
+      // ever bills per token has nothing to ask and states the number in the `cost` block itself
+      // (`qwen`, `deepseek`) — the same authored rate, one indirection shorter, and no less
+      // somebody else's list price.
+      const writesRates =
+        (fragment.derived ?? []).some((d) => typeof d.map?.metered === "number" && d.map.metered > 0) ||
+        priced(fragment).some((model) =>
+          COST_RATE_FIELDS.some((field) => {
+            const rate = model.cost?.[field];
+            return typeof rate === "number" && Number.isFinite(rate) && rate > 0;
+          }),
+        );
       if (!writesRates) continue;
       const sourced = (fragment.notes ?? []).filter(
         (n) => /DOLLARS PER MILLION TOKENS/.test(n) && /https?:\/\/\S+/.test(n),
       );
       assert.ok(
         sourced.length > 0,
-        `${file} writes per-token rates into the metered branch but no note gives the URL they ` +
-          `were read from. State the page and the date you read it: these are somebody else's ` +
-          `list prices, and they change.`,
+        `${file} writes per-token rates down but no note gives the URL they were read from. ` +
+          `State the page and the date you read it: these are somebody else's list prices, and ` +
+          `they change. A rate written into a \`cost\` block needs the same provenance as one ` +
+          `written into a metered branch — the reader cannot check either one against a page ` +
+          `this repository never names.`,
       );
     }
   });
