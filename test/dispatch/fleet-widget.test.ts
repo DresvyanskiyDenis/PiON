@@ -327,3 +327,129 @@ describe("the panel as a fixed block on the screen", () => {
     assert.equal(painted.at(-1)!.content, undefined);
   });
 });
+
+/**
+ * The consequence of the fleet never cleaning up, measured on the widget rather than argued about.
+ *
+ * `renderFleetPanel` returns `undefined` only at `tracked.size === 0`, and that `undefined` is the
+ * one signal `refresh` stops its poll on. While terminal runs accumulated forever, a session that
+ * had dispatched a single async run kept a 1 Hz timer — and a status-file read per tracked run on
+ * every one of its ticks — until it exited. The sweep in `paint` is what ends that.
+ */
+describe("retiring settled runs from the panel", () => {
+  /** Marks `runId` announced and settled long enough ago that the TTL has already elapsed. */
+  function settledLongAgo(fleet: AsyncFleet, runId: string): void {
+    fleet.announced.add(runId);
+    fleet.settledAt.set(runId, 0);
+  }
+
+  it("clears the panel and starts no poll once the last settled run is retired", () => {
+    const painted: Painted[] = [];
+    const fleet = fleetWith([RUN, runDir(RUN, { runId: RUN, state: "complete", mode: "single" }), "a"]);
+    settledLongAgo(fleet, RUN);
+    const audit = withTimerAudit(() => {
+      const widget = createFleetWidget(fleet, 50);
+      const ctx = ctxFor("tui", painted);
+      widget.refresh(ctx);
+      widget.dispose(ctx);
+    });
+    assert.equal(fleet.tracked.size, 0, "the settled run was not retired");
+    assert.deepEqual(painted[0], { key: WIDGET_KEY, content: undefined }, "the panel did not go away");
+    assert.equal(audit.created, 0, "a session with nothing left to watch is carrying a timer");
+  });
+
+  it("keeps painting the running child after the finished one is retired", () => {
+    const painted: Painted[] = [];
+    const fleet = fleetWith(
+      [RUN, runDir(RUN, { runId: RUN, state: "complete", mode: "single" }), "done"],
+      [OTHER, runDir(OTHER, { runId: OTHER, state: "running", mode: "single" }), "busy"],
+    );
+    settledLongAgo(fleet, RUN);
+    const widget = createFleetWidget(fleet, 50);
+    const ctx = ctxFor("tui", painted);
+    widget.refresh(ctx);
+    widget.dispose(ctx);
+
+    assert.deepEqual([...fleet.tracked.keys()], [OTHER]);
+    const lines = painted[0]!.content!;
+    assert.ok(lines.some((line) => line.includes("busy")), "the running child is not on the panel");
+    assert.ok(!lines.some((line) => line.includes("done")), "the retired run is still on the panel");
+    assert.match(lines[0]!, /1 running/, "the header still counts the retired run");
+    assert.doesNotMatch(lines[0]!, /done/, "the header still counts the retired run");
+  });
+
+  it("leaves a run that finished but was never reported on the panel", () => {
+    const painted: Painted[] = [];
+    const fleet = fleetWith([RUN, runDir(RUN, { runId: RUN, state: "failed", mode: "single" }), "a"]);
+    const widget = createFleetWidget(fleet, 50);
+    const ctx = ctxFor("tui", painted);
+    widget.refresh(ctx);
+    widget.refresh(ctx);
+    widget.dispose(ctx);
+    assert.equal(fleet.tracked.size, 1, "a failure nobody has been told about was swept away");
+  });
+});
+
+/**
+ * The panel is a display, not a control.
+ *
+ * Reported as "after `/compact` the panel is still displayed but the down arrow no longer selects
+ * the async runs", with a prescribed fix of repainting this widget from a `session_compact`
+ * handler. The panel was never selectable: the host wraps a `string[]` widget in a `Container` of
+ * `Text` components, which has no `handleInput`, and no repaint can change that. These two lock the
+ * properties the module header argues from, so a later move to a component factory — the only
+ * widget shape that can take a keypress — has to come past this test rather than quietly making
+ * that paragraph false.
+ */
+describe("the panel is a display, not a control", () => {
+  /** A context that records everything the widget asks of `ui`, not only what it paints. */
+  function spyCtx(): { ctx: ExtensionContext; widgets: Array<{ content: unknown; options: unknown }>; asked: string[] } {
+    const widgets: Array<{ content: unknown; options: unknown }> = [];
+    const asked: string[] = [];
+    const ui = new Proxy(
+      {
+        setWidget: (_key: string, content: unknown, options: unknown) => {
+          widgets.push({ content, options });
+        },
+      } as Record<string, unknown>,
+      {
+        get(target, property: string) {
+          asked.push(property);
+          return target[property];
+        },
+      },
+    );
+    return { ctx: { mode: "tui", hasUI: true, ui } as unknown as ExtensionContext, widgets, asked };
+  }
+
+  it("publishes a line array, never a component factory", () => {
+    const { ctx, widgets } = spyCtx();
+    const fleet = fleetWith([RUN, runDir(RUN, { runId: RUN, state: "running", mode: "single" }), "a"]);
+    const widget = createFleetWidget(fleet, 50);
+    widget.refresh(ctx);
+    widget.dispose(ctx);
+
+    const shown = widgets.filter((call) => call.content !== undefined);
+    assert.equal(shown.length, 1, "the panel was painted more than once for one refresh");
+    assert.ok(Array.isArray(shown[0]!.content), "the panel published something other than a line array");
+    assert.ok(
+      (shown[0]!.content as unknown[]).every((line) => typeof line === "string"),
+      "the panel published a non-string among its lines",
+    );
+    assert.deepEqual(shown[0]!.options, { placement: "aboveEditor" });
+  });
+
+  it("never subscribes to the keyboard or asks for focus", () => {
+    // Selection lives in `pi-subagents`' fleet view, which is left enabled —
+    // `config/subagent.default.json` turns off `asyncWidget`, not `fleetView`. This panel takes
+    // neither of the two shapes that could consume a keypress, and a `/compact` handler here would
+    // not have given it either.
+    const { ctx, asked } = spyCtx();
+    const fleet = fleetWith([RUN, runDir(RUN, { runId: RUN, state: "running", mode: "single" }), "a"]);
+    const widget = createFleetWidget(fleet, 50);
+    widget.refresh(ctx);
+    widget.refresh(ctx);
+    widget.dispose(ctx);
+    assert.deepEqual([...new Set(asked)], ["setWidget"], `the panel reached for more than setWidget: ${asked}`);
+  });
+});

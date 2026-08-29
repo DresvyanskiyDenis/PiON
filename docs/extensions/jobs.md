@@ -23,6 +23,28 @@ want to start now and read the result of after a compaction, a `/reload`, or tom
 The alternative is a bash call with a very long timeout, which holds the session hostage for the
 duration and loses everything if the session ends.
 
+## Where a running job shows up
+
+Two surfaces, and they are not the same thing. The footer carries a **count** (`2 bg`). The fleet
+panel below the editor carries a **row per job**, rendered as `external · <label>` next to the
+sub-agent package's own children, because the store is published into that package's external-run
+registry.
+
+Both are written the moment `job(action="start")` returns, so a job you were just told about is on
+the panel straight away rather than at the end of the turn, and again on every sweep and at
+`session_start` — a session resumed with jobs still running gets its rows back. The rows are
+withdrawn at `session_shutdown`; the jobs themselves keep running, and the next session that opens
+the store re-publishes them.
+
+Only *running* jobs of *this* session are published, at most 20 of them: the panel renders active
+states only, filters by session, and cuts its snapshot at 20 rows, so anything beyond that could
+not be shown and would only spend a cache shared with every other producer.
+
+A job whose id or session path would not survive the panel's own display sanitiser is skipped
+rather than rewritten — an identifier quietly repaired is an identifier nothing else can find —
+and a registry that fails to accept our rows is reported once and otherwise ignored. The footer
+count is an independent surface and keeps working either way.
+
 ## How you hear that it finished
 
 A detached child is deliberately `unref()`d so it can outlive the `pi` process, which means

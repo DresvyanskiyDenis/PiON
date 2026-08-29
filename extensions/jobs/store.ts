@@ -1,10 +1,9 @@
 /**
  * EXT-24 — the cross-session job directory.
  *
- * `pi-subagents` (async runs) and `@99percentpeople/pi-background-tasks` (background bash)
- * are both **session-scoped**: their state lives in the process that started the work, so a
- * job is invisible from any other session and dies with its parent. This module is the part
- * neither package has — a directory under the harness state root that any session can read,
+ * `pi-subagents` (async runs) is **session-scoped**: its state lives in the process that started
+ * the work, so a job is invisible from any other session and dies with its parent. This module
+ * is the part it does not have — a directory under the harness state root that any session can read,
  * that outlives the `pi` process that created it, and that a second session can poll, tail
  * and kill.
  *

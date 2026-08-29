@@ -28,6 +28,47 @@
  * called from `session_shutdown`. `test/dispatch/fleet-widget.test.ts` counts live timers across a
  * full session and requires zero at the end, rather than asserting it in this comment.
  *
+ * The middle bound used to be unreachable rather than merely untriggered: the fleet had no removal
+ * path, so after a session's first async run it was never empty again and this timer ran, re-reading
+ * every finished run's `status.json` once a second, until the process exited. `retireSettledRuns`
+ * supplies what was missing, and `paint` runs the sweep itself — the poll is the only thing still
+ * ticking once a session goes idle, so it is the only place that can retire the last settled run
+ * and let the tick below stop.
+ *
+ * **It is a display, not a control, and `/compact` does not change that.** Reported as "after
+ * `/compact` the panel is still displayed but the down arrow no longer selects the async runs",
+ * with a prescribed fix of repainting this widget from a `session_compact` handler. Both halves are
+ * wrong, and the second is worth stating in the file it would have been pasted into.
+ *
+ * This panel has never been selectable, before or after any compaction. It is published as a
+ * `string[]`, and the host wraps a string array in a `Container` of `Text` components
+ * (`@earendil-works/pi-coding-agent/dist/modes/interactive/interactive-mode.js:1640-1650`) — no
+ * `handleInput` — while `ExtensionWidgetOptions` carries `placement` and nothing else
+ * (`dist/core/extensions/types.d.ts:45-48`). Widgets are never given focus either; `ui.setFocus` is
+ * applied to overlays and selectors only. Repainting a `Text` container cannot make it take a
+ * keypress, so the prescribed handler would have been a no-op stacked on a panel that already
+ * repaints every second.
+ *
+ * Compaction does not disturb widgets in the first place. `handleCompactCommand`
+ * (`interactive-mode.js:5327-5335`) only calls `session.compact()`; `clearExtensionWidgets()` and
+ * `clearExtensionTerminalInputListeners()` are reachable solely through `resetExtensionUI()`
+ * (`:1671-1699`), which runs on session replacement (`:319`) and on `/reload` (`:4724`). A captured
+ * `ExtensionContext` goes stale on exactly those same events and not on a compaction
+ * (`dist/core/extensions/runner.js:352`), which is why the pinned context this poll paints from
+ * survives one.
+ *
+ * Where the keyboard actually works is `pi-subagents`' fleet view — the belowEditor line reading
+ * "↓/← to inspect". It registers a component *factory* and owns a `ui.onTerminalInput` subscription
+ * (`node_modules/pi-subagents/src/tui/fleet-status.ts:495`, keys at `:560-616`); both are shapes
+ * this module deliberately does not take. That surface is left enabled —
+ * `config/subagent.default.json` turns off `asyncWidget`, not `fleetView`. One thing there does go
+ * quiet around a compaction, and it is upstream policy rather than a defect here: an *automatic*
+ * pass (`reason !== "manual"`) sets `widgetsSuspended`, which clears the fleet view and makes its
+ * `handleKey` return without consuming the key (`pi-subagents/src/extension/index.ts:830-835` and
+ * `:1017-1019`, `fleet-status.ts:516` and `:561`), until `agent_settled` resumes it
+ * (`:1013-1015`). A manual `/compact` is exempt from that path by the `reason` guard. Either way it
+ * is a window inside a turn, not a stuck state, and nothing in this module can shorten it.
+ *
  * **No new colour.** The three states are distinguished by the same three glyphs the announcement
  * already uses (`✓` done, `✗` failed, `?` never started, `▸` live), which is a channel that
  * survives a screenshot, a colour-blind reader and a 256-colour terminal. Introducing a colour here
@@ -36,7 +77,7 @@
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { type AsyncFleet, reconcile, shortId } from "./async-fleet.ts";
+import { type AsyncFleet, type AsyncRunReport, reconcile, retireSettledRuns, shortId } from "./async-fleet.ts";
 
 /**
  * The `setWidget` key. One key, so a repaint replaces rather than stacks.
@@ -144,9 +185,13 @@ export function fitLine(text: string, width: number): string {
 }
 
 /** The panel's lines, or `undefined` when there is nothing to show and the panel should go away. */
-export function renderFleetPanel(fleet: AsyncFleet, width: number = panelWidth()): string[] | undefined {
+export function renderFleetPanel(
+  fleet: AsyncFleet,
+  width: number = panelWidth(),
+  /** Pre-read verdicts, so a caller that has just reconciled does not send the panel to disk twice. */
+  reports: readonly AsyncRunReport[] = reconcile(fleet),
+): string[] | undefined {
   if (fleet.tracked.size === 0) return undefined;
-  const reports = reconcile(fleet);
   let live = 0;
   let done = 0;
   let bad = 0;
@@ -220,7 +265,12 @@ export function createFleetWidget(fleet: AsyncFleet, pollMs: number = POLL_MS): 
   };
 
   const paint = (ctx: ExtensionContext): boolean => {
-    const lines = renderFleetPanel(fleet);
+    // One read of every status file per paint, shared by the sweep and the render. The sweep runs
+    // here rather than only at `turn_end` because this is the only thing still ticking once a
+    // session goes idle, and retiring the last settled run is what lets the poll below stop.
+    const reports = reconcile(fleet);
+    retireSettledRuns(fleet, reports);
+    const lines = renderFleetPanel(fleet, panelWidth(), reports.filter((r) => fleet.tracked.has(r.run.runId)));
     if (unchanged(lines)) return lines !== undefined;
     painted = lines;
     if (lines === undefined) {
