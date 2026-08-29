@@ -351,6 +351,60 @@ rules:
   });
 });
 
+describe("hooks — preflight-before-remote-job: matches a paid submit, not a read-only near-miss", () => {
+  // The pattern under test is copied verbatim from config/hooks.yaml's preflight-before-remote-job
+  // rule — keep the two in sync if either changes.
+  const PATTERN =
+    'databricks\\s+jobs\\s+run-now\\b|databricks\\s+bundle\\s+deploy\\b|gcloud\\s+\\S+\\s+jobs\\s+submit\\b|aws\\s+batch\\s+submit-job\\b|kubectl\\s+create\\s+job\\b';
+
+  async function loadRule(): Promise<{
+    toolCall: ToolCallHandler[];
+    sessionStart: SessionStartHandler[];
+    ctx: FakeCtxHandle;
+  }> {
+    await writeGlobalHooks(`version: 1
+rules:
+  - id: preflight-before-remote-job
+    event: tool_call
+    match: { tool: bash, pattern: '${PATTERN}' }
+    action: confirm
+    reason: "submit anyway?"
+`);
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const ctx = fakeCtx({ confirm: () => true });
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, ctx.ctx);
+    return { toolCall, sessionStart, ctx };
+  }
+
+  const submits = [
+    "databricks jobs run-now --job-id 123",
+    "databricks bundle deploy -t prod",
+    "gcloud ai-platform jobs submit training my_job --region=us-central1",
+    "aws batch submit-job --job-name x --job-queue q --job-definition d",
+    "kubectl create job my-job --image=busybox",
+  ];
+  const nearMisses = ["databricks jobs list", "databricks bundle validate", "kubectl get jobs"];
+
+  for (const command of submits) {
+    it(`confirms before a remote submit: ${command}`, async () => {
+      const { toolCall, ctx } = await loadRule();
+      const result = await toolCall[0]!(bashEvent(command), ctx.ctx);
+      assert.equal(result, undefined, "accepted confirm proceeds");
+      assert.equal(ctx.confirmed.length, 1);
+    });
+  }
+
+  for (const command of nearMisses) {
+    it(`does not fire on a read-only near-miss: ${command}`, async () => {
+      const { toolCall, ctx } = await loadRule();
+      const result = await toolCall[0]!(bashEvent(command), ctx.ctx);
+      assert.equal(result, undefined);
+      assert.equal(ctx.confirmed.length, 0, "a read-only command must never trigger the confirm dialog");
+    });
+  }
+});
+
 describe("hooks — a malformed hooks.yaml FILE degrades this module, it does not contain the session (docs/DENYLIST.md §4a finding #5)", () => {
   it("invalid YAML syntax degrades: no shutdown, an error-level DEGRADED announcement, tool calls proceed, input is not swallowed", async () => {
     await writeGlobalHooks("version: 1\nrules: [{id: bad, event: tool_call\n"); // unterminated flow

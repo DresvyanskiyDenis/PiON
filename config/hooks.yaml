@@ -34,6 +34,20 @@ rules:
     action: warn
     reason: "Reminder: coding work happens in a git worktree, never the primary checkout."
 
+  # A paid remote job or long-running run used as the first test of a changed code path is an
+  # expensive way to discover an error class that a five-minute local run would have caught for
+  # free. `confirm`, not `block`: this hook cannot know whether a local run already happened, so
+  # `block` would refuse legitimate submits and get routed around within the hour, while `warn` is
+  # invisible in a long transcript. `confirm` costs one keypress on a legitimate submit and
+  # reliably interrupts a repeat of the same failing one.
+  - id: preflight-before-remote-job
+    event: tool_call
+    match:
+      tool: bash
+      pattern: 'databricks\s+jobs\s+run-now\b|databricks\s+bundle\s+deploy\b|gcloud\s+\S+\s+jobs\s+submit\b|aws\s+batch\s+submit-job\b|kubectl\s+create\s+job\b'
+    action: confirm
+    reason: "This submits work to a remote executor or a paid endpoint. A local run against real, committed input should have passed first — submit anyway?"
+
 # The `run` action (shells out to a script, decision on stdout or exit code 2) is documented in
 # docs/extending/hooks.md with a worked example, but deliberately not enabled here: a `run` rule with
 # `match: { tool: bash }` and no script yet in place would BLOCK every bash call by design (a

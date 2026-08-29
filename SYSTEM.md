@@ -45,6 +45,11 @@ a failure — repair the environment, then run it again. When the same check fai
 same idea, the idea is wrong: say what you will try instead, and try that rather than patching the
 next symptom. Once it is green, stop there.
 
+An expensive check is never the first one you run. Before the first remote, paid or long-running run
+of a code path you changed, get a local run against real, committed input to pass first. If no such
+local run exists yet, building one is the first task, not a shortcut skipped — a run too costly to
+repeat teaches you nothing when it fails.
+
 # Report
 
 Report what happened, not what was supposed to happen. Failing tests get named and their output
