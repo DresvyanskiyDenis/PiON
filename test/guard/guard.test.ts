@@ -26,18 +26,23 @@ interface FakePi {
   handlers: Handler[];
   entries: Array<[string, unknown]>;
   emitted: Array<[string, unknown]>;
+  renderers: string[];
 }
 
 function fakePi(): FakePi {
   const handlers: Handler[] = [];
   const entries: Array<[string, unknown]> = [];
   const emitted: Array<[string, unknown]> = [];
+  const renderers: string[] = [];
   const pi = {
     on(event: string, handler: Handler) {
       if (event === "tool_call") handlers.push(handler);
     },
     appendEntry(customType: string, data: unknown) {
       entries.push([customType, data]);
+    },
+    registerEntryRenderer(customType: string) {
+      renderers.push(customType);
     },
     events: {
       emit(channel: string, data: unknown) {
@@ -46,7 +51,7 @@ function fakePi(): FakePi {
       on: () => () => {},
     },
   } as unknown as ExtensionAPI;
-  return { pi, handlers, entries, emitted };
+  return { pi, handlers, entries, emitted, renderers };
 }
 
 /**
@@ -72,6 +77,7 @@ function fakeBusPi(): {
   const pi = {
     on: () => {},
     appendEntry: () => {},
+    registerEntryRenderer: () => {},
     events: bus,
   } as unknown as ExtensionAPI;
   return { pi, bus };
@@ -142,8 +148,11 @@ describe("guard.register", () => {
   });
 
   it("blocks through the registered handler and writes one guard.block entry", async () => {
-    const { pi, handlers, entries } = fakePi();
+    const { pi, handlers, entries, renderers } = fakePi();
     register(pi);
+    // The entry is only half of it: without a renderer for that type the denial paints as
+    // PI's generic custom-entry fallback instead of the card.
+    assert.ok(renderers.includes("guard.block"), "guard.block has no renderer");
     const result = await handlers[0]!(bashEvent("rm -rf ~"), fakeCtx());
     assert.equal(result?.block, true);
     assert.match(result?.reason ?? "", /^Blocked by gate DB-RM-ROOT:/);

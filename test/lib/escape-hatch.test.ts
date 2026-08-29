@@ -4,6 +4,7 @@ import {
   denyWithEscapeHatch,
   extractJustification,
   JUSTIFY_TOKEN,
+  parseEscapeHatchDenial,
   stripJustification,
 } from "../../extensions/lib/escape-hatch.ts";
 
@@ -118,5 +119,26 @@ describe("escape hatch", () => {
     const j = extractJustification(raw, "G");
     assert.ok(j);
     assert.equal(stripJustification(raw, "G"), "set -e\nrm -rf ./build");
+  });
+
+  // `parseEscapeHatchDenial` is read by a person, through `guard/denial-card.ts`. Builder and
+  // parser sit in this file so a wording change in either one breaks here first.
+  it("parseEscapeHatchDenial recovers the fields the builder put into the prose", () => {
+    const reason = denyWithEscapeHatch({
+      gateId: "GIT-FORCE-PROTECTED",
+      what: "force-push onto a protected branch",
+      overridable: true,
+    }).reason;
+    assert.deepEqual(parseEscapeHatchDenial(reason), {
+      gateId: "GIT-FORCE-PROTECTED",
+      what: "force-push onto a protected branch",
+      overridable: true,
+    });
+  });
+
+  it("parseEscapeHatchDenial sees that a hard gate offers no hatch, and rejects foreign prose", () => {
+    const hard = denyWithEscapeHatch({ gateId: "DB-RM-ROOT", what: "rm -rf on /", overridable: false }).reason;
+    assert.equal(parseEscapeHatchDenial(hard)?.overridable, false);
+    assert.equal(parseEscapeHatchDenial("SEC: guard unavailable (internal error)"), null);
   });
 });

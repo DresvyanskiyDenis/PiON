@@ -41,6 +41,45 @@ export function denyWithEscapeHatch(d: EscapeHatchDenial): { block: true; reason
   };
 }
 
+/**
+ * The inverse of `denyWithEscapeHatch`: reads a denial's `gateId`, `what` and `overridable`
+ * back out of the reason string that carries them.
+ *
+ * `tool_call` returns nothing but `{ block, reason }`, and `guardedHandler`'s `guard.block`
+ * audit entry (`lib/guarded-handler.ts`) stores exactly that reason, not the `EscapeHatchDenial`
+ * it was built from. `guard/denial-card.ts` renders that audit entry for a person, and a person
+ * reading a denial needs the three fields separately, not run together in one paragraph. Rather
+ * than widen the audit entry, and with it `guardedHandler`'s call site — the one path in this
+ * tree required to stay boring — the parser is kept beside the builder, so a wording change in
+ * either one breaks this file's tests first.
+ *
+ * Returns `null` for a reason this function did not build: a rule that constructs its own denial
+ * text outside `denyWithEscapeHatch`, or a wording this parser predates. That is the honest
+ * answer for the card to act on, and it does: it falls back to the raw reason rather than
+ * inventing a gate id or an override that is not really there.
+ */
+export function parseEscapeHatchDenial(reason: string): EscapeHatchDenial | null {
+  const m = /^Blocked by gate ([^:]+): (.*?)\.(?:\s|$)/s.exec(reason);
+  if (!m) return null;
+  return {
+    gateId: m[1]!,
+    what: m[2]!,
+    overridable: !reason.includes("This gate has no override."),
+  };
+}
+
+/**
+ * The exact re-issue line `denyWithEscapeHatch` embeds in its `how` paragraph, pre-filled with
+ * `gateId` and ready to paste above the retried call. Kept as its own export, separate from the
+ * prose `denyWithEscapeHatch` builds for the model, because `guard/denial-card.ts` needs the
+ * template on its own line rather than folded into a sentence — the gate id is the one part of
+ * an override that is silently ignored when mistyped, so a card that shows it has to show it
+ * spelled exactly right.
+ */
+export function justificationTemplate(gateId: string): string {
+  return `# ${JUSTIFY_TOKEN}(${gateId}): <one sentence saying why, naming the concrete target>`;
+}
+
 export interface Justification {
   readonly gateId: string;
   readonly text: string;
