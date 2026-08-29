@@ -86,6 +86,7 @@ Fact 2.
 | stop two dispatches thrashing one endpoint | `concurrency` in `config/routing.json` | [routing.json](routing.md#concurrency) |
 | change the default model or thinking level | `config/settings.json` | [settings.json](settings.md) |
 | make compaction fire earlier or later | `contextWindow`, then `compaction.reserveTokens` | [settings.json](settings.md#compaction) · [Context windows](../concepts/context-windows.md) |
+| change the declared auto-compact threshold, a flat 200 000 on every model | `threshold` in `config/compaction.json` | [Session lifecycle](sessions.md#threshold-the-flat-200-000) |
 | protect more branches from force-push | `protectedBranches` in `config/guard.json` | [guard.json](guard.md#protectedbranches) |
 | raise the timeout for a long build | `config/bash-timeouts.json` | [Tool behaviour](tools.md#bash-timeoutsjson) |
 | add a declarative block/confirm/warn rule | `config/hooks.yaml` | [Tool behaviour](tools.md#hooksyaml) |
@@ -131,7 +132,7 @@ Task-shaped versions of these, with the commands, live in the
 
 | File | Controls |
 |---|---|
-| [`compaction.json`](sessions.md#compactionjson) | loop guard, pinned instruction sources, absolute threshold |
+| [`compaction.json`](sessions.md#compactionjson) | loop guard, pinned instruction sources, the flat 200 000 auto-compact threshold |
 | [`digest.json`](sessions.md#digestjson) | end-of-session summaries |
 | [`bash-timeouts.json`](tools.md#bash-timeoutsjson) | default and ceiling timeouts, output truncation |
 | [`dispatch.json`](dispatch.md) | sub-agent depth, default tier/egress, agent registries, matching |
