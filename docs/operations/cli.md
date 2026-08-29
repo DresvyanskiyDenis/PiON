@@ -294,6 +294,9 @@ Registered by the extensions, available inside a session.
 | `/index` | build or refresh the session index `pi-log` reads |
 | `/ctx-dump` | the assembled instruction context, verbatim |
 | `/jobs` | background jobs: history, status, exit code, stdout/stderr — read-only |
+| `/review` | mask the tool list down to read, grep and reason only |
+| `/explore` | the same, plus the web tools |
+| `/ship` | restore the tool list that was active before the first mask |
 
 `/ctx-dump` is the one people forget. When the model is behaving as though it was told something you
 did not tell it, that command shows you exactly what it was told.

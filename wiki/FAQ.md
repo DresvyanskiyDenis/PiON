@@ -3,7 +3,7 @@
 ## What is this, in one sentence?
 
 PiON — a hardened, portable harness for the [PI coding agent](https://github.com/earendil-works/pi):
-one composed extension of 33 modules plus a configuration tree, adding a permission layer, routing by
+one composed extension of 34 modules plus a configuration tree, adding a permission layer, routing by
 semantic tier, sub-agent orchestration and a headless wrapper that exits non-zero when a run actually
 failed.
 

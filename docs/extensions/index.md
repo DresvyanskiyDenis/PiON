@@ -1,6 +1,6 @@
 # Extensions
 
-Thirty-three modules, composed into one PI extension by `extensions/index.ts`. Each exports `id` and
+Thirty-four modules, composed into one PI extension by `extensions/index.ts`. Each exports `id` and
 `register(pi)` and is imported in a fixed order — the order *is* part of the design, and
 [Architecture](../concepts/architecture.md) explains why.
 
@@ -12,7 +12,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 | # | Group | Modules |
 |---|---|---|
 | 1 | Safety and identity | [guard](guard.md), [trust](trust.md), [session-context](session-context.md), [credentials](credentials.md), [cost-gate](cost-gate.md) |
-| 2 | Capability configuration | [path-defaults](path-defaults.md), [path-rules](path-rules.md), [skills-env](skills-env.md), [skill-mask](skill-mask.md), [skills-lint](skills-lint.md) |
+| 2 | Capability configuration | [path-defaults](path-defaults.md), [tool-masks](tool-masks.md), [path-rules](path-rules.md), [skills-env](skills-env.md), [skill-mask](skill-mask.md), [skills-lint](skills-lint.md) |
 | 3 | Tools and input | [ask-user](ask-user.md), [web](web.md), [bash](bash.md), [hooks](hooks.md), [input-transform](input-transform.md), [big-results](big-results.md) |
 | 4 | Orchestration | [dispatch](dispatch.md), [teammates](teammates.md), [message-agent](message-agent.md), [worktree](worktree.md), [jobs](jobs.md), [tasks](tasks.md) |
 | 5 | Observability and lifecycle | [quota](quota.md), [digest](digest.md), [compaction](compaction.md), [context-report](context-report.md), [context-imports](context-imports.md), [session-index](session-index.md), [auto-title](auto-title.md), [auto-update](auto-update.md), [skills-lint](skills-lint.md), [thinking-indicator](thinking-indicator.md) |
@@ -34,6 +34,9 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 | `/index` | [session-index](session-index.md) |
 | `/ctx-dump` | [session-context](session-context.md) |
 | `/jobs` | [jobs](jobs.md) |
+| `/review` | [tool-masks](tool-masks.md) |
+| `/explore` | [tool-masks](tool-masks.md) |
+| `/ship` | [tool-masks](tool-masks.md) |
 
 | Tool | Module |
 |---|---|

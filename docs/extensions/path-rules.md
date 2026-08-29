@@ -19,6 +19,24 @@ Use `uv` for every Python invocation in this project. Never `pip`, never a bare 
 
 No `paths:` key at all means unconditional — always injected, exactly like a line in `AGENTS.md`.
 
+A rule may also answer with a **tool mask** rather than with text, by naming one in `mask:`:
+
+```markdown
+---
+paths:
+  - "**/*.env"
+mask: review
+---
+
+Touching a secret file drops the write side of the tool list for the rest of this turn.
+```
+
+Touching a matching file narrows the tool surface for the rest of the turn and injects nothing;
+`turn_end` releases it. `mask:` requires `paths:`, and a value naming no real mask drops that one
+rule with a warning. Such a rule is outside the startup scan and outside the dedupe below, because
+it answers "is the model touching one right now" rather than "does this project contain such a
+file". See [tool-masks](tool-masks.md).
+
 ## Where the rules live, and why not in this repo
 
 `~/.pi/agent/rules`, or wherever `$PI_CONFIG_RULES_DIR` points. Deliberately **outside** the
@@ -82,4 +100,5 @@ engine derives from a `paths:` list.
 
 ## Related
 [`AGENTS.md` and instruction files](../configuration/settings.md) · [path-defaults](path-defaults.md) ·
+[tool-masks](tool-masks.md) ·
 [session-context](session-context.md) · [Architecture](../concepts/architecture.md)
