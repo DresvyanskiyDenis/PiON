@@ -22,6 +22,7 @@ second copy to keep in sync.
 ├── path-defaults.json  trusted-roots.json  pi-lsp.json
 ├── keybindings.json  pi-statusline.json
 ├── extensions/subagent/config.json -> ~/pi-config/config/subagent.json   the ONE nested link — see below
+├── subagent-tool-description.md -> ~/pi-config/config/subagent-tool-description.md   what the model reads for `subagent`
 ├── agents             -> ~/pi-config/agents/                  sub-agent definitions
 ├── agents-private     -> ~/pi-config/agents-private/          yours, git-ignored (if it exists)
 ├── auth.json                                                  0600, written by /login — never committed
@@ -146,6 +147,7 @@ knows it exists.
 | `config/guard.json` | [`guard`](../extensions/guard.md) | Protected branches, and the tool names the routing observer watches |
 | `config/dispatch.json` | [`dispatch`](../extensions/dispatch.md) | Depth limit, default tier and egress, agent registry directories, concurrency defaults |
 | `config/subagent.json` | `pi-subagents` (linked to `extensions/subagent/config.json`, the package's own config path — not `dispatch.json`) | The package's per-batch concurrency cap, plus the now-dormant legacy `parallel` keys |
+| `config/subagent-tool-description.md` | `pi-subagents` (linked to `subagent-tool-description.md` at the agent-dir **root** — a different resolver from the line above) | What the model reads for the `subagent` tool: the installed roles, the `workflowScript` call protocol, the width and run-tree budgets |
 | `config/compaction.json` | [`compaction`](../extensions/compaction.md) | Loop-guard thresholds, headless exit code, pinned sources, absolute threshold |
 | `config/digest.json` | [`digest`](../extensions/digest.md) | Whether digests run, the summariser tier, output directory |
 | `config/quota.json` | [`quota`](../extensions/quota.md) | Token file path, TTL, pre-flight threshold |

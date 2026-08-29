@@ -1890,6 +1890,15 @@ link_one optional config/pi-lsp.json        pi-lsp.json
 run "mkdir -p '$AGENT_DIR/extensions/subagent'"
 link_one optional config/subagent.json      extensions/subagent/config.json
 
+# The `subagent` tool's own model-facing description, which the file above switches on with
+# `toolDescriptionMode: "custom"`. pi-subagents resolves it as <cwd>/.pi/subagent-tool-description.md
+# then <agentDir>/subagent-tool-description.md, so the destination is the agent-dir ROOT — not the
+# nested extensions/subagent/ directory the config file goes to. `required`, because a missing file
+# does not restore the package's short default description: it installs the 6 KB full one, whose
+# worked example routes to a role this configuration does not have and whose guidelines mandate an
+# { action: "list" } round trip before every delegation, behind one console.warn.
+link_one required config/subagent-tool-description.md subagent-tool-description.md
+
 # pi-lean-ctx reads getAgentDir()/extensions/pi-lean-ctx/config.json. Shipping the file matters even
 # though every key in it is optional: with enableMcp at the package default of true, pi-lean-ctx
 # spawns the `lean-ctx` binary as an MCP server at every session start, and on a machine that has
