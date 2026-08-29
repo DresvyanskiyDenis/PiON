@@ -27,7 +27,7 @@
     
     
       
-        <title>session-context — date, scratchpad, identity, git facts - PiON</title>
+        <title>session-context — date, runtime, scratchpad, identity, git facts - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#session-context-date-scratchpad-identity-git-facts" class="md-skip">
+        <a href="#session-context-date-runtime-scratchpad-identity-git-facts" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              session-context — date, scratchpad, identity, git facts
+              session-context — date, runtime, scratchpad, identity, git facts
             
           </span>
         </div>
@@ -2049,7 +2049,7 @@
   <span class="md-ellipsis">
     
   
-    session-context — date, scratchpad, identity, git facts
+    session-context — date, runtime, scratchpad, identity, git facts
   
 
     
@@ -2067,7 +2067,7 @@
   <span class="md-ellipsis">
     
   
-    session-context — date, scratchpad, identity, git facts
+    session-context — date, runtime, scratchpad, identity, git facts
   
 
     
@@ -2108,6 +2108,17 @@
     <span class="md-ellipsis">
       
         Today's date
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-model-this-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What model this is
       
     </span>
   </a>
@@ -4246,6 +4257,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-model-this-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What model this is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-scratchpad" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4303,9 +4325,10 @@
   
 
 
-<h1 id="session-context-date-scratchpad-identity-git-facts"><code>session-context</code> — date, scratchpad, identity, git facts<a class="headerlink" href="#session-context-date-scratchpad-identity-git-facts" title="Permanent link">&para;</a></h1>
-<p>Injects a small, stable block into the system prompt exactly once per turn: today's date, the
-per-session scratchpad directory, an operator-identity file, project state and git facts.</p>
+<h1 id="session-context-date-runtime-scratchpad-identity-git-facts"><code>session-context</code> — date, runtime, scratchpad, identity, git facts<a class="headerlink" href="#session-context-date-runtime-scratchpad-identity-git-facts" title="Permanent link">&para;</a></h1>
+<p>Injects a small, stable block into the system prompt exactly once per turn: today's date, which
+model this session is actually running, the per-session scratchpad directory, an operator-identity
+file, project state and git facts.</p>
 <p>Registers <code>/ctx-dump</code>, which prints what was injected.</p>
 <h2 id="the-split-that-makes-it-cheap">The split that makes it cheap<a class="headerlink" href="#the-split-that-makes-it-cheap" title="Permanent link">&para;</a></h2>
 <ul>
@@ -4316,9 +4339,37 @@ per-session scratchpad directory, an operator-identity file, project state and g
 </ul>
 <p>Getting that backwards puts a <code>git</code> invocation and several file reads on the critical path of every
 message you type. It is the single most common performance mistake in an extension of this shape.</p>
+<p>The one value read on every prompt is the active model, and that is not an exception to the rule:
+PI resolves it through an in-memory getter, so no file is opened and no process is spawned.</p>
 <h2 id="todays-date">Today's date<a class="headerlink" href="#todays-date" title="Permanent link">&para;</a></h2>
 <p>Cheap and load-bearing. A model's knowledge has a cutoff; it cannot know what today is unless
 something tells it. Every "is this still current?" judgement downstream depends on this line.</p>
+<h2 id="what-model-this-is">What model this is<a class="headerlink" href="#what-model-this-is" title="Permanent link">&para;</a></h2>
+<p>A model cannot read its own name plate. Ask an agent which model it is and it answers from training
+data — confidently, and often wrongly, because a harness can point it at something that did not
+exist when it was trained. Worse, it cannot calibrate: how much to attempt in one turn depends on
+the window and the thinking level it is actually running at.</p>
+<p>So the block states it:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>## Runtime
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>model github-copilot/claude-opus-5 · thinking high · context window 200000 tokens
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Subagent default tier: strong (github-copilot/claude-opus-5 @ high).
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Routing questions are answered from config/models.json and config/routing.json, never from memory.
+</span></code></pre></div>
+<p>Model, thinking level and window come from the <strong>live session</strong>, re-read on every prompt, so
+switching model mid-session updates the line instead of leaving a stale claim in the prompt. The
+subagent default tier is file-backed — <code>config/dispatch.json</code>'s <code>defaultTier</code> resolved through
+<code>config/routing.json</code>'s tier table — and is therefore resolved once, in <code>session_start</code>, like every
+other read.</p>
+<div class="admonition warning">
+<p class="admonition-title">The section is never silently omitted</p>
+<p>If the runtime exposes no model, or <code>routing.json</code> has not been generated yet, the section
+still renders and names the reason:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>model UNRESOLVED — the session runtime exposed no active model (ctx.model is undefined) · …
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Subagent default tier: strong — UNRESOLVED: routing.json not found … run scripts/install.sh
+</span></code></pre></div>
+<p>A dropped section would put the agent straight back to guessing, which is the failure this
+exists to close.</p>
+</div>
 <h2 id="the-scratchpad">The scratchpad<a class="headerlink" href="#the-scratchpad" title="Permanent link">&para;</a></h2>
 <p>A per-session directory, created <code>0700</code>. It is where temporary files belong — not the system temp
 directory, and not the repository.</p>
