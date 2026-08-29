@@ -1,15 +1,14 @@
 /**
  * EXT-24 — background jobs: the cross-session job directory (`REQ-CTX-45`, `REQ-EXT-52`).
  *
- * Two faces of background work are already packaged and are **not** rebuilt here:
- * `pi-subagents`' async runs (the agent face — machine-readable lifecycle artifacts,
- * `subagent_wait`, the background-work registry) and `@99percentpeople/pi-background-tasks`
- * 2.0.0 (the bash face — start, wait, logs, stdin, signals, terminate, replay on reattach).
+ * The agent face of background work is already packaged and is **not** rebuilt here:
+ * `pi-subagents`' async runs — machine-readable lifecycle artifacts, `subagent_wait`, the
+ * background-work registry.
  *
- * Both are **session-scoped**. Neither survives the `pi` process that started the work, and
- * neither is discoverable from a different session. That gap is this module: `store.ts` owns
+ * It is **session-scoped**. It does not survive the `pi` process that started the work, and it
+ * is not discoverable from a different session. That gap is this module: `store.ts` owns
  * `<state>/jobs/<id>/`, this file exposes it as one `job` tool, and `registry.ts` publishes it
- * into `pi-subagents`' background-work and external-run registries so the packaged faces can
+ * into `pi-subagents`' background-work and external-run registries so the packaged face can
  * see our jobs too.
  *
  * Auto-discovered as a standalone extension via the `extensions/<dir>/index.ts` subdirectory

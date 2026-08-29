@@ -26,26 +26,57 @@ every session. The rest are reviewed and pinned but not loaded.
 | `pi-sandbox` | 0.6.2 | MIT | adopted-vendored | — | OS-level containment (reviewed, not wired) |
 | `pi-mcp-adapter` | 2.20.1 | MIT | adopted-vendored | yes | MCP bridge (vendored and patched) |
 | `pi-web-access` | 0.18.0 | MIT | adopted | yes | web search and fetch |
-| `pi-web-search` | 1.3.1 | MIT | adopted-conditional | — | web search, alternate backend (not wired) |
-| `@99percentpeople/pi-background-tasks` | 2.0.0 | MIT | adopted-hardened | — | background bash tasks (reviewed, not wired) |
 | `@mrclrchtr/supi-bash-timeout` | 4.6.0 | MIT | adopted | yes | default timeout for bash |
 | `@narumitw/pi-statusline` | 0.49.5 | MIT | adopted | yes | status line |
 | `@narumitw/pi-usage` | 0.49.3 | MIT | adopted | — | quota read path (reviewed, not wired) |
 | `@juicesharp/rpiv-todo` | 2.4.0 | MIT | adopted | yes | task list |
-| `pi-hashline-edit-pro` | 1.1.0 | MIT | adopted-trial | — | hash-line edit, on trial (not wired) |
 | `@narumitw/pi-worktree` | 0.49.3 | MIT | adopted | yes | worktrees |
 | `@narumitw/pi-lsp` | 0.49.3 | MIT | adopted | yes | language-server diagnostics |
-| `@nklisch/pi-plugins` | 0.3.3 | MIT | adopted-hardened | — | package lifecycle (not the install path) |
-| `pi-smart-compact` | 7.22.0 | MIT | adopted-optional | — | compaction summary quality |
 | `pi-hermes-memory` | 0.9.3 | MIT | adopted-separate | — | session search (FTS5) |
 | `pi-lean-ctx` | 3.9.17 | Apache-2.0 | adopted | needs the `lean-ctx` binary at 3.9.13 | tool-output shrinking |
-| `pi-opa-net` | 0.6.0 | MIT | adopted-conditional | — | OPA policy engine |
 
 Verification of the hashes themselves:
 
 ```text
 npm pack --ignore-scripts, then shasum -a 256 on the resulting tarball. The npm_dist_shasum_sha1 field is npm's own SHA-1 and is recorded only as a cross-check.
 ```
+
+### Uninstalled 2026-08-29 — reviewed, never loaded
+
+Six packages were reviewed and pinned on 2026-08-06, then sat in `package.json` for three weeks
+without ever being loaded: not one of them is named in `config/settings.json`'s `packages` array,
+which is the only load list, and nothing under `extensions/` imports any of them. Five of the six
+are additionally recorded in [Known limitations](limitations.md) as unable to load under the Bun
+runtime `pi` ships as, so wiring them was never available either.
+
+`pi-web-search` went for a second and independent reason. It declares MIT and ships no licence
+text, which is the first ground [`DENYLIST.md`](DENYLIST.md#what-a-rejection-needs) names for
+refusing a package: a tree that redistributes it redistributes an unlicensed copy. It was carried
+here under `licenseTextShipped: false`, the explicit ledger acknowledgement **PC-17** accepts — a
+reasonable trade for a package that earns its place, and none at all for one that never loaded.
+
+The six, and what each one went for. Names are deliberately unquoted here: **PC-09** reads any
+table row whose first cell is a backticked npm id as an allowlist entry, and these are the
+opposite of that.
+
+- **pi-web-search** 1.3.1 — declared MIT with no licence text shipped; never loaded, and its
+  `web_search` tool name collides with the adopted `pi-web-access` anyway.
+- **@99percentpeople/pi-background-tasks** 2.0.0 — never wired; `EXT-24` ships its own
+  cross-session job directory because this one is session-scoped.
+- **pi-hashline-edit-pro** 1.1.0 — the `EXT-19t` edit trial it was adopted for never ran; it also
+  carries its own `typebox`, which would put two typebox realms in one process.
+- **@nklisch/pi-plugins** 0.3.3 — `engines.node` is >= 24 against this repository's floor of
+  22.19.0, so it could not have loaded even if wired; it also pulled in two unreviewed forks that
+  appear in no ledger here.
+- **pi-smart-compact** 7.22.0 — never wired; `EXT-11` competes on the compaction loop guard, which
+  this package does not implement.
+- **pi-opa-net** 0.6.0 — needs an external `opa` binary this harness neither ships nor requires;
+  the deny path is `EXT-15`'s own hook layer, which is custom and fails closed.
+
+Their review sections are kept below and marked **UNINSTALLED**: a review is a dated record, and
+deleting it would invite the next reader to pay for it again. The removal reason for each one is in
+`config/packages.lock.json`'s `not_installed[]`, which `test/bootstrap.test.ts` turns into a test —
+the same treatment `pi-llama-cpp` got when its lane was deleted.
 
 ## Transitive pins
 
@@ -140,7 +171,7 @@ Upstream's own documentation moved in this release too: `README.md` went from ro
 | **Role** | web search and fetch |
 | **Tarball sha256** | `6658b8585b2c2bddbed2a8063d75bb2a0e522bb7f182b873c1e54dbee8b42f6d` |
 
-## `pi-web-search` 1.3.1
+## `pi-web-search` 1.3.1 — UNINSTALLED 2026-08-29 (declared MIT, ships no licence text; never loaded)
 
 | | |
 |---|---|
@@ -152,7 +183,7 @@ Upstream's own documentation moved in this release too: `README.md` went from ro
 | **Role** | web search, alternate backend (not wired) |
 | **Tarball sha256** | `d7bf017acbe0d0294d8a4a86cf0cc4dcafe366272f346499a28fbd45ef4008ab` |
 
-## `@99percentpeople/pi-background-tasks` 2.0.0
+## `@99percentpeople/pi-background-tasks` 2.0.0 — UNINSTALLED 2026-08-29 (never wired; EXT-24's cross-session store replaced it)
 
 | | |
 |---|---|
@@ -212,7 +243,7 @@ Upstream's own documentation moved in this release too: `README.md` went from ro
 | **Role** | task list |
 | **Tarball sha256** | `c55f5f6eab93371ae99897590efe558ce556f97a79a63f43ea0a40c09f96a0dd` |
 
-## `pi-hashline-edit-pro` 1.1.0
+## `pi-hashline-edit-pro` 1.1.0 — UNINSTALLED 2026-08-29 (the EXT-19t trial it was adopted for never ran)
 
 | | |
 |---|---|
@@ -248,7 +279,7 @@ Upstream's own documentation moved in this release too: `README.md` went from ro
 | **Role** | language-server diagnostics |
 | **Tarball sha256** | `56f7f49c715f67ff1ea009a77cf5ccf4589f7504d1155cfcfe835c387fa8909c` |
 
-## `@nklisch/pi-plugins` 0.3.3
+## `@nklisch/pi-plugins` 0.3.3 — UNINSTALLED 2026-08-29 (engines.node >= 24 against this repository's floor of 22.19.0)
 
 | | |
 |---|---|
@@ -260,7 +291,7 @@ Upstream's own documentation moved in this release too: `README.md` went from ro
 | **Role** | package lifecycle (not the install path) |
 | **Tarball sha256** | `e88f68b217244352237bd81dc368851854136f66b1a0a9de55b906a5bfb781ff` |
 
-## `pi-smart-compact` 7.22.0
+## `pi-smart-compact` 7.22.0 — UNINSTALLED 2026-08-29 (never wired, and EXT-11 did not adopt it on the merits)
 
 | | |
 |---|---|
@@ -394,7 +425,7 @@ path fallback, and a widened `ctx_read` mode union (`auto` / `anchored` / `diff`
 `task` / `lines:N-M`). The `ctx_grep` change is a behaviour change, not a fix to anything described
 here — noted so it does not later look unexplained.
 
-## `pi-opa-net` 0.6.0
+## `pi-opa-net` 0.6.0 — UNINSTALLED 2026-08-29 (never loaded; EXT-15 stayed custom and there is no OPA binary)
 
 | | |
 |---|---|

@@ -119,9 +119,9 @@ test("dump mode: exits 0, prints a non-empty JSON surface with the expected shap
 // Regression (2026-08-11): the probe used to abort with exit 2 whenever config/settings.json
 // carried a top-level key PI's own `Settings` interface does not declare, on the assumption that
 // every settings key is PI's. It is not — PI parses settings.json verbatim and keeps unrecognised
-// keys, and installed packages read their own top-level key off it (pi-smart-compact reads
-// `smartCompact`). Merging W3-LSP's `lsp` block into config/settings.json therefore made every
-// single probe run fail. Package-owned keys must be recorded and partitioned, never a probe abort.
+// keys, and installed packages read their own top-level key off it. Merging W3-LSP's `lsp` block
+// into config/settings.json therefore made every single probe run fail. Package-owned keys must be
+// recorded and partitioned, never a probe abort.
 test("settings keys PI's own Settings type does not declare are recorded, not a probe failure", () => {
   const { exitCode, json } = run(["--pi", REAL_PI]);
   assert.equal(exitCode, 0, "a settings key PI does not declare must not abort the probe");
