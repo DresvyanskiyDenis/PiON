@@ -1458,6 +1458,45 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#which-of-the-five-apply-to-the-other-eleven" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which of the five apply to the other eleven
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-other-eleven-were-mapped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the other eleven were mapped
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the other eleven were mapped">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-panel-tints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The panel tints
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1474,6 +1513,17 @@
   
     <nav class="md-nav" aria-label="The contrast rule">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-eleven-colours-that-ship-below-the-floor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The eleven colours that ship below the floor
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#why-the-panels-need-a-second-metric" class="md-nav__link">
@@ -4242,6 +4292,45 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#which-of-the-five-apply-to-the-other-eleven" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which of the five apply to the other eleven
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-other-eleven-were-mapped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the other eleven were mapped
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the other eleven were mapped">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-panel-tints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The panel tints
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4258,6 +4347,17 @@
   
     <nav class="md-nav" aria-label="The contrast rule">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-eleven-colours-that-ship-below-the-floor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The eleven colours that ship below the floor
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#why-the-panels-need-a-second-metric" class="md-nav__link">
@@ -4313,13 +4413,15 @@
 
 <h1 id="themes-the-tui-colour-scheme">Themes — the TUI colour scheme<a class="headerlink" href="#themes-the-tui-colour-scheme" title="Permanent link">&para;</a></h1>
 <p>PI's terminal UI is themed by a JSON file: 53 named colours, no CSS, no styling language. This
-harness ships two of them, both variants of <a href="https://github.com/folke/tokyonight.nvim">Tokyo Night</a>, and defaults to the dark one.</p>
+harness ships thirteen of them — eight palettes, with both variants where the source publishes a
+light one — and defaults to Tokyo Night.</p>
 <table>
 <thead>
 <tr>
 <th>File</th>
 <th><code>name</code></th>
 <th>Ground</th>
+<th>Palette source</th>
 </tr>
 </thead>
 <tbody>
@@ -4327,28 +4429,102 @@ harness ships two of them, both variants of <a href="https://github.com/folke/to
 <td><code>themes/tokyo-night.json</code></td>
 <td><code>Tokyo Night</code></td>
 <td><code>#1a1b26</code> — the default</td>
+<td><a href="https://github.com/folke/tokyonight.nvim">folke/tokyonight.nvim</a></td>
 </tr>
 <tr>
 <td><code>themes/tokyo-night-day.json</code></td>
 <td><code>Tokyo Night Day</code></td>
 <td><code>#e1e2e7</code></td>
+<td><a href="https://github.com/folke/tokyonight.nvim">folke/tokyonight.nvim</a></td>
+</tr>
+<tr>
+<td><code>themes/catppuccin-mocha.json</code></td>
+<td><code>Catppuccin Mocha</code></td>
+<td><code>#1e1e2e</code></td>
+<td><a href="https://github.com/catppuccin/palette/blob/main/palette.json">catppuccin/palette</a></td>
+</tr>
+<tr>
+<td><code>themes/catppuccin-latte.json</code></td>
+<td><code>Catppuccin Latte</code></td>
+<td><code>#eff1f5</code></td>
+<td><a href="https://github.com/catppuccin/palette/blob/main/palette.json">catppuccin/palette</a></td>
+</tr>
+<tr>
+<td><code>themes/gruvbox-dark.json</code></td>
+<td><code>Gruvbox Dark</code></td>
+<td><code>#282828</code></td>
+<td><a href="https://github.com/gruvbox-community/gruvbox/blob/master/colors/gruvbox.vim">gruvbox-community/gruvbox</a></td>
+</tr>
+<tr>
+<td><code>themes/gruvbox-light.json</code></td>
+<td><code>Gruvbox Light</code></td>
+<td><code>#fbf1c7</code></td>
+<td><a href="https://github.com/gruvbox-community/gruvbox/blob/master/colors/gruvbox.vim">gruvbox-community/gruvbox</a></td>
+</tr>
+<tr>
+<td><code>themes/rose-pine-moon.json</code></td>
+<td><code>Rosé Pine Moon</code></td>
+<td><code>#232136</code></td>
+<td><a href="https://github.com/rose-pine/neovim/blob/main/lua/rose-pine/palette.lua">rose-pine/neovim</a></td>
+</tr>
+<tr>
+<td><code>themes/rose-pine-dawn.json</code></td>
+<td><code>Rosé Pine Dawn</code></td>
+<td><code>#faf4ed</code></td>
+<td><a href="https://github.com/rose-pine/neovim/blob/main/lua/rose-pine/palette.lua">rose-pine/neovim</a></td>
+</tr>
+<tr>
+<td><code>themes/dracula.json</code></td>
+<td><code>Dracula</code></td>
+<td><code>#282a36</code></td>
+<td><a href="https://github.com/dracula/dracula-theme#color-palette-oss">dracula/dracula-theme</a></td>
+</tr>
+<tr>
+<td><code>themes/nord.json</code></td>
+<td><code>Nord</code></td>
+<td><code>#2e3440</code></td>
+<td><a href="https://github.com/nordtheme/nord/blob/develop/src/nord.css">nordtheme/nord</a></td>
+</tr>
+<tr>
+<td><code>themes/solarized-dark.json</code></td>
+<td><code>Solarized Dark</code></td>
+<td><code>#002b36</code></td>
+<td><a href="https://github.com/altercation/solarized#the-values">altercation/solarized</a></td>
+</tr>
+<tr>
+<td><code>themes/solarized-light.json</code></td>
+<td><code>Solarized Light</code></td>
+<td><code>#fdf6e3</code></td>
+<td><a href="https://github.com/altercation/solarized#the-values">altercation/solarized</a></td>
+</tr>
+<tr>
+<td><code>themes/kanagawa-wave.json</code></td>
+<td><code>Kanagawa Wave</code></td>
+<td><code>#1f1f28</code></td>
+<td><a href="https://github.com/rebelot/kanagawa.nvim/blob/master/lua/kanagawa/colors.lua">rebelot/kanagawa.nvim</a></td>
 </tr>
 </tbody>
 </table>
-<p>PI's own <code>dark</code> and <code>light</code> remain available; nothing is replaced.</p>
+<p>Every hex in every file is its project's own, read from the source in the last column. Kanagawa
+ships the <code>wave</code> variant, the one its own <code>themes.lua</code> builds by default.</p>
+<p>PI's own <code>dark</code> and <code>light</code> remain available; nothing is replaced. The installer offers the whole
+list, read out of <code>themes/</code> at run time rather than from a copy of it kept in the script.</p>
 <hr />
 <h2 id="how-pi-finds-them">How PI finds them<a class="headerlink" href="#how-pi-finds-them" title="Permanent link">&para;</a></h2>
 <p>Two independent routes, and this harness uses both:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"theme"</span><span class="p">:</span><span class="w">  </span><span class="s2">"Tokyo Night"</span><span class="p">,</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">"themes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/themes"</span><span class="p">]</span>
 </span></code></pre></div>
-<p><code>themes</code> accepts a directory <strong>or</strong> a single file path; a directory is read for <code>*.json</code>. On top of
+<p><code>themes</code> accepts a directory <strong>or</strong> a single file path; a directory is read for <code>*.json</code>, so
+dropping a file into <code>themes/</code> is the whole of installing a theme. On top of
 that, PI auto-loads <code>~/.pi/agent/themes/</code> without being told to, and the installer links
 <code>themes/</code> there. Either route alone would work. Both are present because the auto-loaded path is a
 side effect of where the installer puts things, and a config that only works because of a side
 effect is a config that breaks the first time someone moves the directory.</p>
 <p><code>theme</code> selects by the <code>name</code> <strong>inside</strong> the file, not by filename. Renaming
-<code>tokyo-night.json</code> changes nothing; editing its <code>"name"</code> breaks the selection.</p>
+<code>tokyo-night.json</code> changes nothing; editing its <code>"name"</code> breaks the selection. The basenames are
+kept lowercase and hyphenated, and the names human-shaped (<code>Catppuccin Mocha</code>, never
+<code>catppuccin_mocha</code>) — both are asserted, because <code>/theme</code> shows one and the directory shows the other.</p>
 <p>Switch at runtime with <code>/theme</code>. That writes your choice back to <code>config/settings.json</code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Automatic light/dark</p>
@@ -4362,9 +4538,13 @@ your terminal reports correctly.</p>
 </div>
 <hr />
 <h2 id="what-was-changed-from-upstream-and-why">What was changed from upstream, and why<a class="headerlink" href="#what-was-changed-from-upstream-and-why" title="Permanent link">&para;</a></h2>
-<p><code>folke/tokyonight.nvim</code> publishes a PI export under <code>extras/pi/</code>. These themes started from it
-rather than from a blank file, and five things in it were wrong for PI specifically. If you resync
-from upstream, these are the edits to reapply.</p>
+<p><code>folke/tokyonight.nvim</code> publishes a PI export under <code>extras/pi/</code>. <strong>It is the only one of the eight
+that does</strong> — checked, project by project, when the other seven were added; none of Catppuccin,
+Gruvbox, Rosé Pine, Dracula, Nord, Solarized or Kanagawa ships a PI export under <code>extras/</code> or any
+other name. So the two Tokyo Night files started from upstream's export, and five things in it were
+wrong for PI specifically; the other eleven were mapped by hand from each project's palette, and
+four of those five corrections were things they had to get right from the start rather than fix.
+If you resync Tokyo Night from upstream, these are the edits to reapply.</p>
 <h3 id="diff-colours-were-backgrounds">Diff colours were backgrounds<a class="headerlink" href="#diff-colours-were-backgrounds" title="Permanent link">&para;</a></h3>
 <p>Upstream set <code>toolDiffAdded</code> to <code>#243e4a</code> and <code>toolDiffRemoved</code> to <code>#4a272f</code>. Those are Tokyo
 Night's diff <strong>background</strong> tints, meant to sit behind syntax-highlighted text — which is how the
@@ -4430,9 +4610,164 @@ why upstream's export renders the top reasoning level identically to the one bel
 terminal's default foreground</em>. That makes the theme's readability a property of your terminal
 profile rather than of the theme, and makes it impossible to check. They are set to the palette's
 foreground.</p>
+<h3 id="which-of-the-five-apply-to-the-other-eleven">Which of the five apply to the other eleven<a class="headerlink" href="#which-of-the-five-apply-to-the-other-eleven" title="Permanent link">&para;</a></h3>
+<p>Four of the five are properties of <strong>PI</strong>, not of Tokyo Night, so they bind every theme in
+<code>themes/</code> whatever it was mapped from. Only the diff-tint correction is a fact about one upstream
+file.</p>
+<table>
+<thead>
+<tr>
+<th>Correction</th>
+<th>Applies to</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Diff colours were backgrounds</td>
+<td>Tokyo Night only</td>
+<td>It is a defect in upstream's PI export. Nothing else ships one, so nothing else could inherit it — but the <em>rule</em> it taught (<code>toolDiffAdded</code>/<code>Removed</code> are foregrounds) is what every other file was mapped under, and the diff floor is tested for all thirteen.</td>
+</tr>
+<tr>
+<td>The tool panel said nothing about the tool</td>
+<td>all thirteen</td>
+<td><code>toolPendingBg</code> / <code>toolSuccessBg</code> / <code>toolErrorBg</code> is PI's only per-state signal. Every palette had to yield three panels a glance can tell apart, and most of them do not publish three surfaces. See the next section.</td>
+</tr>
+<tr>
+<td>The thinking ramp did not ramp</td>
+<td>all thirteen</td>
+<td>Six tokens that read as a progression is a PI concept; no upstream palette has an opinion about it. Every file places both quiet levels below every active one.</td>
+</tr>
+<tr>
+<td>Two tokens were unset</td>
+<td>all thirteen</td>
+<td><code>thinkingMax</code> and <code>scrollbarThumb</code> are optional in the schema and silently inherit when omitted. All 53 are set explicitly in all thirteen files.</td>
+</tr>
+<tr>
+<td>Text colours were "whatever the terminal does"</td>
+<td>all thirteen</td>
+<td>An empty string hands the theme's readability to the terminal profile. No file ships one; the schema-and-hex check refuses them.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="how-the-other-eleven-were-mapped">How the other eleven were mapped<a class="headerlink" href="#how-the-other-eleven-were-mapped" title="Permanent link">&para;</a></h2>
+<p>Each file is <code>vars</code> — that project's palette, under <strong>its own names</strong> (<code>sumiInk3</code>, <code>nord0</code>,
+<code>base03</code>, <code>highlightMed</code>) — and <code>colors</code>, the 53 tokens pointing at those names. The token-to-role
+mapping is <code>tokyo-night.json</code>'s, copied entry for entry: <code>accent</code> takes the palette's primary blue,
+<code>syntaxKeyword</code> its purple, <code>mdHr</code> and <code>bashMode</code> its orange, and so on. Reading two files
+side by side should show the same shape with a different palette underneath, and that is the point
+— a mapping you can check by eye is a mapping someone can fix.</p>
+<p>Four roles are overridden per theme where the palette leaves no choice, and each override is
+visible in the file as a token pointing somewhere unexpected:</p>
+<ul>
+<li><strong><code>toolOutput</code></strong> takes the dim foreground on dark grounds and the full one on light grounds
+  (Tokyo Night Day already did this); Rosé Pine Moon also takes the full one, because <code>subtle</code> is
+  too dim to sit on any panel that parts from the ground.</li>
+<li><strong><code>mdCode</code></strong> takes the palette's blue rather than its cyan on Solarized Light, whose cyan reads
+  at 2.58:1 on the code block.</li>
+<li><strong><code>thinkingOff</code> / <code>thinkingMinimal</code></strong> take the surface greys on the light themes. Their accents
+  are darker than their greys there, so the quiet-below-active rule cannot be met with a comment
+  colour.</li>
+<li><strong><code>customMessageLabel</code></strong> takes Solarized Dark's blue: neither violet nor magenta clears 3.0 on
+  <code>base02</code>, which is the panel that label is painted on.</li>
+</ul>
+<h3 id="the-panel-tints">The panel tints<a class="headerlink" href="#the-panel-tints" title="Permanent link">&para;</a></h3>
+<p>Correction #2 needs three tool-panel backgrounds that a glance can place. Only two palettes publish
+them: Tokyo Night (its diff backgrounds, which is where they came from) and Kanagawa
+(<code>winterGreen</code> / <code>winterRed</code>). The other nine publish one or two surfaces and nothing state-shaped.</p>
+<p>For those, the two state panels are <strong>the palette's own green and red laid over the palette's own
+ground</strong>, at the smallest blend that clears every floor at once — ΔE ≥ 10 from the ground, from the
+pending panel and from each other, with the theme's text and tool output still above 3.4:1 on the
+result. Nothing is sampled from outside the palette, and the blend is the only arithmetic in any of
+these files:</p>
+<table>
+<thead>
+<tr>
+<th>Theme</th>
+<th>pending</th>
+<th>success</th>
+<th>error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Catppuccin Mocha</code></td>
+<td><code>surface0</code></td>
+<td><code>#313a3e</code> — green at 14 %</td>
+<td><code>#493446</code> — red at 20 %</td>
+</tr>
+<tr>
+<td><code>Catppuccin Latte</code></td>
+<td><code>surface0</code></td>
+<td><code>#d8e6db</code> — green at 13 %</td>
+<td><code>#ecd6de</code> — red at 12 %</td>
+</tr>
+<tr>
+<td><code>Gruvbox Dark</code></td>
+<td><code>dark1</code></td>
+<td><code>#393a28</code> — bright_green at 12 %</td>
+<td><code>#432c2a</code> — bright_red at 13 %</td>
+</tr>
+<tr>
+<td><code>Gruvbox Light</code></td>
+<td><code>light2</code></td>
+<td><code>#e2d9a4</code> — faded_green at 19 %</td>
+<td><code>#e6bc9d</code> — faded_red at 22 %</td>
+</tr>
+<tr>
+<td><code>Rosé Pine Moon</code></td>
+<td><code>overlay</code></td>
+<td><code>#3b4456</code> — foam at 20 %</td>
+<td><code>#4b3148</code> — love at 20 %</td>
+</tr>
+<tr>
+<td><code>Rosé Pine Dawn</code></td>
+<td><code>highlightHigh</code></td>
+<td><code>#afbeb8</code> — leaf at 53 %</td>
+<td><code>#e3c4c7</code> — love at 33 %</td>
+</tr>
+<tr>
+<td><code>Dracula</code></td>
+<td><code>currentLine</code></td>
+<td><code>#2c3f3d</code> — green at 10 %</td>
+<td><code>#422f3a</code> — red at 12 %</td>
+</tr>
+<tr>
+<td><code>Nord</code></td>
+<td><code>nord2</code></td>
+<td><code>#40494b</code> — nord14 at 15 %</td>
+<td><code>#4a3d48</code> — nord11 at 19 %</td>
+</tr>
+<tr>
+<td><code>Solarized Dark</code></td>
+<td><code>#1d414b</code> — base01 at 33 %</td>
+<td><code>#0d3631</code> — green at 10 %</td>
+<td><code>#252c35</code> — red at 17 %</td>
+</tr>
+<tr>
+<td><code>Solarized Light</code></td>
+<td><code>#dcdccf</code> — base1 at 31 %</td>
+<td><code>#edeac5</code> — green at 13 %</td>
+<td><code>#f9decd</code> — red at 12 %</td>
+</tr>
+<tr>
+<td><code>Kanagawa Wave</code></td>
+<td><code>sumiInk5</code></td>
+<td><code>winterGreen</code></td>
+<td><code>winterRed</code></td>
+</tr>
+</tbody>
+</table>
+<p>Solarized needs a blended <strong>pending</strong> panel as well: <code>base02</code> is 5 ΔE from <code>base03</code>, which is the
+collapsed-panel bug in a different costume. Dracula, which publishes exactly two surfaces, also
+blends its card and muted-border colours from <code>comment</code>.</p>
+<p>Rosé Pine Moon takes <code>foam</code> rather than <code>leaf</code> for the success panel, and Dawn needs <code>leaf</code> at
+53 %: both palettes' greens are desaturated enough that a low blend cannot part from the ground at
+all. That is the number telling the truth about the palette, not a knob that was turned for effect.</p>
 <hr />
 <h2 id="the-contrast-rule">The contrast rule<a class="headerlink" href="#the-contrast-rule" title="Permanent link">&para;</a></h2>
-<p><code>test/theme/tokyo-night.test.ts</code> validates both files against the <code>theme-schema.json</code> PI ships,
+<p><code>test/theme/themes.test.ts</code> validates every <code>themes/*.json</code> against the <code>theme-schema.json</code> PI ships,
 resolves every <code>vars</code> reference, and then measures WCAG contrast:</p>
 <ul>
 <li>body text against its own ground: <strong>≥ 4.5</strong></li>
@@ -4441,8 +4776,104 @@ resolves every <code>vars</code> reference, and then measures WCAG contrast:</p>
 <li>text against the panel it is composited onto — user messages, tool output on the pending,
   success and error backgrounds, code inside a code block, text on the selection: <strong>≥ 3.0</strong></li>
 </ul>
-<p><code>syntaxComment</code> is deliberately exempt. A comment is meant to recede, and Tokyo Night's comment
-colour is one of the two or three hues the theme is recognised by.</p>
+<p><code>syntaxComment</code> is deliberately exempt. A comment is meant to recede, and in most of these
+palettes the comment colour is one of the two or three hues the theme is recognised by.</p>
+<p>It also checks the shape of the set: every <code>themes/*.json</code> sets all 53 tokens, resolves every var
+to a <code>#rrggbb</code>, leaves no var unused, carries a name no other file carries, and has a lowercase
+hyphenated basename. Adding a file is all it takes to be measured — there is no list to join.</p>
+<h3 id="the-eleven-colours-that-ship-below-the-floor">The eleven colours that ship below the floor<a class="headerlink" href="#the-eleven-colours-that-ship-below-the-floor" title="Permanent link">&para;</a></h3>
+<p>Four upstream palettes cannot clear those floors with their own hexes, and rather than darken a
+colour and stop being that theme, the test carries a table of the exact hexes that ship faint,
+per theme, with the ratio each measures:</p>
+<table>
+<thead>
+<tr>
+<th>Theme</th>
+<th>Colour</th>
+<th>On its ground</th>
+<th>What it carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Catppuccin Latte</code></td>
+<td><code>#df8e1d</code> yellow</td>
+<td>2.31</td>
+<td><code>warning</code>, <code>thinkingHigh</code></td>
+</tr>
+<tr>
+<td><code>Catppuccin Latte</code></td>
+<td><code>#fe640b</code> peach</td>
+<td>2.64</td>
+<td><code>mdHr</code>, <code>mdListBullet</code>, <code>syntaxNumber</code>, <code>bashMode</code></td>
+</tr>
+<tr>
+<td><code>Catppuccin Latte</code></td>
+<td><code>#40a02b</code> green</td>
+<td>2.96</td>
+<td><code>toolDiffAdded</code>, <code>syntaxString</code></td>
+</tr>
+<tr>
+<td><code>Rosé Pine Dawn</code></td>
+<td><code>#ea9d34</code> gold</td>
+<td>2.05</td>
+<td><code>warning</code>, <code>thinkingHigh</code></td>
+</tr>
+<tr>
+<td><code>Rosé Pine Dawn</code></td>
+<td><code>#d7827e</code> rose</td>
+<td>2.60</td>
+<td><code>mdHr</code>, <code>mdListBullet</code>, <code>syntaxNumber</code>, <code>bashMode</code></td>
+</tr>
+<tr>
+<td><code>Rosé Pine Dawn</code></td>
+<td><code>#6d8f89</code> leaf</td>
+<td>3.24</td>
+<td><code>toolDiffAdded</code> — clears 3.0, not the diff floor</td>
+</tr>
+<tr>
+<td><code>Nord</code></td>
+<td><code>#bf616a</code> Aurora red</td>
+<td>3.05</td>
+<td><code>toolDiffRemoved</code> — clears 3.0, not the diff floor</td>
+</tr>
+<tr>
+<td><code>Solarized Dark</code></td>
+<td><code>#dc322f</code> red</td>
+<td>3.25</td>
+<td><code>toolDiffRemoved</code> — same</td>
+</tr>
+<tr>
+<td><code>Solarized Light</code></td>
+<td><code>#859900</code> green</td>
+<td>2.97</td>
+<td><code>success</code>, <code>toolDiffAdded</code>, <code>syntaxString</code></td>
+</tr>
+<tr>
+<td><code>Solarized Light</code></td>
+<td><code>#b58900</code> yellow</td>
+<td>2.98</td>
+<td><code>warning</code>, <code>thinkingHigh</code></td>
+</tr>
+<tr>
+<td><code>Solarized Light</code></td>
+<td><code>#2aa198</code> cyan</td>
+<td>2.93</td>
+<td><code>mdLink</code>, <code>syntaxType</code>, <code>thinkingMedium</code></td>
+</tr>
+</tbody>
+</table>
+<p>One cause behind all eleven: an <strong>equiluminant palette</strong>. Solarized says so outright — the same
+sixteen values on both grounds is its whole thesis — and Catppuccin Latte, Rosé Pine Dawn and
+Nord's Aurora are drawn as syntax colours on their own ground rather than as UI text on it. Tokyo
+Night Day is the counter-example: folke ships a separately darkened palette for the light variant,
+which is why it needs no entry here.</p>
+<p><strong>The table is a ratchet, not an opt-out</strong>, and it is checked in both directions. The recorded
+ratio must still be the measured one, so editing one of these colours fails the test rather than
+silently re-baselining it. A colour that comes to clear its floor must be <strong>deleted</strong> from the
+table, or the test fails on that too — the same rule the em-dash budget lives by. Nothing listed
+may fall below <strong>2.0</strong> whatever its palette says, and <code>text</code> on the ground has no exemptions at any
+value. Everything else in the thirteen files clears every floor on its own.</p>
 <h3 id="why-the-panels-need-a-second-metric">Why the panels need a second metric<a class="headerlink" href="#why-the-panels-need-a-second-metric" title="Permanent link">&para;</a></h3>
 <p>Contrast alone cannot see the tool-panel bug. It is a <strong>luminance ratio</strong>, so two backgrounds of
 the same lightness in different hues score about 1.0 on it whether they are identical or opposite —
@@ -4460,10 +4891,11 @@ pending/success pair scored <strong>ΔE 0.00</strong>.</p>
 tool panel sat at 2.78:1 and inline code inside a code block at 2.74:1. Both were moved to darker
 palette entries.</p>
 <div class="admonition note">
-<p class="admonition-title">Day is a low-contrast theme by design</p>
+<p class="admonition-title">Some of these are low-contrast themes by design</p>
 <p>Tokyo Night Day's own foreground on its own background is 4.52:1 — it clears the body-text bar
 with almost nothing to spare. That is upstream's aesthetic, not a defect, and it is why the
-floors are stated per theme against its own ground rather than as one absolute number.</p>
+floors are stated per theme against its own ground rather than as one absolute number, and why
+the exemption table above records a hex rather than waiving a rule.</p>
 </div>
 <hr />
 <h2 id="writing-your-own">Writing your own<a class="headerlink" href="#writing-your-own" title="Permanent link">&para;</a></h2>
@@ -4478,8 +4910,9 @@ adjust.</p>
 <p>Colour values are <code>#rrggbb</code>, a <code>0</code>–<code>255</code> 256-colour index, or <code>""</code> for the terminal default.
 Truecolor is used when the terminal reports it; otherwise PI quantises to the 256-colour palette,
 so a truecolor-only theme degrades rather than breaks.</p>
-<p>The tests in <code>test/theme/tokyo-night.test.ts</code> are written against the two shipped files by name.
-Add yours to the <code>THEMES</code> list there if you want the same schema and contrast checks applied to it.</p>
+<p>The tests in <code>test/theme/themes.test.ts</code> read the directory, so a file dropped into <code>themes/</code> is
+held to every rule on this page from the next run onwards. There is no list to add yourself to —
+which also means a theme cannot be added quietly.</p>
 
 
 
