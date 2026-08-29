@@ -25,7 +25,8 @@ configures the loop guard, the pinned-instruction re-injection, and the advisory
       "enabled": true,
       "sources": ["AGENTS.md", "CLAUDE.md"],
       "maxBytesPerSource": 4096,
-      "maxTotalBytes": 16384
+      "maxTotalBytes": 16384,
+      "facts": { "enabled": true, "maxEntries": 40, "maxBytes": 8000 }
     },
     "threshold": { "absoluteTokens": 200000, "toleranceRatio": 0.2 }
   }
@@ -70,6 +71,36 @@ had absorbed from `AGENTS.md`. `pinned` re-injects those sources so the rules su
 **What breaks:** raising the caps eats the budget compaction just reclaimed. If your `AGENTS.md` is
 larger than 4 KB, the right fix is a shorter `AGENTS.md` — everything past the cap was not
 surviving compaction anyway.
+
+### `pinned.facts` — what the session learned
+
+`sources` re-injects what the project *declares*. `facts` re-injects what the session *established*,
+and it exists because the two decay at completely different rates. An instruction file is re-read
+from disk every pass, so it survives forever. A discovery lives only in the summary, and the next
+compaction summarises that summary rather than the dialogue — so findings fade geometrically while
+doctrine does not, and a long session ends up knowing its rules and not its results.
+
+The [`fact`](../extensions/compaction.md#the-fact-tool) tool appends one line to a session-scoped
+Markdown file; the file is re-read and restated after every compaction, exactly like `AGENTS.md`.
+
+| Key | Ships | Notes |
+|---|---|---|
+| `enabled` | `true` | `false` unregisters the `fact` tool and restates nothing |
+| `maxEntries` | `40` | Newest 40 entries are restated |
+| `maxBytes` | `8000` | Applied after `maxEntries`, dropping from the oldest end |
+
+Both caps are enforced on every read and the block states how many entries it dropped and where the
+rest are. That marker is load-bearing: a list quietly cut to fit looks complete, so its *absences*
+get read as evidence that something was never established — which sends the agent off to establish
+it again, at whatever it cost the first time.
+
+Omitting the key entirely changes nothing. The defaults above apply, and a session that never calls
+the tool has no file, so nothing is restated.
+
+**What breaks:** nothing on disk in your project. The file is a sibling of the session transcript
+under the agent directory, so it cannot be committed, cannot collide with another session, and is
+deleted along with the session. If you want cross-session memory, this is not it and is not meant
+to become it.
 
 ### `threshold` — the flat 200 000
 

@@ -13,7 +13,12 @@
       "enabled": true,
       "sources": ["AGENTS.md", "CLAUDE.md"],
       "maxBytesPerSource": 4096,
-      "maxTotalBytes": 16384
+      "maxTotalBytes": 16384,
+      "facts": {
+        "enabled": true,
+        "maxEntries": 40,
+        "maxBytes": 8000
+      }
     },
     "threshold": {
       "absoluteTokens": 200000,
