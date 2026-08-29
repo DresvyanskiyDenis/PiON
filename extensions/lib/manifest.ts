@@ -75,6 +75,7 @@ export const DECLARED_MODULES = [
   "skills-lint",
   // presentation — reads the level PI already tracks, changes nothing else
   "thinking-indicator",
+  "write-diff",
   // diagnostics last, so it observes everything above
   "doctor",
 ] as const;

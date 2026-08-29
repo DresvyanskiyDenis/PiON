@@ -136,5 +136,5 @@ is the point: a guardrail module that quietly stopped loading is the failure mod
 ## Related
 
 - [Architecture](../concepts/architecture.md) — why the composition root exists
-- [Extensions reference](../extensions/index.md) — all 34 modules
+- [Extensions reference](../extensions/index.md) — all 35 modules
 - [Configuration reference](../configuration/index.md) — the knobs before the code
