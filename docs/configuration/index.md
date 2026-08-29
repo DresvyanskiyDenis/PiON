@@ -95,6 +95,7 @@ Fact 2.
 | add your own sub-agent | `agents/` + `config/dispatch.json` | [dispatch.json](dispatch.md) |
 | limit how deep sub-agents may nest | `maxDepth` in `config/dispatch.json` | [dispatch.json](dispatch.md#maxdepth) |
 | raise (or lower) how many children run at once inside one parallel batch | `globalConcurrencyLimit` in `config/subagent.json` | [Sub-agents](../extending/subagents.md#concurrency-limits-what-each-one-actually-bounds) |
+| change what the model is told the `subagent` tool does | `config/subagent-tool-description.md` | [Sub-agents](../extending/subagents.md#the-description-the-model-reads) |
 | turn off session digests | `config/digest.json` | [Session lifecycle](sessions.md#digestjson) |
 | auto-trust a directory root | `config/trusted-roots.json` | [Paths and trust](paths-and-trust.md) |
 | set a per-project default model | `<project>/.pi/settings.json` | [Paths and trust](paths-and-trust.md#per-project-settings) |
@@ -139,6 +140,7 @@ Task-shaped versions of these, with the commands, live in the
 | [`keybindings.json`](tools.md#keybindingsjson) | TUI key bindings |
 | [`pi-statusline.json`](tools.md#pi-statuslinejson) | statusline segments |
 | [`project-settings.example.json`](paths-and-trust.md#per-project-settings) | template for per-project overrides |
+| [`subagent-tool-description.md`](../extending/subagents.md#the-description-the-model-reads) | the `subagent` tool's model-facing description — roles, call protocol, width budget |
 
 ### Do not edit
 
