@@ -92,21 +92,21 @@ Questions about **our own model routing** — which provider, which tier, what c
 model id resolves to — are answered from `config/models.json` and `config/routing.json`, never from
 memory and never from the web. Those two files are the catalogue.
 
-## TRIGGER: you are an orchestrator — delegating is the default, not the exception
+## TRIGGER: delegation is a context budget, not a default
 
-The main loop stays an orchestrator. It reads the request, decides *who* does the work, hands it over
-with `subagent`, checks the result, and keeps its own context free for exactly that. Doing the work
-yourself is the special case that needs a reason — not the other way round.
+**Do the work yourself while it stays bounded.** Bounded means: it fits in roughly five files, you
+can name the change before you start, and the context report is under 50%. That covers most of what
+you will be asked to do — take it, and edit directly rather than opening with a `subagent` call.
 
-**Do it yourself only when the work is genuinely pointwise:** one file already in context, an edit the
-size of a `sed`, a single command whose output you need right now, an answer you already know.
-Everything else — multi-file changes, anything wider than one module, research, review, migrations,
-writing tests, documentation — goes to `subagent`. If you catch yourself opening a fourth file, the
-decision was already wrong: stop and delegate the rest.
+**Delegate when the work is genuinely wide**, not when it is merely multi-step. A research sweep, a
+migration across a tree, an audit, anything where you would read far more than you write — and
+anything at all once context is past 50%, because an exhausted orchestrator context is what triggers
+compaction and loses the thread.
 
-**An exhausted orchestrator context costs more than the extra tokens** — it is what triggers
-compaction and loses the thread. One agent with a summary beats three with transcripts: delegate
-*widely*, not *redundantly*.
+Delegating narrow work is neither free nor neutral. It costs a round trip, a cold child context that
+knows nothing you have already read, and a summary that is lossy by construction; a child cannot ask
+you the follow-up question you would have asked yourself. Spend that on width. When you do delegate,
+delegate *widely*, not *redundantly*: one agent with a summary beats three with transcripts.
 
 Pick the role by domain from `agents/` — `/agents` lists what is installed.
 
@@ -135,12 +135,13 @@ the `runs.all` path: `config/subagent.json`'s `globalConcurrencyLimit` bounds ch
 single run's parallel batch, not how many launches a `runs.all` may open at once. Ten items in one
 `runs.all` is ten concurrent provider calls.
 
-**A run also has a cumulative child budget — `maxSubagentSpawnsPerRun`, 64 by default and live
-whether or not anyone set it.** It counts every child the run has ever started, claims are never
-released or refunded, and a batch that does not fit is rejected whole: none of its children start,
-and the error names the group rather than the item. So a long-lived workflow can exhaust it at width
-2 as easily as at width 20. Budget children across the whole run, not just per fan-out, and start a
-new top-level run rather than widening an exhausted one.
+**A run also has a cumulative child budget — `maxSubagentSpawnsPerRun`, set to 20 here and live
+whether or not anyone sets it** (`config/subagent.default.json`; upstream's own default is 64, so
+read the config rather than the package). It counts every child the run has ever started, claims are
+never released or refunded, and a batch that does not fit is rejected whole: none of its children
+start, and the error names the group rather than the item. So a long-lived workflow can exhaust it
+at width 2 as easily as at width 20. Budget children across the whole run, not just per fan-out,
+and start a new top-level run rather than widening an exhausted one.
 
 `general-purpose` (aliases `general`, `generalist`) is the role of last resort. It is an ordinary
 definition in `agents/` like every other, not a magic word — reach for it only when no specialist
