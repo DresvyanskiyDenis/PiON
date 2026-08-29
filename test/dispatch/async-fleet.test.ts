@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   NO_STATUS_GRACE_MS,
+  SETTLED_TTL_MS,
   createAsyncFleet,
   formatAnnouncement,
   noteAsyncConsumption,
@@ -20,6 +21,7 @@ import {
   readAsyncRunState,
   reconcile,
   renderAsyncFleet,
+  retireSettledRuns,
   takeAnnouncements,
   trackedAsyncRuns,
   type AsyncFleet,
@@ -41,6 +43,30 @@ function writeStatus(runId: string, status: Record<string, unknown>): string {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "status.json"), JSON.stringify(status), "utf8");
   return dir;
+}
+
+/**
+ * The runner's exit proof, in the shape the package writes it
+ * (`node_modules/pi-subagents/src/runs/background/process-terminal.ts`). `state: "observed"` is the
+ * only one that means the runner was seen to close; the instance list and `runnerProcessInstanceId`
+ * have to agree, because that is what the package's own validator checks and what a hand-written
+ * fixture would otherwise get silently wrong.
+ */
+function writeExitProof(dir: string, runId: string, state: string): void {
+  writeFileSync(
+    join(dir, "process-terminal.json"),
+    JSON.stringify({
+      version: 1,
+      runId,
+      state,
+      observedAt: 1786711739104,
+      runnerProcessInstanceId: "runner-1",
+      instances: [
+        { processInstanceId: "runner-1", kind: "runner", closeObservedAt: 1786711739104, exitCode: 0, signal: null },
+      ],
+    }),
+    "utf8",
+  );
 }
 
 /** A run directory with no status file at all — the "never started" shape. */
@@ -256,7 +282,9 @@ describe("the status surface a failed async run reaches", () => {
     const dir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
     const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
     const rendered = renderAsyncFleet(fleet);
-    assert.match(rendered, /async runs started by this session \(1\)/);
+    // "tracked", not "started": a run this section lists is one the fleet still holds. Retired runs
+    // are `/subagents-fleet`'s to show, from the directories on disk.
+    assert.match(rendered, /async runs tracked by this session \(1\)/);
     assert.match(rendered, /data-engineer \[66971211\]: failed/);
     assert.ok(rendered.includes(COLD_START_ERROR));
   });
@@ -379,5 +407,188 @@ describe("noteAsyncConsumption — the run the model already read", () => {
     assert.equal(takeAnnouncements(fleet, reconcile(fleet)).length, 1);
     assert.deepEqual(noteAsyncConsumption(fleet, waitResult), []);
     assert.deepEqual(noteAsyncConsumption(fleet, waitResult), []);
+  });
+});
+
+/**
+ * The fleet never removed anything. `tracked` grew for the life of the session, and three things
+ * are a function of its size: `reconcile` reads one status file per entry on every 1 Hz repaint,
+ * the widget's poll stops only when the panel goes away and the panel goes away only at
+ * `tracked.size === 0`, and the panel shows runs oldest-first so a pile of history pushes the
+ * running children behind "… and N more". These lock the retirement rule and, more importantly,
+ * the three things it must not do: retire a live run, retire a run nobody was told about, or let a
+ * retired run come back.
+ */
+describe("retiring runs that are over and have been reported", () => {
+  const OTHER_RUN = "6e77fc27-8d2b-4c1a-9f30-0b2a4f6c1e55";
+
+  it("keeps a finished run until the ledger has it", () => {
+    const dir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    const late = SETTLED_TTL_MS * 10;
+
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), late), []);
+    assert.equal(fleet.tracked.size, 1, "a terminal run nobody was told about must stay");
+
+    takeAnnouncements(fleet, reconcile(fleet));
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), late), [], "the first sweep only stamps");
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), late + SETTLED_TTL_MS), [FAILED_RUN]);
+    assert.equal(fleet.tracked.size, 0);
+  });
+
+  it("waits out the full TTL, so a finished run is visible on the panel that repaints at 1 Hz", () => {
+    const dir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    takeAnnouncements(fleet, reconcile(fleet));
+
+    retireSettledRuns(fleet, reconcile(fleet), 1_000);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), 1_000 + SETTLED_TTL_MS - 1), []);
+    assert.equal(fleet.tracked.size, 1);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), 1_000 + SETTLED_TTL_MS), [FAILED_RUN]);
+  });
+
+  it("retires a run the model read itself, without an announcement", () => {
+    const dir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    noteAsyncConsumption(fleet, { content: [{ type: "text", text: `State: failed (${FAILED_RUN})` }] });
+    assert.equal(fleet.consumed.has(FAILED_RUN), true);
+    assert.equal(fleet.announced.has(FAILED_RUN), false);
+
+    retireSettledRuns(fleet, reconcile(fleet), 0);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS), [FAILED_RUN]);
+  });
+
+  it("retires a never-started run once it has been announced", () => {
+    const dir = emptyRunDir(FAILED_RUN);
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    const past = NO_STATUS_GRACE_MS + 1;
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet), past).length, 1);
+
+    retireSettledRuns(fleet, reconcile(fleet), past);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), past + SETTLED_TTL_MS), [FAILED_RUN]);
+    assert.equal(fleet.tracked.size, 0);
+  });
+
+  it("never retires a live run, however long it runs", () => {
+    const dir = writeStatus(FAILED_RUN, { runId: FAILED_RUN, state: "running", steps: [] });
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    fleet.consumed.add(FAILED_RUN);
+    const late = SETTLED_TTL_MS * 100;
+    retireSettledRuns(fleet, reconcile(fleet), late);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), late * 2), []);
+    assert.equal(fleet.tracked.size, 1);
+  });
+
+  it("does not carry a stamp across a run that comes back to life", () => {
+    const dir = emptyRunDir(FAILED_RUN);
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    const past = NO_STATUS_GRACE_MS + 1;
+    takeAnnouncements(fleet, reconcile(fleet), past);
+    retireSettledRuns(fleet, reconcile(fleet), past);
+    assert.equal(fleet.settledAt.has(FAILED_RUN), true);
+
+    // The run was merely slow: it writes its status and is running after all.
+    writeStatus(FAILED_RUN, { runId: FAILED_RUN, state: "running", steps: [] });
+    retireSettledRuns(fleet, reconcile(fleet), past + 1);
+    assert.equal(fleet.settledAt.has(FAILED_RUN), false, "the stamp must not survive the run coming up");
+    assert.equal(fleet.tracked.size, 1);
+  });
+
+  it("retires only the runs that are done, leaving the running one on the panel", () => {
+    const doneDir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const liveDir = writeStatus(OTHER_RUN, { runId: OTHER_RUN, state: "running", steps: [] });
+    const fleet = fleetWith(FAILED_RUN, doneDir, "data-engineer");
+    noteAsyncSpawn(fleet, spawnResult(OTHER_RUN, liveDir, "debugger"));
+    takeAnnouncements(fleet, reconcile(fleet));
+
+    retireSettledRuns(fleet, reconcile(fleet), 0);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS), [FAILED_RUN]);
+    assert.deepEqual([...fleet.tracked.keys()], [OTHER_RUN]);
+  });
+
+  it("does not let a retired run be tracked or announced again", () => {
+    const dir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    takeAnnouncements(fleet, reconcile(fleet));
+    retireSettledRuns(fleet, reconcile(fleet), 0);
+    retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS);
+    assert.equal(fleet.tracked.size, 0);
+
+    assert.deepEqual(noteAsyncSpawn(fleet, spawnResult(FAILED_RUN, dir, "data-engineer")), []);
+    assert.equal(fleet.tracked.size, 0, "the ledger, not `tracked`, is what makes this once-only");
+    assert.equal(takeAnnouncements(fleet, reconcile(fleet), SETTLED_TTL_MS).length, 0);
+  });
+
+  it("empties the fleet, which is the signal the widget's poll stops on", () => {
+    const dir = writeStatus(FAILED_RUN, failedStatus(FAILED_RUN));
+    const fleet = fleetWith(FAILED_RUN, dir, "data-engineer");
+    takeAnnouncements(fleet, reconcile(fleet));
+    retireSettledRuns(fleet, reconcile(fleet), 0);
+    retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS);
+    assert.equal(fleet.tracked.size, 0);
+    assert.equal(renderAsyncFleet(fleet), "", "/agents shows no section once nothing is tracked");
+  });
+});
+
+/**
+ * The 106-record panel: `status.json` said `paused`, the runner was long gone, and `paused` is not
+ * in `TERMINAL_STATES` — so every sweep called these runs live and none of them was ever dropped.
+ */
+describe("retiring paused runs whose runner has gone", () => {
+  const PAUSED_RUN = "f47de05e-8ab2-41f1-a2f5-e9a02a1e8b62";
+
+  function pausedRun(): string {
+    return writeStatus(PAUSED_RUN, { runId: PAUSED_RUN, state: "paused", pid: 99_999, steps: [] });
+  }
+
+  it("retires one whose exit proof says the runner was observed to close", () => {
+    const dir = pausedRun();
+    writeExitProof(dir, PAUSED_RUN, "observed");
+    const fleet = fleetWith(PAUSED_RUN, dir, "data-engineer");
+
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), 0), [], "retired before the TTL");
+    assert.equal(fleet.settledAt.get(PAUSED_RUN), 0, "the abandoned pause was never stamped");
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS), [PAUSED_RUN]);
+    assert.equal(fleet.tracked.size, 0);
+    assert.equal(renderAsyncFleet(fleet), "", "/agents still lists a run nothing is watching");
+  });
+
+  it("keeps one whose runner has not been seen to exit", () => {
+    const fleet = fleetWith(PAUSED_RUN, pausedRun(), "data-engineer");
+
+    retireSettledRuns(fleet, reconcile(fleet), 0);
+    assert.equal(fleet.settledAt.has(PAUSED_RUN), false, "a pause with no proof was called settled");
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS * 100), []);
+    assert.equal(fleet.tracked.size, 1, "a resumable run was dropped off the panel");
+  });
+
+  it("keeps one whose proof is still pending — three of the four states are not evidence", () => {
+    for (const state of ["pending", "unknown", "not-started"]) {
+      const dir = pausedRun();
+      writeExitProof(dir, PAUSED_RUN, state);
+      const fleet = fleetWith(PAUSED_RUN, dir, "data-engineer");
+
+      retireSettledRuns(fleet, reconcile(fleet), 0);
+      assert.deepEqual(
+        retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS * 100),
+        [],
+        `a proof in state "${state}" was read as an exit`,
+      );
+    }
+  });
+
+  it("retires one the model was never told about, because it never could be", () => {
+    // The ledger gate is what holds a *finished* run until its ending is in the session. A paused
+    // run has no ending to deliver: `takeAnnouncements` returns early on every `live` verdict, so
+    // this fleet's `announced` and `consumed` are both empty and always would be. Requiring the
+    // ledger here is requiring something that cannot happen, which is the defect, not the fix.
+    const dir = pausedRun();
+    writeExitProof(dir, PAUSED_RUN, "observed");
+    const fleet = fleetWith(PAUSED_RUN, dir, "data-engineer");
+
+    assert.deepEqual(takeAnnouncements(fleet, reconcile(fleet)), [], "a paused run was announced");
+    assert.equal(fleet.announced.size + fleet.consumed.size, 0);
+    retireSettledRuns(fleet, reconcile(fleet), 0);
+    assert.deepEqual(retireSettledRuns(fleet, reconcile(fleet), SETTLED_TTL_MS), [PAUSED_RUN]);
   });
 });

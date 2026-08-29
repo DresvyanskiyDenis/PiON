@@ -15,6 +15,11 @@ import {
   __resetForTests,
 } from "../../extensions/jobs/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
+import {
+  EXTERNAL_RUN_REGISTRY_KEY,
+  PROVIDER_NAME,
+  type ExternalRunRecord,
+} from "../../extensions/jobs/registry.ts";
 import { ensureJobsRoot, isProcessAlive, listJobs, readState, writeState, type JobState } from "../../extensions/jobs/store.ts";
 
 type CommandDefinition = { description: string; handler: (args: string, ctx: never) => Promise<void> };
@@ -59,7 +64,7 @@ function fakePi(): {
 
 function fakeCtx(
   sessionId: string,
-  opts: { hasUI?: boolean; status?: Map<string, string | undefined> } = {},
+  opts: { hasUI?: boolean; status?: Map<string, string | undefined>; sessionFile?: string } = {},
 ): ExtensionContext {
   return {
     hasUI: opts.hasUI ?? false,
@@ -68,7 +73,14 @@ function fakeCtx(
       notify: () => {},
       setStatus: (key: string, text: string | undefined) => void opts.status?.set(key, text),
     },
-    sessionManager: { getSessionId: () => sessionId },
+    // Two identifiers, deliberately different: `getSessionId` is what this extension scopes its
+    // own announcements by, `getSessionFile` is what `pi-subagents` scopes the fleet panel by
+    // (`resolveCurrentSessionId` prefers the file). Making them equal in the fixture would hide
+    // exactly the mismatch that kept jobs off the panel.
+    sessionManager: {
+      getSessionId: () => sessionId,
+      getSessionFile: () => opts.sessionFile ?? `/sessions/${sessionId}.jsonl`,
+    },
   } as unknown as ExtensionContext;
 }
 
@@ -79,6 +91,25 @@ interface ToolCallResult {
 
 let sandbox: string;
 let counter = 0;
+
+/**
+ * What the fleet panel below the editor would render for this session.
+ *
+ * `pi-subagents` reads exactly this map — `snapshotExternalRuns` filters it by session id and
+ * `collectFleetStatusEntries` turns each active row into an `external · <label>` line
+ * (`src/tui/fleet-status.ts:432-445`). Reading the registry rather than the panel is the closest
+ * a test run can get to the surface the operator is looking at.
+ */
+function panelRows(): ExternalRunRecord[] {
+  const slot = (globalThis as Record<PropertyKey, unknown>)[Symbol.for(EXTERNAL_RUN_REGISTRY_KEY)] as
+    | { runs: Map<string, ExternalRunRecord> }
+    | undefined;
+  return [...(slot?.runs.values() ?? [])].filter((run) => run.source === PROVIDER_NAME);
+}
+
+function clearPanel(): void {
+  delete (globalThis as Record<PropertyKey, unknown>)[Symbol.for(EXTERNAL_RUN_REGISTRY_KEY)];
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -115,6 +146,7 @@ describe("job tool (EXT-24)", () => {
     root = await ensureJobsRoot();
     resetSurfaced();
     __resetForTests();
+    clearPanel();
     harness = fakePi();
     registerJobs(harness.pi);
     tool = harness.tools.get("job")!;
@@ -418,5 +450,98 @@ describe("job tool (EXT-24)", () => {
       [id],
       "a job that finished moments ago is well inside the default 7-day window",
     );
+  });
+
+  /**
+   * The defect this locks down: "started job … (pid 52469, depth 0)" printed, and nothing on the
+   * panel below the prompt while the job ran. The footer's `N bg` count was already updated at
+   * start — that half was never broken — but the row that *depicts the job* comes from
+   * `pi-subagents`' external-run registry, and this extension was still publishing into the `v1`
+   * key nothing reads.
+   */
+  describe("the fleet panel below the prompt", () => {
+    it("shows a job from the moment it starts, without waiting for turn_end", async () => {
+      const ctx = fakeCtx("sess-1", { hasUI: true, status: new Map() });
+      const started = await call({ action: "start", command: "sleep 30", label: "ingest" }, ctx);
+      const id = (started.details as { id: string }).id;
+
+      // No turn_end, no agent_settled, no watcher tick: the tool has only just returned.
+      assert.deepEqual(
+        panelRows().map((run) => [run.id, run.state, run.label]),
+        [[id, "running", "ingest"]],
+        "the job the operator was just told about is missing from the panel",
+      );
+
+      const killed = await call({ action: "kill", id }, ctx);
+      await until(() => !isProcessAlive((killed.details as JobState).pid));
+    });
+
+    it("files the row under the session identity pi-subagents queries by", async () => {
+      const ctx = fakeCtx("sess-1", { hasUI: true, sessionFile: "/sessions/live.jsonl" });
+      const started = await call({ action: "start", command: "sleep 30" }, ctx);
+      const id = (started.details as { id: string }).id;
+
+      // `resolveCurrentSessionId` prefers `getSessionFile()`, so a row filed under the session
+      // *id* is a row the panel never asks for — invisible for a different reason, same symptom.
+      assert.deepEqual(panelRows().map((run) => run.sessionId), ["/sessions/live.jsonl"]);
+
+      const killed = await call({ action: "kill", id }, ctx);
+      await until(() => !isProcessAlive((killed.details as JobState).pid));
+    });
+
+    it("takes the row down once the job is over", async () => {
+      const ctx = fakeCtx("sess-1", { hasUI: true, status: new Map() });
+      const started = await call({ action: "start", command: "exit 0" }, ctx);
+      const id = (started.details as { id: string }).id;
+      assert.equal(panelRows().length, 1);
+
+      await until(async () => {
+        const { jobs } = await listJobs(root);
+        return jobs.find((job) => job.id === id)?.status === "done";
+      });
+      await harness.handlers.get("turn_end")!({}, ctx);
+      assert.deepEqual(panelRows(), [], "a finished job is history, not a live panel row");
+    });
+
+    it("advertises only this session's jobs, because only those can be rendered", async () => {
+      const mine = fakeCtx("sess-1", { hasUI: true });
+      const theirs = fakeCtx("sess-2", { hasUI: true });
+      const a = await call({ action: "start", command: "sleep 30" }, mine);
+      const b = await call({ action: "start", command: "sleep 30" }, theirs);
+
+      // `theirs` published last, so the registry now holds sess-2's row and not sess-1's — which
+      // is correct: `snapshotExternalRuns` filters by session, so a row for another session could
+      // never appear on this panel and would only spend the shared 100-record budget.
+      assert.deepEqual(panelRows().map((run) => run.id), [(b.details as { id: string }).id]);
+
+      for (const details of [a.details, b.details]) {
+        const killed = await call({ action: "kill", id: (details as { id: string }).id }, mine);
+        await until(() => !isProcessAlive((killed.details as JobState).pid));
+      }
+    });
+
+    it("withdraws its rows at session shutdown, and leaves other producers alone", async () => {
+      const ctx = fakeCtx("sess-1", { hasUI: true, status: new Map() });
+      const started = await call({ action: "start", command: "sleep 30" }, ctx);
+      const id = (started.details as { id: string }).id;
+      const slot = (globalThis as Record<PropertyKey, unknown>)[Symbol.for(EXTERNAL_RUN_REGISTRY_KEY)] as {
+        runs: Map<string, ExternalRunRecord>;
+      };
+      slot.runs.set("other\u0000row", {
+        id: "row",
+        sessionId: "other",
+        source: "some-other-extension",
+        label: "not ours",
+        state: "running",
+        startedAt: 1,
+      });
+
+      await harness.handlers.get("session_shutdown")!({}, ctx);
+      assert.deepEqual(panelRows(), [], "our rows outlived the session that owns them");
+      assert.equal(slot.runs.size, 1, "someone else's row was withdrawn too");
+
+      const killed = await call({ action: "kill", id }, ctx);
+      await until(() => !isProcessAlive((killed.details as JobState).pid));
+    });
   });
 });
