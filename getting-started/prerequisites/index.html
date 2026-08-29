@@ -1011,6 +1011,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -1127,6 +1133,90 @@
     
   
     openai — GPT-5.6 on an API key, or on a ChatGPT subscription
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/deepseek/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    deepseek — DeepSeek V4, with the price corrected
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/qwen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    qwen — Alibaba's Qwen models, bought per token
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/ollama-cloud/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ollama-cloud — the models ollama.com runs for you
   
 
     
@@ -4219,8 +4309,8 @@
 </tr>
 </tbody>
 </table>
-<p>The installer asks which provider to configure and writes <code>config/models.json</code> from one of three
-fragments in <code>config/providers/</code>. Have the answers ready before you start:</p>
+<p>The installer asks which provider to configure and writes <code>config/models.json</code> from one of the
+eight fragments in <code>config/providers/</code>. Have the answers ready before you start:</p>
 <table>
 <thead>
 <tr>
@@ -4244,6 +4334,21 @@ fragments in <code>config/providers/</code>. Have the answers ready before you s
 <td><strong><code>openai</code></strong></td>
 <td>which way you buy the models: a pay-as-you-go API key, or a ChatGPT Plus/Pro sign-in</td>
 <td>you buy GPT-5.6 from OpenAI directly. On the subscription branch there is no key to supply — <code>/login</code> does it.</td>
+</tr>
+<tr>
+<td><strong><code>deepseek</code></strong></td>
+<td>whether you go straight to <code>api.deepseek.com</code> or through a proxy of your own</td>
+<td>you call DeepSeek directly. The fragment exists to correct the price: PI's bundled rates for these ids were behind the vendor's page.</td>
+</tr>
+<tr>
+<td><strong><code>qwen</code></strong></td>
+<td>which Model Studio deployment you call — Singapore, Beijing, or a workspace-scoped host</td>
+<td>you buy Qwen per token from Alibaba Cloud. Not the same as PI's built-in <code>qwen-token-plan</code>, which is the flat-rate plan.</td>
+</tr>
+<tr>
+<td><strong><code>ollama-cloud</code></strong></td>
+<td>how many requests your plan will run at once</td>
+<td>you use the <strong>hosted</strong> ollama.com. A local ollama is <code>openai-compatible</code> with a loopback URL.</td>
 </tr>
 <tr>
 <td><strong><code>databricks</code></strong></td>

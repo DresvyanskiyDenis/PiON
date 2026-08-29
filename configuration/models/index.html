@@ -911,6 +911,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -1215,6 +1221,90 @@
     
   
     openai — GPT-5.6 on an API key, or on a ChatGPT subscription
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deepseek/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    deepseek — DeepSeek V4, with the price corrected
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    qwen — Alibaba's Qwen models, bought per token
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ollama-cloud/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ollama-cloud — the models ollama.com runs for you
   
 
     
@@ -4849,7 +4939,7 @@ unverified.</p>
 <p><code>config/providers/*.json</code> are self-describing templates: the block that goes into <code>models.json</code>,
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as comments.</p>
-<p>Five ship:</p>
+<p>Eight ship:</p>
 <table>
 <thead>
 <tr>
@@ -4871,6 +4961,24 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 <td>yes</td>
 <td><code>public</code></td>
 <td>Asks which way you buy the models: an API key priced per token, or a ChatGPT plan that deletes the <code>apiKey</code> key so <code>/login</code> supplies it</td>
+</tr>
+<tr>
+<td><a href="../deepseek/"><code>deepseek.json</code></a></td>
+<td>yes</td>
+<td><code>public</code></td>
+<td>Overrides <code>cost</code> and <code>contextWindow</code> only — PI's bundled rates for these ids were behind the vendor's page when it was written</td>
+</tr>
+<tr>
+<td><a href="../qwen/"><code>qwen.json</code></a></td>
+<td>no</td>
+<td><code>public</code></td>
+<td>Alibaba Model Studio bought per token. Not PI's built-in <code>qwen-token-plan</code>, which is the flat-rate plan on another host</td>
+</tr>
+<tr>
+<td><a href="../ollama-cloud/"><code>ollama-cloud.json</code></a></td>
+<td>no</td>
+<td><code>public</code></td>
+<td>The <em>hosted</em> ollama.com, billed by plan — four written zeros. A local ollama is <code>openai-compatible</code> with a loopback URL</td>
 </tr>
 <tr>
 <td><a href="../litellm/"><code>litellm.json</code></a></td>
@@ -4909,8 +5017,10 @@ onto the literal <code>0</code>. The opt-out is an answer somebody gives, not so
 leaving a price blank.</p>
 <p>A fragment that <em>does</em> know the price may <strong>write</strong> it — but only for a model it names by id,
 and only with the source. <code>openai.json</code> maps the metered branch straight onto the published list
-rate, and the test then requires a <code>notes[]</code> entry giving the URL those rates were read from:
-vendor prices move, and a written rate is only as good as its provenance.</p>
+rate; <code>qwen.json</code> and <code>deepseek.json</code> state the numbers in the <code>cost</code> block itself, having
+nothing to ask because those vendors only ever bill per token. Either way the test requires a
+<code>notes[]</code> entry giving the URL the rates were read from: vendor prices move, and a written rate
+is only as good as its provenance.</p>
 <p>A <code>notes[]</code> entry that discusses <code>cost</code> must state the units in the literal words
 <code>DOLLARS PER MILLION TOKENS</code>, which the test greps for, because the units are the easy thing to get
 wrong and the wrong ones render without complaint. What a note can no longer do is stand in for the
