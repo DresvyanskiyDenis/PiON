@@ -909,6 +909,8 @@
       
         
       
+        
+      
     
     
     
@@ -1185,6 +1187,34 @@
     
   
     github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    openai — GPT-5.6 on an API key, or on a ChatGPT subscription
   
 
     
@@ -4819,7 +4849,7 @@ unverified.</p>
 <p><code>config/providers/*.json</code> are self-describing templates: the block that goes into <code>models.json</code>,
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as comments.</p>
-<p>Three ship:</p>
+<p>Five ship:</p>
 <table>
 <thead>
 <tr>
@@ -4831,16 +4861,28 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 </thead>
 <tbody>
 <tr>
-<td><code>github-copilot.json</code></td>
+<td><a href="../github-copilot/"><code>github-copilot.json</code></a></td>
 <td>yes</td>
 <td><code>public</code></td>
 <td>Never run <code>/login</code> on this path — the OAuth resolver silently overrides your <code>baseUrl</code></td>
 </tr>
 <tr>
+<td><a href="../openai/"><code>openai.json</code></a></td>
+<td>yes</td>
+<td><code>public</code></td>
+<td>Asks which way you buy the models: an API key priced per token, or a ChatGPT plan that deletes the <code>apiKey</code> key so <code>/login</code> supplies it</td>
+</tr>
+<tr>
+<td><a href="../litellm/"><code>litellm.json</code></a></td>
+<td>no</td>
+<td><strong>you choose</strong></td>
+<td>A LiteLLM proxy specifically — the four wire fields nobody can be asked about are stated as literals</td>
+</tr>
+<tr>
 <td><code>databricks.json</code></td>
 <td>no</td>
 <td><code>confidential</code></td>
-<td>Model ids are your own serving-endpoint names; the <code>compat</code> block is measured</td>
+<td>Model ids are your own serving-endpoint names; the <code>compat</code> block is measured. Asks per endpoint whether it is pay-per-token or billed by DBU-hour</td>
 </tr>
 <tr>
 <td><a href="../openai-compatible/"><code>openai-compatible.json</code></a></td>
@@ -4858,22 +4900,31 @@ repository ships templates and cannot know anybody's rates — it is that the ze
 <em>declared</em>: four explicit zeros say <em>not billed by the token</em>, and that is a legal, permanent
 answer. Silence is not, in any of the three places that read this: the test here, <code>PC-27</code> at
 install time, and <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> on the first billed turn.</p>
-<p>A fragment that cannot know the price <strong>asks</strong> for it instead. <code>litellm.json</code> and
-<code>openai-compatible.json</code> state each rate as a <code>{{token}}</code> filled in by the interview, so the same
-test also insists the prompt behind such a token is <code>type: "number"</code> with a numeric <code>default</code> —
-that default is what the "unmetered" answer writes, and without it the opt-out would compose
-<code>"input": ""</code> rather than a zero.</p>
+<p>A fragment that cannot know the price <strong>asks</strong> for it instead. <code>litellm.json</code>,
+<code>openai-compatible.json</code> and <code>databricks.json</code> state each rate as a <code>{{token}}</code> filled in by the
+interview, and the same test pins the shape of that question: the token must resolve to a
+<code>derived</code> entry reading a <code>choice</code> prompt that offers exactly <code>metered</code> and <code>unmetered</code>, mapping
+<code>metered</code> onto a <code>type: "decimal"</code> prompt (a <code>number</code> prompt would refuse <code>2.5</code>) and <code>unmetered</code>
+onto the literal <code>0</code>. The opt-out is an answer somebody gives, not something they fall into by
+leaving a price blank.</p>
+<p>A fragment that <em>does</em> know the price may <strong>write</strong> it — but only for a model it names by id,
+and only with the source. <code>openai.json</code> maps the metered branch straight onto the published list
+rate, and the test then requires a <code>notes[]</code> entry giving the URL those rates were read from:
+vendor prices move, and a written rate is only as good as its provenance.</p>
 <p>A <code>notes[]</code> entry that discusses <code>cost</code> must state the units in the literal words
 <code>DOLLARS PER MILLION TOKENS</code>, which the test greps for, because the units are the easy thing to get
 wrong and the wrong ones render without complaint. What a note can no longer do is stand in for the
 declaration: nothing reads notes at runtime, so a fragment explaining an absent <code>cost</code> in prose
 still renders a model the gate ends the session on.</p>
-<p><code>builtIn</code> fragments are exempt by construction: they override PI's own catalogues, which already
-carry complete non-zero costs.</p>
+<p><code>builtIn</code> fragments used to be exempt by construction, on the ground that <code>cost</code> is not
+overridable in <code>modelOverrides</code>. It is — PI's model documentation lists <code>cost</code> (partial) among
+the overridable fields — so the rule now follows the field rather than the fragment: an override
+that says nothing about price is the built-in catalogue's own number and is left alone, and an
+override that states one is authored here and is checked here, in all three places.</p>
 </div>
 <p>The fragment schema, the substitution rules and the merge algorithm are documented in
 <code>config/providers/README.md</code>, which is the contract between the fragments and the installer. To
-add a fourth provider, see <a href="../../extending/providers/">Adding a provider</a> — but check first
+add another provider, see <a href="../../extending/providers/">Adding a provider</a> — but check first
 whether <a href="../openai-compatible/"><code>openai-compatible</code></a> already covers your endpoint.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>

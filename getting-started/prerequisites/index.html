@@ -1009,6 +1009,8 @@
       
         
       
+        
+      
     
     
     
@@ -1097,6 +1099,34 @@
     
   
     github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/openai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    openai — GPT-5.6 on an API key, or on a ChatGPT subscription
   
 
     
@@ -4211,9 +4241,14 @@ fragments in <code>config/providers/</code>. Have the answers ready before you s
 <td>anything that speaks <code>/v1/chat/completions</code> under its own model names — a <strong>LiteLLM</strong> proxy, vLLM, OpenRouter, or a router someone in your organisation runs. This is the fragment most people arrive through, and <a href="../../configuration/openai-compatible/">it takes exactly one gateway</a>.</td>
 </tr>
 <tr>
+<td><strong><code>openai</code></strong></td>
+<td>which way you buy the models: a pay-as-you-go API key, or a ChatGPT Plus/Pro sign-in</td>
+<td>you buy GPT-5.6 from OpenAI directly. On the subscription branch there is no key to supply — <code>/login</code> does it.</td>
+</tr>
+<tr>
 <td><strong><code>databricks</code></strong></td>
-<td>a workspace host, an auth method, and one or two serving endpoints</td>
-<td>your models are served from Databricks. Egress is fixed at <code>confidential</code>.</td>
+<td>a workspace host, an auth method, one or two serving endpoints, and how each one bills</td>
+<td>your models are served from Databricks. Egress is fixed at <code>confidential</code>. Pay-per-token endpoints are the same host and token as provisioned ones; only the billing question differs.</td>
 </tr>
 </tbody>
 </table>

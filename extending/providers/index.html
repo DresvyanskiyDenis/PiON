@@ -902,6 +902,8 @@
       
         
       
+        
+      
     
     
     
@@ -990,6 +992,34 @@
     
   
     github-copilot — Claude, GPT, Gemini and Grok through a Copilot seat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/openai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    openai — GPT-5.6 on an API key, or on a ChatGPT subscription
   
 
     
@@ -4315,8 +4345,9 @@
 
 
 <h1 id="adding-a-provider">Adding a provider<a class="headerlink" href="#adding-a-provider" title="Permanent link">&para;</a></h1>
-<p>Four provider fragments ship: <code>github-copilot</code>, <code>litellm</code>, <code>databricks</code> and <code>openai-compatible</code>.
-Adding a fifth is a JSON file, and the installer picks it up with no code change.</p>
+<p>Five provider fragments ship: <code>github-copilot</code>, <code>openai</code>, <code>litellm</code>, <code>databricks</code> and
+<code>openai-compatible</code>. Adding a sixth is a JSON file, and the installer picks it up with no code
+change.</p>
 <div class="admonition tip">
 <p class="admonition-title">Check <code>openai-compatible</code> first</p>
 <p>If your endpoint speaks <code>/v1/chat/completions</code> under its own model names — vLLM, OpenRouter, an
@@ -4331,7 +4362,9 @@ deferred to a prompt — only <code>egress</code>, <code>concurrency</code> and 
 behaviour that is knowable for a <strong>named</strong> product can only be stated as a literal by a fragment
 that names it. That is why <a href="../../configuration/litellm/"><code>litellm</code></a> exists beside
 <code>openai-compatible</code> although both fit a LiteLLM proxy: they differ in no answer, and in four
-fields nobody can be asked about.</p>
+fields nobody can be asked about. <a href="../../configuration/openai/"><code>openai</code></a> is the other case: a
+ChatGPT subscription needs a block with <strong>no</strong> <code>apiKey</code> key at all, and no answer to a gateway
+fragment's questions can produce an absent field.</p>
 </div>
 <p>There are two ways in, and they are not equivalent:</p>
 <table>
