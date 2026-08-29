@@ -17,6 +17,8 @@
  *   - `hooks` (`EXT-15`) stacks on the guard and may only add denial, so it follows it.
  *   - `path-defaults`, `path-rules` and `skills-env` publish configuration later modules read;
  *     `skill-mask` keeps its slot beside them although it registers nothing.
+ *   - `tool-masks` precedes `path-rules`: a `mask:` rule answers a touch by calling into it, so
+ *     its `register()` must have stored the `pi` handle before any rule can fire.
  *   - `dispatch` precedes `teammates`/`worktree`/`jobs`: those register providers and vetoes
  *     into registries `dispatch` owns.
  *   - `doctor` is LAST so its session_start pass observes everything above it.
@@ -44,6 +46,7 @@ import { id as ctxId, register as registerSessionContext } from "./session-conte
 import { id as credId, register as registerCredentials } from "./credentials.ts";
 import { id as costGateId, register as registerCostGate } from "./cost-gate/index.ts";
 import { id as pathDefaultsId, register as registerPathDefaults } from "./path-defaults/index.ts";
+import { id as toolMasksId, register as registerToolMasks } from "./tool-masks/index.ts";
 import { id as pathRulesId, register as registerPathRules } from "./path-rules/index.ts";
 import { id as skillsEnvId, register as registerSkillsEnv } from "./skills-env.ts";
 import { id as skillMaskId, register as registerSkillMask } from "./skill-mask.ts";
@@ -86,6 +89,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [costGateId, registerCostGate],
   // capability configuration that later modules read
   [pathDefaultsId, registerPathDefaults],
+  [toolMasksId, registerToolMasks],
   [pathRulesId, registerPathRules],
   [skillsEnvId, registerSkillsEnv],
   [skillMaskId, registerSkillMask],

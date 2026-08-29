@@ -126,3 +126,41 @@ describe("loadRules — directory I/O and per-file isolation", () => {
     }
   });
 });
+
+describe("mask: frontmatter", () => {
+  it("parses a mask rule and keeps it out of the text path", () => {
+    const rule = parseRuleFile('---\npaths:\n  - "**/*.env"\nmask: review\n---\nSecrets.', "/rules/secrets.md");
+    assert.equal(rule.mask, "review");
+    assert.ok(rule.matchers !== null);
+  });
+
+  it("leaves `mask` null on an ordinary rule", () => {
+    const rule = parseRuleFile('---\npaths:\n  - "**/*.py"\n---\nOrdinary.', "/rules/py.md");
+    assert.equal(rule.mask, null);
+  });
+
+  it("rejects a mask nobody defined, naming the ones that exist", () => {
+    assert.throws(
+      () => parseRuleFile('---\npaths:\n  - "**/*.env"\nmask: readonly\n---\nSecrets.', "/rules/secrets.md"),
+      /"mask" must be one of review, explore/,
+    );
+  });
+
+  it("rejects a mask with no paths to fire on", () => {
+    assert.throws(() => parseRuleFile("---\nmask: review\n---\nSecrets.", "/rules/secrets.md"), /requires a "paths" list/);
+  });
+
+  it("drops a mask-typo rule with a warning instead of loading it silently", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pi-path-rules-mask-"));
+    try {
+      await writeFile(join(dir, "typo.md"), '---\npaths:\n  - "**/*.env"\nmask: reviw\n---\nSecrets.');
+      await writeFile(join(dir, "healthy.md"), '---\npaths:\n  - "**/*.env"\nmask: review\n---\nSecrets.');
+      const { rules, warnings } = loadRules(dir);
+      assert.deepEqual(rules.map((r) => r.id), ["healthy"]);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0]!, /typo\.md/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

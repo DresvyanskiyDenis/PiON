@@ -24,6 +24,13 @@
  *      whatever `session_start` and `tool_call` have accumulated, so the block survives
  *      compaction, `/reload`, and fork the same way `session-context.ts`'s does.
  *
+ * A rule carrying `mask:` (`./config.ts`) is not part of any of that. It answers a touch by
+ * narrowing the tool surface for the rest of the turn (`../tool-masks/`) instead of by
+ * contributing text, so it never enters `durable` or `pending`, is never rendered into a block,
+ * and is skipped by the startup scan: a mask is a response to touching a file now, not a standing
+ * fact about the project. Staying out of `durable` is also what lets it fire again next turn,
+ * after `turn_end` has released the previous one.
+ *
  * `pending` is what keeps (3) and (4) from double-injecting the same rule: `before_agent_start`
  * clears it the moment it folds `durable` into the system prompt for this turn — anything added to
  * `durable` by `tool_call` AFTER that point (mid-turn) lands in `pending` again, which is exactly
@@ -51,6 +58,8 @@ import { rulesDir } from "./paths.ts";
 import { renderBlock } from "./render.ts";
 import { matchesAny } from "./glob.ts";
 import { scanProject, type ScanResult } from "./scan.ts";
+import { requestTurnMask } from "../tool-masks/index.ts";
+import type { MaskName } from "../tool-masks/masks.ts";
 
 export const id = "path-rules";
 
@@ -86,7 +95,12 @@ export function register(pi: ExtensionAPI): void {
       const dir = rulesDir();
       const { rules, warnings } = loadRules(dir);
       for (const w of warnings) announce(w, "warning");
-      const scan = scanProject(ctx.cwd, rules);
+      // Mask rules are deliberately excluded: the scan answers "does this project contain such a
+      // file", and a mask must answer "is the model touching one right now".
+      const scan = scanProject(
+        ctx.cwd,
+        rules.filter((rule) => rule.mask === null),
+      );
       state = { rules, durable: new Set(scan.activated), pending: new Set(), scan, rulesDirPath: dir };
       const overBudget = scan.elapsedMs > SCAN_BUDGET_MS;
       if (scan.truncated || overBudget) {
@@ -108,7 +122,7 @@ export function register(pi: ExtensionAPI): void {
   pi.on("tool_call", (event: ToolCallEvent, ctx: ExtensionContext): ToolCallEventResult | undefined => {
     if (state && (event.toolName === "read" || event.toolName === "edit" || event.toolName === "write")) {
       try {
-        detectTouch(state, event, ctx.cwd);
+        for (const mask of detectTouch(state, event, ctx.cwd)) requestTurnMask(ctx, mask);
       } catch (err) {
         surfaceOnce(ctx, "path-rules:tool_call", () => {
           makeAnnounce(ctx)(`mid-session detection failed (non-fatal): ${describeError(err)}`, "error");
@@ -157,19 +171,32 @@ export function register(pi: ExtensionAPI): void {
 
 // ---------------------------------------------------------------------------------------------
 
-/** Marks every not-yet-active conditional rule whose `paths:` match this tool call's target. */
-function detectTouch(s: PathRulesState, event: ToolCallEvent, cwd: string): void {
+/**
+ * Marks every not-yet-active conditional text rule whose `paths:` match this tool call's target,
+ * and returns the mask of every `mask:` rule that matched, for the caller to request.
+ *
+ * A mask rule is outside the `durable` dedupe on purpose: `durable` exists so a rule's text is
+ * injected once, and a mask is not text. It has to fire again on the turn after `turn_end`
+ * released it, so it is neither recorded nor skipped here.
+ */
+function detectTouch(s: PathRulesState, event: ToolCallEvent, cwd: string): MaskName[] {
+  const masks: MaskName[] = [];
   const rawPath = (event.input as { path?: unknown }).path;
-  if (typeof rawPath !== "string" || rawPath.length === 0) return;
+  if (typeof rawPath !== "string" || rawPath.length === 0) return masks;
   const relPath = toRelativePath(rawPath, cwd);
-  if (relPath === null) return;
+  if (relPath === null) return masks;
   for (const rule of s.rules) {
-    if (rule.matchers === null || s.durable.has(rule.id)) continue;
-    if (matchesAny(rule.matchers, relPath)) {
-      s.durable.add(rule.id);
-      s.pending.add(rule.id);
+    if (rule.matchers === null) continue;
+    if (rule.mask === null && s.durable.has(rule.id)) continue;
+    if (!matchesAny(rule.matchers, relPath)) continue;
+    if (rule.mask !== null) {
+      masks.push(rule.mask);
+      continue;
     }
+    s.durable.add(rule.id);
+    s.pending.add(rule.id);
   }
+  return masks;
 }
 
 /**

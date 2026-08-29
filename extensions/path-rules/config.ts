@@ -11,6 +11,12 @@
  *   - `paths:` present -> a list of globs (`./glob.ts`); the rule activates when the project has
  *     at least one file matching any of them. Pure concatenation across matched rules — no
  *     precedence engine, no "most specific wins". Order is filename order.
+ *   - `mask:` present -> the rule answers with a tool mask instead of with text. Touching a file
+ *     it matches narrows the tool surface for the rest of the turn (`../tool-masks/`), and the
+ *     rule's body is never injected: the whole point of a mask is that the capability is gone
+ *     rather than argued about in prose. It requires `paths:`, because a mask is a response to
+ *     touching something, and its value must name a real mask, checked here at load time so a
+ *     typo is one dropped rule with a warning rather than a rule that silently never fires.
  *
  * Failure isolation is per FILE, not per directory: one rule file with a bad `---` block, invalid
  * YAML, or an unsupported glob pattern is dropped with a loud warning (`loadRules`'s `warnings`);
@@ -23,6 +29,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { compileGlob, type PathMatcher, UnsupportedGlobError } from "./glob.ts";
+import { isMaskName, MASK_NAMES, type MaskName } from "../tool-masks/masks.ts";
 
 /** No TypeScript parameter properties — see `extensions/path-defaults/config.ts`'s own note:
  *  Node's `--test` runs `.ts` through type-stripping only, and `constructor(readonly x: T)` is a
@@ -47,6 +54,8 @@ export interface PathRule {
   readonly body: string;
   /** `null` means unconditional. Otherwise at least one compiled matcher. */
   readonly matchers: readonly PathMatcher[] | null;
+  /** `null` for an ordinary text rule. Otherwise the mask a touch of a matching file applies. */
+  readonly mask: MaskName | null;
 }
 
 const FRONTMATTER_DELIM = "---";
@@ -110,6 +119,33 @@ export function compileFrontmatter(frontmatter: unknown, source: string): readon
   });
 }
 
+/**
+ * Reads the optional `mask:` key.
+ *
+ * @throws PathRuleShapeError when it is not a string, does not name a mask, or names one without
+ *   a `paths:` list to trigger it.
+ */
+export function compileMask(
+  frontmatter: unknown,
+  matchers: readonly PathMatcher[] | null,
+  source: string,
+): MaskName | null {
+  if (frontmatter === undefined || frontmatter === null) return null;
+  if (typeof frontmatter !== "object" || Array.isArray(frontmatter)) return null;
+  const obj = frontmatter as Record<string, unknown>;
+  if (!("mask" in obj)) return null;
+  if (!isMaskName(obj.mask)) {
+    throw new PathRuleShapeError(
+      `"mask" must be one of ${MASK_NAMES.join(", ")}, got ${JSON.stringify(obj.mask)}`,
+      source,
+    );
+  }
+  if (matchers === null) {
+    throw new PathRuleShapeError('"mask" requires a "paths" list: a mask fires on a touch', source);
+  }
+  return obj.mask;
+}
+
 /** Parses one rule file's text into a `PathRule`. Pure — the file I/O lives in `loadRules`. */
 export function parseRuleFile(text: string, source: string): PathRule {
   const { frontmatter, body } = splitFrontmatter(text, source);
@@ -117,7 +153,8 @@ export function parseRuleFile(text: string, source: string): PathRule {
     throw new PathRuleShapeError("rule body is empty — a rule must have injectable content", source);
   }
   const matchers = compileFrontmatter(frontmatter, source);
-  return { id: basename(source, ".md"), source, body, matchers };
+  const mask = compileMask(frontmatter, matchers, source);
+  return { id: basename(source, ".md"), source, body, matchers, mask };
 }
 
 export interface LoadRulesResult {

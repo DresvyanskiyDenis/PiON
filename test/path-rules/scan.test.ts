@@ -8,7 +8,13 @@ import { scanProject } from "../../extensions/path-rules/scan.ts";
 import type { PathRule } from "../../extensions/path-rules/config.ts";
 
 function rule(id: string, globs: string[] | null, source = `/rules/${id}.md`): PathRule {
-  return { id, source, body: `${id} body`, matchers: globs === null ? null : globs.map(compileGlob) };
+  return {
+    id,
+    source,
+    body: `${id} body`,
+    matchers: globs === null ? null : globs.map(compileGlob),
+    mask: null,
+  };
 }
 
 describe("scanProject", () => {

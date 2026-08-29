@@ -44,6 +44,7 @@ export const DECLARED_MODULES = [
   "cost-gate",
   // capability configuration that later modules read
   "path-defaults",
+  "tool-masks",
   "path-rules",
   "skills-env",
   "skill-mask",
