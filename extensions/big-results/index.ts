@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { Type } from "typebox";
 import type { ExtensionAPI, ExtensionContext, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, isBashToolResult, truncateTail } from "@earendil-works/pi-coding-agent";
+import { CARD_ENTRY, PREVIEW_LINES, registerCardRenderer, type ExternalisedCard } from "./card.ts";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { scratchDir } from "../lib/paths.ts";
@@ -63,7 +64,8 @@ function ownPath(sessionId: string, handle: string): string {
 }
 
 export function register(pi: ExtensionAPI): void {
-  pi.on("tool_result", async (event, ctx) => externaliseIfOversized(event, ctx));
+  registerCardRenderer(pi);
+  pi.on("tool_result", async (event, ctx) => externaliseIfOversized(event, ctx, pi));
 
   pi.registerTool({
     name: "expand_result",
@@ -118,7 +120,7 @@ export function register(pi: ExtensionAPI): void {
  * `pi.on("tool_result", ...)` call site below rather than importing a name that does not exist
  * at the package boundary.
  */
-async function externaliseIfOversized(event: ToolResultEvent, ctx: ExtensionContext) {
+async function externaliseIfOversized(event: ToolResultEvent, ctx: ExtensionContext, pi: ExtensionAPI) {
   try {
     // A result can carry images alongside text. Collapsing the whole `content` array into a
     // text-only head/tail summary would silently drop them from what the model sees — the
@@ -159,6 +161,18 @@ async function externaliseIfOversized(event: ToolResultEvent, ctx: ExtensionCont
       createdAt: new Date().toISOString(),
     };
     await writeFile(metaPath(sessionId, handle), JSON.stringify(meta), "utf8");
+
+    // The same externalisation, said once more for the human watching the transcript. Display
+    // only — see `card.ts` for why this goes through an entry rather than a second message.
+    const card: ExternalisedCard = {
+      handle,
+      toolName: event.toolName,
+      path,
+      lines: lines.length,
+      totalBytes,
+      preview: lines.slice(0, PREVIEW_LINES),
+    };
+    pi.appendEntry(CARD_ENTRY, card);
 
     const head = lines.slice(0, HEAD_LINES).join("\n");
     const tail = truncateTail(lines.slice(-TAIL_LINES).join("\n"), {
