@@ -2323,6 +2323,8 @@
       
         
       
+        
+      
     
     
     
@@ -2383,6 +2385,34 @@
     
   
     path-defaults — default tier and egress policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/tool-masks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tool-masks — taking the tool away instead of refusing the call
   
 
     
@@ -4687,7 +4717,7 @@ wait than see the abort.</p>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>extensions</code> names exactly one file, on purpose</p>
-<p><code>extensions/index.ts</code> is a composition root that imports and registers 33 modules in a fixed
+<p><code>extensions/index.ts</code> is a composition root that imports and registers 34 modules in a fixed
 order. Pointing PI at the <em>directory</em> instead would load each of them as a separate extension in
 <code>readdir</code> order, fail every one that has no default export, and let <code>readdir</code> decide the <code>tool_call</code>
 chaining order — which decides whether <code>guard</code> sees a call before <code>bash</code> rewrites it. Do not

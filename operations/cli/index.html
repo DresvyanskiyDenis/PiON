@@ -2127,6 +2127,8 @@
       
         
       
+        
+      
     
     
     
@@ -2187,6 +2189,34 @@
     
   
     path-defaults — default tier and egress policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/tool-masks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tool-masks — taking the tool away instead of refusing the call
   
 
     
@@ -4868,6 +4898,18 @@ that moved the repo but left a config unlinked is not an update that finished.</
 <tr>
 <td><code>/jobs</code></td>
 <td>background jobs: history, status, exit code, stdout/stderr — read-only</td>
+</tr>
+<tr>
+<td><code>/review</code></td>
+<td>mask the tool list down to read, grep and reason only</td>
+</tr>
+<tr>
+<td><code>/explore</code></td>
+<td>the same, plus the web tools</td>
+</tr>
+<tr>
+<td><code>/ship</code></td>
+<td>restore the tool list that was active before the first mask</td>
 </tr>
 </tbody>
 </table>

@@ -2135,6 +2135,8 @@
       
         
       
+        
+      
     
     
     
@@ -2198,6 +2200,34 @@
     
   
     path-defaults — default tier and egress policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="tool-masks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tool-masks — taking the tool away instead of refusing the call
   
 
     
@@ -4159,7 +4189,7 @@
 
 
 <h1 id="extensions">Extensions<a class="headerlink" href="#extensions" title="Permanent link">&para;</a></h1>
-<p>Thirty-three modules, composed into one PI extension by <code>extensions/index.ts</code>. Each exports <code>id</code> and
+<p>Thirty-four modules, composed into one PI extension by <code>extensions/index.ts</code>. Each exports <code>id</code> and
 <code>register(pi)</code> and is imported in a fixed order — the order <em>is</em> part of the design, and
 <a href="../concepts/architecture/">Architecture</a> explains why.</p>
 <p>Every page here says what the module does, what configures it, and what it costs. Where a module's
@@ -4182,7 +4212,7 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 <tr>
 <td>2</td>
 <td>Capability configuration</td>
-<td><a href="path-defaults/">path-defaults</a>, <a href="path-rules/">path-rules</a>, <a href="skills-env/">skills-env</a>, <a href="skill-mask/">skill-mask</a>, <a href="skills-lint/">skills-lint</a></td>
+<td><a href="path-defaults/">path-defaults</a>, <a href="tool-masks/">tool-masks</a>, <a href="path-rules/">path-rules</a>, <a href="skills-env/">skills-env</a>, <a href="skill-mask/">skill-mask</a>, <a href="skills-lint/">skills-lint</a></td>
 </tr>
 <tr>
 <td>3</td>
@@ -4262,6 +4292,18 @@ behaviour rests on something measured against PI 0.84.0 rather than documented, 
 <tr>
 <td><code>/jobs</code></td>
 <td><a href="jobs/">jobs</a></td>
+</tr>
+<tr>
+<td><code>/review</code></td>
+<td><a href="tool-masks/">tool-masks</a></td>
+</tr>
+<tr>
+<td><code>/explore</code></td>
+<td><a href="tool-masks/">tool-masks</a></td>
+</tr>
+<tr>
+<td><code>/ship</code></td>
+<td><a href="tool-masks/">tool-masks</a></td>
 </tr>
 </tbody>
 </table>

@@ -1772,10 +1772,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-three-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-four-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty-three modules
+        One extension, thirty-four modules
       
     </span>
   </a>
@@ -2245,6 +2245,8 @@
       
         
       
+        
+      
     
     
     
@@ -2305,6 +2307,34 @@
     
   
     path-defaults — default tier and egress policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/tool-masks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    tool-masks — taking the tool away instead of refusing the call
   
 
     
@@ -4188,10 +4218,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-three-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-four-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty-three modules
+        One extension, thirty-four modules
       
     </span>
   </a>
@@ -4279,7 +4309,7 @@
 
 
 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<h2 id="one-extension-thirty-three-modules">One extension, thirty-three modules<a class="headerlink" href="#one-extension-thirty-three-modules" title="Permanent link">&para;</a></h2>
+<h2 id="one-extension-thirty-four-modules">One extension, thirty-four modules<a class="headerlink" href="#one-extension-thirty-four-modules" title="Permanent link">&para;</a></h2>
 <p>PI discovers extensions by scanning <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code>. This
 repository deliberately does <strong>not</strong> use that. <code>config/settings.json</code> names exactly one file:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">]</span>
@@ -4306,7 +4336,7 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
     end
     subgraph capconf["2 — capability configuration"]
         direction LR
-        pd["path-defaults"] --&gt; pr["path-rules"] --&gt; se["skills-env"] --&gt; sm["skill-mask"]
+        pd["path-defaults"] --&gt; tm["tool-masks"] --&gt; pr["path-rules"] --&gt; se["skills-env"] --&gt; sm["skill-mask"]
     end
     subgraph tools["3 — tool providers and input mutators"]
         direction LR
@@ -4347,6 +4377,10 @@ repository deliberately does <strong>not</strong> use that. <code>config/setting
 <td>They publish configuration later modules read. <code>skill-mask</code> keeps its slot beside them; it registers nothing now, and moving a registered id is a bigger change than leaving it in place.</td>
 </tr>
 <tr>
+<td><strong><code>tool-masks</code> comes before <code>path-rules</code></strong></td>
+<td>A rule carrying <code>mask:</code> answers a touch by calling into <code>tool-masks</code>, so its <code>register()</code> must have stored the <code>pi</code> handle before any rule can fire.</td>
+</tr>
+<tr>
 <td><strong><code>dispatch</code> precedes <code>teammates</code> / <code>message-agent</code> / <code>worktree</code> / <code>jobs</code></strong></td>
 <td>Those register providers and vetoes into registries <code>dispatch</code> owns.</td>
 </tr>
@@ -4375,7 +4409,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 <pre class="mermaid"><code>flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),&lt;br/&gt;rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 33 modules + config + bin/"]
+    OURS["this repository — 34 modules + config + bin/"]
     PI --- PKG --- OURS</code></pre>
 <p>The rule this project follows is <strong>package-first</strong>: adopt a community package where one exists and
 survives review, and write custom code only for the remainder. Dependency count is not a
