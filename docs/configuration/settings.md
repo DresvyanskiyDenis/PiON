@@ -181,7 +181,7 @@ These five arrays are how PI finds everything this repository adds.
 ```
 
 !!! warning "`extensions` names exactly one file, on purpose"
-    `extensions/index.ts` is a composition root that imports and registers 34 modules in a fixed
+    `extensions/index.ts` is a composition root that imports and registers 35 modules in a fixed
     order. Pointing PI at the *directory* instead would load each of them as a separate extension in
     `readdir` order, fail every one that has no default export, and let `readdir` decide the `tool_call`
     chaining order — which decides whether `guard` sees a call before `bash` rewrites it. Do not
