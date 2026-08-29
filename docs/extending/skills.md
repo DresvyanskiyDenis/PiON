@@ -160,6 +160,77 @@ Two rules for skills that ship code:
 
 ---
 
+## Recipe: PI's own documentation, on demand
+
+PI's built-in base prompt ends with a block of absolute paths to the installed package's
+`README.md`, `docs/` and `examples/`, and a short map of which file answers which question. A
+[`SYSTEM.md`](../getting-started/config-layout.md#the-prompt-layer) replaces that template, so the
+block goes with it. It is worth about a thousand characters of every prompt, and it earns them in a
+session about pi itself, which is a small fraction of sessions.
+
+A skill is the shape that fits: the catalogue line is always there, the paths arrive only when the
+`description` matches. Write it into your own `skills/` root, resolving the three paths first rather
+than transcribing them from anywhere:
+
+```bash
+cd ~/pi-config && node -e 'import("./node_modules/@earendil-works/pi-coding-agent/dist/config.js").then(m => console.log(m.getReadmePath(), m.getDocsPath(), m.getExamplesPath()))'
+```
+
+Those three accessors are what PI calls when it builds the block, so their answer is right by
+construction on whatever machine you run it. `dist/config.js` is not in the package's `exports` map,
+which is why the command spells out `./node_modules/...` instead of importing the package name.
+
+````markdown
+---
+name: pi-internals
+description: >
+  Read PI's own shipped documentation before answering anything about pi itself — its SDK,
+  extensions, themes, skills, prompt templates, TUI components, keybindings, custom providers,
+  models, packages, or environment variables. Use when the question is about how pi works or how
+  to extend it, and when writing or debugging an extension, theme, prompt template or SDK
+  integration. Not for ordinary coding work.
+---
+
+# PI internals
+
+PI ships its own README, docs tree and examples inside the installed npm package. They are the
+authoritative source for every question about pi's own surfaces, and the only one that tracks the
+pinned version. Answer from them, not from memory.
+
+| Root | Path |
+|---|---|
+| Main documentation | `<the getReadmePath() answer>` |
+| Additional docs | `<the getDocsPath() answer>` |
+| Examples | `<the getExamplesPath() answer>` (extensions, custom tools, SDK) |
+
+| Topic | File |
+|---|---|
+| Extensions | `docs/extensions.md`, plus `examples/extensions/` |
+| Themes | `docs/themes.md` |
+| Skills | `docs/skills.md` |
+| Prompt templates | `docs/prompt-templates.md` |
+| TUI components | `docs/tui.md` |
+| Keybindings | `docs/keybindings.md` |
+| SDK integrations | `docs/sdk.md`, plus `examples/sdk/` |
+| Custom providers | `docs/custom-provider.md` |
+| Adding models | `docs/models.md` |
+| PI packages | `docs/packages.md` |
+| Environment variables | `docs/environment-variables.md` |
+
+A `docs/...` reference above resolves under **Additional docs** and an `examples/...` reference
+under **Examples**, never against the current working directory.
+
+Read pi `.md` files completely, not the first matching section, and follow their cross-references
+before implementing: `docs/extensions.md` defers TUI detail to `docs/tui.md`, `docs/sdk.md` defers
+to runnable code under `examples/sdk/`, and an answer built from one file alone is usually missing
+the half that makes it work.
+````
+
+Two things make this hold up. The paths carry no version segment, so an update to the package moves
+nothing and the skill keeps working; and the skill says how to re-derive them, so an install that
+moves — a global install, a second checkout, a worktree whose `node_modules` is a symlink — is one
+command away from correct rather than a silent wrong answer.
+
 ## Front matter: exactly three fields are read
 
 Verified against the pinned PI 0.84.0 package by reading its front-matter parser.
