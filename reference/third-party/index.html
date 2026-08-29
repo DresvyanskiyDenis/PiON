@@ -4116,6 +4116,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#uninstalled-2026-08-29" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uninstalled 2026-08-29
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#build-time-only" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4318,6 +4329,17 @@
     <span class="md-ellipsis">
       
         Adopted and actively used
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uninstalled-2026-08-29" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uninstalled 2026-08-29
       
     </span>
   </a>
@@ -4624,32 +4646,11 @@ installed.</p>
 <td>the quota read path</td>
 </tr>
 <tr>
-<td><code>@99percentpeople/pi-background-tasks</code></td>
-<td>2.0.0</td>
-<td>MIT</td>
-<td>99percentpeople</td>
-<td>the bash face of background work</td>
-</tr>
-<tr>
-<td><code>@nklisch/pi-plugins</code></td>
-<td>0.3.3</td>
-<td>MIT</td>
-<td>nklisch</td>
-<td>package lifecycle</td>
-</tr>
-<tr>
 <td><code>pi-sandbox</code></td>
 <td>0.6.2</td>
 <td>MIT</td>
 <td>Chris Arderne</td>
 <td>OS-level containment. <strong>Reviewed; the guard never delegates to it</strong></td>
-</tr>
-<tr>
-<td><code>pi-hashline-edit-pro</code></td>
-<td>1.1.0</td>
-<td>MIT</td>
-<td>YuGiMob</td>
-<td>edit trial</td>
 </tr>
 <tr>
 <td><code>pi-hermes-memory</code></td>
@@ -4659,35 +4660,31 @@ installed.</p>
 <td>session search</td>
 </tr>
 <tr>
-<td><code>pi-web-search</code></td>
-<td>1.3.1</td>
-<td>MIT</td>
-<td>ttttmr</td>
-<td>alternative search backend</td>
-</tr>
-<tr>
-<td><code>pi-opa-net</code></td>
-<td>0.6.0</td>
-<td>MIT</td>
-<td>buihongduc132</td>
-<td>policy-engine option</td>
-</tr>
-<tr>
-<td><code>pi-smart-compact</code></td>
-<td>7.22.0</td>
-<td>MIT</td>
-<td>alpertarhan</td>
-<td>compaction summary quality</td>
-</tr>
-<tr>
 <td><code>pi-lean-ctx</code></td>
 <td>3.9.17</td>
 <td><strong>Apache-2.0</strong></td>
 <td>Yves Gugger</td>
 <td>tool-output shrinking</td>
 </tr>
+<tr>
+<td><code>yaml</code></td>
+<td>2.9.0</td>
+<td>ISC</td>
+<td>Eemeli Aro</td>
+<td>YAML parsing for agent front-matter, hook rules and path rules</td>
+</tr>
 </tbody>
 </table>
+<h3 id="uninstalled-2026-08-29">Uninstalled 2026-08-29<a class="headerlink" href="#uninstalled-2026-08-29" title="Permanent link">&para;</a></h3>
+<p>Six packages were reviewed and pinned on 2026-08-06 and never loaded — none of them appeared in
+<code>config/settings.json</code>'s <code>packages</code> array and nothing under <code>extensions/</code> imported them — so they
+were removed from <code>package.json</code> rather than left redistributed and dead:
+<code>@99percentpeople/pi-background-tasks</code>, <code>@nklisch/pi-plugins</code>, <code>pi-hashline-edit-pro</code>,
+<code>pi-opa-net</code>, <code>pi-smart-compact</code> and <code>pi-web-search</code>. The last of those had a second and
+independent reason: it declares MIT and ships no licence text, so carrying it meant redistributing
+an unlicensed copy for no benefit. Reasons per package are in <code>config/packages.lock.json</code>'s
+<code>not_installed[]</code>; the reviews are kept in <a href="../../PACKAGES/">the package ledger</a>, marked
+<strong>UNINSTALLED</strong>.</p>
 <h3 id="build-time-only">Build-time only<a class="headerlink" href="#build-time-only" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

@@ -4943,11 +4943,10 @@ on recorded state, not on an event. See <a href="../extensions/doctor/"><code>do
 <h3 id="the-pi-binary-is-a-compiled-bun-executable-not-node-some-declared-packages-fail-to-load-under-it">The <code>pi</code> binary is a compiled Bun executable, not Node — some declared packages fail to load under it<a class="headerlink" href="#the-pi-binary-is-a-compiled-bun-executable-not-node-some-declared-packages-fail-to-load-under-it" title="Permanent link">&para;</a></h3>
 <p><code>pi</code> (<code>file</code> reports Mach-O with a <code>__BUN</code> section, <code>bun --version</code> on this machine is 1.3.11) uses
 Bun's own module resolver for every entry in <code>settings.packages</code>, not the system <code>node</code> these packages
-were written against. <a href="../reference/third-party/">Third-party components</a> lists all of the following as
-<em>adopted</em> — reviewed, pinned, present in <code>node_modules</code> — but wiring them into <code>settings.packages</code> and
-starting a real session (<code>pi -p '...'</code>, not <code>pi --list-models</code>, which does not exercise extension
-registration) throws and <strong>aborts startup entirely</strong>, one failed extension being enough to abort all of
-them:</p>
+were written against. Each of the packages below was reviewed, pinned and present in <code>node_modules</code>
+when it was tested — but wiring it into <code>settings.packages</code> and starting a real session (<code>pi -p '...'</code>,
+not <code>pi --list-models</code>, which does not exercise extension registration) throws and <strong>aborts startup
+entirely</strong>, one failed extension being enough to abort all of them:</p>
 <table>
 <thead>
 <tr>
@@ -4989,8 +4988,13 @@ exercise the same registration path a real session does, so it is not a substitu
 <code>pi -p '...'</code> smoke call when validating a newly wired package. <code>settings.default.json</code> in this
 repository therefore ships only the four packages from this review that load cleanly under a real
 session start (<code>@narumitw/pi-usage</code>, <code>pi-lean-ctx</code>, <code>pi-hermes-memory</code>, <code>pi-sandbox</code>, alongside the
-packages already adopted before this review) — the five above are reviewed and pinned but <strong>not</strong> in
-<code>settings.default.json</code>'s <code>packages[]</code>, precisely because wiring any one of them breaks every session.</p>
+packages already adopted before this review).</p>
+<p>All five packages in the table were <strong>uninstalled on 2026-08-29</strong>. None was ever in
+<code>settings.default.json</code>'s <code>packages[]</code>, precisely because wiring any one of them breaks every session
+— and a package that cannot be wired earns nothing by being carried in <code>package.json</code> and
+redistributed. The failures stay recorded here because they are the reason not to re-adopt any of
+them without re-testing against the pinned <code>pi</code>; the per-package reasons are in the
+<a href="../PACKAGES/">package ledger</a> and in <code>config/packages.lock.json</code>'s <code>not_installed[]</code>.</p>
 <h3 id="an-interactive-dialog-cannot-tell-you-why-it-got-no-answer">An interactive dialog cannot tell you <em>why</em> it got no answer<a class="headerlink" href="#an-interactive-dialog-cannot-tell-you-why-it-got-no-answer" title="Permanent link">&para;</a></h3>
 <p><code>ctx.ui.select</code> and <code>ctx.ui.input</code> resolve <code>undefined</code> on a dismissal, on an aborted <code>AbortSignal</code>,
 and on <code>ExtensionUIDialogOptions.timeout</code> alike — one <code>defaultValue</code> for all three, in the same
