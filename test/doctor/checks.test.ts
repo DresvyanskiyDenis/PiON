@@ -4,6 +4,7 @@ import {
   buildReport,
   checkAgents,
   checkGuard,
+  checkGuidelines,
   checkHooks,
   checkModels,
   checkModuleLoad,
@@ -31,6 +32,7 @@ function baseInputs(overrides: Partial<DoctorInputs> = {}): DoctorInputs {
     declaredServerNames: ["playwright", "context7"],
     packages: [],
     hooksDegradedReason: undefined,
+    toolGuidelines: [],
     ...overrides,
   };
 }
@@ -410,6 +412,96 @@ describe("D-09 checkHooks", () => {
     const degraded = baseInputs({ hooksDegradedReason: "rules: not a list" });
     assert.equal(buildReport(degraded, runAllChecks(degraded)).hooks.degradedReason, "rules: not a list");
     assert.equal(buildReport(baseInputs(), []).hooks.degradedReason, undefined);
+  });
+});
+
+describe("D-10 checkGuidelines", () => {
+  it("pass: a guideline with a recorded disposition whose marker still matches", () => {
+    const findings = checkGuidelines(
+      baseInputs({
+        toolGuidelines: [{ tool: "read", guidelines: ["Use read to examine files instead of cat or sed."] }],
+      }),
+    );
+    assert.deepEqual(findings, []);
+  });
+
+  it("warn: a guideline nobody has looked at is named with its tool and its full text", () => {
+    const findings = checkGuidelines(
+      baseInputs({
+        toolGuidelines: [
+          {
+            tool: "read",
+            guidelines: [
+              "Use read to examine files instead of cat or sed.",
+              "Always read the file backwards on Tuesdays.",
+            ],
+          },
+        ],
+      }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.check, "D-10");
+    assert.equal(findings[0]?.severity, "warn");
+    assert.equal(findings[0]?.subject, "read:1");
+    assert.match(findings[0]?.message ?? "", /backwards on Tuesdays/);
+    assert.match(findings[0]?.action ?? "", /guidelines\.ts/);
+  });
+
+  it("warn: a newly installed package's tool has none of its guidelines recorded", () => {
+    const findings = checkGuidelines(
+      baseInputs({
+        toolGuidelines: [{ tool: "brand_new_tool", guidelines: ["Do the thing.", "Do the other thing."] }],
+      }),
+    );
+    assert.equal(findings.length, 2);
+    assert.deepEqual(
+      findings.map((f) => f.subject),
+      ["brand_new_tool:0", "brand_new_tool:1"],
+    );
+  });
+
+  it("warn: a package rewording a bullet in place breaks its marker and is reported as drift", () => {
+    const findings = checkGuidelines(
+      baseInputs({
+        toolGuidelines: [{ tool: "read", guidelines: ["Prefer the read tool over shelling out."] }],
+      }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.subject, "read:0");
+    assert.match(findings[0]?.message ?? "", /no longer contains/);
+    assert.match(findings[0]?.message ?? "", /system-prompt/);
+  });
+
+  it("pass: a ledger row with no live tool behind it is inert, not a finding", () => {
+    assert.deepEqual(checkGuidelines(baseInputs({ toolGuidelines: [] })), []);
+  });
+
+  it("pass: without a customPrompt PI renders Guidelines itself, so nothing is dropped", () => {
+    const stockPrompt =
+      "Available tools:\n- read: Read file contents\n\n" +
+      "In addition to the tools above, you may have access to other custom tools depending on the project.\n\n" +
+      "Guidelines:\n- Be concise in your responses";
+    const findings = checkGuidelines(
+      baseInputs({
+        systemPrompt: stockPrompt,
+        toolGuidelines: [{ tool: "read", guidelines: ["Always read the file backwards on Tuesdays."] }],
+      }),
+    );
+    assert.deepEqual(findings, []);
+  });
+
+  it("D-10 is in the cheap session_start pass — a package update is the failure it exists to catch", () => {
+    const inputs = baseInputs({
+      toolGuidelines: [{ tool: "read", guidelines: ["Always read the file backwards on Tuesdays."] }],
+    });
+    assert.ok(runAllChecks(inputs, { cheapOnly: true }).some((f) => f.check === "D-10"));
+  });
+
+  it("D-10 never fails the session: a warn leaves report.ok true", () => {
+    const inputs = baseInputs({
+      toolGuidelines: [{ tool: "read", guidelines: ["Always read the file backwards on Tuesdays."] }],
+    });
+    assert.equal(buildReport(inputs, runAllChecks(inputs)).ok, true);
   });
 });
 

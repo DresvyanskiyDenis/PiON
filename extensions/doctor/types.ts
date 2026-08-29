@@ -14,11 +14,26 @@
  *     zero rules instead of containing the session, and a degraded hook layer is invisible from
  *     the outside — every tool call simply proceeds. Without this check the only signal is one
  *     `error` announcement at session start, which scrolls away.
+ *   - `D-10` every tool `promptGuidelines` bullet has a recorded disposition. Supplying a
+ *     `customPrompt` makes PI skip the entire `Guidelines:` section, which is the only place a
+ *     tool's guidelines reach the model — so all of them, PI's own and every package's, are
+ *     discarded at once and nothing says so. `extensions/doctor/guidelines.ts` is the ledger of
+ *     what became of each one.
  */
 
 export type Severity = "ok" | "warn" | "error";
 
-export type CheckId = "D-01" | "D-02" | "D-03" | "D-04" | "D-05" | "D-06" | "D-07" | "D-08" | "D-09";
+export type CheckId =
+  | "D-01"
+  | "D-02"
+  | "D-03"
+  | "D-04"
+  | "D-05"
+  | "D-06"
+  | "D-07"
+  | "D-08"
+  | "D-09"
+  | "D-10";
 
 export interface Finding {
   readonly check: CheckId;

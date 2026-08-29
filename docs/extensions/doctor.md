@@ -5,7 +5,7 @@
 Registers `/doctor`. A cheap subset also runs automatically at every `session_start` — everything
 except `D-04`, which needs the model registry and is therefore network-shaped.
 
-## The nine checks
+## The ten checks
 
 | Check | Asks |
 |---|---|
@@ -18,6 +18,7 @@ except `D-04`, which needs the model registry and is therefore network-shaped.
 | `D-07` | every MCP server name mentioned is declared in `config/mcp.json` |
 | `D-08` | every pinned package in `config/packages.lock.json` is installed at that version (**warn**, not error) |
 | `D-09` | the hook layer is carrying rules rather than sitting degraded |
+| `D-10` | every tool `promptGuidelines` bullet dropped by `SYSTEM.md` has a recorded disposition (**warn**, not error) |
 
 **`D-06` is the only finding that shuts the session down.** Everything else reports and continues.
 
@@ -53,6 +54,37 @@ rather than assumed from its type declarations.
 
 The subscription is kept anyway — cheap, harmless, and it starts working the moment the composition
 order changes. Its payload is surfaced as an enrichment, **never** as the pass/fail signal.
+
+## `D-10` and the guidelines a custom prompt deletes
+
+`SYSTEM.md` replaces PI's base prompt. PI's prompt builder returns early when a custom prompt is
+set: the `Available tools:` summary and **the entire `Guidelines:` section** are never assembled.
+Losing the tools summary costs nothing — the full schemas still travel with every request. Losing
+`Guidelines:` costs every tool's `promptGuidelines` array at once, PI's own and every adopted
+package's, because that section is the only place they reach the model.
+
+`SYSTEM.md` restates the ones worth restating, in its own words. That is exactly why `D-10` cannot
+work by matching guideline text against the prompt: the covered ones are the ones that would be
+flagged. Instead `extensions/doctor/guidelines.ts` records a **disposition** per bullet, keyed
+`tool:index`:
+
+| Disposition | Means |
+|---|---|
+| `system-prompt` | restated in `SYSTEM.md`, in different words |
+| `tool-contract` | carried by the tool's own `description` or parameter descriptions, which a custom prompt does not touch |
+| `elsewhere` | carried by another deliberate mechanism, named in the row's comment |
+| `dropped` | deliberately let go, for the reason in the row's comment |
+
+`D-10` warns about any live guideline with no row, and about any whose text no longer contains the
+distinctive fragment its row recorded — so a package rewording a bullet in place is visible rather
+than silent. Rows whose tool is not registered are inert and are never reported.
+
+`"dropped"` being a first-class value is the point. The table records what *happened* to a bullet;
+it is not a way to silence the check, and writing `system-prompt` for something `SYSTEM.md` does
+not say would make the file worse than having none.
+
+The check switches itself off when PI's own `Guidelines:` block is present in the assembled prompt:
+no custom prompt means nothing is being dropped.
 
 ## Related
 [First run](../getting-started/first-run.md) · [guard](guard.md) · [trust](trust.md) ·

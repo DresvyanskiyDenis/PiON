@@ -45,6 +45,7 @@ import {
   type ManifestInput,
   type ModelRef,
   type RoutingTierInput,
+  type ToolGuidelinesInput,
 } from "./doctor/checks.ts";
 import {
   discoverDeclaredAgents,
@@ -102,7 +103,16 @@ async function gatherInputs(ctx: ExtensionContext | ExtensionCommandContext, pi:
   const root = repoRoot();
   const systemPrompt = ctx.getSystemPrompt();
 
-  const liveToolNames = pi.getAllTools().map((t) => t.name);
+  const allTools = pi.getAllTools();
+  const liveToolNames = allTools.map((t) => t.name);
+
+  // `D-10`. `getAllTools()` hands back copies, so this is a snapshot read that cannot disturb the
+  // live definitions. Registered-but-inactive tools are included on purpose: a tool masked off by
+  // `/review`, or narrowed away by `setActiveTools`, is one `/ship` from contributing again, and a
+  // check about what the prompt layer silently loses must not turn on this instant's mask.
+  const toolGuidelines: ToolGuidelinesInput[] = allTools
+    .filter((t) => (t.promptGuidelines?.length ?? 0) > 0)
+    .map((t) => ({ tool: t.name, guidelines: [...(t.promptGuidelines ?? [])] }));
   const declaredToolNames = readDeclaredTools(root).map((t) => t.name);
 
   const declaredSkillIds = discoverDeclaredSkills(root);
@@ -162,6 +172,7 @@ async function gatherInputs(ctx: ExtensionContext | ExtensionCommandContext, pi:
     declaredServerNames,
     packages,
     hooksDegradedReason: hooksDegradedReason(),
+    toolGuidelines,
   };
 }
 
