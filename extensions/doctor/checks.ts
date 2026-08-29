@@ -83,6 +83,9 @@ export interface DoctorInputs {
    *  are copies, so reading them cannot disturb the live definitions and writing to them would
    *  achieve nothing — this check only ever reads. */
   readonly toolGuidelines: readonly ToolGuidelinesInput[];
+  /** `D-11`. `declared.ts`'s `readOnProviderErrorReport` — `config/routing.json`'s
+   *  `onProviderError.report` field list, read verbatim. */
+  readonly onProviderErrorReport: readonly string[];
 }
 
 /** `DB-RM-ROOT` is the literal pattern id the acceptance tests name.
@@ -495,6 +498,40 @@ export function checkGuidelines(inputs: DoctorInputs): Finding[] {
   return findings;
 }
 
+/** The fields `extensions/lib/provider-error.ts`'s `formatProviderFailure` actually renders.
+ *  Named here rather than derived from `provider-error.ts` by inspection: `checks.ts` stays free
+ *  of any module with real side effects or a parser dependency (see the module docstring), the
+ *  same tradeoff `EXPECTED_GUARD_SELF_TEST_PATTERN_ID` already makes for `D-06`. */
+export const IMPLEMENTED_PROVIDER_ERROR_FIELDS: readonly string[] = [
+  "provider",
+  "model",
+  "errorClass",
+  "message",
+  "causeChain",
+];
+
+/** `D-11` — every field `config/routing.json`'s `onProviderError.report` names has a renderer
+ *  behind it in `formatProviderFailure`.
+ *
+ *  `warn`, not `error`: a declared field nobody renders is a doctrine mismatch worth resolving the
+ *  next time `routing.json` is touched, not a broken session — every field that IS implemented
+ *  still reaches the operator in full, so this check exists to stop a written promise from
+ *  drifting away from the code behind it a second time, not to report that it already has. */
+export function checkProviderErrorReport(inputs: DoctorInputs): Finding[] {
+  const implemented = new Set(IMPLEMENTED_PROVIDER_ERROR_FIELDS);
+  return inputs.onProviderErrorReport
+    .filter((field) => !implemented.has(field))
+    .map((field) =>
+      finding(
+        "D-11",
+        "warn",
+        field,
+        `routing.json's onProviderError.report names "${field}", which provider-error.ts does not render`,
+        `extend formatProviderFailure to carry it, or drop it from routing.json's report array`,
+      ),
+    );
+}
+
 export interface RunAllOptions {
   /** The cheap subset run at `session_start` — everything except `D-04` (network-shaped: model
    *  registry availability) and `D-08` (filesystem stat per package). Both are still fast in
@@ -514,6 +551,7 @@ export function runAllChecks(inputs: DoctorInputs, opts?: RunAllOptions): Findin
     ...checkServers(inputs),
     ...checkHooks(inputs),
     ...checkGuidelines(inputs),
+    ...checkProviderErrorReport(inputs),
   ];
   if (opts?.cheapOnly) return cheap;
   return [...cheap, ...checkModels(inputs), ...checkPackages(inputs)];

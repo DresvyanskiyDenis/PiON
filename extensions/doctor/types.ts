@@ -19,6 +19,11 @@
  *     tool's guidelines reach the model — so all of them, PI's own and every package's, are
  *     discarded at once and nothing says so. `extensions/doctor/guidelines.ts` is the ledger of
  *     what became of each one.
+ *   - `D-11` every field `config/routing.json`'s `onProviderError.report` names is one
+ *     `provider-error.ts` actually renders. Added when a session's own postmortem found the same
+ *     written-promise-nobody-honours shape once already, on a different seam entirely — this one
+ *     guards the config/code seam directly, so a report field can no longer be declared and quietly
+ *     go unrendered a second time.
  */
 
 export type Severity = "ok" | "warn" | "error";
@@ -33,7 +38,8 @@ export type CheckId =
   | "D-07"
   | "D-08"
   | "D-09"
-  | "D-10";
+  | "D-10"
+  | "D-11";
 
 export interface Finding {
   readonly check: CheckId;

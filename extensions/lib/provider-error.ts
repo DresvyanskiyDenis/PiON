@@ -598,6 +598,23 @@ export interface SurfaceSinks {
   readonly log?: (line: string) => void;
   /** Defaults to `process.exitCode`. A seam so tests can assert it without poisoning the run. */
   readonly setExitCode?: (code: number) => void;
+  /**
+   * Persist the classified block to the session's own record. No default: a caller with nothing
+   * to write to — a bare unit test, or a call site not yet threaded through to `pi.appendEntry` —
+   * must not be forced to fabricate one, and this module must not import `ExtensionAPI` just to
+   * type a parameter most call sites cannot supply.
+   *
+   * Why it exists: without it, `causeChain` reaches an interactive operator's own top-level
+   * failures nowhere durable. A session with `hasUI` true runs inside an alt-screen TUI that never
+   * displays raw `stderr`, and `ctx.ui.notify` below deliberately carries only
+   * `summariseProviderFailure`'s one-line form. A dispatched subagent's `causeChain` still reaches
+   * the operator today — `pi-subagents` hands the child's whole stderr tail up as the run's own
+   * tool-result text, which `failure-slot.ts` promotes to the front and which lands in the session
+   * like any other tool output — but that is a side effect of how dispatch propagates a child's
+   * stderr, not something this module arranged, and it says nothing about the top-level session's
+   * own failures. This sink is the other half.
+   */
+  readonly appendEntry?: (customType: string, data: unknown) => void;
 }
 
 /**
@@ -623,12 +640,18 @@ export function surfaceProviderFailure(
   failure: ProviderFailure,
   sinks: SurfaceSinks = {},
 ): void {
+  const block = formatProviderFailure(failure);
   const write = sinks.log ?? ((line: string) => void process.stderr.write(`${line}\n`));
   try {
-    write(formatProviderFailure(failure));
+    write(block);
   } catch {
     // The log sink itself is broken. There is no third channel; losing the block beats
     // throwing out of a message_end handler.
+  }
+  try {
+    sinks.appendEntry?.("provider_failure", { classified: block });
+  } catch {
+    // A broken session write must not turn a reported error into an unreported crash.
   }
   try {
     if (ctx?.hasUI) ctx.ui.notify(summariseProviderFailure(failure), "error");

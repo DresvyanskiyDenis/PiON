@@ -52,6 +52,7 @@ import {
   discoverDeclaredSkills,
   readDeclaredServers,
   readDeclaredTools,
+  readOnProviderErrorReport,
   readPackagesLock,
   readRoutingTiers,
   resolveInstalledPackageVersion,
@@ -119,6 +120,7 @@ async function gatherInputs(ctx: ExtensionContext | ExtensionCommandContext, pi:
   const liveSkillIds = liveSkillNames(pi);
   const agents = discoverDeclaredAgents(root);
   const declaredServerNames = readDeclaredServers(root);
+  const onProviderErrorReport = readOnProviderErrorReport(root);
 
   const routingTiers: RoutingTierInput[] = readRoutingTiers(root).map((t) => ({
     tier: t.tier,
@@ -173,6 +175,7 @@ async function gatherInputs(ctx: ExtensionContext | ExtensionCommandContext, pi:
     packages,
     hooksDegradedReason: hooksDegradedReason(),
     toolGuidelines,
+    onProviderErrorReport,
   };
 }
 

@@ -92,6 +92,31 @@ Questions about **our own model routing** — which provider, which tier, what c
 model id resolves to — are answered from `config/models.json` and `config/routing.json`, never from
 memory and never from the web. Those two files are the catalogue.
 
+## TRIGGER: an expensive check is never the first check
+
+Fire on **observable markers, not judgement**: you are about to run a command that submits work to
+a remote executor or a paid endpoint, and the code path it exercises has changed since the last
+local run. The observable command shapes:
+
+- `databricks jobs run-now`, `databricks bundle deploy`
+- `gcloud … jobs submit`
+- `aws batch submit-job`
+- `kubectl create job`
+
+or a paid inference call made over a full dataset rather than one row of it.
+
+**What to do:** run the smallest real thing locally first — one chunk, one page, one row, real
+input, output printed somewhere you can actually read it. Iterate there until it is right. Only
+then submit remotely.
+
+**Skip only when** the code path is unchanged since a local run that already passed this session, or
+the thing you are about to run genuinely has no local expression at all (a scheduled deploy, an
+infrastructure provision) — and say which applies.
+
+One line worth keeping past the rest: the same check failing twice against the same approach means
+the approach is wrong, not the input to it. Nine narrower patches to one schema is one attempt
+repeated, not nine attempts.
+
 ## TRIGGER: delegation is a context budget, not a default
 
 **Do the work yourself while it stays bounded.** Bounded means: it fits in roughly five files, you
@@ -187,6 +212,9 @@ one-liner asked for in place.
   comment is stripped before the command runs. There is no `PI_GUARD_APPROVE` and no session
   allowlist any more — if you see either name anywhere, it is stale and does nothing.
 - "Fix the bug" → "write the test that reproduces it, then make it pass".
+- A classification — an `errorClass`, a status code, a one-word label — sits alongside the raw
+  error, never in place of it. If a caller downstream can only ever see the label, the error path
+  is broken, not simplified.
 - Multi-step work → a three-line plan, and one verification per step.
 - Disagree with an architecture, library, data-model or approach decision — or find two readings of
   the prompt — → say so **before** implementing, not after. Name the failure mode the other choice

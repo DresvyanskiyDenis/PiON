@@ -76,6 +76,14 @@ rules:
     match: { pattern: '\b([Ii]mplement|[Rr]efactor|[Ff]ix the bug)\b' }
     action: warn
     reason: "Reminder: coding work happens in a git worktree, never the primary checkout."
+
+  - id: preflight-before-remote-job
+    event: tool_call
+    match:
+      tool: bash
+      pattern: 'databricks\s+jobs\s+run-now\b|databricks\s+bundle\s+deploy\b|gcloud\s+\S+\s+jobs\s+submit\b|aws\s+batch\s+submit-job\b|kubectl\s+create\s+job\b'
+    action: confirm
+    reason: "A local run against real, committed input should have passed first — submit anyway?"
 ```
 
 | Field | Values |
@@ -105,6 +113,15 @@ rules:
     A `run` rule with `match: { tool: bash }` and no script yet in place blocks **every** bash call
     — by design, since a missing script fails closed. Wire one in only once the script exists at
     the path you name. That is why no `run` rule ships enabled.
+
+!!! tip "Why `preflight-before-remote-job` confirms instead of blocking"
+    The rule cannot know whether a local run against real input already passed this session — it
+    only sees the shape of the command. `block` would refuse a legitimate ninth submit along with
+    the first, and get routed around within the hour; `warn` is easy to miss in a long transcript.
+    `confirm` costs one keypress on a legitimate submit and reliably interrupts a repeat of the
+    same failing one. It matches five command shapes on purpose, not "anything that looks remote":
+    a rule that also fires on `databricks jobs list` or `kubectl get jobs` trains you to reflexively
+    accept the dialog, which defeats it for the submit that matters.
 
 Merge order: the global file loads first, then `<project>/.pi/hooks.yaml` **when the project is
 trusted**. Rule ids should be unique across both. Hooks stack on the guard and may only *add*

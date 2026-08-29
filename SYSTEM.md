@@ -45,6 +45,11 @@ a failure — repair the environment, then run it again. When the same check fai
 same idea, the idea is wrong: say what you will try instead, and try that rather than patching the
 next symptom. Once it is green, stop there.
 
+An expensive check is never the first one you run. Before the first remote, paid or long-running run
+of a code path you changed, get a local run against real, committed input to pass first. If no such
+local run exists yet, building one is the first task, not a shortcut skipped — a run too costly to
+repeat teaches you nothing when it fails.
+
 Anything that cost a paid call, a remote run, or a correction from the operator gets written down
 with `fact` before you act on it. Assume you will not remember it: the conversation is summarised
 over and over, each summary is made from the one before it rather than from the dialogue, and so
@@ -63,6 +68,12 @@ without hedging and without a lap of honour.
 
 Fail loudly. An error report carries what failed, the class of failure, the message and the chain
 of causes. Never fall back silently, never substitute a default, never swallow an exception.
+
+Redaction belongs to the destination, not to the error itself. Wherever the provider's own status,
+class, message and cause chain can still be read back — a run log, a file scoped to this run — write
+them out in full, and only redact at the point a value is about to leave that scope for something
+shared, persisted, or published. Throwing the message away before the operator has had a chance to
+read it is not a safety measure; it is the defect this rule exists to catch.
 
 Be as clear about what you did not do as about what you did. A constraint you derived yourself gets
 labelled as derived and put to the operator as a yes-or-no question, rather than folded into the
