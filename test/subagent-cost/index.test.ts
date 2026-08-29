@@ -10,16 +10,21 @@ import { id, register } from "../../extensions/subagent-cost/index.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
 
-function fakePi(): { pi: ExtensionAPI; handlers: Map<string, Handler[]> } {
+function fakePi(): { pi: ExtensionAPI; handlers: Map<string, Handler[]>; renderers: string[] } {
   const handlers = new Map<string, Handler[]>();
+  const renderers: string[] = [];
   const pi = {
     on(event: string, handler: Handler) {
       const list = handlers.get(event) ?? [];
       list.push(handler);
       handlers.set(event, list);
     },
+    registerEntryRenderer(customType: string) {
+      renderers.push(customType);
+    },
+    appendEntry: () => {},
   } as unknown as ExtensionAPI;
-  return { pi, handlers };
+  return { pi, handlers, renderers };
 }
 
 function fakeCtx(opts: {
@@ -76,13 +81,15 @@ describe("subagent-cost extension", () => {
     assert.equal(id, "subagent-cost");
   });
 
-  it("subscribes to the four events that can change the number", () => {
-    const { pi, handlers } = fakePi();
+  it("subscribes to the four events that can change the number, plus the per-message card", () => {
+    const { pi, handlers, renderers } = fakePi();
     register(pi);
     assert.deepEqual(
       [...handlers.keys()].sort(),
-      ["session_start", "tool_execution_start", "tool_result", "turn_end"],
+      // `message_end` belongs to the per-message card, not to the footer total.
+      ["message_end", "session_start", "tool_execution_start", "tool_result", "turn_end"],
     );
+    assert.deepEqual(renderers, ["subagent-cost.message"]);
   });
 
   it("publishes the rendered pair under its own status key", () => {
