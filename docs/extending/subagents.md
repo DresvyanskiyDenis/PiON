@@ -271,6 +271,7 @@ like the rest of the personal config (see
 
 ```json
 {
+  "toolDescriptionMode": "custom",
   "globalConcurrencyLimit": 4,
   "parallel": {
     "maxTasks": 8,
@@ -292,6 +293,45 @@ inside the provider's budget, which is what the working rules in `AGENTS.md` ask
 The file is installed at `~/.pi/agent/extensions/subagent/config.json` — the one path `pi-subagents`
 reads its own config from, and the one nested symlink the installer makes; see
 [Configuration layout](../getting-started/config-layout.md).
+
+### The description the model reads
+
+`toolDescriptionMode` ships as `"custom"`, and `config/subagent-tool-description.md` is what it
+reads. That file is **tracked and edited in place** — it is not one of the generated ones — and it
+is linked to `~/.pi/agent/subagent-tool-description.md`, at the agent-dir root rather than in the
+nested `extensions/subagent/` directory the config file goes to. The two are resolved by different
+functions in the package; the paths are not interchangeable.
+
+The reason to own this file rather than take the package's default is that the default describes
+the package's own example install. Its worked example routes to `agent:'reviewer'` — not a role in
+`agents/` — and its guidelines open by requiring an `{ action: "list" }` round trip before every
+execution, which is a call per delegation on a configuration whose roster is already on disk. That
+correction has to live *here*: a note about a tool's behaviour placed anywhere else is read later,
+weaker, and by a model that has already decided how to call it.
+
+What the shipped file says: the thirteen roles in `agents/`, when delegating is worth its cost, the
+`workflowScript` call protocol (one top-level call per turn, fan-out inside it with `runs.all`, the
+ordered-array result shape, the statement-body rules), the fully-qualified per-child `model` rule,
+the width and run-tree budgets above, and one writer per working directory.
+
+Three behaviours of the mode are worth knowing before you edit it:
+
+- **The safety guidance is re-appended whatever your file says.** `SUBAGENT_SAFETY_GUIDANCE` is
+  spliced back on after your text, so prose cannot remove the runtime guardrails — and pasting a
+  copy of them in is dead weight that will drift from the package's own wording on upgrade.
+- **Setting the key to *any* value drops the tool's `promptGuidelines` and `promptSnippet`.** The
+  package contributes them only while the key is unset. That costs nothing here, because a custom
+  `SYSTEM.md` already suppresses the whole `Guidelines:` section — and it is exactly why the call
+  protocol belongs in the tool description and nowhere else. See
+  [Configuration layout](../getting-started/config-layout.md#the-prompt-layer).
+- **A missing or invalid file does not fall back to the short default.** Missing, empty, unreadable
+  or over 50 KB, and the package installs its ~6 KB *full* description instead — reviewer example
+  and list mandate included — behind a single `console.warn`. That is why the installer row is
+  `required`, and why a fork should keep the file in place rather than delete it.
+
+Nothing checks the file against `agents/`. Add or remove a role and this is the second place to
+edit; the failure otherwise is a model routing to a name that no longer resolves. Restart `pi`
+after any change — the description is built once, when the tool is registered.
 
 ### `fleetKeybindings` — one block, two views
 

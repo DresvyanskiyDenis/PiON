@@ -140,7 +140,7 @@ assert_pi_version() {
 # The `required` symlinks install.sh creates, in the same required/optional split the installer
 # itself uses — the two lists must not drift, or a correct install fails this check.
 # `extensions` is NOT one of them and never was: its deliberate absence is asserted by check 2b.
-REQUIRED_LINKS=(settings.json models.json routing.json prompts AGENTS.md SYSTEM.md)
+REQUIRED_LINKS=(settings.json models.json routing.json prompts AGENTS.md SYSTEM.md subagent-tool-description.md)
 # Present in this repo but not in every fork. `skills` in particular is optional by design: a fork
 # may legitimately ship none, settings.json still lists the search path, and PI reads a missing
 # search path as "no skills here". Each is asserted only when the repo actually contains it.

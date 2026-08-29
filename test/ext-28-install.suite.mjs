@@ -93,6 +93,7 @@ function makeRepoSkeleton() {
   // error. Keep this list in sync with install.sh's `link_one required` rows.
   writeFileSync(join(repo, "AGENTS.md"), "# fixture\n");
   writeFileSync(join(repo, "SYSTEM.md"), "# fixture\n");
+  writeFileSync(join(repo, "config", "subagent-tool-description.md"), "# fixture\n");
   writeFileSync(join(repo, "config", "mcp.json"), JSON.stringify({ mcpServers: {} }, null, 2) + "\n");
   writeFileSync(join(repo, "config", "web.json"), "{}\n");
   writeFileSync(join(repo, "config", "web-search.json"), "{}\n");
