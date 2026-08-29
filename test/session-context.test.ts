@@ -9,6 +9,7 @@ import type {
   ExtensionContext,
   SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
+import type { DispatchSettings } from "../extensions/dispatch/config.ts";
 import {
   __resetForTests,
   __state,
@@ -21,9 +22,11 @@ import {
   isInsideRepo,
   makeAnnounce,
   operatorCandidates,
+  readLiveModel,
   register,
   render,
   resolveOperator,
+  resolveSubagentDefault,
   safeSessionId,
   stripBlock,
   todayKey,
@@ -362,11 +365,71 @@ describe("render", () => {
     scratch: "/state/scratch/s1",
     dateKey: "2026-08-07",
     epoch: 1,
+    live: {
+      model: "github-copilot/claude-opus-5",
+      thinkingLevel: "high",
+      contextWindow: 200_000,
+      problem: null,
+    },
+    subagent: {
+      tier: "light",
+      model: "github-copilot/claude-sonnet-5",
+      thinkingLevel: "medium",
+      problem: null,
+    },
     projectState: "",
     architecture: "",
     git: null,
     failure: null,
   };
+
+  const noOperator = { hit: null, searched: [], refusals: [] };
+
+  it("states the model, the thinking level, the window and the subagent default right after the date", () => {
+    const out = render({ ...base, operator: noOperator });
+    assert.match(
+      out,
+      /## Today\n2026-08-07\n\n## Runtime\nmodel github-copilot\/claude-opus-5 · thinking high · context window 200000 tokens\n/,
+    );
+    assert.match(out, /Subagent default tier: light \(github-copilot\/claude-sonnet-5 @ medium\)\./);
+    assert.match(
+      out,
+      /Routing questions are answered from config\/models\.json and config\/routing\.json, never from memory\./,
+    );
+  });
+
+  it("renders the Runtime section loudly rather than omitting it when the model is unknown", () => {
+    const out = render({
+      ...base,
+      operator: noOperator,
+      live: { model: null, thinkingLevel: null, contextWindow: null, problem: "runtime exposed no model" },
+    });
+    assert.match(out, /## Runtime\nmodel UNRESOLVED — runtime exposed no model/);
+    assert.match(out, /thinking UNRESOLVED · context window UNRESOLVED/);
+    assert.match(out, /Say the model is unknown when asked; never name one from memory\./);
+  });
+
+  it("names the unresolvable subagent tier and why, instead of dropping the line", () => {
+    const out = render({
+      ...base,
+      operator: noOperator,
+      subagent: { tier: "light", model: null, thinkingLevel: null, problem: 'no tier "light"' },
+    });
+    assert.match(out, /Subagent default tier: light — UNRESOLVED: no tier "light"/);
+  });
+
+  it("keeps the block under the cap with the Runtime section and a full-budget operator file", () => {
+    const out = render({
+      ...base,
+      operator: {
+        hit: { path: "/x/OPERATOR.local.md", source: "personal overlay", text: "y".repeat(50_000) },
+        searched: [],
+        refusals: [],
+      },
+    });
+    assert.match(out, /## Runtime/);
+    assert.ok(Buffer.byteLength(injectOnce("", out), "utf8") <= MAX_BLOCK_BYTES);
+  });
 
   it("announces an operator miss inside the block itself", () => {
     const out = render({
@@ -430,6 +493,72 @@ describe("render", () => {
     });
     assert.match(out, /## Session context \(degraded\)/);
     assert.match(out, /EACCES/);
+  });
+});
+
+describe("readLiveModel", () => {
+  it("reads provider, id, window and thinking level off the live context", () => {
+    const live = readLiveModel({
+      model: { provider: "github-copilot", id: "claude-opus-5", contextWindow: 200_000 },
+      thinkingLevel: "high",
+    });
+    assert.deepEqual(live, {
+      model: "github-copilot/claude-opus-5",
+      thinkingLevel: "high",
+      contextWindow: 200_000,
+      problem: null,
+    });
+  });
+
+  it("reports a problem — not a guess — when the runtime exposes no model", () => {
+    const live = readLiveModel({ thinkingLevel: "high" });
+    assert.equal(live.model, null);
+    assert.equal(live.thinkingLevel, "high");
+    assert.match(live.problem ?? "", /exposed no active model/);
+  });
+
+  it("turns a throwing context getter into a rendered problem", () => {
+    const live = readLiveModel({
+      get model(): never {
+        throw new Error("runner is not active");
+      },
+    });
+    assert.equal(live.model, null);
+    assert.match(live.problem ?? "", /refused to report its model.*runner is not active/);
+  });
+});
+
+describe("resolveSubagentDefault", () => {
+  const settings = (tiers: Record<string, { model: string; thinkingLevel?: string }>, tier = "strong") =>
+    ({
+      dispatch: { defaultTier: tier },
+      routing: { tiers },
+      problems: [],
+    }) as unknown as DispatchSettings;
+
+  it("resolves the default tier through the routing table", () => {
+    const out = resolveSubagentDefault(
+      () => assert.fail("a resolvable tier must announce nothing"),
+      settings({ strong: { model: "github-copilot/claude-opus-5", thinkingLevel: "high" } }),
+    );
+    assert.deepEqual(out, {
+      tier: "strong",
+      model: "github-copilot/claude-opus-5",
+      thinkingLevel: "high",
+      problem: null,
+    });
+  });
+
+  it("announces AND renders an undeclared tier, listing the tiers that do exist", () => {
+    const said: string[] = [];
+    const out = resolveSubagentDefault(
+      (line) => said.push(line),
+      settings({ light: { model: "github-copilot/claude-sonnet-5" } }),
+    );
+    assert.equal(out.model, null);
+    assert.match(out.problem ?? "", /declares no tier "strong" \(declared: light\)/);
+    assert.equal(said.length, 1);
+    assert.match(said[0] ?? "", /could not be resolved/);
   });
 });
 
