@@ -1853,7 +1853,15 @@ fi
 # link is made once the step above has created the directory, or by a fork that added one.
 link_one optional skills                    skills
 link_one required prompts                   prompts
+
+# The prompt layer, in the order PI assembles it. `SYSTEM.md` REPLACES pi's built-in base prompt
+# (PI looks for `<cwd>/.pi/SYSTEM.md` in a trusted project first, then `<agentDir>/SYSTEM.md`);
+# `APPEND_SYSTEM.md` only appends to whichever base is in force; `AGENTS.md` arrives later still,
+# as a quoted project-context block. SYSTEM.md is `required`: an optional row would let a broken
+# clone fall back to the stock vendor prompt with nothing louder than a skip line, and that
+# substitution is invisible from inside a session.
 link_one required AGENTS.md                 AGENTS.md
+link_one required SYSTEM.md                 SYSTEM.md
 link_one optional config/APPEND_SYSTEM.md   APPEND_SYSTEM.md
 link_one optional config/keybindings.json   keybindings.json
 link_one optional themes                    themes
