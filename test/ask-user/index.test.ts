@@ -82,6 +82,10 @@ describe("ask-user — registration", () => {
     const guidelines = (tool.promptGuidelines ?? []).join(" ");
     assert.match(guidelines, /materially different/);
     assert.match(guidelines, /conventional default/);
+    // Stakes are declared, never sniffed from the text, so the obligation has to be in the prompt
+    // surface — there is nowhere else it could live.
+    assert.match(guidelines, /irreversible/);
+    assert.match(guidelines, /DENIED/);
   });
 });
 
@@ -154,8 +158,55 @@ describe("ask-user — answering", () => {
     );
     assert.deepEqual(result.content, [{ type: "text", text: "Auth: API key" }]);
     assert.deepEqual(result.details, {
-      answers: [{ header: "Auth", multiSelect: false, answer: { kind: "answered", labels: ["API key"] } }],
+      answers: [
+        {
+          header: "Auth",
+          multiSelect: false,
+          consequence: "reversible",
+          answer: { kind: "answered", labels: ["API key"] },
+        },
+      ],
     });
+  });
+
+  it("an undeclared question is reversible, so the default cannot make anything stricter", async () => {
+    // The stakes are the model's declaration. A model that never sets the field gets exactly the
+    // behaviour this tool always had — the fix adds a stricter reading, it does not impose one.
+    const tool = askUserTool();
+    const result = await tool.execute(
+      "call-3",
+      { questions: QUESTIONS },
+      undefined,
+      () => {},
+      fakeCtx({ hasUI: true }),
+    );
+    assert.deepEqual(result.content, [{ type: "text", text: "Auth: declined, no answer given" }]);
+  });
+
+  it("a dismissed irreversible question comes back DENIED, not as a licence to decide", async () => {
+    // `fakeCtx` with no `select` script IS the dismissal case, and is also exactly what PI's
+    // headless `noOpUIContext` looks like. Either way nobody approved the payout.
+    const tool = askUserTool();
+    const payout: AskQuestion = {
+      ...QUESTIONS[0],
+      question: "Release the payout to the vendor?",
+      header: "Payout",
+      consequence: "irreversible",
+    };
+    const result = await tool.execute(
+      "call-4",
+      { questions: [payout] },
+      undefined,
+      () => {},
+      fakeCtx({ hasUI: true }),
+    );
+    const text = (result.content[0] as { text: string }).text;
+    assert.match(text, /^Payout: DENIED/);
+    assert.match(text, /Silence is not approval/);
+    assert.equal(
+      (result.details as { answers: { consequence: string }[] }).answers[0].consequence,
+      "irreversible",
+    );
   });
 
   it("asks every question in the order given", async () => {

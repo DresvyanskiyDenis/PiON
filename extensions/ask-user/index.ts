@@ -19,7 +19,16 @@
  *
  * A dismissed dialog is not a failure. PI resolves `select` and `input` to `undefined` when the
  * user closes them, reported as `declined` so the model proceeds on its own judgement. Nothing
- * re-asks.
+ * re-asks. The one exception is a question the model declared `irreversible` — spending, an
+ * outward send, a deletion, a restricted write — where "proceed on your own judgement" would be
+ * the model doing the unapproved thing on its own authority. That decline renders as `DENIED`,
+ * naming whether the operator dismissed the dialog or the session cancelled the question — two
+ * different refusals that PI itself reports identically. `./dialog.ts` holds the reasoning.
+ *
+ * There is no deadline in this module, and adding one would undo both properties: a decision that
+ * cannot be undone must not expire from inattention, and a second abort signal would make the
+ * cause of a no-answer unrecoverable again. The session's own signal is the only thing that ends
+ * a wait here.
  *
  * `executionMode: "sequential"`. Two dialogs racing for the same terminal is not something a
  * person can answer, so this tool never runs beside another tool call.
@@ -70,6 +79,16 @@ const QuestionSchema = Type.Object({
     Type.Boolean({
       description:
         "True when the choices are not mutually exclusive. Phrase the question accordingly.",
+    }),
+  ),
+  consequence: Type.Optional(
+    Type.Union([Type.Literal("reversible"), Type.Literal("irreversible")], {
+      default: "reversible",
+      description:
+        '"reversible" (default) for a question you could undo, where no answer means decide it ' +
+        'yourself. "irreversible" for one that authorises spending money, an outward send, a ' +
+        "deletion or a write to restricted storage: no answer there comes back as DENIED and is " +
+        "a refusal.",
     }),
   ),
 });
@@ -146,7 +165,9 @@ export function register(pi: ExtensionAPI): void {
       "Do not call ask_user for a choice with a conventional default, for a fact you can verify in the codebase, or to ask permission to continue work already asked for.",
       "Give every option a description that names the trade-off, not a restatement of the label. The operator is choosing between consequences.",
       "One call can carry up to four questions, so ask everything you need at once rather than in a chain of separate calls.",
-      "A declined answer is an answer: proceed on your own judgement and say which assumption you made, and do not ask the same question again.",
+      "Set consequence to \"irreversible\" whenever the answer authorises spending money, sending or publishing something outward, deleting data, or writing to restricted storage.",
+      "A declined reversible question is an answer: proceed on your own judgement and say which assumption you made, and do not ask the same question again.",
+      "An answer that comes back DENIED is not that. The operator did not approve it: do not perform the action, do not choose on their behalf, and do not re-ask the same question in a loop.",
     ],
     parameters: ParamsSchema,
     executionMode: "sequential",
@@ -160,6 +181,7 @@ export function register(pi: ExtensionAPI): void {
           answers: questions.map((q, i) => ({
             header: q.header,
             multiSelect: q.multiSelect === true,
+            consequence: q.consequence ?? "reversible",
             answer: answers[i],
           })),
         },
