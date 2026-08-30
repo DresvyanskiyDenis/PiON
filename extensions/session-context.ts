@@ -37,6 +37,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { loadDispatchSettings, type DispatchSettings } from "./dispatch/config.ts";
 import { configDir, ensureStateRoot, repoRoot } from "./lib/paths.ts";
 import { emitNotice } from "./lib/announce.ts";
+import { sameRepo } from "./lib/same-repo.ts";
 import { describeError, surfaceOnce } from "./lib/once.ts";
 
 export const id = "session-context";
@@ -420,10 +421,23 @@ export function operatorCandidates(): OperatorCandidate[] {
   return out;
 }
 
-/** True when `p` resolves to somewhere under the repo root. */
+/**
+ * True when `p` resolves to somewhere inside this repository.
+ *
+ * The prefix test answers for the primary checkout. It is not the whole question: a **linked git
+ * worktree** of this same repo lives at a path with no textual relationship to `repoRoot()`, so an
+ * operator-identity file placed in one would sail past a prefix-only check — the refusal below
+ * exists precisely to stop such a file being readable from a repo path, and a second checkout of
+ * the repo is a repo path. Ownership is git's answer, not the string's (`lib/same-repo.ts`); when
+ * git cannot answer, the verdict is the prefix one, so this can only ever refuse more, never less.
+ */
 export function isInsideRepo(p: string): boolean {
-  const rel = relative(resolve(repoRoot()), resolve(p));
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  const root = resolve(repoRoot());
+  const target = resolve(p);
+  if (target === root) return false;
+  const rel = relative(root, target);
+  if (!rel.startsWith("..") && !isAbsolute(rel)) return true;
+  return sameRepo(root, target);
 }
 
 export async function resolveOperator(): Promise<OperatorResolution> {

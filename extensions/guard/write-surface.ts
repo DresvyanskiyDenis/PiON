@@ -24,7 +24,9 @@
  *    `sudo`, `env`, `xargs`, `timeout` and `nice` reach the same rules as the bare program
  *    (`shell.ts#WRAPPERS`), so `… | xargs rm -rf ~/Documents` is analysed as `rm -rf ~/Documents`.
  * 2. `classify(word, cwd)` — *where does that path land?* `inside` the sandbox, `outside` it, or
- *    `unknown` because it begins with a variable whose value only exists at runtime.
+ *    `unknown` because it begins with a variable whose value only exists at runtime. "Inside" is a
+ *    prefix test against `sandboxRoots()` plus one git question: a linked worktree of the session's
+ *    own repository is the project too, however unrelated its path looks (`lib/same-repo.ts`).
  *
  * ## What it deliberately does NOT try to do
  *
@@ -38,6 +40,7 @@
 import { homedir, tmpdir } from "node:os";
 import { resolve, sep } from "node:path";
 import { stateRoot } from "../lib/paths.ts";
+import { sameRepo } from "../lib/same-repo.ts";
 import type { Segment } from "./shell.ts";
 import { program } from "./shell.ts";
 import { expandTilde } from "./targets.ts";
@@ -140,6 +143,12 @@ export function classify(word: string, cwd: string): { location: Location; resol
   for (const root of sandboxRoots(cwd)) {
     if (contains(root, absolute)) return { location: "inside", resolved: absolute };
   }
+  // The prefix test has just said "outside". It is wrong for a case this harness is expected to
+  // work in: a linked git worktree of the SAME repository sits at a path sharing no prefix with the
+  // session directory, so ordinary work on another branch of the project reads as a write into a
+  // stranger's tree. Ownership is git's answer (`--git-common-dir`), not the string's — see
+  // `lib/same-repo.ts`. Asked only here, on the path the cheap test already missed.
+  if (sameRepo(cwd, absolute)) return { location: "inside", resolved: absolute };
   return { location: "outside", resolved: absolute };
 }
 
