@@ -1598,6 +1598,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#failureoutput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        failureOutputMaxLines and failureOutputMaxChars — how much of a dead child you pay for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#agent-definitions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4424,6 +4435,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#failureoutput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        failureOutputMaxLines and failureOutputMaxChars — how much of a dead child you pay for
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#agent-definitions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4500,8 +4522,10 @@ Markdown files with YAML frontmatter, one per agent, in <code>agents/</code>.</p
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">"dispatchTools"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"subagent"</span><span class="p">,</span><span class="w"> </span><span class="s2">"subagent_run"</span><span class="p">,</span><span class="w"> </span><span class="s2">"dispatch_agent"</span><span class="p">,</span><span class="w"> </span><span class="s2">"task"</span><span class="p">,</span><span class="w"> </span><span class="s2">"agent"</span><span class="p">],</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">"genericAgents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"general-purpose"</span><span class="p">,</span><span class="w"> </span><span class="s2">"general"</span><span class="p">,</span><span class="w"> </span><span class="s2">"generalist"</span><span class="p">],</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">"specialistMatchMinScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">"onThinkingClamp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"warn"</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">}</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">"onThinkingClamp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"warn"</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">  </span><span class="nt">"failureOutputMaxLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="nt">"failureOutputMaxChars"</span><span class="p">:</span><span class="w"> </span><span class="mi">2000</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">}</span>
 </span></code></pre></div>
 <hr />
 <h2 id="maxdepth"><code>maxDepth</code><a class="headerlink" href="#maxdepth" title="Permanent link">&para;</a></h2>
@@ -4726,23 +4750,80 @@ say" must not render as "no clamp will happen" — check <code>thinkingLevelMap<
 by hand.</p>
 </div>
 <hr />
+<h2 id="failureoutput"><code>failureOutputMaxLines</code> and <code>failureOutputMaxChars</code> — how much of a dead child you pay for<a class="headerlink" href="#failureoutput" title="Permanent link">&para;</a></h2>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">"failureOutputMaxLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">"failureOutputMaxChars"</span><span class="p">:</span><span class="w"> </span><span class="mi">2000</span>
+</span></code></pre></div>
+<p>When a dispatched child dies, <code>pi-subagents</code> makes its <strong>entire captured output</strong> the run's error
+text, and a headless child announces on stderr — so the error text you get back is every startup
+notice, every extension announcement and every debug line the child emitted, with the actual cause
+somewhere inside it. That text becomes the tool result's <code>content</code>, which is the one field of a
+result that is serialised to the provider. It is not a one-off cost: the result stays in the
+transcript, so the parent re-sends the whole dead child's console on <strong>every later turn of the
+session</strong>.</p>
+<p>These two keys bound what survives into that context. Ships <strong>20 lines / 2000 characters</strong>,
+whichever binds first, always cutting on a line boundary. What is left says how many lines went and
+names the file that still holds all of them:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>--- the run's output, first 20 of 60 line(s), startup notices included ---
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>…
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>... (40 more line(s) elided — full output at /runs/&lt;id&gt;/output-0.log)
+</span></code></pre></div>
+<p>Three things are <strong>never</strong> bounded, and they are the reason this is a bound and not a filter:</p>
+<table>
+<thead>
+<tr>
+<th>Never bounded</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The classified provider-failure block</td>
+<td>It is the part that says what went wrong. It is already a fixed field set, and shortening a diagnosis to save tokens is the silent substitution this repo refuses everywhere else</td>
+</tr>
+<tr>
+<td>Anything at all, when the result named no file</td>
+<td>With nowhere to read the rest, a cut cannot be undone — that is suppression, not a reference. The tail is forwarded whole, whatever these keys say</td>
+</tr>
+<tr>
+<td>A successful run's output</td>
+<td>This path only runs on a failure that carried a classified block</td>
+</tr>
+</tbody>
+</table>
+<p>The file named in the elision is chosen by <strong>what it actually contains</strong>, most exact first: the
+run's metadata artifact, whose <code>error</code> field is this very text; then the async run's own
+<code>output-0.log</code>, which is where the startup notices came from (with several children the run
+directory is named instead, because the failing step's index cannot be derived from the result and a
+confidently wrong path is worse than a directory); then the child's transcript, labelled as a
+transcript because it does <em>not</em> carry the stderr tail.</p>
+<p><strong>Who would change it:</strong> raise both if you debug failing children by reading the parent's context
+rather than the run directory. Set <strong>either to <code>0</code></strong> to switch that one bound off — a line count
+alone does not bound bytes, since one JSON blob is one line of any size, and a character count alone
+would cut mid-line. Set <strong>both to <code>0</code></strong> to forward the whole tail again, which is what this repo did
+before the bound existed.</p>
+<p><strong>What breaks if you get it wrong:</strong> too small and the useful first lines of a crash go with the
+noise — the cause is still in the classified block, but the context around it is a file away. Too
+large, or <code>0</code>, and one dead subagent quietly raises the price of every remaining turn in the
+session.</p>
+<hr />
 <h2 id="agent-definitions">Agent definitions<a class="headerlink" href="#agent-definitions" title="Permanent link">&para;</a></h2>
 <p>One Markdown file per agent, frontmatter plus the system prompt as the body:</p>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>---
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>name: code-reviewer
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>description: Use for thorough code review of a PR or committed branch — correctness,
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  security, performance, maintainability, test adequacy. Read-only.
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>tools:
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>read
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>egress: internal       # a reported label; nothing is refused on account of it
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="gu">returns: object</span>
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="gu">---</span>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>You are a code reviewer. …
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>---
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>name: code-reviewer
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>description: Use for thorough code review of a PR or committed branch — correctness,
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  security, performance, maintainability, test adequacy. Read-only.
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>tools:
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>read
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>egress: internal       # a reported label; nothing is refused on account of it
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="gu">returns: object</span>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="gu">---</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>You are a code reviewer. …
 </span></code></pre></div>
 <table>
 <thead>
@@ -4796,7 +4877,7 @@ and an unqualified one resolves by accident.</p>
 <p>See <a href="../../extending/subagents/">Adding a sub-agent</a> for the walkthrough.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">     </span><span class="c1"># PC-04 agent frontmatter, PC-08 bare ids</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">     </span><span class="c1"># PC-04 agent frontmatter, PC-08 bare ids</span>
 </span></code></pre></div>
 <p>In a session, <code>/agents</code> prints the resolved agent list <em>and</em> the sub-agent model-selection block
 the model sees — verbatim the same text. <code>/doctor</code>'s <code>D-03</code> reports any agent name mentioned in
