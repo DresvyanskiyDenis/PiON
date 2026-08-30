@@ -16,7 +16,7 @@
         <link rel="prev" href="../../skills-portability/">
       
       
-        <link rel="next" href="../verification/">
+        <link rel="next" href="../structural-gates/">
       
       
         
@@ -3534,6 +3534,8 @@
       
         
       
+        
+      
     
     
     
@@ -3738,6 +3740,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pi-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bin/pi-gate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pi-tier" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3840,6 +3853,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../structural-gates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structural gates (bin/pi-gate)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -4459,6 +4500,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pi-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bin/pi-gate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pi-tier" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4704,6 +4756,10 @@ the loop entry on the stream. On either, <code>pi</code> gets 2 s to exit itself
 <td><code>PC-27</code></td>
 <td>every model declared in <code>config/models.json</code> states all four <code>cost</code> rates, or four explicit zeros — the <a href="../../extensions/cost-gate/#the-static-half-pc-27">cost-gate's</a> question, asked before the first request</td>
 </tr>
+<tr>
+<td><code>PC-29</code></td>
+<td>the subagent contract keeps the sections <code>config/dispatch.json</code> declares, and states no line/file threshold that config disagrees with — <a href="../../configuration/dispatch/#subagentcontract"><code>subagentContract</code></a> is the authority</td>
+</tr>
 </tbody>
 </table>
 <p>Exit <code>0</code> = clean, <code>1</code> = findings, <code>2</code> = the checker could not run. That last distinction matters in
@@ -4760,12 +4816,60 @@ silence the check.</p>
 <p>The shipped budget is the count on the day the rule landed, not a target. Whether zero is the right
 number is a taste call about the voice of a repo, and this tool does not make it for you.</p>
 <hr />
+<h2 id="pi-gate"><code>bin/pi-gate</code><a class="headerlink" href="#pi-gate" title="Permanent link">&para;</a></h2>
+<p>The other question. <code>pi-check</code> asks whether the config tree is internally consistent; <code>pi-gate</code>
+reads the branch's history and the working diff and asks whether the way this change was arrived at
+looks healthy.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>npm<span class="w"> </span>run<span class="w"> </span>check<span class="w">               </span><span class="c1"># typecheck, then bin/pi-gate, then the suite</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>bin/pi-gate<span class="w">                 </span><span class="c1"># all four gates — warn-only, exit 0</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bin/pi-gate<span class="w"> </span>--block<span class="w">         </span><span class="c1"># any warning becomes an error — exit 1 (env PI_GATE_BLOCK=1)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>bin/pi-gate<span class="w"> </span>SG-01<span class="w"> </span>SG-04<span class="w">     </span><span class="c1"># named gates only</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>bin/pi-gate<span class="w"> </span>--base<span class="w"> </span>origin/main<span class="w">   </span><span class="c1"># compare against a different base ref</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>bin/pi-gate<span class="w"> </span>--json<span class="w">          </span><span class="c1"># machine-readable findings</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>bin/pi-gate<span class="w"> </span>--help<span class="w">          </span><span class="c1"># what each gate catches AND what it does not</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Catches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SG-01</code></td>
+<td>two or more consecutive <code>fix:</code> commits on the same file — the approach is wrong, not the code. Reset by writing <code>Root-cause:</code> and <code>Alternative:</code> into the commit message</td>
+</tr>
+<tr>
+<td><code>SG-02</code></td>
+<td>a new file whose name differs from an existing one by exactly one token, where that token is a variant axis the tree already varies at, or a variant word derived from this repo's own model config</td>
+</tr>
+<tr>
+<td><code>SG-03</code></td>
+<td>four or more new top-level source modules in one diff with no recorded sign-off (<code>--signoff</code>, <code>PI_GATE_SIGNOFF</code>, or a <code>Sprawl-signoff:</code> commit trailer)</td>
+</tr>
+<tr>
+<td><code>SG-04</code></td>
+<td>a job or pipeline file that names no subset parameter, or hard-compares against a full-scale constant — <strong>weak by construction</strong>, see the caveats</td>
+</tr>
+</tbody>
+</table>
+<p>Exit <code>0</code> clean or warnings only, <code>1</code> an error-severity finding, <code>2</code> the gate could not run. Every
+gate ships at <code>warn</code>; blocking is an explicit act, per run with <code>--block</code> or per gate with
+<code>"severity": "error"</code> in <code>config/structural-gates.json</code>. Outside a git work tree the history gates
+report nothing rather than guessing.</p>
+<p>It is deliberately not a <code>pretest</code> hook: the answer changes between two runs of the same suite, and
+a check that fails for reasons unrelated to the tests does not survive inside the command people run
+fifty times an hour.</p>
+<p>What each gate can and cannot see — and why a green <code>SG-04</code> is a much smaller claim than it looks —
+is in <a href="../structural-gates/">structural gates</a>.</p>
+<hr />
 <h2 id="pi-tier"><code>config/bin/pi-tier</code><a class="headerlink" href="#pi-tier" title="Permanent link">&para;</a></h2>
 <p>Resolves a semantic tier to a concrete model, from the shell. Useful in scripts and as a predicate.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>config/bin/pi-tier<span class="w"> </span>--list<span class="w">              </span><span class="c1"># every tier and what it resolves to</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>config/bin/pi-tier<span class="w"> </span>strong<span class="w">              </span><span class="c1"># -&gt; github-copilot/claude-opus-5:high</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>config/bin/pi-tier<span class="w"> </span>--thinking<span class="w"> </span>strong<span class="w">   </span><span class="c1"># -&gt; high</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>config/bin/pi-tier<span class="w"> </span>--egress<span class="w"> </span>databricks<span class="w"> </span><span class="c1"># -&gt; confidential</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>config/bin/pi-tier<span class="w"> </span>--list<span class="w">              </span><span class="c1"># every tier and what it resolves to</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>config/bin/pi-tier<span class="w"> </span>strong<span class="w">              </span><span class="c1"># -&gt; github-copilot/claude-opus-5:high</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>config/bin/pi-tier<span class="w"> </span>--thinking<span class="w"> </span>strong<span class="w">   </span><span class="c1"># -&gt; high</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>config/bin/pi-tier<span class="w"> </span>--egress<span class="w"> </span>databricks<span class="w"> </span><span class="c1"># -&gt; confidential</span>
 </span></code></pre></div>
 <p><strong>The tier's <code>thinkingLevel</code> is part of the answer</strong>, appended as a <code>:&lt;level&gt;</code> suffix, because the
 model string is the only channel PI reads reasoning effort from — see
@@ -4783,9 +4887,9 @@ machine?"</em>.</p>
 <hr />
 <h2 id="configbinpi-mcp-approve"><code>config/bin/pi-mcp-approve</code><a class="headerlink" href="#configbinpi-mcp-approve" title="Permanent link">&para;</a></h2>
 <p>The project-MCP trust ledger. See <a href="../../extending/mcp-servers/">Adding MCP servers</a>.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>config/bin/pi-mcp-approve<span class="w"> </span>--status<span class="w"> </span>.<span class="w">   </span><span class="c1"># what would happen right now</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>config/bin/pi-mcp-approve<span class="w"> </span>.<span class="w">            </span><span class="c1"># print the config, then record approval</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>config/bin/pi-mcp-approve<span class="w"> </span>--list<span class="w">       </span><span class="c1"># the whole ledger</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>config/bin/pi-mcp-approve<span class="w"> </span>--status<span class="w"> </span>.<span class="w">   </span><span class="c1"># what would happen right now</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>config/bin/pi-mcp-approve<span class="w"> </span>.<span class="w">            </span><span class="c1"># print the config, then record approval</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>config/bin/pi-mcp-approve<span class="w"> </span>--list<span class="w">       </span><span class="c1"># the whole ledger</span>
 </span></code></pre></div>
 <p><code>--status</code> exits <code>0</code> when allowed and <code>1</code> when refused, so it works as a shell predicate.</p>
 <hr />
@@ -4798,9 +4902,9 @@ server through <code>env -i</code> plus an explicit allowlist. Exits <code>64</c
 <h2 id="binpi-log"><code>bin/pi-log</code><a class="headerlink" href="#binpi-log" title="Permanent link">&para;</a></h2>
 <p>The session index's greppable face. Reads <code>index.db</code> directly and never opens it for write, so it
 works with <code>pi</code> running.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>bin/pi-log<span class="w"> </span>sessions<span class="w">     </span><span class="c1"># last 50 sessions: title, model, turns, tokens, cost</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>bin/pi-log<span class="w"> </span>events<span class="w">       </span><span class="c1"># last 200 events</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bin/pi-log<span class="w"> </span>cost<span class="w">         </span><span class="c1"># spend grouped by model</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>bin/pi-log<span class="w"> </span>sessions<span class="w">     </span><span class="c1"># last 50 sessions: title, model, turns, tokens, cost</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>bin/pi-log<span class="w"> </span>events<span class="w">       </span><span class="c1"># last 200 events</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>bin/pi-log<span class="w"> </span>cost<span class="w">         </span><span class="c1"># spend grouped by model</span>
 </span></code></pre></div>
 <p>Requires the <code>sqlite3</code> CLI. Exits <code>1</code> if no index exists yet — run <code>/index</code> inside <code>pi</code> first.</p>
 <hr />
@@ -4815,7 +4919,7 @@ that moves fast — 0.84.1 shipped the day after 0.84.0.</p>
 <p>It reads that surface <strong>straight from the installed package's shipped <code>.d.ts</code> files</strong> — never from
 documentation, never from memory — and either records it or diffs the current surface against a
 previously recorded lock, exiting non-zero when something depended on has been removed or renamed.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--check
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>node<span class="w"> </span>bin/api-probe.mjs<span class="w"> </span>--pi<span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pi<span class="k">)</span><span class="s2">"</span><span class="w"> </span>--check
 </span></code></pre></div>
 <p>The recorded surface lives in <code>config/api-surface.lock.json</code>, which is
 <a href="../../configuration/not-editable/">not hand-editable</a>.</p>

@@ -1587,6 +1587,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#subagentcontract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        subagentContract — the obligations a dispatched child carries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#onthinkingclamp" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3738,6 +3749,8 @@
       
         
       
+        
+      
     
     
     
@@ -3798,6 +3811,34 @@
     
   
     Command reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/structural-gates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Structural gates (bin/pi-gate)
   
 
     
@@ -4424,6 +4465,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#subagentcontract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        subagentContract — the obligations a dispatched child carries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#onthinkingclamp" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4522,10 +4574,17 @@ Markdown files with YAML frontmatter, one per agent, in <code>agents/</code>.</p
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">"dispatchTools"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"subagent"</span><span class="p">,</span><span class="w"> </span><span class="s2">"subagent_run"</span><span class="p">,</span><span class="w"> </span><span class="s2">"dispatch_agent"</span><span class="p">,</span><span class="w"> </span><span class="s2">"task"</span><span class="p">,</span><span class="w"> </span><span class="s2">"agent"</span><span class="p">],</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">"genericAgents"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"general-purpose"</span><span class="p">,</span><span class="w"> </span><span class="s2">"general"</span><span class="p">,</span><span class="w"> </span><span class="s2">"generalist"</span><span class="p">],</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">"specialistMatchMinScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">"onThinkingClamp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"warn"</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">  </span><span class="nt">"failureOutputMaxLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="nt">"failureOutputMaxChars"</span><span class="p">:</span><span class="w"> </span><span class="mi">2000</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">}</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">"subagentContract"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="nt">"doc"</span><span class="p">:</span><span class="w"> </span><span class="s2">"config/subagent-tool-description.md"</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="nt">"requiredSections"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Before you write"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Whether to dispatch at all"</span><span class="p">],</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">"minSectionLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="nt">"worthiness"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"leadHandlesChangedLinesUnder"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">                    </span><span class="nt">"leadHandlesFilesTouchedAtMost"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span><span class="nt">"onThinkingClamp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"warn"</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">  </span><span class="nt">"failureOutputMaxLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">  </span><span class="nt">"failureOutputMaxChars"</span><span class="p">:</span><span class="w"> </span><span class="mi">2000</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="p">}</span>
 </span></code></pre></div>
 <hr />
 <h2 id="maxdepth"><code>maxDepth</code><a class="headerlink" href="#maxdepth" title="Permanent link">&para;</a></h2>
@@ -4706,8 +4765,72 @@ fire more readily.</p>
 noise the model learns to ignore, which is the real cost. Setting it very high, or emptying
 <code>genericAgents</code>, switches the nudge off entirely.</p>
 <hr />
+<h2 id="subagentcontract"><code>subagentContract</code> — the obligations a dispatched child carries<a class="headerlink" href="#subagentcontract" title="Permanent link">&para;</a></h2>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"subagentContract"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"doc"</span><span class="p">:</span><span class="w"> </span><span class="s2">"config/subagent-tool-description.md"</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"requiredSections"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Before you write"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Whether to dispatch at all"</span><span class="p">],</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">"minSectionLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"worthiness"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"leadHandlesChangedLinesUnder"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w"> </span><span class="nt">"leadHandlesFilesTouchedAtMost"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Everything a dispatched child must do before it writes, and the lead's own test for whether a
+dispatch is worth its cost, is prose in
+<code>config/subagent-tool-description.md</code> — because that file is what the
+model actually reads. <code>pi-subagents</code> loads it at tool registration and leaves unknown
+<code>{{placeholders}}</code> alone, so there is no templating and no way to inject a number from here. The two
+worthiness numbers therefore exist in two files, and <strong>this block is the authority</strong>.</p>
+<p><code>bin/rules/pc-29-subagent-contract-obligations.mjs</code> is what keeps the copy honest. It fails when the
+declared document is missing, when a declared section has no heading, when a section is hollowed out
+below <code>minSectionLines</code> non-blank body lines, or when any <code>&lt;n&gt; ... lines</code> / <code>&lt;n&gt; ... files</code> claim in
+the document disagrees with a declared bound — including the case where the document quietly drops
+it. That is the point of holding this as data: an obligation the model has to <em>remember</em> per call is
+a habit, and a habit is forgotten on the call where it mattered; a section that cannot be deleted or
+contradicted without a failing check is state.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>What it declares</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>doc</code></td>
+<td>the contract document, repo-relative. Absent from the tree → one finding against <code>dispatch.json</code></td>
+</tr>
+<tr>
+<td><code>requiredSections</code></td>
+<td><strong>headings</strong>, never wordings — matched case-insensitively at any level, backticks and trailing punctuation ignored</td>
+</tr>
+<tr>
+<td><code>minSectionLines</code></td>
+<td>non-blank body lines each declared section must carry, so a heading left standing over nothing fails exactly like a deleted one</td>
+</tr>
+<tr>
+<td><code>worthiness.leadHandlesChangedLinesUnder</code></td>
+<td>added-plus-deleted lines below which the lead makes the change itself</td>
+</tr>
+<tr>
+<td><code>worthiness.leadHandlesFilesTouchedAtMost</code></td>
+<td>files opened for writing, the second half of the same bound — <strong>both</strong> have to hold</td>
+</tr>
+</tbody>
+</table>
+<p>Below both bounds the lead does the work; at or above either one a dispatch is permitted. Research,
+parallel exploration and independent work streams are dispatch-worthy at any size, and the
+orchestrator's own context past half is the operational override. Those shapes are judgement and
+live only in the prose; only the two numbers are data, because only a number can go stale silently.</p>
+<p><strong>Drop the whole block and the rule goes quiet</strong> — no <code>subagentContract</code>, nothing declared, no
+findings, the same posture PC-28 takes toward a missing <code>routing.json</code>. That keeps a tree which has
+not adopted the contract silent rather than noisy; it also means deleting the block is the one way
+to switch the ratchet off, and it is a visible act in a tracked file.</p>
+<p><strong>What breaks if you get it wrong:</strong> raise a worthiness number without editing the document and
+<code>pi-check</code> fails on the next run, naming both values — which is the intended failure. Rename a
+section in the document without renaming it here and the rule reports the heading as missing.
+Neither is a silent drift, and that is the whole design.</p>
+<hr />
 <h2 id="onthinkingclamp"><code>onThinkingClamp</code> — when the effort you asked for is not served<a class="headerlink" href="#onthinkingclamp" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">"onThinkingClamp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"warn"</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">"onThinkingClamp"</span><span class="p">:</span><span class="w"> </span><span class="s2">"warn"</span>
 </span></code></pre></div>
 <p>A reasoning effort travels <strong>inside the model string</strong>: <code>provider/id:high</code>, <code>provider/id:max</code>. That
 suffix is a <em>request</em>. Before the wire, PI clamps it against what the model's own registry entry says
@@ -4751,8 +4874,8 @@ by hand.</p>
 </div>
 <hr />
 <h2 id="failureoutput"><code>failureOutputMaxLines</code> and <code>failureOutputMaxChars</code> — how much of a dead child you pay for<a class="headerlink" href="#failureoutput" title="Permanent link">&para;</a></h2>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">"failureOutputMaxLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">"failureOutputMaxChars"</span><span class="p">:</span><span class="w"> </span><span class="mi">2000</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">"failureOutputMaxLines"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nt">"failureOutputMaxChars"</span><span class="p">:</span><span class="w"> </span><span class="mi">2000</span>
 </span></code></pre></div>
 <p>When a dispatched child dies, <code>pi-subagents</code> makes its <strong>entire captured output</strong> the run's error
 text, and a headless child announces on stderr — so the error text you get back is every startup
@@ -4764,9 +4887,9 @@ session</strong>.</p>
 <p>These two keys bound what survives into that context. Ships <strong>20 lines / 2000 characters</strong>,
 whichever binds first, always cutting on a line boundary. What is left says how many lines went and
 names the file that still holds all of them:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>--- the run's output, first 20 of 60 line(s), startup notices included ---
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>…
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>... (40 more line(s) elided — full output at /runs/&lt;id&gt;/output-0.log)
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>--- the run's output, first 20 of 60 line(s), startup notices included ---
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>…
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>... (40 more line(s) elided — full output at /runs/&lt;id&gt;/output-0.log)
 </span></code></pre></div>
 <p>Three things are <strong>never</strong> bounded, and they are the reason this is a bound and not a filter:</p>
 <table>
@@ -4809,21 +4932,21 @@ session.</p>
 <hr />
 <h2 id="agent-definitions">Agent definitions<a class="headerlink" href="#agent-definitions" title="Permanent link">&para;</a></h2>
 <p>One Markdown file per agent, frontmatter plus the system prompt as the body:</p>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>---
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>name: code-reviewer
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>description: Use for thorough code review of a PR or committed branch — correctness,
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>  security, performance, maintainability, test adequacy. Read-only.
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>tools:
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>read
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>egress: internal       # a reported label; nothing is refused on account of it
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="gu">returns: object</span>
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="gu">---</span>
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>You are a code reviewer. …
+<div class="language-markdown highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>---
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>name: code-reviewer
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>description: Use for thorough code review of a PR or committed branch — correctness,
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>  security, performance, maintainability, test adequacy. Read-only.
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>tools:
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>read
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>grep
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>find
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span>bash
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>model: strong          # a TIER name — or provider/id for a deliberate pin
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>egress: internal       # a reported label; nothing is refused on account of it
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="gu">returns: object</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="gu">---</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>You are a code reviewer. …
 </span></code></pre></div>
 <table>
 <thead>
@@ -4877,7 +5000,7 @@ and an unqualified one resolves by accident.</p>
 <p>See <a href="../../extending/subagents/">Adding a sub-agent</a> for the walkthrough.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">     </span><span class="c1"># PC-04 agent frontmatter, PC-08 bare ids</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>bin/pi-check<span class="w"> </span>--all<span class="w">     </span><span class="c1"># PC-04 agent frontmatter, PC-08 bare ids</span>
 </span></code></pre></div>
 <p>In a session, <code>/agents</code> prints the resolved agent list <em>and</em> the sub-agent model-selection block
 the model sees — verbatim the same text. <code>/doctor</code>'s <code>D-03</code> reports any agent name mentioned in
