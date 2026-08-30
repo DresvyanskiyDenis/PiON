@@ -1,12 +1,13 @@
 /**
- * The fast path: same-turn injection via the `context` event.
+ * The only delivery path: tail injection via the `context` event.
  *
  * `context` fires before each LLM call within a turn — including mid-turn, after a tool result
- * lands (confirmed against `dist/core/sdk.js` `emitContext`/`transformContext`) — which is what
- * closes the "read a file, then edit it, same turn" gap `before_agent_start` cannot: that event
- * fires once, before the turn loop starts, so a rule matched by a file the model touches partway
- * through the turn is invisible to it until the NEXT turn's `before_agent_start`. `context` sees
- * it before the very next LLM call instead.
+ * lands (confirmed against `dist/core/sdk.js` `emitContext`/`transformContext`, which the agent
+ * loop runs immediately before it builds the provider request). That is a strict superset of what
+ * `before_agent_start` sees: it covers the first call of a turn, every mid-turn call after a tool
+ * result — closing the "read a file, then edit it, same turn" gap that a `before_agent_start`-only
+ * design misses entirely — and every call after a compaction, `/reload` or fork, since none of
+ * those can reach the provider without passing through here.
  *
  * `ContextEvent.messages` is `AgentMessage[]` — the actual wire message list for that one provider
  * call, not the persisted session transcript (`emitContext` works on a `structuredClone` and the
@@ -16,6 +17,11 @@
  * nothing against that cache while a mid-array insert would invalidate every cached prefix behind
  * it. Do not "clean this up" into inserting the note nearer whatever it is about — the tail
  * placement is load-bearing, not an oversight.
+ *
+ * The tail is also what lets the rule block be rewritten whenever `durable` grows without costing
+ * a prefix: everything ahead of the note is untouched, so the provider re-reads it from cache and
+ * only the note itself is written again. The same text in the system prompt would have
+ * invalidated the entire conversation behind it — see `./index.ts`, "WHY NOT `before_agent_start`".
  *
  * The messages array PI hands to each `context` firing is not itself accumulated with a previous
  * firing's injection (see above — nothing here is persisted), so this is naturally idempotent

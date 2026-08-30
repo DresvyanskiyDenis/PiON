@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type {
-  BeforeAgentStartEvent,
+  ContextEvent,
   ExtensionAPI,
   ExtensionContext,
   SessionStartEvent,
@@ -61,13 +61,14 @@ function seam(cwd: string): Seam {
 const writeEvent = (path: string): ToolCallEvent =>
   ({ type: "tool_call", toolCallId: "tc-1", toolName: "write", input: { path, content: "" } }) as ToolCallEvent;
 
-const beforeAgentStart = (): BeforeAgentStartEvent =>
-  ({
-    type: "before_agent_start",
-    prompt: "hi",
-    systemPrompt: "BASE",
-    systemPromptOptions: {} as BeforeAgentStartEvent["systemPromptOptions"],
-  }) as BeforeAgentStartEvent;
+/** Whatever `path-rules` appended to the message tail on the next LLM call, or `undefined`. */
+async function injected(s: Seam): Promise<string | undefined> {
+  const handler = s.handlers.get("context")![0]!;
+  const result = (await handler({ type: "context", messages: [] } as ContextEvent, s.ctx)) as
+    | { messages: Array<{ content: unknown }> }
+    | undefined;
+  return result === undefined ? undefined : String(result.messages.at(-1)!.content);
+}
 
 let sandbox: string;
 let rulesDir: string;
@@ -147,9 +148,7 @@ describe("path-rules + tool-masks", () => {
     await start(s);
     await touch(s, "a.env");
 
-    const handler = s.handlers.get("before_agent_start")![0]!;
-    const result = (await handler(beforeAgentStart(), s.ctx)) as { systemPrompt?: string } | undefined;
-    assert.equal(result, undefined, "a mask rule contributed a system-prompt block");
+    assert.equal(await injected(s), undefined, "a mask rule contributed injected text");
   });
 
   it("leaves an ordinary text rule alone: it still injects, and masks nothing", async () => {
@@ -160,8 +159,6 @@ describe("path-rules + tool-masks", () => {
 
     assert.equal(activeMask(), null);
     assert.deepEqual(s.active, FULL);
-    const handler = s.handlers.get("before_agent_start")![0]!;
-    const result = (await handler(beforeAgentStart(), s.ctx)) as { systemPrompt?: string } | undefined;
-    assert.match(result!.systemPrompt!, /PYTHON-RULE/);
+    assert.match((await injected(s))!, /PYTHON-RULE/);
   });
 });

@@ -49,7 +49,7 @@ An absent directory is a normal, unconfigured install — zero rules, no warning
 with a bad `---` block, invalid YAML or an unsupported glob is dropped with a loud warning and
 **every other file still loads**: a typo in one rule must not disable the rest.
 
-## Why this is four mechanisms and not one
+## Why this is three mechanisms and not one
 
 The obvious design is to watch `tool_call` and inject the matching rule lazily. It has a hole that
 does not show up until the *following* turn, and both halves of it were traced against the pinned
@@ -63,23 +63,33 @@ already assembled. A rule matched there arrives after the edit it was meant to g
 touches partway through a turn. "Read a file, then edit it, same turn" is not one round trip late
 under a `before_agent_start`-only design — it is invisible until the next turn.
 
-The detection point and the injection point are therefore different events, which is what the four
+The detection point and the injection point are therefore different events, which is what the three
 layers are for:
 
 | # | Event | Job |
 |---|---|---|
-| 1 | `session_start` | A bounded walk of the project seeds the rule set from files that **already exist**. The primary path: the rule is in the system prompt before the model's first token. |
+| 1 | `session_start` | A bounded walk of the project seeds the rule set from files that **already exist**. The primary path: the rule is in context before the model's first token. |
 | 2 | `tool_call` on `read`/`edit`/`write` | Detects a file the startup scan could not have seen. Observes only — it always returns `undefined` and must never become a second way to block a call. |
-| 3 | `context` | Fires before **every** LLM call within a turn, including mid-turn after a tool result. This is what actually delivers a rule detected by (2) before the model's next action. |
-| 4 | `before_agent_start` | The durable net, recomputed live each turn, so the block survives compaction, `/reload` and fork. |
+| 3 | `context` | The only delivery path. It fires before **every** LLM call — the first of a turn, every mid-turn call after a tool result, and every call after a compaction, `/reload` or fork — and it carries the **whole** active rule set each time. |
 
-Layers 3 and 4 do not double-inject: `before_agent_start` clears the pending set the moment it folds
-it into the system prompt, so `context` only ever carries what surfaced *after* that point.
+There is no fourth layer, and the missing one is the point.
 
-!!! note "The `context` injection appends at the tail, on purpose"
-    Prompt caching is prefix-based. A tail append after the real conversation costs nothing against
-    the cache; a mid-array insert nearer whatever the note is about would invalidate every cached
-    prefix behind it. The placement is load-bearing, not an oversight.
+!!! warning "Why the rule block is not in the system prompt"
+    It used to be, on the reasoning that the system prompt is the durable surface. It is durable,
+    and it is also the head of the provider's **cached prefix**. The active rule set grows as the
+    session touches files, so every newly activated rule rewrote that block — invalidating the
+    cache for the system prompt *and the entire conversation behind it*, a full-context re-write at
+    cache-write rates, bought by nothing more than the model reading its first `.py` file.
+
+    The `context` tail-append costs the opposite: the note lands after the last real message, so a
+    change to it invalidates only itself. Re-sending the whole set every call is free there, and it
+    is what lets the "already sent" bookkeeping disappear entirely — one delivery path, nothing to
+    fall out of step with the wire. See
+    [prompt-cache limits](../limitations.md#prompt-cache-limits--what-moves-the-cached-prefix).
+
+    A mask rule is the standing exception in the other direction: it moves the *tool roster*, which
+    is also prefix, and that cost is accepted because a capability cannot be made absent any other
+    way.
 
 ## The startup scan is bounded
 
@@ -100,5 +110,6 @@ engine derives from a `paths:` list.
 
 ## Related
 [`AGENTS.md` and instruction files](../configuration/settings.md) · [path-defaults](path-defaults.md) ·
+[Prompt-cache limits](../limitations.md#prompt-cache-limits--what-moves-the-cached-prefix) ·
 [tool-masks](tool-masks.md) ·
 [session-context](session-context.md) · [Architecture](../concepts/architecture.md)
