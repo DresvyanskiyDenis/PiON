@@ -153,3 +153,52 @@ export function assertFetchToolAliasedToWebFetch(): { readonly path: string; rea
   }
   return { path, name: fetchContentName };
 }
+
+/**
+ * The search workflow is pinned in config, so the curator is a decision rather than a habit.
+ *
+ * `pi-web-access` resolves the search workflow as `params.workflow ?? config.workflow` and only then
+ * falls back to its own hardcoded `"summary-review"`. With the key unset, every `web_search` call
+ * that does not pass `workflow` opens a localhost curator page and waits for a human to approve a
+ * summary — a gate that auto-submits on idle timeout, so in an unattended run it gates nothing and
+ * costs an interruption. Whether you want that is a real choice; what is not a choice is having it
+ * decided by whether the model remembered to pass a parameter on this particular call. So the
+ * shipped template pins the key (to `"none"`), and this check is what keeps it pinned.
+ *
+ * Two ways the pin goes missing, both real: a fresh install that regenerates `web-search.json` from
+ * an older template, and `/curator on`/`off`, which writes into the generated file at runtime and
+ * can be undone by the next regeneration. Neither announces itself, and the symptom — a browser
+ * window opening mid-run, or a curator you asked for never appearing — is far from its cause.
+ *
+ * This does NOT check *which* value is pinned. `"none"`, `"summary-review"` and `"auto-summary"` are
+ * all decisions an operator is entitled to make in their own config; an absent key is the one state
+ * nobody chose.
+ *
+ * Unlike the two asserts above, this does not throw, and `web.ts` does not refuse the session over
+ * it: the failure is an interruption, not an unpinned egress path or a tool the prompts call by a
+ * name that no longer exists. A loud, named error at `session_start` is proportionate; refusing to
+ * start is not, and a refusal that disproportionate is one an operator learns to route around.
+ *
+ * @returns a problem description, or `undefined` when the workflow is pinned.
+ */
+export function checkSearchWorkflowPinned(): string | undefined {
+  const path = webSearchConfigPath();
+  let doc: Record<string, unknown>;
+  try {
+    doc = readJsonFile(path, "pi-web-access's own config (config/web-search.json)");
+  } catch {
+    // A missing or unparseable file is `assertPinnedSearchBackend`'s finding, and it refuses the
+    // session over it. Reporting the same defect twice, in two voices, helps nobody.
+    return undefined;
+  }
+  const workflow = doc.workflow;
+  if (typeof workflow === "string" && workflow.length > 0) return undefined;
+  return (
+    `${path} has no "workflow" pinned. pi-web-access then falls back to "summary-review" on every ` +
+    "web_search call that does not pass the parameter itself, which opens a browser page and waits " +
+    'for a human. Pin it: "none" turns the interactive curator off, "auto-summary" keeps a written ' +
+    'summary without the page, "summary-review" is the interactive curator. Set it in the tracked ' +
+    "config/web-search.default.json, not with /curator, which writes the generated file a fresh " +
+    `install replaces. Currently: ${JSON.stringify(workflow)}.`
+  );
+}

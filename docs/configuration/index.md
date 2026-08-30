@@ -137,6 +137,7 @@ Task-shaped versions of these, with the commands, live in the
 | [`bash-timeouts.json`](tools.md#bash-timeoutsjson) | default and ceiling timeouts, output truncation |
 | [`dispatch.json`](dispatch.md) | sub-agent depth, default tier/egress, agent registries, matching |
 | [`hooks.yaml`](tools.md#hooksyaml) | declarative block / confirm / warn / run rules |
+| [`constraints.json`](../extending/hooks.md) | banned patterns the `edit`/`write` hooks refuse, per project |
 | [`tasks.json`](sessions.md#tasksjson) | task-list nudge cadence |
 | [`keybindings.json`](tools.md#keybindingsjson) | TUI key bindings |
 | [`pi-statusline.json`](tools.md#pi-statuslinejson) | statusline segments |

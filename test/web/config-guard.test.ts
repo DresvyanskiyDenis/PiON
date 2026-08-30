@@ -147,6 +147,63 @@ test("assertFetchToolAliasedToWebFetch", async (t) => {
   });
 });
 
+test("checkSearchWorkflowPinned", async (t) => {
+  let dir: string;
+  const originalDir = process.env.PI_CODING_AGENT_DIR;
+
+  t.beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "pion-ext07-workflow-"));
+    process.env.PI_CODING_AGENT_DIR = dir;
+  });
+  t.afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    if (originalDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = originalDir;
+  });
+
+  const { checkSearchWorkflowPinned } = await import("../../extensions/web/config-guard.ts");
+
+  await t.test('workflow: "none" -> pinned, no problem', () => {
+    writeFileSync(join(dir, "web-search.json"), JSON.stringify({ provider: "searxng", workflow: "none" }));
+    assert.equal(checkSearchWorkflowPinned(), undefined);
+  });
+
+  await t.test('workflow: "summary-review" -> also pinned: the check is that a value was chosen, not which', () => {
+    writeFileSync(join(dir, "web-search.json"), JSON.stringify({ provider: "searxng", workflow: "summary-review" }));
+    assert.equal(checkSearchWorkflowPinned(), undefined);
+  });
+
+  await t.test("the key missing -> reported, because that is what a stale generated file looks like", () => {
+    writeFileSync(join(dir, "web-search.json"), JSON.stringify({ provider: "searxng" }));
+    const problem = checkSearchWorkflowPinned();
+    assert.match(problem ?? "", /no "workflow" pinned/);
+    assert.match(problem ?? "", /summary-review/);
+  });
+
+  await t.test("a non-string value is reported rather than trusted", () => {
+    writeFileSync(join(dir, "web-search.json"), JSON.stringify({ provider: "searxng", workflow: false }));
+    assert.match(checkSearchWorkflowPinned() ?? "", /Currently: false/);
+  });
+
+  await t.test("a missing config file is silent here — assertPinnedSearchBackend already refuses over it", () => {
+    assert.equal(checkSearchWorkflowPinned(), undefined);
+  });
+});
+
+test("the tracked web-search template pins the search workflow", async () => {
+  // The durability half, asserted against the TEMPLATE rather than the generated file. `/curator
+  // on|off` writes the same key into the generated config at runtime, and a fresh machine
+  // regenerates that file from this template, so the template is the only copy that survives one.
+  // A generated file on somebody's machine is theirs, and an unpinned key there is what
+  // `checkSearchWorkflowPinned()` reports at session_start; it is not this test's business.
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const template = fileURLToPath(new URL("../../config/web-search.default.json", import.meta.url));
+  const doc = JSON.parse(readFileSync(template, "utf8")) as { workflow?: unknown };
+  assert.equal(typeof doc.workflow, "string");
+  assert.ok((doc.workflow as string).length > 0, 'config/web-search.default.json must pin "workflow"');
+});
+
 test("this repository's own web.json and web-search.json agree, as installed", async () => {
   // Reads the pair the checkout actually carries — the generated `config/web.json` on an installed
   // machine, the tracked `config/web.default.json` template on a clean clone (both are git-ignored /

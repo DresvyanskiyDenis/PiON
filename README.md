@@ -82,7 +82,8 @@ Full detail: [Update](https://dresvyanskiydenis.github.io/PiON/getting-started/u
 | **A fail-closed headless wrapper** | `pi -p --mode json` exits `0` on a failed turn. `bin/pi-run` parses the stream and exits `20`/`21`/`22`/`23`/`24` when the run failed, was truncated, drifted, looped or was aborted |
 | **Structural gates before the tests** | `bin/pi-gate` asks what a test suite cannot: is the *way* this change was arrived at healthy. Four cheap history-and-diff checks — a fix-streak on one file, a near-duplicate module, a wave of new top-level modules with no sign-off, a job with no way to run on a subset. Warn-only by default, blocking on `--block` ([structural gates](docs/operations/structural-gates.md)) |
 
-Plus declarative YAML hooks, task-list nudges, session digests, a searchable session index, a quota
+Plus declarative YAML hooks (including hard project constraints enforced at the tool call, so a
+`NEVER` written in a plan file is refused rather than merely hoped for), task-list nudges, session digests, a searchable session index, a quota
 meter, `@import` expansion in instruction files, oversized tool-result externalisation with a
 re-expand handle, automatic session titling, and a `/doctor` command that reports which modules
 loaded and which are expected-but-absent.

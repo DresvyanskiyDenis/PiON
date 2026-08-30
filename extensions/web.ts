@@ -39,6 +39,7 @@ import { declareModule } from "./lib/manifest.ts";
 import {
   assertFetchToolAliasedToWebFetch,
   assertPinnedSearchBackend,
+  checkSearchWorkflowPinned,
   type PinnedBackendCheck,
 } from "./web/config-guard.ts";
 import { installNetworkDispatcher } from "./web/proxy.ts";
@@ -87,6 +88,13 @@ export function register(pi: ExtensionAPI): void {
     } catch (err) {
       refuse("assertFetchToolAliasedToWebFetch", err);
       return;
+    }
+
+    // Not a `refuse`: see `checkSearchWorkflowPinned`'s docstring for why this one announces
+    // instead of shutting the session down.
+    const workflowProblem = checkSearchWorkflowPinned();
+    if (workflowProblem !== undefined) {
+      emitNotice(ctx, `[pi-config] web: the search workflow is not pinned — ${workflowProblem}`, "error");
     }
 
     if (net.proxied || net.extraCa) {

@@ -48,8 +48,35 @@ rules:
     action: confirm
     reason: "This submits work to a remote executor or a paid endpoint. A local run against real, committed input should have passed first — submit anyway?"
 
+  # Hard constraints. A constraint written as NEVER gets a hook; anything without one was a
+  # preference. `run`, not `pattern`, because the banned patterns are per project and each carries
+  # its own justification, and a refusal that cannot say WHY gets argued with. The script reads
+  # config/constraints.json (global) and <project>/.pi/constraints.json, matches only the text the
+  # call ADDS, and answers with that constraint's own reason. Both files absent is a no-op; a file
+  # present but broken denies, because a silently disarmed constraint reads exactly like a
+  # satisfied one. One rule per writing tool: `match.tool` is a single exact name, and leaving it
+  # off would spawn the script on every bash and read call to answer a question it has no opinion
+  # on.
+  - id: constraints-edit
+    event: tool_call
+    match: { tool: edit }
+    action: run
+    run:
+      command: "~/bin/pi-constraints-hook"
+      timeoutMs: 5000
+
+  - id: constraints-write
+    event: tool_call
+    match: { tool: write }
+    action: run
+    run:
+      command: "~/bin/pi-constraints-hook"
+      timeoutMs: 5000
+
 # The `run` action (shells out to a script, decision on stdout or exit code 2) is documented in
-# docs/extending/hooks.md with a worked example, but deliberately not enabled here: a `run` rule with
-# `match: { tool: bash }` and no script yet in place would BLOCK every bash call by design (a
-# missing script fails closed, see docs/extending/hooks.md "Fail-closed, on purpose") — wire one in only
-# once the target script actually exists at the path you name.
+# docs/extending/hooks.md with a worked example. Enable one only once the target script actually
+# exists at the path you name: a `run` rule with `match: { tool: bash }` and no script in place
+# would BLOCK every bash call by design (a missing script fails closed, see docs/extending/hooks.md
+# "Fail-closed, on purpose"). The two `constraints-*` rules above are the first rules in this tree
+# to use it, and they name a script this repository ships — config/bin/pi-constraints-hook, linked
+# into ~/bin by scripts/install.sh.

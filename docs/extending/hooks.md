@@ -130,14 +130,21 @@ restricted list?".
 
 !!! warning "`command` is not run through a shell"
 
-    It is spawned directly, so **`~` is not expanded**, `$VARS` are not substituted, and no glob,
-    pipe or redirect works. `command: ~/bin/check-sql-tables` fails with `ENOENT` — silently, as far
-    as your rule is concerned, because the script never runs.
+    It is spawned directly, so `$VARS` are not substituted and no glob, pipe or redirect works.
 
-    Give it either an **absolute path**, or a **bare name** that is on `PATH` (`check-sql-tables`),
-    which is resolved for you. Arguments go in `args` as separate list entries, never packed into
-    `command` as one string. If you genuinely need shell features, make the command your shell and
-    put the script in `args`: `command: /bin/sh`, `args: ["-c", "..."]` — and accept that you have
+    A **leading `~/` is expanded** to your home directory when the file is loaded, and that is the
+    *only* substitution there is. It exists because the alternatives do not work: the command is
+    checked with `access(X_OK)` and spawned with the **project** as `cwd`, so a bare name
+    (`check-sql-tables`) is **not** searched on `PATH`, and a relative path (`./scripts/…`) silently
+    means a different file in every repository you open. That left an absolute path with your
+    username baked into a version-controlled config file, which is why no shipped rule used `run`
+    at all until the constraint rules below.
+
+    So: an **absolute path**, or `~/…` — and `~/bin/<script>` is exactly where the installer links
+    everything in `config/bin/`, so a rule can name one portably. Arguments go in `args` as separate
+    list entries, never packed into `command` as one string. If you genuinely need shell features,
+    make the command your shell and put the script in `args`: `command: /bin/sh`,
+    `args: ["-c", "..."]` — and accept that you have
     just taken responsibility for quoting whatever the agent passes you.
 
 ### The protocol
@@ -173,15 +180,16 @@ if grep -qE '\b(salaries|ssn_lookup)\b' <<<"$payload"; then
 fi
 ```
 
-Make it executable (`chmod +x`), and give it an **absolute path** in `command`.
+Make it executable (`chmod +x`), and give it an **absolute path** or a `~/…` path in `command`.
 
 !!! danger "Fail-closed, on purpose — and what that means the day you write one"
     Every failure class above blocks. A missing script, a typo'd path, a `set -e` tripping on an
     unrelated line, a slow network call inside your script: all of them deny the tool call.
 
-    This is why **no `run` rule ships enabled**. A `run` rule with `match: { tool: bash }` and no
-    script at the named path would block *every bash call in every session*, immediately, by design.
-    Write the script first, test it by hand with `echo '{}' | your-script`, then add the rule.
+    A `run` rule with `match: { tool: bash }` and no script at the named path would block *every
+    bash call in every session*, immediately, by design. Write the script first, test it by hand
+    with `echo '{}' | your-script`, then add the rule. The only `run` rules that ship enabled are
+    the two constraint rules below, and they name a script this repository ships and installs.
 
     The reasoning is on [ADR 0002](../adr/0002-fail-open-guard-fail-closed-hooks.md): a rule you wrote
     that silently stops applying **is** the bug.
@@ -189,6 +197,55 @@ Make it executable (`chmod +x`), and give it an **absolute path** in `command`.
 Keep the script fast. It runs inside the tool call, and 5 seconds is the default ceiling — a script
 that phones an API is a script that will one day block your session because someone else's service was
 slow.
+
+---
+
+## Hard constraints: `constraints.json`
+
+The rule this makes true: **a constraint written down as NEVER gets a hook; if it does not get a
+hook, it was a preference.** Prose in `AGENTS.md`, in `SYSTEM.md` or in a project plan is advisory by
+construction. "Do not use LangChain in this POC" sits in a plan file, an agent adds the dependency
+anyway, and nothing objects, because the layer that could object knows about protected branches and
+credential paths, not about project decisions. That is safe behaviour encoded as a model habit
+rather than as system state, and habits are silent when they fail.
+
+Two rules ship enabled — `constraints-edit` and `constraints-write` — and both run
+`~/bin/pi-constraints-hook` (installed from `config/bin/`). The script reads two files and merges
+them, global first:
+
+| File | Holds |
+|---|---|
+| `~/.pi/agent/constraints.json` (i.e. `config/constraints.json`) | ships **empty on purpose** — a global ban applies to every repository this harness opens |
+| `<project>/.pi/constraints.json` | where NEVERs actually belong, because they are project decisions |
+
+```json
+{ "version": 1, "constraints": [
+  { "id": "no-langchain",
+    "pattern": "\\b(?:import|from)\\s+langchain|langchain[_-]\\w+",
+    "flags": "i",
+    "paths": ["\\.py$"],
+    "reason": "This POC talks to the endpoint directly; LangChain was ruled out in docs/plan.md." } ] }
+```
+
+`pattern` is matched against **only the text the call adds** — `write.content`,
+`edit.edits[].newText` — never `oldText`. Matching removals would block the edit that *deletes* a
+banned import: a gate standing in the way of complying with itself. `paths` (optional) scopes the
+constraint to target paths one of its regexes matches, so the doc that quotes a banned string stays
+writable. A writing tool whose input shape the script does not recognise is scanned wholesale, minus
+the removal keys, rather than being silently exempt.
+
+The refusal names the file, the rule and the way out, verbatim:
+
+> constraint "no-langchain" from /home/…/.pi/constraints.json, rule says: … The text this write
+> adds to src/transport.py matches /…/i. **Override path: none, ask the owner to change the
+> constraint file in a commit.**
+
+**Fail-closed, with one door left open.** An unparseable constraints file, or a constraint whose
+regex does not compile, **denies** rather than degrading to "no constraints" — a silently disarmed
+guard reads exactly like a satisfied one. The single exemption: a write to a constraints file itself
+is never blocked, neither by a broken file nor by a matching constraint, because the declared
+override path has to stay reachable. Without it, one bad regex locks you out of the only file that
+could fix it. Both files absent is the one true no-op.
 
 ---
 

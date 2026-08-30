@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { compileHooksFile, HooksFileError } from "../../extensions/hooks/schema.ts";
 
 const SRC = "<test>/hooks.yaml";
@@ -147,6 +149,38 @@ describe("compileHooksFile — per-rule validation (named and dropped, never thr
       SRC,
     );
     assert.match(warnings[0]!, /no "run" block/);
+  });
+
+  it("a leading ~/ in run.command is expanded to the home directory", () => {
+    // The only portable way to name a script in a version-controlled hooks.yaml: `run.ts` does
+    // `access(command, X_OK)` on the string verbatim and spawns it with the PROJECT as cwd, so a
+    // bare name is not found on PATH and a relative path means a different file per repository.
+    const { rules, warnings } = compileHooksFile(
+      {
+        version: 1,
+        rules: [{ id: "x", event: "tool_call", action: "run", run: { command: "~/bin/pi-constraints-hook" } }],
+      },
+      SRC,
+    );
+    assert.deepEqual(warnings, []);
+    assert.equal(rules[0]!.run!.command, join(homedir(), "bin", "pi-constraints-hook"));
+  });
+
+  it("leaves an absolute or relative run.command untouched — no other substitution exists", () => {
+    const { rules } = compileHooksFile(
+      {
+        version: 1,
+        rules: [
+          { id: "abs", event: "tool_call", action: "run", run: { command: "/bin/true" } },
+          { id: "rel", event: "tool_call", action: "run", run: { command: "./scripts/guard.sh" } },
+          { id: "tilde-mid", event: "tool_call", action: "run", run: { command: "/opt/~/nope" } },
+        ],
+      },
+      SRC,
+    );
+    assert.equal(rules[0]!.run!.command, "/bin/true");
+    assert.equal(rules[1]!.run!.command, "./scripts/guard.sh");
+    assert.equal(rules[2]!.run!.command, "/opt/~/nope");
   });
 
   it("run.command missing or empty is named and dropped", () => {

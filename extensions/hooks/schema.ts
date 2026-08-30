@@ -20,6 +20,9 @@
  * `run` for the one action that shells out. No conditionals, no variables, no loops.
  */
 
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 /**
  * Thrown for a file-level defect. `index.ts` must not catch this and continue silently.
  *
@@ -105,6 +108,27 @@ export function compileHooksFile(
   return { rules, warnings };
 }
 
+/**
+ * Expands a leading `~/` in `run.command` against the current user's home directory.
+ *
+ * `run.ts` calls `access(command, X_OK)` on the string verbatim and `spawn`s it with the PROJECT as
+ * cwd, so only an absolute path is stable: a bare name is *not* searched on `PATH` (the access check
+ * resolves it against the process cwd and fails), and a relative path silently means a different
+ * file in every repository the harness is opened in. That left the only usable form an absolute
+ * path with a username baked into a version-controlled config file, which is why no `run` rule had
+ * ever been wired here. `~/` is the missing piece: `~/bin/<script>` is exactly where
+ * `scripts/install.sh` links this repo's `config/bin/*` helpers, so a rule can name one portably.
+ *
+ * Nothing else in the string is expanded — no `$VAR`, no `%s`, no substitution of any kind. This
+ * schema is capped short of being a language on purpose, and a path prefix is the one place the cap
+ * made the feature unusable rather than merely small.
+ */
+function expandHome(command: string): string {
+  if (command === "~") return homedir();
+  if (command.startsWith("~/")) return join(homedir(), command.slice(2));
+  return command;
+}
+
 function compileOneRule(raw: unknown, source: string, index: number): CompileOutcome {
   const where = `${source}#${index}`;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -174,6 +198,7 @@ function compileOneRule(raw: unknown, source: string, index: number): CompileOut
     if (typeof ru.command !== "string" || ru.command.trim().length === 0) {
       return { ok: false, warning: `hooks: ${label} has a "run.command" that is not a non-empty string` };
     }
+    const command = expandHome(ru.command.trim());
     let args: string[] = [];
     if (ru.args !== undefined) {
       if (!Array.isArray(ru.args) || !ru.args.every((a): a is string => typeof a === "string")) {
@@ -188,7 +213,7 @@ function compileOneRule(raw: unknown, source: string, index: number): CompileOut
       }
       timeoutMs = ru.timeoutMs;
     }
-    run = { command: ru.command, args, timeoutMs };
+    run = { command, args, timeoutMs };
   } else if (r.run !== undefined) {
     return { ok: false, warning: `hooks: ${label} has a "run" block but action is "${action}", not "run"` };
   }

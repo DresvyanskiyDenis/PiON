@@ -112,7 +112,18 @@ rules:
 !!! warning "The `run` action fails closed too"
     A `run` rule with `match: { tool: bash }` and no script yet in place blocks **every** bash call
     — by design, since a missing script fails closed. Wire one in only once the script exists at
-    the path you name. That is why no `run` rule ships enabled.
+    the path you name. The two `constraints-*` rules are the only `run` rules that ship enabled,
+    and they name `~/bin/pi-constraints-hook`, which the installer links from `config/bin/`.
+
+!!! tip "`constraints-edit` and `constraints-write`"
+    The two shipped `run` rules. They turn a constraint written as NEVER into something the harness
+    enforces instead of something the model has to keep remembering: the script matches the text an
+    `edit`/`write` **adds** against the patterns in `config/constraints.json` and
+    `<project>/.pi/constraints.json`, and denies with that constraint's own reason. Both files
+    absent is a no-op — the shipped global one carries an empty list, because a global ban would
+    apply to every repository you open. Full mechanism, including the fail-closed rule and the one
+    exemption that keeps the override path reachable, on
+    [Writing a hook](../extending/hooks.md#hard-constraints-constraintsjson).
 
 !!! tip "Why `preflight-before-remote-job` confirms instead of blocking"
     The rule cannot know whether a local run against real input already passed this session — it
@@ -172,6 +183,7 @@ the installer sets whichever single backend you asked for.
 ```json
 {
   "provider": "none",
+  "workflow": "none",
   "searxngBaseUrl": "http://127.0.0.1:8080",
   "webSearch": { "enabled": false },
   "ssrf": { "trustEnvProxy": true },
@@ -189,6 +201,7 @@ error, not silent drift.
 | Key | Ships | Notes |
 |---|---|---|
 | `provider` | `"none"` | `searxng`, `tavily`, `brave`, `exa` or `none`. **Change it in both files or the session refuses to start** |
+| `workflow` | `"none"` | The **search curator**. `"summary-review"` opens a localhost page per search where you pick results and approve a summary; `"auto-summary"` writes the summary without the page; `"none"` returns results directly. Pinned here because the package resolves `params.workflow ?? config.workflow` and only then falls back to `summary-review` — so an unpinned key means an unattended run opens a browser and waits for a human. `session_start` reports the key going missing; it does not care which value you pinned |
 | `searxngBaseUrl` | `http://127.0.0.1:8080` | Your own search instance. Point it wherever yours runs. Read only while `provider` is `searxng` |
 | `webSearch.enabled` | `false` | `true` alongside any real `provider`. Leaving it `false` removes `web_search` |
 | `ssrf.trustEnvProxy` | `true` | Honour `HTTPS_PROXY`/`NO_PROXY` when deciding what is reachable |

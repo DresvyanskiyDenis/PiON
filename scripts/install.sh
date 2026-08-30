@@ -1874,6 +1874,7 @@ link_one optional config/mcp.json           mcp.json
 link_one required config/web.json           web.json
 link_one required config/web-search.json    web-search.json
 link_one required config/hooks.yaml         hooks.yaml
+link_one optional config/constraints.json   constraints.json    # read by config/bin/pi-constraints-hook, the run script behind hooks.yaml's constraint rules
 link_one optional config/guard.json         guard.json
 link_one optional config/digest.json        digest.json
 link_one optional config/quota.json         quota.json

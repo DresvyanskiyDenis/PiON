@@ -1,0 +1,230 @@
+#!/usr/bin/env node
+// config/bin/pi-constraints-hook — the `run` script behind config/hooks.yaml's constraint rules.
+//
+// WHAT IT IS FOR
+// --------------
+// A hard constraint that lives only in prose is advisory. "Do not use LangChain in this POC" sits
+// in a plan file, an agent adds the dependency anyway, and nothing objects — because the layer that
+// could object (hooks.yaml, guard.json) knows about protected branches and credential paths, not
+// about project decisions. This script is the objecting layer. The rule it makes true: a constraint
+// written as NEVER gets a hook; anything that does not get one was a preference.
+//
+// PROTOCOL (docs/extending/hooks.md, "The `run` action: let a script decide")
+// ---------------------------------------------------------------------------
+// stdin:  {"event","ruleId","tool","input","cwd"}
+// stdout: {"decision":"deny","reason":"..."} + exit 0  -> the call is blocked with that reason
+//         nothing                            + exit 0  -> no opinion, the call proceeds
+//         any other exit code                          -> blocked as an infrastructure failure
+//
+// WHAT IT READS, AND WHY ONLY THE ADDED TEXT
+// -------------------------------------------
+// Constraints come from two files, global first, merged: <agentDir>/constraints.json (this repo's
+// own config/constraints.json, once installed) and <cwd>/.pi/constraints.json (a project's own
+// NEVERs, which is where most of them belong). Only the text the call ADDS is matched:
+// `write.content`, `edit.edits[].newText`, plus the flat `edit.newText` older normalisations still
+// produce. `oldText` is excluded deliberately — matching it would block the edit that REMOVES a
+// banned import, which is a gate standing in the way of complying with itself.
+//
+// FAIL-CLOSED, WITH ONE DOOR LEFT OPEN
+// ------------------------------------
+// An unparseable constraints file, or a constraint carrying a regex that does not compile, DENIES
+// rather than degrading to "no constraints": a silently disarmed guard is indistinguishable from a
+// satisfied one, and that indistinguishability is the whole defect this file exists for. The door
+// left open is that a write to a constraints file itself is never blocked — not by a broken file
+// and not by a matching constraint — because the declared override path ("ask the owner to change
+// the constraint file in a commit") has to stay reachable. Without that exemption one bad regex
+// locks the operator out of the only file that could fix it.
+//
+// Zero dependencies, and no import from this repo's lib/: it runs as a spawned process from
+// ~/bin/pi-constraints-hook with the project as cwd, and must work before anything is built.
+
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve } from "node:path";
+
+const CONSTRAINTS_FILE = "constraints.json";
+
+/** The same resolution PI's own getAgentDir() uses, and the one scripts/install.sh links into. */
+function agentDir() {
+  return process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
+}
+
+function readStdin() {
+  try {
+    return readFileSync(0, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+/** Blocked as an infrastructure failure: the hook layer turns any exit that is not 0 or 2 into a block. */
+function fail(message) {
+  process.stderr.write(`pi-constraints-hook: ${message}\n`);
+  process.exit(1);
+}
+
+function deny(reason) {
+  process.stdout.write(JSON.stringify({ decision: "deny", reason }) + "\n");
+  process.exit(0);
+}
+
+/** The only way this script lets a call proceed: it ran fine and said nothing. */
+function allow() {
+  process.exit(0);
+}
+
+/**
+ * The constraint files that exist, global first. Each entry keeps its own path so a refusal can
+ * name the file the operator has to edit.
+ */
+function constraintFiles(cwd) {
+  const paths = [join(agentDir(), CONSTRAINTS_FILE)];
+  const project = join(cwd, ".pi", CONSTRAINTS_FILE);
+  if (!paths.includes(project)) paths.push(project);
+  return paths.filter((p) => existsSync(p));
+}
+
+/** @returns {Array<object>} the compiled constraints. Throws a plain Error on a bad file. */
+function loadConstraints(files) {
+  const constraints = [];
+  for (const file of files) {
+    let doc;
+    try {
+      doc = JSON.parse(readFileSync(file, "utf8"));
+    } catch (err) {
+      throw new Error(`${file} is not valid JSON: ${err && err.message ? err.message : String(err)}`);
+    }
+    if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+      throw new Error(`${file} must be a JSON object with a "constraints" array`);
+    }
+    const list = doc.constraints;
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) throw new Error(`${file}: "constraints" must be an array`);
+    for (const raw of list) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error(`${file}: every constraint must be an object`);
+      }
+      if (typeof raw.id !== "string" || raw.id.trim() === "") {
+        throw new Error(`${file}: every constraint needs a non-empty "id"`);
+      }
+      if (typeof raw.pattern !== "string" || raw.pattern === "") {
+        throw new Error(`${file}: constraint "${raw.id}" needs a non-empty "pattern"`);
+      }
+      let pattern;
+      try {
+        pattern = new RegExp(raw.pattern, typeof raw.flags === "string" ? raw.flags : "");
+      } catch (err) {
+        throw new Error(
+          `${file}: constraint "${raw.id}" has an invalid regex: ${err && err.message ? err.message : String(err)}`,
+        );
+      }
+      let paths;
+      if (raw.paths !== undefined) {
+        if (!Array.isArray(raw.paths)) {
+          throw new Error(`${file}: constraint "${raw.id}" has a "paths" that is not an array`);
+        }
+        try {
+          paths = raw.paths.map((p) => new RegExp(String(p)));
+        } catch (err) {
+          throw new Error(
+            `${file}: constraint "${raw.id}" has an invalid regex in "paths": ` +
+              `${err && err.message ? err.message : String(err)}`,
+          );
+        }
+      }
+      constraints.push({
+        id: raw.id,
+        pattern,
+        paths,
+        reason: typeof raw.reason === "string" ? raw.reason : "(no reason recorded in the constraint file)",
+        source: file,
+      });
+    }
+  }
+  return constraints;
+}
+
+/** The path this call writes to, absolute wherever it can be resolved. */
+function targetPath(input, cwd) {
+  const raw = input && typeof input === "object" ? (input.path ?? input.file_path ?? input.filePath) : undefined;
+  if (typeof raw !== "string" || raw === "") return undefined;
+  return isAbsolute(raw) ? resolve(raw) : resolve(cwd, raw);
+}
+
+/**
+ * Only what the call ADDS. Falls back to the whole input with the removal keys stripped, so a
+ * writing tool this script has never heard of is still covered rather than silently exempt.
+ */
+function addedText(input) {
+  if (!input || typeof input !== "object") return "";
+  const parts = [];
+  if (typeof input.content === "string") parts.push(input.content);
+  if (typeof input.newText === "string") parts.push(input.newText);
+  if (Array.isArray(input.edits)) {
+    for (const edit of input.edits) {
+      if (edit && typeof edit === "object" && typeof edit.newText === "string") parts.push(edit.newText);
+    }
+  }
+  if (parts.length > 0) return parts.join("\n");
+  const rest = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (/^old([_-]?(text|string))?$/i.test(key)) continue;
+    rest[key] = value;
+  }
+  return JSON.stringify(rest);
+}
+
+function main() {
+  const raw = readStdin().trim();
+  let payload;
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch (err) {
+    fail(`could not parse the hook payload on stdin: ${err && err.message ? err.message : String(err)}`);
+    return;
+  }
+
+  const cwd = typeof payload.cwd === "string" && payload.cwd ? payload.cwd : process.cwd();
+  const files = constraintFiles(cwd);
+  const target = targetPath(payload.input, cwd);
+  // Checked BEFORE the files are parsed: a write to a constraints file is the documented way out of
+  // a broken one, so it must not depend on that file parsing.
+  const editsAConstraintFile =
+    target !== undefined &&
+    (files.includes(target) ||
+      target === join(agentDir(), CONSTRAINTS_FILE) ||
+      target.endsWith(join(".pi", CONSTRAINTS_FILE)));
+  if (editsAConstraintFile) allow();
+  if (files.length === 0) allow(); // nothing declared anywhere: the no-op the absence should be
+
+  let constraints;
+  try {
+    constraints = loadConstraints(files);
+  } catch (err) {
+    deny(
+      `constraint file unreadable: ${err.message}. No constraint could be evaluated, so this write is ` +
+        `refused rather than silently unguarded. Override path: none, fix the constraint file ` +
+        `(editing one is never blocked).`,
+    );
+    return;
+  }
+  if (constraints.length === 0) allow();
+
+  const text = addedText(payload.input);
+  if (text === "") allow();
+
+  for (const c of constraints) {
+    if (c.paths && (target === undefined || !c.paths.some((re) => re.test(target)))) continue;
+    if (!c.pattern.test(text)) continue;
+    const where = target ?? "(unnamed target)";
+    deny(
+      `constraint "${c.id}" from ${c.source}, rule says: ${c.reason} ` +
+        `The text this ${payload.tool ?? "call"} adds to ${where} matches /${c.pattern.source}/${c.pattern.flags}. ` +
+        `Override path: none, ask the owner to change the constraint file in a commit.`,
+    );
+    return;
+  }
+  allow();
+}
+
+main();

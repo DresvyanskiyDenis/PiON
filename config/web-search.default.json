@@ -1,5 +1,7 @@
 {
   "provider": "none",
+  "_workflowNote": "The interactive search curator, pinned off as STATE rather than as something the model has to remember. pi-web-access resolves the search mode as `params.workflow ?? config.workflow` and only then falls back to its own hardcoded \"summary-review\", so this key decides every call that does not name the parameter itself, which is every call. What the curator does: opens a localhost page per search where a human picks results and approves a summary, auto-submitting a fallback summary on idle timeout, so in an unattended run it gates nothing and spends an interruption. Set it HERE, in the tracked template the installer generates config/web-search.json from, rather than through the runtime `/curator off` command, which writes the same key to the generated file and is lost the moment that file is regenerated on a fresh machine. Change it to \"summary-review\" or \"auto-summary\" if you want the curator; what extensions/web/config-guard.ts enforces is that the key is pinned to something, not which value you pinned.",
+  "workflow": "none",
   "searxngBaseUrl": "http://127.0.0.1:8080",
   "webSearch": {
     "enabled": false

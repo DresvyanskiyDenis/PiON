@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "_comment": "The carrier for constraints that were written down as NEVER. The rule this file exists to make true: if a constraint matters enough to be written as 'never', it gets a hook; if it does not get a hook, it was a preference. Prose in AGENTS.md, SYSTEM.md or a project's own plan is advisory by construction — a model may or may not weight it, and the failure is silent, arrives as a commit, and is inherited by everything built on top of it. Mechanism: config/hooks.yaml runs config/bin/pi-constraints-hook (linked into ~/bin by scripts/install.sh's config/bin loop) on every `edit` and `write` tool call; the script matches ONLY the added text — write.content, edit.edits[].newText — against the patterns below and denies the call with that constraint's own `reason`. Removing a banned line is never blocked, which is what keeps the gate from standing in the way of complying with itself. Two files are read and merged, global first: this one, installed as <agentDir>/constraints.json, and <project>/.pi/constraints.json, where a project's own NEVERs belong. THIS file ships with an empty `constraints` array on purpose: a global ban would apply to every repository this harness ever opens, and the constraints worth enforcing are project decisions ('no LangChain in this POC', 'no PAT auth', 'nothing writes to the production bucket'). Arming it here with nothing is not a no-op — the machinery is wired, so a project only has to add its own file. Editing a constraints file is never blocked by a constraint: the declared override path (change the file in a commit) has to stay reachable, or the only way to relax a constraint is to route around the gate. A constraints file that is unparseable, or that carries a bad regex, DENIES instead of degrading, and names the file in the refusal, because a silently disarmed constraint reads exactly like a constraint that was satisfied. See docs/extending/hooks.md.",
+  "_shape": {
+    "id": "stable name, appears verbatim in the refusal",
+    "pattern": "JS regex source, tested against the added text only",
+    "flags": "optional JS regex flags, e.g. \"i\"",
+    "paths": "optional array of JS regex sources; when present the constraint applies only to target paths one of them matches. Present so that a doc which QUOTES a banned string stays writable — without it, the first constraint anyone writes also blocks the commit that documents it.",
+    "reason": "why, in one sentence, returned verbatim to the model as the refusal"
+  },
+  "_example": {
+    "id": "no-langchain",
+    "pattern": "\\b(?:import|from)\\s+langchain|langchain[_-]\\w+",
+    "flags": "i",
+    "paths": ["\\.py$"],
+    "reason": "This POC talks to the endpoint directly; LangChain was ruled out in docs/plan.md, and a transport that reintroduces it is inherited by everything downstream."
+  },
+  "constraints": []
+}
