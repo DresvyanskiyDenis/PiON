@@ -137,7 +137,7 @@ describe("ask-user — single select", () => {
 
   it("treats a dismissed dialog as a decline, not as a choice", async () => {
     const { ui } = fakeUi({ selects: [undefined] });
-    assert.deepEqual(await askQuestion(ui, QUESTION), { kind: "declined" });
+    assert.deepEqual(await askQuestion(ui, QUESTION), { kind: "declined", cause: "dismissed" });
   });
 
   it("routes Other to a text input and returns what was typed", async () => {
@@ -152,17 +152,39 @@ describe("ask-user — single select", () => {
 
   it("declines when Other is chosen and the text input is dismissed", async () => {
     const { ui } = fakeUi({ selects: [3], inputs: [undefined] });
-    assert.deepEqual(await askQuestion(ui, QUESTION), { kind: "declined" });
+    assert.deepEqual(await askQuestion(ui, QUESTION), { kind: "declined", cause: "dismissed" });
   });
 
   it("declines when Other is chosen and only whitespace is typed", async () => {
     const { ui } = fakeUi({ selects: [3], inputs: ["   "] });
-    assert.deepEqual(await askQuestion(ui, QUESTION), { kind: "declined" });
+    assert.deepEqual(await askQuestion(ui, QUESTION), { kind: "declined", cause: "dismissed" });
   });
 
   it("throws when the dialog returns something that was never offered", async () => {
     const { ui } = fakeUi({ selects: ["a row nobody showed"] });
     await assert.rejects(() => askQuestion(ui, QUESTION), /not one of the options offered/);
+  });
+
+  it("records a cancelled wait as cancelled, not as somebody closing a window", async () => {
+    // The dialog returns `undefined` either way — PI cannot tell the two apart for us. The
+    // caller's signal is the only thing at this call site that carries a reason, and `aborted`
+    // is sticky, so reading it when the dialog resolves is exact.
+    const controller = new AbortController();
+    controller.abort();
+    const { ui } = fakeUi({ selects: [undefined] });
+    assert.deepEqual(await askQuestion(ui, QUESTION, controller.signal), {
+      kind: "declined",
+      cause: "cancelled",
+    });
+  });
+
+  it("still calls a live signal's decline a dismissal", async () => {
+    const controller = new AbortController();
+    const { ui } = fakeUi({ selects: [undefined] });
+    assert.deepEqual(await askQuestion(ui, QUESTION, controller.signal), {
+      kind: "declined",
+      cause: "dismissed",
+    });
   });
 
   it("passes the caller's signal to every dialog it opens", async () => {
@@ -200,7 +222,7 @@ describe("ask-user — multi select", () => {
 
   it("treats Done with nothing selected as a decline rather than an empty answer", async () => {
     const { ui } = fakeUi({ selects: [4] });
-    assert.deepEqual(await askQuestion(ui, MULTI), { kind: "declined" });
+    assert.deepEqual(await askQuestion(ui, MULTI), { kind: "declined", cause: "dismissed" });
   });
 
   it("carries free text alongside the ticked options", async () => {
@@ -219,7 +241,7 @@ describe("ask-user — multi select", () => {
 
   it("discards a half-toggled list the operator walked away from", async () => {
     const { ui } = fakeUi({ selects: [0, 1, undefined] });
-    assert.deepEqual(await askQuestion(ui, MULTI), { kind: "declined" });
+    assert.deepEqual(await askQuestion(ui, MULTI), { kind: "declined", cause: "dismissed" });
   });
 
   it("is bounded: a select that answers without a person cannot spin the turn forever", async () => {
@@ -243,10 +265,61 @@ describe("ask-user — what the model reads back", () => {
   });
 
   it("says plainly that a question was declined, so nothing reads it as an answer", () => {
-    assert.match(formatAnswers([QUESTION], [{ kind: "declined" }]), /^Auth: declined, no answer given$/);
+    assert.match(formatAnswers([QUESTION], [{ kind: "declined", cause: "dismissed" }]), /^Auth: declined, no answer given$/);
   });
 
   it("reports a missing answer the same way rather than rendering undefined", () => {
     assert.match(formatAnswers([QUESTION], []), /declined, no answer given/);
+  });
+
+  describe("a declined irreversible question is a denial, not a licence", () => {
+    const IRREVERSIBLE: AskQuestion = {
+      ...QUESTION,
+      header: "Payout",
+      question: "Release the payout to the vendor?",
+      consequence: "irreversible",
+    };
+
+    it("leads with DENIED and says outright that silence is not approval", () => {
+      // The whole point: the reversible line above tells the model to proceed on its own
+      // judgement, which on a question about paying somebody is the model authorising the payment
+      // itself. This line has to read as a refusal with no second interpretation available.
+      const text = formatAnswers([IRREVERSIBLE], [{ kind: "declined", cause: "dismissed" }]);
+      assert.match(text, /^Payout: DENIED, no answer given — the operator dismissed the dialog\./);
+      assert.match(text, /Silence is not approval/);
+      assert.match(text, /do not re-ask the same question in a loop/);
+      assert.doesNotMatch(text, /declined, no answer given/);
+    });
+
+    it("renders a missing answer as DENIED too, not merely a dismissed dialog", () => {
+      assert.match(formatAnswers([IRREVERSIBLE], []), /^Payout: DENIED/);
+    });
+
+    it("changes nothing when the question was answered", () => {
+      assert.equal(
+        formatAnswers([IRREVERSIBLE], [{ kind: "answered", labels: ["OIDC"] }]),
+        "Payout: OIDC",
+      );
+    });
+
+    it("names the cause, because dismissed and cancelled are not the same refusal", () => {
+      // The verdict leads and the cause follows: DENIED is what the model has to act on, and
+      // "nobody was asked" versus "they closed it" is what a human reads the transcript for.
+      assert.match(
+        formatAnswers([IRREVERSIBLE], [{ kind: "declined", cause: "cancelled" }]),
+        /^Payout: DENIED, no answer given — the session cancelled the question\./,
+      );
+    });
+
+    it("leaves the other questions in the same call alone", () => {
+      // Why this is a rendered line and not a thrown error: one call carries up to four questions,
+      // and throwing on the denied one would discard the answers the operator did give.
+      const text = formatAnswers(
+        [QUESTION, IRREVERSIBLE],
+        [{ kind: "answered", labels: ["OIDC"] }, { kind: "declined", cause: "dismissed" }],
+      );
+      assert.match(text, /^Auth: OIDC\n/);
+      assert.match(text, /\nPayout: DENIED/);
+    });
   });
 });

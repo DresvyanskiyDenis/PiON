@@ -140,6 +140,7 @@ nav:
       - Tune later:
           - configuration/themes.md
           - configuration/dispatch.md
+          - configuration/lead-model.md
           - configuration/sessions.md
           - configuration/tools.md
           - configuration/paths-and-trust.md

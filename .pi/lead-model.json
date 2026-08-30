@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "tier": "strong",
+  "since": "2026-08-31",
+  "reason": "harness work reads its own failure modes back out of transcripts, so the lead has to be the same model across a whole investigation or the evidence stops being comparable"
+}

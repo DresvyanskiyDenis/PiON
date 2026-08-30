@@ -112,6 +112,25 @@ indistinguishable.
 aborts, not read it afterwards. A flag set ahead of `signal.abort()` is the only thing at that call
 site that carries a reason.
 
+### `pi-subagents` refuses managed worktree isolation while your tree is dirty
+
+`createWorktrees` calls `resolveRepoState`, which runs `git status --porcelain` on the **source**
+checkout and throws `worktree isolation requires a clean git working tree` if anything is
+uncommitted. `git worktree add` itself has no such requirement — it materialises a fresh tree at
+HEAD, and the source tree's dirt never reaches the child — so this is a precondition the package
+imposes on itself.
+
+**Consequence:** a lead holding any work in progress cannot delegate to an agent declaring
+`isolation: worktree`. The tempting way out, `isolation: none`, drops the child into the very
+checkout the declaration exists to keep it out of, so it is the wrong answer.
+
+**Not worked around, on purpose.** The fix would be a patch to `node_modules`, and the installed
+tree is what runs here: this repository keeps it unmodified and `PC-21` enforces that for the
+vendored tree. Instead `extensions/dispatch/isolation.ts` *predicts* the refusal, so it arrives at
+dispatch with a remedy in the message rather than out of band after a run id has been handed back.
+`test/dispatch/isolation.test.ts` loads the real package through `jiti` and asserts the two still
+agree, so the day upstream drops the precondition, that test says so.
+
 ### `pi-subagents`' supervisor channel bounds the request and not the reply
 
 A child's `contact_supervisor` request is size-checked against `MAX_MESSAGE_BYTES` (64 KiB) at
@@ -222,6 +241,93 @@ outlive a session, write it to a file. See [tasks](extensions/tasks.md).
 
 Five fields, plus `run`. Requests for a sixth should become a sub-agent or a guard gate. A hook
 language is a programming language nobody wanted to write.
+
+---
+
+## Prompt-cache limits — what moves the cached prefix { #prompt-cache-limits--what-moves-the-cached-prefix }
+
+A provider caches a **prefix**. Everything from the first byte up to the first byte that differs
+from last time is a cache read; everything after it is a cache write. So a request has two zones,
+and every piece of text this repository contributes belongs to exactly one of them:
+
+- **The prefix zone** — tool schemas, the system prompt, and the conversation up to the last
+  message. Text here has to be **byte-identical from turn to turn**. A block whose content changes
+  mid-session does not merely cost its own size, it costs *everything behind it*.
+- **The tail** — appended after the last real message, through the `context` event. Text here may
+  change on every single call and costs only itself.
+
+Volatile content belongs at the tail. That is the whole rule.
+[`path-rules`](extensions/path-rules.md) is the worked example: its rule set grows as the session
+touches new files, so it is rendered into the tail before every LLM call rather than into the
+system prompt, where each newly activated rule would have re-written the whole conversation behind
+it at cache-write rates.
+
+### What the harness already fixes — do not imitate it
+
+**Extension system-prompt edits do not accumulate.** PI hands `before_agent_start` its *base*
+system prompt every turn and keeps the result for that turn only. The order of the blocks
+extensions append is the registration order in `extensions/index.ts`, identical on every turn, and
+a module that appends without stripping its own previous block still does not double.
+
+**`context` runs before every provider request** — not once per turn. Once per LLM call, including
+mid-turn calls after a tool result and the first call after a compaction, `/reload` or fork. There
+is no case where a `before_agent_start` injection is seen and a `context` injection is not, which
+is why `path-rules` needs no second, "durable" delivery path.
+
+### What is stable, and what is a deliberate trade
+
+[`dispatch`](extensions/dispatch.md)'s model menu is computed once at `session_start` and injected
+byte-identically thereafter. Nothing in this tree renders a clock —
+[`session-context`](extensions/session-context.md) renders a *date*, and a message's `timestamp` is
+harness metadata that never reaches the provider.
+
+Two things do move the prefix, and both are trades rather than defects:
+
+- **[`tool-masks`](extensions/tool-masks.md) moves the tool roster.** The schemas sit ahead of
+  everything, so each mask application and each release is a full-context rebuild — and a turn mask
+  applies and releases inside one turn, so it costs two. There is no way to make a capability
+  physically absent without changing the roster. Spend it knowingly: a session alternating between
+  two rosters shows cacheRead alternating between two values, which is the signature.
+- **`session-context`'s block changes at local midnight and on `/model`.** Correctness wins: a
+  block asserting yesterday's date, or a model the session no longer runs, is worse than one
+  rebuild.
+
+### Retention is not a knob you have here
+
+`PI_CACHE_RETENTION=long` only reaches the wire as `prompt_cache_retention` when the provider also
+declares `supportsLongCacheRetention`, and no provider template in this repository declares it —
+`cacheControlFormat` is deliberately unset on every gateway-shaped provider, because a proxy in the
+path does not reliably surface `cache_control` breakpoints and declaring it would report savings
+that did not happen ([`models.json`](configuration/models.md), [LiteLLM](configuration/litellm.md)).
+On those routes no breakpoint is sent at all: the endpoint does automatic prefix caching, matching
+greedily from the first byte, with no API surface. A full miss after a long idle is that automatic
+cache being evicted, and nothing in this repository or in your environment extends its TTL. The
+variable is still correct for a direct route that *does* declare the flag; leave it set.
+
+### Measuring it
+
+[`session-index`](extensions/session-index.md) already records `tokens_cache_read` and
+`tokens_cache_write` per session, so prefix stability is observable without adding anything:
+
+```bash
+bin/pi-log cache
+```
+
+Read the `reuse` column (cacheRead / cacheWrite). **Healthy**: it climbs with turn count and is
+comfortably above 1 by turn ten — a stable prefix means each turn re-reads the conversation from
+cache and writes only the new tail. **Broken**: at or below ~0.5 over a long session, with `w/turn`
+near whole-context size rather than near one turn's worth of new text.
+
+This is a smell test, not a proof. It aggregates a whole session, so it cannot say *which* turn
+diverged — a session that legitimately switched model or crossed midnight scores like a broken one.
+To localise a suspect block, read the per-turn `usage.cacheRead` out of the session JSONL: a
+cacheRead that stays constant across turns instead of growing is the signature, and the constant is
+roughly how many tokens sit ahead of the first byte that changes.
+
+The free half of the regression check is static, and worth copying: assert that no module
+contributing to the prefix returns a `systemPrompt` from `before_agent_start` unless its content is
+session-stable. `test/path-rules/index.test.ts` does exactly that — it asserts the handler count is
+zero and puts the reason in the assertion message.
 
 ---
 

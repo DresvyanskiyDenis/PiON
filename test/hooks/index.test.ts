@@ -13,7 +13,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME } from "../../extensions/lib/paths.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
-import { hooksDegradedReason, id, register } from "../../extensions/hooks/index.ts";
+import { hooksDegradedReason, hooksScriptFailures, id, register } from "../../extensions/hooks/index.ts";
 
 type ToolCallHandler = (event: ToolCallEvent, ctx: ExtensionContext) => Promise<ToolCallEventResult | undefined>;
 type InputHandler = (event: InputEvent, ctx: ExtensionContext) => Promise<InputEventResult>;
@@ -607,5 +607,128 @@ rules:
 
     const result = await input[0]!(inputEvent("please implement the thing"), h.ctx);
     assert.deepEqual(result, { action: "handled" }, "must swallow, not fall through to {action:'continue'}");
+  });
+});
+
+describe("hooks — a run script that is not installed says so, once", () => {
+  const yaml = (command: string, ruleId = "external-guard"): string => `version: 1
+rules:
+  - id: ${ruleId}
+    event: tool_call
+    match: { tool: bash }
+    action: run
+    run: { command: "${command}" }
+`;
+
+  it("blocking is unchanged, and the failure is now readable from outside the transcript", async () => {
+    await writeGlobalHooks(yaml(join(dir, "never-installed.sh")));
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const h = fakeCtx();
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+
+    assert.deepEqual(hooksScriptFailures(), [], "nothing has run yet, so nothing is known yet");
+    const result = await toolCall[0]!(bashEvent("ls"), h.ctx);
+
+    assert.equal(result?.block, true, "the block is the correct behaviour and must not change");
+    const failures = hooksScriptFailures();
+    assert.equal(failures.length, 1);
+    assert.match(failures[0]!, /external-guard/, "names the rule");
+    assert.match(failures[0]!, /bash/, "names the tool it just killed");
+  });
+
+  it("the announcement names the rule, the tool and the install as the fix", async () => {
+    await writeGlobalHooks(yaml(join(dir, "never-installed.sh")));
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const h = fakeCtx();
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+    await toolCall[0]!(bashEvent("ls"), h.ctx);
+
+    // The three things the operator cannot assemble from the refusal reason alone. Without the
+    // third, the obvious next move is to edit hooks.yaml, which is the one file that is correct.
+    const said = h.notified.map(([msg]) => msg).join("\n");
+    assert.match(said, /external-guard/);
+    assert.match(said, /bash/);
+    assert.match(said, /scripts\/install\.sh/);
+  });
+
+  it("a rule that fires on every call announces once, not once per call", async () => {
+    await writeGlobalHooks(yaml(join(dir, "never-installed.sh")));
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const h = fakeCtx();
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+
+    for (let i = 0; i < 4; i++) await toolCall[0]!(bashEvent("ls"), h.ctx);
+
+    // The failure is a property of the machine, not of the call that hit it. Repeating it on every
+    // keystroke is how an operator learns to scroll past the one line that explains the session.
+    const announcements = h.notified.filter(([msg]) => msg.includes("not installed here"));
+    assert.equal(announcements.length, 1);
+    assert.equal(hooksScriptFailures().length, 1, "and it is recorded once, not four times");
+  });
+
+  it("two broken rules are two entries, because they are two different scripts to install", async () => {
+    await writeGlobalHooks(`version: 1
+rules:
+  - id: guard-one
+    event: tool_call
+    match: { tool: bash }
+    action: run
+    run: { command: "${join(dir, "gone-one.sh")}" }
+  - id: guard-two
+    event: tool_call
+    match: { tool: bash }
+    action: run
+    run: { command: "${join(dir, "gone-two.sh")}" }
+`);
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const h = fakeCtx();
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+
+    // The first rule blocks, so the second never runs on this call — the set grows as tools are
+    // used, which is exactly what "populated during the session" means.
+    await toolCall[0]!(bashEvent("ls"), h.ctx);
+    assert.deepEqual(hooksScriptFailures().map((f) => f.slice(0, 16)), ['hook "guard-one"']);
+  });
+
+  it("a script that runs and says nothing leaves the set empty", async () => {
+    const quiet = await scriptFile("installed.sh", "exit 0");
+    await writeGlobalHooks(yaml(quiet));
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const h = fakeCtx({ cwd: dir });
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+
+    await toolCall[0]!(bashEvent("ls"), h.ctx);
+    assert.deepEqual(hooksScriptFailures(), []);
+  });
+
+  it("a script that DENIES is not a script failure — the guardrail worked", async () => {
+    const denying = await scriptFile("denies.sh", 'echo "no" >&2; exit 2');
+    await writeGlobalHooks(yaml(denying));
+    const { pi, toolCall, sessionStart } = fakePi();
+    register(pi);
+    const h = fakeCtx({ cwd: dir });
+    await sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+
+    const result = await toolCall[0]!(bashEvent("ls"), h.ctx);
+    assert.equal(result?.block, true);
+    assert.deepEqual(hooksScriptFailures(), [], "a denial is the rule doing its job, not an install problem");
+  });
+
+  it("re-registering clears the set, so a second session does not inherit the first one's news", async () => {
+    await writeGlobalHooks(yaml(join(dir, "never-installed.sh")));
+    const first = fakePi();
+    register(first.pi);
+    const h = fakeCtx();
+    await first.sessionStart[0]!({ type: "session_start", reason: "startup" }, h.ctx);
+    await first.toolCall[0]!(bashEvent("ls"), h.ctx);
+    assert.equal(hooksScriptFailures().length, 1);
+
+    register(fakePi().pi);
+    assert.deepEqual(hooksScriptFailures(), []);
   });
 });

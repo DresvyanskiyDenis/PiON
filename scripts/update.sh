@@ -720,6 +720,21 @@ elif [ -f "$FLAG_FILE" ]; then
   else warn "could not remove $FLAG_FILE — the next session will announce an update that is already applied"; fi
 fi
 
+# Before the verify block, and outside its --no-verify opt-out, for the same reason install.sh runs
+# it outside its own: step 5 relinked config/bin into ~/bin, and this asks whether that landed. A
+# hooks.yaml `action: run` script that is missing or still pointing at a previous checkout blocks
+# its tool in every session from here on, and an update is exactly when a link goes stale.
+if [ "$DRY_RUN" = 1 ]; then
+  info "a real run would now execute bin/pi-check --doctor"
+elif [ -x "$REPO_DIR/bin/pi-check" ]; then
+  if HOME="$PREFIX" "$REPO_DIR/bin/pi-check" --doctor; then ok "hook scripts are installed and executable"
+  else
+    FINAL_EXIT=4
+    warn "a hooks.yaml run script is not installed — the update landed; read the finding(s) above"
+    todo_add "     run ./scripts/install.sh to restore the ~/bin hook script link(s) reported above"
+  fi
+fi
+
 if [ "$RUN_VERIFY" = 0 ]; then
   info "verification skipped (--no-verify)"
 elif [ "$DRY_RUN" = 1 ]; then

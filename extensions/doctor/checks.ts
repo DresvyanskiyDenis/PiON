@@ -79,6 +79,11 @@ export interface DoctorInputs {
   /** `D-09`. `extensions/hooks/index.ts`'s `hooksDegradedReason()` — `undefined` when the hook
    *  layer loaded normally, otherwise why it is carrying no rules at all. */
   readonly hooksDegradedReason: string | undefined;
+  /** `D-09`. `extensions/hooks/index.ts`'s `hooksScriptFailures()` — one line per `run` rule whose
+   *  script could not be executed. Empty is the healthy case, and also the case on a machine with
+   *  no `run` rules at all. Independent of `hooksDegradedReason`: a file that loaded perfectly can
+   *  still carry a rule pointing at a script this machine never installed. */
+  readonly hooksScriptFailures: readonly string[];
   /** `D-10`. `pi.getAllTools()` narrowed to the tools that ship `promptGuidelines`. Those entries
    *  are copies, so reading them cannot disturb the live definitions and writing to them would
    *  achieve nothing — this check only ever reads. */
@@ -407,17 +412,39 @@ export function checkPackages(inputs: DoctorInputs): Finding[] {
  *  Zero rules with no degraded reason is NOT reported: a machine with no `hooks.yaml` at all is the
  *  normal case, and `D-09` fires on "the file exists and is broken", not on "the file is absent". */
 export function checkHooks(inputs: DoctorInputs): Finding[] {
+  const findings: Finding[] = [];
   const reason = inputs.hooksDegradedReason;
-  if (reason === undefined) return [];
-  return [
-    finding(
-      "D-09",
-      "error",
-      "hooks.yaml",
-      `the hook layer is DEGRADED — no hook rules are in effect this session: ${reason}`,
-      `fix the file and restart; EXT-03's hard gates (guard.ts) are unaffected meanwhile`,
-    ),
-  ];
+  if (reason !== undefined) {
+    findings.push(
+      finding(
+        "D-09",
+        "error",
+        "hooks.yaml",
+        `the hook layer is DEGRADED — no hook rules are in effect this session: ${reason}`,
+        `fix the file and restart; EXT-03's hard gates (guard.ts) are unaffected meanwhile`,
+      ),
+    );
+  }
+  // The opposite polarity of the case above, and the reason both belong under one check id: there
+  // the file broke and NOTHING is guarded, here the file is fine and a rule is guarding so hard
+  // that its tool is unusable. Both are "the hook layer is not doing what hooks.yaml says", and an
+  // operator reading `/doctor` wants them in the same place.
+  //
+  // `error` for the same reason: a session in which `write` blocks every time is not a session
+  // anyone should be told is healthy. The fix is an install, not an edit, which is why it names
+  // the script rather than the rule's own `reason`.
+  for (const failure of inputs.hooksScriptFailures) {
+    findings.push(
+      finding(
+        "D-09",
+        "error",
+        "hooks.yaml",
+        `a hook script is not runnable on this machine: ${failure}`,
+        `run ./scripts/install.sh, then bin/pi-check --doctor to confirm the link points at this checkout`,
+      ),
+    );
+  }
+  return findings;
 }
 
 /**
@@ -597,7 +624,10 @@ export function buildReport(inputs: DoctorInputs, findings: readonly Finding[]):
       usableHere: inputs.availableModels.filter((m) => m.credentialed).length,
       referencedWithoutCredential,
     },
-    hooks: inputs.hooksDegradedReason !== undefined ? { degradedReason: inputs.hooksDegradedReason } : {},
+    hooks: {
+      ...(inputs.hooksDegradedReason !== undefined ? { degradedReason: inputs.hooksDegradedReason } : {}),
+      ...(inputs.hooksScriptFailures.length > 0 ? { scriptFailures: [...inputs.hooksScriptFailures] } : {}),
+    },
     packages: {
       declared: inputs.packages.length,
       resolved: packagesResolved,

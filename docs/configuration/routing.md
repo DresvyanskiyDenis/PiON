@@ -318,6 +318,90 @@ talks to any provider". Read `extensions/lib/provider-retry.ts` for the whole ar
 
 ---
 
+## `compaction`
+
+Compaction is the one call this harness makes that has to succeed **while the session is already
+failing**. Until it had a block here it borrowed `ctx.model` — the lead's provider, the lead's
+model, the lead's budget — so the call that rescues a session was aimed at whatever was breaking it.
+A quota refusal on the lead's deployment therefore took out both the turn and the ability to shrink
+enough to keep going, and the only exit was an operator changing model by hand.
+
+Retrying does not reach that. A retry re-issues the same request to the same endpoint, which is the
+right answer to a transient artifact (see [`retry`](#retry-the-two-classes-that-are-weather-not-a-verdict))
+and no answer at all to a budget that is already spent. What compaction needed was a different
+endpoint.
+
+```json
+"compaction": {
+  "route": ["light", "confidential"],
+  "onRouteFailure": {
+    "failoverClasses": ["quota", "network", "empty-response", "auth", "model-not-found"]
+  }
+}
+```
+
+### `route`
+
+Ordered candidates, read with exactly the vocabulary the rest of this file uses: a bare word is a
+[tier](#tiers) name, a `provider/id` is a literal model, and a `:level` suffix — or the tier's own
+`thinkingLevel` — sets the reasoning effort. The first candidate that produces a summary wins and
+the rest are never called.
+
+The shipped route is `light` then `confidential`, and each entry is there for a different failure:
+
+| Candidate | Survives |
+| --- | --- |
+| `light` | the lead's own model or deployment refusing — a different model, and summarisation is the shape that tier exists for |
+| `confidential` | the whole *provider* being down or rate-limited, because it is a different one |
+
+A stock install has one provider, so `confidential` is listed under [`tiersUnbound`](#tiersunbound)
+and the second hop resolves to nothing. That is not a misconfiguration and is not reported as one:
+naming an unbound tier in the route is a forward declaration, and the day `scripts/install.sh` binds
+a provider for it the route grows the second hop with no edit to this file. Until then the route is
+one candidate long, which still moves compaction off the lead's model.
+
+!!! tip "The one rule for editing this list"
+    A candidate's `contextWindow` in `models.json` must be at least the auto-compact trigger in
+    `compaction.json`, because that is roughly the size of the transcript it will be handed. A model
+    with a smaller window is not a fallback: it cannot physically accept the input, so it fails on
+    every call rather than on a bad day. Nothing enforces this at runtime on purpose — a candidate
+    that is too small fails on its own provider's context error and the route hops past it, which
+    costs one round trip and is honest, where a harness-side veto would be one more place to be
+    wrong about a number the provider owns.
+
+An empty route, or one whose every candidate is unresolvable, degrades to the session's own model —
+the behaviour this block exists to replace — and says so at every session start. That is a
+degradation, not a default.
+
+### `onRouteFailure.failoverClasses`
+
+The failure classes that move to the **next** candidate. Any other class ends the route where it
+stands. The five shipped classes each say something about *this* candidate and nothing about the
+next: `quota` is the whole reason the block exists, `network` and `empty-response` are provider
+artifacts with no verdict in them, `auth` means this candidate's credential is missing or rejected,
+and `model-not-found` means this candidate is misconfigured in this install.
+
+`policy` is **not** eligible, and is refused as a configured value rather than merely absent from
+the default. A content filter refusing the transcript is a verdict about the *data*; walking the
+route until some tenant accepts it is egress-shopping around a refusal that was made on purpose.
+
+### Why this is not the failover [ADR 0001](../adr/0001-no-provider-failover.md) forbids
+
+[`onProviderError`](#onprovidererror) governs the path that produces the **work**, where a quietly
+substituted weaker model hands back worse work under the stronger model's name. That stays
+`abort` / `substituteProvider: false`, and `PC-03` still fails the repository on a `fallback`,
+`failover` or `egressOrder` key anywhere in this file.
+
+Compaction is the **service** path. Its product is a summary of a conversation rather than the work,
+so there is no weaker answer for a reader to be fooled by, and the alternative to hopping is not
+"the operator picks another model" but "the session dies on context". The property the two blocks
+share is the one that carried the original decision: **nothing is silent.** The route is printed at
+session start, every hop announces provider, model, egress class and error class and is persisted as
+a `compaction_route_hop` entry, and an exhausted route surfaces a classified provider failure *and*
+writes a session fact — the one surface that survives the very cut it is about.
+
+---
+
 ## Verifying a change
 
 ```bash
@@ -337,3 +421,5 @@ human and the model are reading different lists, the one nobody can see is the o
 - [Providers and tiers](../concepts/providers-and-tiers.md)
 - [`models.json`](models.md)
 - [`dispatch.json`](dispatch.md) — the defaults used when an agent declares nothing
+- [`compaction`](../extensions/compaction.md#6-the-compaction-route) — the extension that walks the route above
+- [ADR 0001](../adr/0001-no-provider-failover.md) — why the working path has no route at all

@@ -68,6 +68,29 @@ turns a two-second diagnosis into a two-minute one.
     fallback chain, and the abort is still where all six classes end up.
     [Reference](../configuration/routing.md#retry-the-two-classes-that-are-weather-not-a-verdict).
 
+!!! note "Amended — compaction has a route, and the working path still does not"
+    This decision was written about the path that produces the **work**, and it is unchanged there.
+    It was also being applied, by inheritance, to a path it was never argued for: **compaction**.
+
+    The compaction call borrowed the session's own model, so the one call that has to succeed while
+    the lead's provider is refusing was aimed at the thing that was refusing. A quota wall on the
+    lead's deployment took out the turn *and* the ability to shrink out of the corner. The session
+    could neither work nor compact, which is not "failing loud and fast" — it is a deadlock, and the
+    exit was a human changing model by hand.
+
+    So `routing.json` gained a `compaction` block with an ordered `route`. Every argument above
+    survives it, because none of them is about this path. Attribution: the product is a summary of a
+    conversation, not an answer whose author you need to reconstruct. Disclosure: the route is a
+    *declared list of endpoints*, so a `confidential` candidate is one an operator wrote down, and
+    nothing picks a destination by looking at what is currently broken. Silence: the route is printed
+    at session start, every hop is announced and persisted, and an exhausted route writes a session
+    fact so the news survives the cut it is about. A content-filter refusal does not hop at all —
+    that is a verdict about the data, and re-offering it elsewhere is egress-shopping.
+
+    `onProviderError` is untouched: `policy: abort`, `substituteProvider: false`, and `PC-03` still
+    fails the repository on a `fallback`, `failover` or `egressOrder` key anywhere in the file.
+    [Reference](../configuration/routing.md#compaction).
+
 ## Consequences
 
 **Positive**
@@ -80,7 +103,8 @@ turns a two-second diagnosis into a two-minute one.
 
 **Negative**
 
-- A provider outage stops work. There is no automatic degradation to a second provider.
+- A provider outage stops work. There is no automatic degradation to a second provider — for the
+  work. Compaction is the one exception, argued above and confined to itself.
 - Unattended runs fail rather than limp. A scheduled job hitting a quota wall exits non-zero at
   02:00 instead of producing a cheaper answer nobody asked for. (Some operators genuinely want the
   cheaper answer. They should use a different harness, or wrap `bin/pi-run` in their own retry.)

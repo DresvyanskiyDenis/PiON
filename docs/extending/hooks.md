@@ -265,6 +265,52 @@ Project hooks inherit the whole trust decision: an untrusted project's `.pi/` is
 
 ---
 
+## When the script is not installed
+
+A `run` rule is the one action that depends on something outside the repository: a file on *this*
+machine, at the path `command` names. `extensions/hooks/run.ts` **fails closed** on a script it
+cannot execute, which is the right answer — a guardrail that cannot be evaluated must not permit the
+call it was written to judge.
+
+The consequence is easy to miss, and it is the opposite of the degraded case below. A missing script
+does not switch the rule off. It switches the **tool** off: every `edit`, or every `bash`, for the
+whole session, refused with a reason that appears once per attempt inside a tool result. Nothing in
+that reason says "your install is out of date", because the rule and the file are both perfectly
+correct.
+
+So the harness says it, twice, in two places:
+
+| Channel | When | What it names |
+|---|---|---|
+| An `error`-level announcement | The first time a rule's script fails, **once per rule** | The rule id, the tool it just blocked, and `./scripts/install.sh` as the fix |
+| `/doctor`'s `D-09` | Any time for the rest of the session | The same, still answerable ten minutes later when you have stopped trusting your own `edit` tool |
+| `bin/pi-check --doctor` | From a shell, any time | Which **path** is wrong, before a session ever hits the rule |
+
+`bin/pi-check --doctor` is a mode, not a rule, and the only part of `pi-check` that looks outside the
+checkout. It reads `config/hooks.yaml`, resolves every `run.command` (expanding a leading `~/` the
+same way the loader does), and fails when the script is absent, is a real file where the installer's
+symlink belongs, points at a *different* checkout, or resolves to something missing or without its
+`+x` bit. It also fails when a rule names a `~/bin` script this repository does not ship, which no
+install could ever create.
+
+```console
+$ bin/pi-check --doctor
+PD-01  /home/you/bin/pi-constraints-hook  hook "constraints-edit" (~/bin/pi-constraints-hook) is NOT
+       installed — the rule fails closed, so its tool is dead this session. re-run ./scripts/install.sh
+1 finding(s) — install checked under /home/you/bin, expecting links into /home/you/pi-config
+```
+
+It runs with no arguments beside `--repo` and `--json`, and refuses to combine with `--all` or a
+named rule: those inspect the repository tree, this inspects the machine, and one exit code cannot
+honestly mean both. `scripts/install.sh` and `scripts/update.sh` both run it on the links they have
+just written, and `scripts/postinstall-verify.sh` carries it as its own row.
+
+The expected link target is the installer's stable path (`~/pi-config/config/bin/<script>`) and
+deliberately **not** "wherever this checkout happens to be" — so running it from a worktree tells you
+the truth about the installed machine instead of flagging the worktree.
+
+---
+
 ## When something is wrong with the file
 
 Two different failures, treated differently on purpose:
@@ -290,8 +336,9 @@ keeps working — and the earlier polarity meant one YAML typo bricked the sessi
 ## Verifying
 
 ```bash
-pi                 # restart — hooks compile at session start
-/doctor            # D-09 reports a degraded hook layer, and dropped-rule warnings
+bin/pi-check --doctor   # before a session: is every `run` script installed on this machine?
+pi                      # restart — hooks compile at session start
+/doctor                 # D-09 reports a degraded hook layer, dropped-rule warnings, and dead scripts
 ```
 
 Then trigger the rule deliberately. A hook you have never seen fire is a hook you have not tested.

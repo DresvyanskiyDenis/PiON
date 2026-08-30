@@ -17,7 +17,7 @@ except `D-04`, which needs the model registry and is therefore network-shaped.
 | `D-06` | the guard loaded **and** its synthetic probe `matchDangerous("rm -rf /")` still resolves to `DB-RM-ROOT` |
 | `D-07` | every MCP server name mentioned is declared in `config/mcp.json` |
 | `D-08` | every pinned package in `config/packages.lock.json` is installed at that version (**warn**, not error) |
-| `D-09` | the hook layer is carrying rules rather than sitting degraded |
+| `D-09` | the hook layer is carrying rules rather than sitting degraded, and every `action: run` rule reached its script |
 | `D-10` | every tool `promptGuidelines` bullet dropped by `SYSTEM.md` has a recorded disposition (**warn**, not error) |
 
 **`D-06` is the only finding that shuts the session down.** Everything else reports and continues.

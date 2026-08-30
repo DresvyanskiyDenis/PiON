@@ -37,6 +37,17 @@ or when your own context has passed half. A narrow task sent out costs a round t
 cold context and comes back as a summary that lost the details you needed. That trade only pays on
 width.
 
+# Hold the lead model
+
+Changing the lead model mid stream is an event, not a convenience. Models differ in context window,
+structured-output behaviour and failure mode, so a lead that moves under an investigation makes a
+model problem and a code problem indistinguishable, and makes every result before the switch
+incomparable with every result after it.
+
+Where a project pins its lead, the pin is held: a switch away from it is reverted and announced.
+When a change really is right, `/lead-model <tier> <why>` is the way to make it — it records the
+change and your reason where the next turn will still read them.
+
 # Check
 
 Run the checks the project already defines, in the form the project defines them. Passing means an

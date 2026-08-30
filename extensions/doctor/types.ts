@@ -100,8 +100,9 @@ export interface DoctorReport {
     readonly absent: readonly string[];
     readonly versionMismatch: readonly string[];
   };
-  /** `D-09`. `undefined` reason = the hook layer loaded its rules normally. */
-  readonly hooks: { readonly degradedReason?: string };
+  /** `D-09`. `undefined` reason = the hook layer loaded its rules normally; an absent
+   *  `scriptFailures` = every `run` rule reached its script. The two are independent. */
+  readonly hooks: { readonly degradedReason?: string; readonly scriptFailures?: readonly string[] };
   /** `false` when any finding has severity `"error"`. */
   readonly ok: boolean;
 }

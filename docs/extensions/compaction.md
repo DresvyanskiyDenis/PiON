@@ -256,6 +256,40 @@ anything and never says why. The streak resets at the first request that fits.
     tuning them without new measurements is tuning the wrong thing. The lever that is yours is
     [`modelOverrides.<id>.contextWindow`](../configuration/models.md#modeloverrides).
 
+## 6. The compaction route
+
+The summariser call used to borrow `ctx.model` — the session's own provider, model and budget. That
+made compaction, the one call that has to work *while the session is failing*, depend on the thing
+that was failing. A quota wall on the lead's deployment ended the turn and removed the session's
+ability to shrink out of the corner at the same time.
+
+`config/routing.json`'s [`compaction`](../configuration/routing.md#compaction) block gives it an
+ordered list of endpoints instead. `route.ts` parses and resolves that list; this module walks it —
+find the model, resolve the credential, call `compact()` — and stops at the first candidate that
+produces a summary.
+
+What you see when it matters:
+
+| Event | Where it goes |
+| --- | --- |
+| The route, at every session start | an announcement naming each candidate as `tier -> provider/model:level [egress]` |
+| A candidate failing | an announcement with the error class, plus a `compaction_route_hop` session entry |
+| A summary produced on candidate 2+ | an announcement naming the candidate and every one that failed first |
+| The route running out | a classified provider failure, a status cell, **and a session fact** |
+
+That last row is the one to read twice. A session entry and a toast both die with the context, and
+the context is about to be cut — which is why we are here at all. The facts file is re-stated after
+every compaction (§3), so recording the exhausted route there is what makes the next turn's model
+read *"compaction has no working path"* instead of silently trying again and dying the same way.
+
+A `policy` refusal never hops: a content filter rejecting the transcript is a verdict about the
+data, not about the endpoint. Neither does a cancellation, which is not a verdict about anything and
+must not turn one interrupt into three provider calls.
+
+If nothing resolves — an empty route, or every candidate unknown to this install — compaction falls
+back to the session's own model and says so at session start. That restores the behaviour this block
+exists to replace, so it is reported as the degradation it is rather than passed off as a default.
+
 ## An extension cannot abort a headless run
 
 Answered against the shipped code of 0.84.0 rather than the docs. Both documented candidates fail,
@@ -278,6 +312,8 @@ root is unwritable — a sentinel-only wrapper would report success in exactly t
 guard could not speak.
 
 ## Related
+
+- [`config/routing.json` — `compaction`](../configuration/routing.md#compaction) — the route this module walks
 [Context windows](../concepts/context-windows.md) ·
 [`onProviderError`](../configuration/routing.md#onprovidererror) ·
 [`compaction.json`](../configuration/sessions.md#compactionjson) ·

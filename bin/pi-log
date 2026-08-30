@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pi-log sessions | pi-log events | pi-log cost
+# pi-log sessions | pi-log events | pi-log cost | pi-log cache
 #
 # EXT-26's greppable face — usable with PI not running, since it only reads index.db
 # (extensions/session-index/*.ts is the writer; this script never opens it for write).
@@ -37,8 +37,30 @@ case "${1:-sessions}" in
              CASE WHEN sum(cost_known)=count(*) THEN printf('\$%.2f',sum(cost_usd)) ELSE 'partial' END total
       FROM sessions GROUP BY model ORDER BY 3 DESC;"
     ;;
+  cache)
+    # Prefix stability, per session. `reuse` is cacheRead / cacheWrite: how many tokens the
+    # provider served out of its cache for every token it had to write into it.
+    #
+    # Reading it: a session whose cached prefix keeps GROWING re-reads the whole conversation each
+    # turn and writes only the new tail, so `reuse` climbs with turn count and is well above 1 by
+    # the tenth turn. A `reuse` at or below ~0.5 over a long session means the prefix is being
+    # REBUILT rather than extended — something ahead of the conversation (system prompt, tool
+    # roster) is changing between turns. docs/limitations.md has the method, including why this is
+    # a smell test and not a proof: it aggregates a whole session and cannot say which turn diverged.
+    #
+    # `w/turn` is the same defect in absolute terms: cacheWrite per turn stays near the size of one
+    # turn's new text while the prefix is stable, and approaches whole-context size when it is not.
+    sqlite3 -header -column "$db" "
+      SELECT substr(id,1,8) id, model, turns,
+             tokens_cache_write cw, tokens_cache_read cr,
+             CASE WHEN tokens_cache_write>0
+                  THEN printf('%.2f', 1.0*tokens_cache_read/tokens_cache_write) ELSE 'n/a' END reuse,
+             CASE WHEN turns>0 THEN tokens_cache_write/turns ELSE 0 END 'w/turn',
+             datetime(ended_at/1000,'unixepoch','localtime') ended
+      FROM sessions WHERE turns > 0 ORDER BY ended_at DESC LIMIT 50;"
+    ;;
   *)
-    echo "usage: pi-log [sessions|events|cost]" >&2
+    echo "usage: pi-log [sessions|events|cost|cache]" >&2
     exit 2
     ;;
 esac

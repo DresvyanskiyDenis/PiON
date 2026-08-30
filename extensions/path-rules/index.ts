@@ -9,39 +9,43 @@
  *
  *   1. `session_start` (`./scan.ts`) — a bounded walk of the project seeds the durable rule set
  *      from files that ALREADY exist. This is the primary path and covers the common case with
- *      zero lag: the rule is in the system prompt before the model's first token.
+ *      zero lag: the rule is in context before the model's first token.
  *   2. `tool_call` on `read`/`edit`/`write` — detects a file the startup scan could not have seen
  *      (created mid-session, or simply not visited before the first match of another rule stopped
  *      the scan early) and marks its rule active. ALWAYS returns `undefined`: `tool_call` can only
  *      veto a call, never inject text into one (traced JS evidence in the integration report), so
  *      this handler observes only and must never become a second way to block a tool call.
- *   3. `context` (`./context.ts`) fires before every LLM call within a turn, including mid-turn
- *      after a tool result — this is what actually delivers a rule activated by (2) before the
- *      model's NEXT action, closing the "read a file, then edit it, same turn" gap that a
- *      `before_agent_start`-only design misses entirely (not "one round trip late" — invisible
- *      until the following turn).
- *   4. `before_agent_start` (`./inject.ts`) is the durable net: recomputed live every turn from
- *      whatever `session_start` and `tool_call` have accumulated, so the block survives
- *      compaction, `/reload`, and fork the same way `session-context.ts`'s does.
+ *   3. `context` (`./context.ts`) is the ONLY delivery path, and it delivers the WHOLE `durable`
+ *      set on every firing. `transformContext` runs immediately before each provider request, so
+ *      every LLM call passes through it: the first call of a turn, every mid-turn call after a
+ *      tool result — which is what closes the "read a file, then edit it, same turn" gap — and
+ *      every call after a compaction, `/reload` or fork, since none of those can skip the
+ *      request. There is nothing left for a `before_agent_start` net to catch.
+ *
+ * WHY NOT `before_agent_start` — THIS IS A PROMPT-CACHE DECISION, DO NOT "RESTORE" IT.
+ *
+ * This module used to ALSO fold `durable` into the system prompt, on the reasoning that the system
+ * prompt is the durable surface. It is durable, and it is also the head of the cached prefix: the
+ * system prompt precedes every message, so the moment `tool_call` activates a new rule, the
+ * rewritten block invalidates the provider's cache for the system prompt AND for the whole
+ * conversation behind it. That is a full-context re-write charged at cache-write rates, bought by
+ * nothing more than the model reading its first `.py` file, and it repeats once per newly
+ * activated rule. The `context` tail-append costs the opposite: the block lands after the last
+ * real message, so a change to it invalidates only itself. `durable` grows monotonically and the
+ * block is a pure function of it — volatile content at the tail, stable content in the prefix,
+ * exactly the split `docs/limitations.md` documents. Injecting the same text in both places
+ * bought nothing and cost a prefix.
  *
  * A rule carrying `mask:` (`./config.ts`) is not part of any of that. It answers a touch by
  * narrowing the tool surface for the rest of the turn (`../tool-masks/`) instead of by
- * contributing text, so it never enters `durable` or `pending`, is never rendered into a block,
- * and is skipped by the startup scan: a mask is a response to touching a file now, not a standing
- * fact about the project. Staying out of `durable` is also what lets it fire again next turn,
- * after `turn_end` has released the previous one.
- *
- * `pending` is what keeps (3) and (4) from double-injecting the same rule: `before_agent_start`
- * clears it the moment it folds `durable` into the system prompt for this turn — anything added to
- * `durable` by `tool_call` AFTER that point (mid-turn) lands in `pending` again, which is exactly
- * what `context` reads. A rule already reflected in this turn's system prompt is never re-sent
- * through `context`; one that surfaces mid-turn is sent through `context` only, until the NEXT
- * turn's `before_agent_start` absorbs it into the durable block.
+ * contributing text, so it never enters `durable`, is never rendered into a block, and is skipped
+ * by the startup scan: a mask is a response to touching a file now, not a standing fact about the
+ * project. Staying out of `durable` is also what lets it fire again next turn, after `turn_end`
+ * has released the previous one. It does move the tool roster, which IS a prefix-buster — a trade
+ * `docs/limitations.md` names rather than hides.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type {
-  BeforeAgentStartEvent,
-  BeforeAgentStartEventResult,
   ContextEvent,
   ExtensionAPI,
   ExtensionContext,
@@ -53,7 +57,6 @@ import { emitNotice, type NoticeTarget } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { loadRules, type PathRule } from "./config.ts";
 import { injectContext } from "./context.ts";
-import { injectOnce } from "./inject.ts";
 import { rulesDir } from "./paths.ts";
 import { renderBlock } from "./render.ts";
 import { matchesAny } from "./glob.ts";
@@ -68,10 +71,11 @@ const SCAN_BUDGET_MS = 100;
 
 export interface PathRulesState {
   readonly rules: readonly PathRule[];
-  /** Rule ids currently injected via `before_agent_start` every turn. Grows monotonically within a session. */
+  /**
+   * Rule ids in force for this session — re-rendered into the context tail before every LLM call.
+   * Grows monotonically within a session, which is exactly why it may not live in the system prompt.
+   */
   readonly durable: Set<string>;
-  /** Rule ids added to `durable` since the last `before_agent_start` — what `context` still owes this turn. */
-  readonly pending: Set<string>;
   readonly scan: ScanResult;
   readonly rulesDirPath: string;
 }
@@ -101,7 +105,7 @@ export function register(pi: ExtensionAPI): void {
         ctx.cwd,
         rules.filter((rule) => rule.mask === null),
       );
-      state = { rules, durable: new Set(scan.activated), pending: new Set(), scan, rulesDirPath: dir };
+      state = { rules, durable: new Set(scan.activated), scan, rulesDirPath: dir };
       const overBudget = scan.elapsedMs > SCAN_BUDGET_MS;
       if (scan.truncated || overBudget) {
         announce(
@@ -137,36 +141,20 @@ export function register(pi: ExtensionAPI): void {
   // surface (only `ContextEvent` is) — `pi.on("context", ...)` still checks this handler
   // structurally against it at the call site below.
   pi.on("context", (event: ContextEvent, ctx: ExtensionContext) => {
-    if (!state || state.pending.size === 0) return undefined;
+    if (!state || state.durable.size === 0) return undefined;
     try {
-      const block = renderBlock(state.rules, state.pending);
+      // The WHOLE durable set, every firing. `injectContext` strips its own previous note before
+      // appending, so re-sending the full block is idempotent rather than cumulative — and there
+      // is no "already sent" bookkeeping left to fall out of step with the wire.
+      const block = renderBlock(state.rules, state.durable);
       return { messages: injectContext(event.messages, block) };
     } catch (err) {
       surfaceOnce(ctx, "path-rules:context", () => {
-        makeAnnounce(ctx)(`mid-turn injection failed, prompt left unmodified: ${describeError(err)}`, "error");
+        makeAnnounce(ctx)(`rule injection failed, context left unmodified: ${describeError(err)}`, "error");
       });
       return undefined;
     }
   });
-
-  pi.on(
-    "before_agent_start",
-    (event: BeforeAgentStartEvent, ctx: ExtensionContext): BeforeAgentStartEventResult | undefined => {
-      if (!state || state.durable.size === 0) return undefined;
-      try {
-        const block = renderBlock(state.rules, state.durable);
-        // Everything in `durable` is about to be reflected in the system prompt returned below —
-        // `context` must not re-send it mid-turn until `tool_call` adds something NEW to `pending`.
-        state.pending.clear();
-        return { systemPrompt: injectOnce(event.systemPrompt, block) };
-      } catch (err) {
-        surfaceOnce(ctx, "path-rules:before_agent_start", () => {
-          makeAnnounce(ctx)(`injection failed, prompt left unmodified: ${describeError(err)}`, "error");
-        });
-        return undefined;
-      }
-    },
-  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -194,7 +182,6 @@ function detectTouch(s: PathRulesState, event: ToolCallEvent, cwd: string): Mask
       continue;
     }
     s.durable.add(rule.id);
-    s.pending.add(rule.id);
   }
   return masks;
 }

@@ -185,6 +185,21 @@ veto does fire, the override is to re-issue the identical call with a
 `# PI-JUSTIFY(DV-SPECIALIST): <one sentence, naming the concrete target>` line prepended to the
 prompt text. There is no justification *parameter*.
 
+## TRIGGER: the lead model changes only as a recorded act
+
+Changing the lead model in the middle of a work stream is an event, not a convenience.
+
+- Models differ in context window, structured-output behaviour and failure mode. A lead that moves
+  while you debug makes "is this the model or is this the code" unanswerable, and every result
+  before the switch incomparable with every result after it.
+- A project that pins its lead (`.pi/lead-model.json`) **holds** it: a switch away from the pin is
+  reverted and announced. That is not a malfunction, and re-selecting the same model in a loop will
+  not get past it.
+- If the switch is the right call, run `/lead-model <tier> <one sentence of why>`. It repoints the
+  pin and records the change, with your reason, as a fact that survives compaction.
+- Do not work around the pin by editing `.pi/lead-model.json` mid-session. The command exists so the
+  change is attributable; a hand edit is the same change with the attribution removed.
+
 ## TRIGGER: coding work happens in a worktree, never the primary checkout
 
 Any task that writes code — feature, fix, refactor, migration. First check whether the current

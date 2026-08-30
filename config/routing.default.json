@@ -38,5 +38,12 @@
       "policy",
       "empty-response"
     ]
+  },
+
+  "compaction": {
+    "route": ["light", "confidential"],
+    "onRouteFailure": {
+      "failoverClasses": ["quota", "network", "empty-response", "auth", "model-not-found"]
+    }
   }
 }

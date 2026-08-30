@@ -105,10 +105,51 @@ export function readRoutingFile(override = process.env.PI_ROUTING_CONFIG): Routi
  * other tier in the file being well formed.
  */
 export function tierModel(routing: RoutingFile, tier: string): string | undefined {
+  const model = tierRow(routing, tier)?.model;
+  return typeof model === "string" && model.includes("/") ? model : undefined;
+}
+
+/**
+ * `tiers.<name>.thinkingLevel` exactly as written, unvalidated, or `undefined`.
+ *
+ * Unvalidated on purpose. This module has no opinion on the effort vocabulary — that lives in
+ * `dispatch/thinking.ts`, which `lib/` may not import — and a caller resolving a tier needs to see
+ * a level the file declares even when it is a level nothing serves, so it can refuse it *by name*
+ * instead of quietly running at the provider default. A silent default is the harder failure to
+ * find: the request succeeds, the effort is wrong, and nothing anywhere says so.
+ */
+export function tierThinkingLevel(routing: RoutingFile, tier: string): string | undefined {
+  const level = tierRow(routing, tier)?.thinkingLevel;
+  return typeof level === "string" ? level : undefined;
+}
+
+/**
+ * `tiersUnbound.<name>` — the explanation this install owes for a tier it knows and cannot serve.
+ *
+ * `routing.default.json` uses this block to keep a tier *name* real while leaving it deliberately
+ * unbound (`confidential`, on an install with no provider inside the operator's boundary). A caller
+ * that finds a name here has learned something a missing key cannot tell it: the name is not a
+ * typo, and this install simply has nothing to point it at.
+ */
+export function unboundTier(routing: RoutingFile, tier: string): string | undefined {
+  const unbound = routing.raw?.tiersUnbound;
+  if (unbound === null || typeof unbound !== "object" || Array.isArray(unbound)) return undefined;
+  const note = (unbound as Record<string, unknown>)[tier];
+  return typeof note === "string" ? note : undefined;
+}
+
+/** `egress.<provider>` as written. A provider this file does not classify is unlabelled, not barred. */
+export function providerEgress(routing: RoutingFile, provider: string): string | undefined {
+  const egress = routing.raw?.egress;
+  if (egress === null || typeof egress !== "object" || Array.isArray(egress)) return undefined;
+  const cls = (egress as Record<string, unknown>)[provider];
+  return typeof cls === "string" ? cls : undefined;
+}
+
+function tierRow(routing: RoutingFile, tier: string): Record<string, unknown> | undefined {
   const tiers = routing.raw?.tiers;
   if (tiers === null || typeof tiers !== "object" || Array.isArray(tiers)) return undefined;
   const row = (tiers as Record<string, unknown>)[tier];
   if (row === null || typeof row !== "object" || Array.isArray(row)) return undefined;
-  const model = (row as Record<string, unknown>).model;
-  return typeof model === "string" && model.includes("/") ? model : undefined;
+  return row as Record<string, unknown>;
 }

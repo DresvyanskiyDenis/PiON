@@ -66,11 +66,18 @@ export const id = "hooks";
 /** Module-level state — deliberate, see `once.ts`'s note: exactly one PI extension file exists. */
 const compiledRules: CompiledRule[] = [];
 let degraded: { readonly reason: string } | undefined;
+/**
+ * `run` rules whose script could not be executed, keyed by rule id so a rule that fires on every
+ * `write` records once rather than once per call. Populated during the session, not at load: the
+ * executor is the only thing that ever touches the script, and it only touches it on a match.
+ */
+const scriptFailures = new Map<string, string>();
 
 /** Exported so tests can assemble a fresh module without importing `register`'s closures twice. */
 export function resetHooksState(): void {
   compiledRules.length = 0;
   degraded = undefined;
+  scriptFailures.clear();
 }
 
 /**
@@ -80,6 +87,20 @@ export function resetHooksState(): void {
  */
 export function hooksDegradedReason(): string | undefined {
   return degraded?.reason;
+}
+
+/**
+ * One line per `run` rule whose script could not be executed this session, or an empty array while
+ * every script is installed. `/doctor` reads this for `D-09`.
+ *
+ * A `run` rule that cannot reach its script blocks its tool for the whole session, and the only
+ * trace is one refusal reason per blocked call, in the transcript, next to the tool result the
+ * operator was reading for a different reason. The announcement below says it once at the moment it
+ * happens; this getter is what makes it still answerable ten minutes later, when the operator has
+ * stopped believing their own `edit` tool and types `/doctor`.
+ */
+export function hooksScriptFailures(): readonly string[] {
+  return [...scriptFailures.values()];
 }
 
 export function register(pi: ExtensionAPI): void {
@@ -240,10 +261,42 @@ async function runToolCallAction(
         { cwd: ctx.cwd, timeoutMs: run.timeoutMs },
       );
       if (outcome.verdict === "deny") return { block: true, reason: tag(outcome.reason) };
-      if (outcome.verdict === "blocked-internal") return { block: true, reason: tag(outcome.reason) };
+      if (outcome.verdict === "blocked-internal") {
+        recordScriptFailure(rule, event.toolName, outcome.reason, ctx);
+        return { block: true, reason: tag(outcome.reason) };
+      }
       return undefined; // "no-opinion" — the script ran fine and chose to say nothing
     }
   }
+}
+
+/**
+ * The loud channel for a `run` script that cannot be executed. Blocking is correct and unchanged
+ * (`run.ts` fails closed); what was missing is that nothing could see the cause.
+ *
+ * Announced once per rule, not once per call. The failure is a property of the machine, not of the
+ * call that happened to hit it, so the second `write` in a row has nothing new to say and repeating
+ * the announcement on every keystroke is how an operator learns to scroll past it.
+ *
+ * The message names all three things the operator needs and cannot otherwise assemble: which rule,
+ * which tool it just killed, and that the fix is an install rather than an edit. `bin/pi-check
+ * --doctor` is the same check run against the machine from a shell, and says which path is wrong.
+ */
+function recordScriptFailure(
+  rule: CompiledRule,
+  toolName: string,
+  reason: string,
+  ctx: ExtensionContext,
+): void {
+  if (scriptFailures.has(rule.id)) return;
+  const summary = `hook "${rule.id}" blocks "${toolName}" for this session: ${reason}`;
+  scriptFailures.set(rule.id, summary);
+  announce(
+    ctx,
+    `hooks: ${summary}. The rule is fine and the block is correct — its script is not installed here. ` +
+      `Run ./scripts/install.sh to install it, or bin/pi-check --doctor to see which path is wrong.`,
+    "error",
+  );
 }
 
 async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<InputEventResult> {

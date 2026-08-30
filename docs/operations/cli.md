@@ -250,7 +250,14 @@ works with `pi` running.
 bin/pi-log sessions     # last 50 sessions: title, model, turns, tokens, cost
 bin/pi-log events       # last 200 events
 bin/pi-log cost         # spend grouped by model
+bin/pi-log cache        # prompt-cache reuse per session — is the prefix stable?
 ```
+
+`cache` is the prefix-stability smell test: `reuse` is cacheRead / cacheWrite, and it should climb
+with turn count. At or below ~0.5 over a long session, with `w/turn` near whole-context size,
+something ahead of the conversation is changing between turns. See
+[prompt-cache limits](../limitations.md#prompt-cache-limits--what-moves-the-cached-prefix) for how
+to read it and what it cannot tell you.
 
 Requires the `sqlite3` CLI. Exits `1` if no index exists yet — run `/index` inside `pi` first.
 

@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type {
-  BeforeAgentStartEvent,
   ContextEvent,
   ExtensionAPI,
   ExtensionContext,
@@ -21,7 +20,8 @@ interface FakePi {
   sessionStart: Handler<SessionStartEvent, unknown>[];
   toolCall: Handler<ToolCallEvent, unknown>[];
   context: Handler<ContextEvent, unknown>[];
-  beforeAgentStart: Handler<BeforeAgentStartEvent, unknown>[];
+  /** Nothing may land here: the system prompt is the cached prefix and this module stays out of it. */
+  beforeAgentStart: Handler<unknown, unknown>[];
 }
 
 function fakePi(): FakePi {
@@ -56,13 +56,16 @@ function contextEvent(): ContextEvent {
   return { type: "context", messages: [] } as ContextEvent;
 }
 
-function beforeAgentStartEvent(systemPrompt: string): BeforeAgentStartEvent {
-  return {
-    type: "before_agent_start",
-    prompt: "hi",
-    systemPrompt,
-    systemPromptOptions: {} as BeforeAgentStartEvent["systemPromptOptions"],
-  } as BeforeAgentStartEvent;
+/** The text of the note `context` appended to the tail, or `undefined` when it injected nothing. */
+async function injectedNote(
+  handler: Handler<ContextEvent, unknown>,
+  ctx: ExtensionContext,
+): Promise<string | undefined> {
+  const result = (await handler(contextEvent(), ctx)) as { messages: Array<{ role: string; content: unknown }> } | undefined;
+  if (!result) return undefined;
+  const last = result.messages.at(-1)!;
+  assert.equal(last.role, "user");
+  return String(last.content);
 }
 
 let sandbox: string;
@@ -91,7 +94,12 @@ describe("path-rules — id and wiring", () => {
     assert.equal(sessionStart.length, 1);
     assert.equal(toolCall.length, 1);
     assert.equal(context.length, 1);
-    assert.equal(beforeAgentStart.length, 1);
+    assert.equal(
+      beforeAgentStart.length,
+      0,
+      "rule text must never enter the system prompt: it changes mid-session, and the system prompt " +
+        "is the head of the provider's cached prefix (index.ts, 'WHY NOT before_agent_start')",
+    );
   });
 });
 
@@ -110,7 +118,7 @@ describe("path-rules — toRelativePath", () => {
   });
 });
 
-describe("path-rules — end to end: session_start fingerprint, tool_call detection, context/before_agent_start injection", () => {
+describe("path-rules — end to end: session_start fingerprint, tool_call detection, context injection", () => {
   it("full turn lifecycle", async () => {
     await writeFile(join(sandbox, "always.md"), "Always-on rule body.");
     await writeFile(join(sandbox, "python.md"), '---\npaths:\n  - "**/*.py"\n---\nPython rule body.');
@@ -118,7 +126,7 @@ describe("path-rules — end to end: session_start fingerprint, tool_call detect
 
     const project = await mkdtemp(join(tmpdir(), "pi-path-rules-project-"));
     try {
-      const { pi, sessionStart, toolCall, context, beforeAgentStart } = fakePi();
+      const { pi, sessionStart, toolCall, context } = fakePi();
       register(pi);
       const ctx = fakeCtx(project);
 
@@ -127,34 +135,24 @@ describe("path-rules — end to end: session_start fingerprint, tool_call detect
       assert.ok(__state()!.durable.has("always"));
       assert.equal(__state()!.durable.has("python"), false);
 
-      // Turn 1's before_agent_start: only the unconditional rule is in the prompt.
-      const turn1 = await beforeAgentStart[0]!(beforeAgentStartEvent("base prompt"), ctx);
-      assert.ok((turn1 as { systemPrompt: string }).systemPrompt.includes("Always-on rule body."));
-      assert.equal((turn1 as { systemPrompt: string }).systemPrompt.includes("Python rule body."), false);
+      // The first LLM call of turn 1 carries only the unconditional rule.
+      const call1 = await injectedNote(context[0]!, ctx);
+      assert.ok(call1!.includes("Always-on rule body."));
+      assert.equal(call1!.includes("Python rule body."), false);
 
       // Mid-turn: the model writes a new .py file. tool_call must never block.
       const blockResult = await toolCall[0]!(writeEvent("new_script.py"), ctx);
       assert.equal(blockResult, undefined);
       assert.ok(__state()!.durable.has("python"), "the write should have activated the python rule");
-      assert.ok(__state()!.pending.has("python"), "and it should be pending for the context fast path");
 
-      // context (fast path): the python rule appears in the messages tail, not the already-durable one.
-      const ctxResult = (await context[0]!(contextEvent(), ctx)) as { messages: Array<{ role: string; content: unknown }> };
-      assert.ok(ctxResult, "context handler should inject once something is pending");
-      const injected = ctxResult.messages.at(-1)!;
-      assert.equal(injected.role, "user");
-      assert.ok(String(injected.content).includes("Python rule body."));
-      assert.equal(String(injected.content).includes("Always-on rule body."), false);
+      // The next LLM call — still inside turn 1 — carries BOTH rules. The block is the whole
+      // durable set every time, so a rule activated mid-turn needs no separate catch-up path.
+      const call2 = await injectedNote(context[0]!, ctx);
+      assert.ok(call2!.includes("Always-on rule body."));
+      assert.ok(call2!.includes("Python rule body."));
 
-      // Turn 2's before_agent_start: both rules are now in the durable system prompt.
-      const turn2 = await beforeAgentStart[0]!(beforeAgentStartEvent("base prompt"), ctx);
-      const prompt2 = (turn2 as { systemPrompt: string }).systemPrompt;
-      assert.ok(prompt2.includes("Always-on rule body."));
-      assert.ok(prompt2.includes("Python rule body."));
-
-      // pending is now empty: context must not re-inject what before_agent_start already sent.
-      const ctxAfter = await context[0]!(contextEvent(), ctx);
-      assert.equal(ctxAfter, undefined);
+      // And every later call carries the same bytes: a stable tail, not a growing one.
+      assert.equal(await injectedNote(context[0]!, ctx), call2);
     } finally {
       await rm(project, { recursive: true, force: true });
     }
@@ -164,12 +162,12 @@ describe("path-rules — end to end: session_start fingerprint, tool_call detect
 describe("path-rules — resilience", () => {
   it("session_start with no configured rules directory is a normal, unconfigured install", async () => {
     process.env.PI_CONFIG_RULES_DIR = join(sandbox, "does-not-exist");
-    const { pi, sessionStart, beforeAgentStart } = fakePi();
+    const { pi, sessionStart, context } = fakePi();
     register(pi);
     await sessionStart[0]!(sessionStartEvent(), fakeCtx(sandbox));
     assert.deepEqual(__state()!.durable, new Set());
-    const result = await beforeAgentStart[0]!(beforeAgentStartEvent("base"), fakeCtx(sandbox));
-    assert.equal(result, undefined, "nothing durable means no injection and no prompt mutation");
+    const result = await context[0]!(contextEvent(), fakeCtx(sandbox));
+    assert.equal(result, undefined, "nothing durable means no injection and no message mutation");
   });
 
   it("one broken rule file does not stop the others from activating", async () => {

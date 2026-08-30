@@ -16,7 +16,16 @@ import { rules, type State } from "../../extensions/dispatch/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 import { ProviderSemaphoreSet } from "../../extensions/dispatch/semaphore.ts";
 import { loadAgentRegistry, type AgentRegistry } from "../../extensions/dispatch/registry.ts";
-import { resetWorktreeProvider } from "../../extensions/dispatch/isolation.ts";
+import {
+  resetWorktreePreflight,
+  resetWorktreeProvider,
+  setWorktreePreflight,
+} from "../../extensions/dispatch/isolation.ts";
+
+// These fixtures dispatch from a cwd that is not a repository, so the worktree preflight has to
+// be told what it would have found. It is exercised for real in `test/dispatch/isolation.test.ts`.
+const FEASIBLE_WORKTREE = () =>
+  ({ ok: true, repoRoot: "/repo", commonDir: "/repo/.git", baseCommit: "0".repeat(40) }) as const;
 import type { GuardRule } from "../../extensions/lib/guarded-handler.ts";
 import { openIndexDb, resetIndexDbCache } from "../../extensions/session-index/db.ts";
 import {
@@ -175,8 +184,10 @@ describe("DSP-RESOLVE: persisting the model-resolution record", () => {
   it("carries the concurrency and the isolation it applied, when it applied any", async () => {
     const dbPath = await useOwnIndexDb("applied-");
 
+    setWorktreePreflight(FEASIBLE_WORKTREE);
     const input: Record<string, unknown> = { agent: "surgeon", prompt: "x", tasks: [1, 2, 3, 4, 5, 6, 7], concurrency: 7 };
     assert.equal(await run(rules(stateOf()), eventOf("subagent", input), ctxWithSession("s-applied")), undefined);
+    resetWorktreePreflight();
     assert.equal(input.concurrency, 4, "databricks is capped at 4 in the routing fixture");
     assert.equal(input.worktree, true);
 

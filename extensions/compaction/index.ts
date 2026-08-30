@@ -1,7 +1,7 @@
 /**
  * EXT-11 — the compaction suite (`REQ-CTX-31`, `-32`, `-35`, `-37`).
  *
- * Four parts, in the order they matter:
+ * Five parts, in the order they matter:
  *
  * 1. **The loop guard** (`REQ-CTX-35`, MUST). N consecutive non-reducing automatic compaction
  *    passes abort the run with a typed error. `./loop-guard.ts` holds the whole decision.
@@ -15,6 +15,11 @@
  *    absolute) tuple rather than once per session. Read that module's header for why the only
  *    honest lever is `models.json` `modelOverrides.<id>.contextWindow` and why the previously
  *    recommended global `compaction.reserveTokens` would have tripped the loop guard above.
+ * 5. **The route** (`./route.ts`) — which endpoint the summary call goes to. Compaction is the one
+ *    call that has to succeed while the lead's own provider is refusing, so it no longer borrows
+ *    `ctx.model`: `config/routing.json`'s `compaction.route` names an ordered list of candidates,
+ *    and a failure the route is configured to survive moves to the next one. Read that module's
+ *    header for why this is not the provider failover the working path forbids.
  *
  * ---------------------------------------------------------------------------------------------
  * **V-08, answered against the shipped code of pi 0.84.0 rather than the docs.** The runbook asked
@@ -84,8 +89,24 @@ import { configPaths as sharedConfigPaths } from "../dispatch/config.ts";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { CONFIG_DIR_NAME, configDir, repoRoot, stateRoot } from "../lib/paths.ts";
-import { buildProviderFailure, surfaceProviderFailure } from "../lib/provider-error.ts";
+import {
+  buildProviderFailure,
+  surfaceProviderFailure,
+  type ProviderErrorClass,
+  type ProviderFailure,
+} from "../lib/provider-error.ts";
+import { readRoutingFile } from "../lib/routing-file.ts";
 import { mergeInstructions } from "./instructions.ts";
+import {
+  DEFAULT_COMPACTION_ROUTE,
+  describeTarget,
+  parseCompactionRoute,
+  resolveCompactionRoute,
+  walkRoute,
+  type CompactionRouteSettings,
+  type RouteAttemptOutcome,
+  type RouteTarget,
+} from "./route.ts";
 import {
   CompactionLoopError,
   createLoopGuardState,
@@ -273,6 +294,74 @@ function loadConfig(): { readonly config: CompactionConfig; readonly source: str
 
 const loaded = loadConfig();
 const cfg = loaded.config;
+
+/* ---------------------------------------------------------------------------------------------
+ * The compaction route — `config/routing.json` -> `compaction`
+ * ------------------------------------------------------------------------------------------- */
+
+/** Ours alone. Every extension that writes a status cell owns its own key. */
+const ROUTE_STATUS_KEY = "compaction";
+
+interface LoadedRoute {
+  readonly settings: CompactionRouteSettings;
+  readonly targets: readonly RouteTarget[];
+  readonly source: string;
+  readonly problems: readonly string[];
+}
+
+/**
+ * Read once, at module load, for the same reason `loadConfig` is: `register()` must not start async
+ * work, and a route that changed under a running session would let two compactions in one session
+ * disagree about where they went.
+ *
+ * Never throws. A route that cannot be read degrades to the session's own model, and
+ * {@link announceRoute} states that at every session start rather than once in a log nobody reads.
+ */
+function loadCompactionRoute(): LoadedRoute {
+  try {
+    const routing = readRoutingFile();
+    const parsed = parseCompactionRoute(routing.raw);
+    const resolved = resolveCompactionRoute(routing, parsed.settings);
+    return {
+      settings: parsed.settings,
+      targets: resolved.targets,
+      source: routing.source,
+      problems: [...(routing.problem ? [routing.problem] : []), ...parsed.problems, ...resolved.problems],
+    };
+  } catch (err) {
+    return {
+      settings: DEFAULT_COMPACTION_ROUTE,
+      targets: [],
+      source: "<unreadable>",
+      problems: [`the compaction route could not be read: ${describeError(err)}`],
+    };
+  }
+}
+
+const compactionRoute = loadCompactionRoute();
+
+/**
+ * States the route at every session start, and each complaint about it exactly once.
+ *
+ * Printed rather than kept quiet because the route is an **egress statement**: compaction ships the
+ * whole conversation to whatever is named here, and a destination that is not the one the operator
+ * is talking to must never be something they discover afterwards.
+ */
+function announceRoute(ctx: ExtensionContext): void {
+  for (const problem of compactionRoute.problems) {
+    surfaceOnce(ctx, `compaction:route:${problem}`, () => announce(ctx, problem, "warning"));
+  }
+  if (compactionRoute.targets.length === 0) {
+    announce(
+      ctx,
+      `compaction route: nothing resolved from ${compactionRoute.source}, so compaction runs on the ` +
+        `session's own model and a provider failure that stops the lead also stops the shrinking`,
+      "warning",
+    );
+    return;
+  }
+  announce(ctx, `compaction route: ${compactionRoute.targets.map(describeTarget).join(" -> ")}`, "info");
+}
 
 /**
  * The threshold `REQ-CTX-31` is currently checked against.
@@ -613,43 +702,98 @@ function withoutDeletedHeaders(
   return out;
 }
 
+/** PI's own `Model`, as `ctx.model` carries it. Named so a candidate can hold one. */
+type SessionModel = NonNullable<ExtensionContext["model"]>;
+
 /**
- * Runs PI's own `compact()` with our merged instructions and returns the result for PI to append.
+ * One place on the route, plus the model object when the caller already holds it.
  *
- * Returning `undefined` means "PI, do it yourself" — every such path announces first, so the
- * degradation is loud. It is never silent, and it never substitutes a different provider or model:
- * the call uses `ctx.model`, exactly what the session is already using.
+ * The session's own model is the only candidate that arrives already resolved — it *is* `ctx.model`
+ * — and asking the registry for it again would be a second answer to a settled question.
  */
-async function summariseWithContract(
+interface RouteCandidate {
+  readonly target: RouteTarget;
+  readonly model?: SessionModel;
+}
+
+/** A failure this harness produced itself, carrying the class it KNOWS rather than one read out of text. */
+function harnessFailure(
+  target: RouteTarget,
+  klass: ProviderErrorClass,
+  message: string,
+  cause?: unknown,
+): ProviderFailure {
+  return { provider: target.provider, model: target.modelId, klass, message, cause, midStream: false };
+}
+
+/**
+ * The candidates, in order: the configured route, or — when nothing resolved — the session's own
+ * model, which {@link announceRoute} has already named as the degradation it is.
+ */
+function compactionCandidates(ctx: ExtensionContext): readonly RouteCandidate[] {
+  if (compactionRoute.targets.length > 0) return compactionRoute.targets.map((target) => ({ target }));
+  const model = ctx.model;
+  if (!model) return [];
+  return [
+    {
+      target: {
+        spec: "(session model)",
+        provider: model.provider,
+        modelId: model.id,
+        ...(ctx.thinkingLevel !== undefined ? { thinkingLevel: ctx.thinkingLevel } : {}),
+      },
+      model,
+    },
+  ];
+}
+
+type AttemptOutcome = RouteAttemptOutcome<CompactionResult> & { readonly failure?: ProviderFailure };
+
+/** One candidate: find it, credential it, call it. Never throws; every exit is a classified outcome. */
+async function attemptCandidate(
   event: SessionBeforeCompactEvent,
   ctx: ExtensionContext,
-  pi: ExtensionAPI,
-): Promise<BeforeCompactResult | undefined> {
-  // The persistence half of `surfaceProviderFailure`'s sinks — see `credentials.ts`'s identical
-  // seam for why `stderr` and `ctx.ui.notify` alone leave `causeChain` unreadable in a TUI.
-  const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
-  const model = ctx.model;
-  if (!model) {
-    surfaceOnce(ctx, "compaction:no-model", () =>
-      announce(ctx, "no active model — PI's default compaction runs without the keep/drop contract", "error"),
-    );
-    return undefined;
+  candidate: RouteCandidate,
+): Promise<AttemptOutcome> {
+  const { target } = candidate;
+  let model = candidate.model;
+  if (model === undefined) {
+    try {
+      model = ctx.modelRegistry.find(target.provider, target.modelId) as SessionModel | undefined;
+    } catch (err) {
+      return {
+        ok: false,
+        failure: harnessFailure(target, "model-not-found", `the model registry threw on lookup: ${describeError(err)}`, err),
+      };
+    }
+    if (model === undefined) {
+      return {
+        ok: false,
+        failure: harnessFailure(
+          target,
+          "model-not-found",
+          `${describeTarget(target)} is not in this session's model registry; check config/models.json ` +
+            `and the compaction.route in config/routing.json`,
+        ),
+      };
+    }
   }
 
   // A provider registered with its own native stream function cannot be reproduced from here:
   // `compact()` takes a `streamFn` and PI passes `agent.streamFunction`, which extensions cannot
-  // read. Rather than route the summary through the wrong transport, hand the pass back to PI.
+  // read. Rather than route the summary through the wrong transport, this candidate stands down —
+  // and on a route, standing down is the next candidate's turn rather than the end of the matter.
   try {
-    if (ctx.modelRegistry.getRegisteredNativeProvider(model.provider)) {
-      surfaceOnce(ctx, `compaction:native-provider:${model.provider}`, () =>
-        announce(
-          ctx,
-          `provider "${model.provider}" is registered with a native stream handler; the keep/drop ` +
-            `contract is not applied to compaction on it (PI's own summariser runs instead)`,
-          "warning",
+    if (ctx.modelRegistry.getRegisteredNativeProvider(target.provider)) {
+      return {
+        ok: false,
+        failure: harnessFailure(
+          target,
+          "model-not-found",
+          `provider "${target.provider}" is registered with a native stream handler, so an extension ` +
+            `cannot apply the keep/drop contract on it`,
         ),
-      );
-      return undefined;
+      };
     }
   } catch (err) {
     surfaceOnce(ctx, "compaction:native-provider-probe", () =>
@@ -661,29 +805,25 @@ async function summariseWithContract(
   try {
     auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
   } catch (err) {
-    surfaceProviderFailure(
-      ctx,
-      buildProviderFailure({
-        provider: model.provider,
-        model: model.id,
+    return {
+      ok: false,
+      failure: buildProviderFailure({
+        provider: target.provider,
+        model: target.modelId,
         message: `credential resolution threw while preparing a compaction summary: ${describeError(err)}`,
         cause: err,
       }),
-      sinks,
-    );
-    return undefined;
+    };
   }
   if (!auth.ok) {
-    surfaceProviderFailure(
-      ctx,
-      buildProviderFailure({
-        provider: model.provider,
-        model: model.id,
+    return {
+      ok: false,
+      failure: buildProviderFailure({
+        provider: target.provider,
+        model: target.modelId,
         message: `cannot resolve credentials for a compaction summary: ${auth.error}`,
       }),
-      sinks,
-    );
-    return undefined;
+    };
   }
 
   const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
@@ -697,25 +837,193 @@ async function summariseWithContract(
       withoutDeletedHeaders(auth.headers),
       instructions,
       event.signal,
-      ctx.thinkingLevel,
+      target.thinkingLevel ?? ctx.thinkingLevel,
     );
-    return { compaction: result };
+    return { ok: true, result };
   } catch (err) {
-    if (event.signal.aborted) {
-      // A cancelled compaction is not a failure. PI re-checks the signal immediately after us.
-      return undefined;
-    }
-    surfaceProviderFailure(
-      ctx,
-      buildProviderFailure({
-        provider: model.provider,
-        model: model.id,
+    // A cancelled compaction is not a failure and must not spend a hop. PI re-checks the signal
+    // immediately after us.
+    if (event.signal.aborted) return { ok: false, aborted: true };
+    return {
+      ok: false,
+      failure: buildProviderFailure({
+        provider: target.provider,
+        model: target.modelId,
         message: `compaction summary with the keep/drop contract failed: ${describeError(err)}`,
         cause: err,
       }),
-      sinks,
+    };
+  }
+}
+
+/**
+ * Runs PI's own `compact()` with our merged instructions, on **compaction's own route**, and returns
+ * the result for PI to append.
+ *
+ * Returning `undefined` means "PI, do it yourself". Every such path announces first, so the
+ * degradation is loud.
+ *
+ * ## What changed here, and what did not
+ *
+ * This function used to call `compact()` with `ctx.model`, and this comment used to say so with
+ * approval: *it never substitutes a different provider or model*. That was the right rule aimed at
+ * the wrong path. Compaction is the one call that must work while the lead's provider is refusing,
+ * and putting it on the lead's provider made a quota refusal a deadlock: the session could neither
+ * do the work nor shrink enough to keep trying.
+ *
+ * So the model now comes from `compaction.route`, and a failure the route is configured to survive
+ * moves to the next candidate. Three properties keep that from being the silent failover this repo
+ * cancelled, and they are the whole difference:
+ *
+ *   1. **Declared, not discovered.** The route is config an operator wrote and `session_start`
+ *      prints. Nothing picks a model by looking at what is currently broken.
+ *   2. **Loud at every hop.** Each hop announces provider, model, egress class and error class, and
+ *      is persisted as its own `compaction_route_hop` entry.
+ *   3. **Service path only.** The working turn is untouched: `onProviderError` still aborts and
+ *      still substitutes nothing.
+ */
+async function summariseWithContract(
+  event: SessionBeforeCompactEvent,
+  ctx: ExtensionContext,
+  pi: ExtensionAPI,
+): Promise<BeforeCompactResult | undefined> {
+  // The persistence half of `surfaceProviderFailure`'s sinks — see `credentials.ts`'s identical
+  // seam for why `stderr` and `ctx.ui.notify` alone leave `causeChain` unreadable in a TUI.
+  const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
+  const candidates = compactionCandidates(ctx);
+  if (candidates.length === 0) {
+    surfaceOnce(ctx, "compaction:no-model", () =>
+      announce(
+        ctx,
+        "no active model and no resolvable compaction route — PI's default compaction runs without the keep/drop contract",
+        "error",
+      ),
     );
     return undefined;
+  }
+
+  const result = await walkRoute<RouteCandidate, CompactionResult, ProviderFailure>(
+    candidates,
+    compactionRoute.settings,
+    (candidate) => attemptCandidate(event, ctx, candidate),
+    {
+      onHop: (candidate, failure, willHop) => recordHop(pi, ctx, candidate.target, failure, willHop),
+      onRecovered: (candidate, index, tried) => {
+        announce(
+          ctx,
+          `compaction summarised on ${describeTarget(candidate.target)} after ${index} failed ` +
+            `candidate(s): ${tried.join("; ")}`,
+          "warning",
+        );
+      },
+      // The end of the route. THIS is the turn's outcome, so it goes out through the channel an
+      // operator greps for dead turns — and, because a compaction that cannot run is news the next
+      // context needs even after this one is cut, it is written to the facts file too.
+      onExhausted: async (failure, tried, exhausted) => {
+        surfaceProviderFailure(ctx, failure, sinks);
+        announceRouteExhausted(ctx, tried, exhausted);
+        await recordRouteExhaustedFact(ctx, candidates, tried, failure);
+      },
+    },
+  );
+  if (result === undefined) return undefined;
+  clearRouteStatus(ctx);
+  return { compaction: result };
+}
+
+/**
+ * A hop is a routing decision this harness made, not the turn's verdict, so it is reported through
+ * this module's own channel and filed under its own entry type — never as a `provider_failure`,
+ * which is what the run tooling downstream reads as "the turn died".
+ */
+function recordHop(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  target: RouteTarget,
+  failure: ProviderFailure,
+  willHop: boolean,
+): void {
+  announce(
+    ctx,
+    `compaction candidate ${describeTarget(target)} failed [${failure.klass}]: ${failure.message}` +
+      (willHop ? " — trying the next candidate on the route" : ""),
+    "warning",
+  );
+  try {
+    pi.appendEntry("compaction_route_hop", {
+      spec: target.spec,
+      tier: target.tier,
+      provider: target.provider,
+      model: target.modelId,
+      egress: target.egress,
+      errorClass: failure.klass,
+      message: failure.message,
+      willHop,
+    });
+  } catch {
+    // The announcement above already carried the fact. A failed session write must not turn a
+    // reported failure into an unreported crash.
+  }
+}
+
+/** The status line's copy of the same news. */
+function setRouteStatus(ctx: ExtensionContext, text: string): void {
+  try {
+    ctx.ui.setStatus(ROUTE_STATUS_KEY, text);
+  } catch {
+    // No UI, or a closed one. The announcement is the load-bearing channel; this is the reminder.
+  }
+}
+
+function clearRouteStatus(ctx: ExtensionContext): void {
+  try {
+    ctx.ui.setStatus(ROUTE_STATUS_KEY, undefined);
+  } catch {
+    // See setRouteStatus.
+  }
+}
+
+function announceRouteExhausted(ctx: ExtensionContext, tried: readonly string[], ranOut: boolean): void {
+  const why = ranOut
+    ? "every candidate on the compaction route failed"
+    : "the compaction route stopped on a class it is not configured to survive";
+  announce(
+    ctx,
+    `${why} — PI's default compaction runs without the keep/drop contract, on the session's own ` +
+      `model, which is the path this route exists to avoid. Tried: ${tried.join("; ")}. ` +
+      `Switch model by hand, or fix compaction.route in config/routing.json.`,
+    "error",
+  );
+  setRouteStatus(ctx, `compaction route exhausted (${tried.length})`);
+}
+
+/**
+ * The refusal has to be **heard**, not merely thrown.
+ *
+ * A session entry and a toast both die with this context, and the context is about to be cut, which
+ * is the entire reason we are here. The facts file is the one surface that survives a compaction by
+ * construction — `session_compact` re-states it — so a route that ran out is recorded there. The
+ * next turn's model then reads "compaction has no working path" in its own pinned block, instead of
+ * silently trying again and dying the same way.
+ */
+async function recordRouteExhaustedFact(
+  ctx: ExtensionContext,
+  candidates: readonly RouteCandidate[],
+  tried: readonly string[],
+  failure: ProviderFailure,
+): Promise<void> {
+  if (!cfg.pinned.facts.enabled) return;
+  try {
+    await appendFact(
+      factsPath(ctx),
+      `compaction cannot run on any configured candidate (${tried.join("; ")}); this session is not ` +
+        `shrinking and will fail on context rather than on the work. Fix the provider, or switch model by hand.`,
+      `compaction route exhausted; last failure ${failure.provider}/${failure.model} [${failure.klass}]: ` +
+        `${failure.message.slice(0, 300)} (route: ${candidates.map((c) => describeTarget(c.target)).join(" -> ")})`,
+      { kind: "fact" },
+    );
+  } catch (err) {
+    announce(ctx, `could not record the exhausted compaction route as a fact: ${describeError(err)}`, "warning");
   }
 }
 
@@ -855,6 +1163,7 @@ export function register(pi: ExtensionAPI): void {
       // Before the report, so what it reports is the number this session will actually use.
       applyUniversalThreshold(ctx);
       reportThreshold(ctx);
+      announceRoute(ctx);
     } catch (err) {
       announce(ctx, `session_start failed internally and was skipped: ${describeError(err)}`, "error");
     }

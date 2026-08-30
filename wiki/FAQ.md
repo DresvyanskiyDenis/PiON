@@ -3,7 +3,7 @@
 ## What is this, in one sentence?
 
 PiON — a hardened, portable harness for the [PI coding agent](https://github.com/earendil-works/pi):
-one composed extension of 35 modules plus a configuration tree, adding a permission layer, routing by
+one composed extension of 36 modules plus a configuration tree, adding a permission layer, routing by
 semantic tier, sub-agent orchestration and a headless wrapper that exits non-zero when a run actually
 failed.
 
@@ -125,7 +125,7 @@ unattended. See [Exit codes](https://dresvyanskiydenis.github.io/PiON/reference/
 
 ## What is `bin/pi-check`?
 
-29 repository invariants, run as one command. It refuses an unqualified model id, a tier bound to an
+30 repository invariants, run as one command. It refuses an unqualified model id, a tier bound to an
 absent provider, any failover key, a secret-shaped literal in a tracked file, an unreplaced
 placeholder, a vendored tree whose bytes no longer match their recorded digests, and more. Exit `1`
 means your repository is wrong; exit `2` means the checker could not run.

@@ -20,7 +20,10 @@ options can trap you into an answer you do not mean. Declaring your own `Other` 
 because two rows meaning the same thing make the answer ambiguous — as do a repeated label, and two
 options that render as the same line.
 
-## Three behaviours that are choices
+`consequence` is the fourth field, and the only one that changes what a *non*-answer means. It is
+`"reversible"` by default; see [below](#a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide).
+
+## Four behaviours that are choices
 
 ### It fails loudly where there is nobody to ask
 
@@ -50,6 +53,39 @@ sending the main agent after a tool it has not got would be its own small fabric
 Closing the box means *I decline to choose*. It comes back as a decline, the model is told in as
 many words that no answer was given, and nothing re-asks. The guidelines shipped with the tool say
 what to do with that: proceed on your own judgement, and say which assumption you made.
+
+### …unless it was not yours to decide { #a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide }
+
+"Proceed on your own judgement" is the right reading of a decline on a question about a library or
+a naming convention. It is the wrong reading, and an expensive one, on a question that authorises
+spending money, an outward send, a deletion, or a write to restricted storage. There, no answer is
+a **refusal** — and a model told to use its judgement will helpfully do the thing nobody approved.
+
+A question may therefore declare `consequence: "irreversible"`. Its decline renders as `DENIED`,
+leading with the verdict and saying outright that silence is not approval, that the model must not
+act, must not choose on your behalf, and must not re-ask in a loop.
+
+Three things about that are deliberate:
+
+**The stakes are declared, never sniffed.** A regex over `$` or `delete` would be wrong in both
+directions and cannot be instructed. The obligation lives in the tool's own `promptGuidelines`
+instead. A model that fails to declare an irreversible question still gets the ordinary decline —
+the strict reading is added, not imposed.
+
+**It is a rendered line, not a thrown error.** One call carries up to four questions. Throwing on
+the denied one would discard the answers you *did* give and send the model back to ask everything
+again.
+
+**The cause is recorded when it happens.** PI resolves a dismissal, an aborted signal and an
+expired dialog all to the same `undefined`
+([why](../limitations.md#platform-limits--things-pi-does-not-let-an-extension-do)), so nothing
+about the returned value distinguishes them. The decline is stamped `dismissed` or `cancelled` at
+the moment the dialog gives up, by reading the caller's signal — and the `DENIED` line names it,
+because *you closed it* and *nobody was ever asked* are different refusals.
+
+This module arms no deadline of its own, and should not grow one. A question that authorises
+spending must not expire from inattention, and a second signal would make the two causes
+indistinguishable again. The only thing that ends a wait here is the session itself.
 
 ### `multiSelect` is honoured, not degraded
 
