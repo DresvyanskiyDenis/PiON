@@ -62,7 +62,7 @@ deployment.
 
 ## The interview
 
-Twelve questions for one model, plus eight more if you configure a second. Five of each set are the
+Thirteen questions for one model, plus eight more if you configure a second. Five of each set are the
 price, and four of those five are asked only if you answer `metered`.
 
 | # | Question | Notes |
@@ -71,16 +71,17 @@ price, and four of those five are asked only if you answer `metered`.
 | 2 | Name of the environment variable that will hold the virtual key | The **name**, not the key. Defaults to `LITELLM_API_KEY` |
 | 3 | Where does this proxy physically send your prompts? | `public` / `internal` / `confidential`, default `internal`. See [egress](#egress-describes-where-the-bytes-end-up) |
 | 4 | How many requests may be in flight at once? | Default `2`. LiteLLM enforces rpm/tpm per key |
-| 5 | Model id, exactly as the proxy serves it | `model_name` from the call above. Suggested for the `strong` tier |
-| 6 | Context window for that model | `min(200000, max_input_tokens)` |
-| 7 | Does that model take a `reasoning_effort`? | Default `false`. See [thinking](#thinking-levels) |
-| 8 | How is that model billed? | `metered` or `unmetered`. **No default** — an unstated price is refused by name rather than composed as a zero. See [price](#price-is-asked-not-guessed) |
-| 9-12 | Its input, output, cached-input and cache-write rates | Only asked if you said `metered`. **Dollars per million tokens**: `input_cost_per_token` from the call above **× 1 000 000**. The two cache rates default to `0` |
-| 13 | A second model id, or blank | Suggested for the `light` tier |
-| 14 | Context window for the second model | Only asked if you gave one |
-| 15 | Does the second model take a `reasoning_effort`? | Only asked if you gave one |
-| 16 | How is the second model billed? | Only asked if you gave one. Asked separately because the light tier is frequently the cheap alias, and sometimes the free one |
-| 17-20 | Its four rates | Only asked if you said `metered` for it |
+| 5 | Does this proxy partition its prompt cache by `prompt_cache_key`? | Default `false`, and **inert on an unpatched runtime**. See [prompt cache keys](#prompt-cache-keys-through-a-proxy) |
+| 6 | Model id, exactly as the proxy serves it | `model_name` from the call above. Suggested for the `strong` tier |
+| 7 | Context window for that model | `min(200000, max_input_tokens)` |
+| 8 | Does that model take a `reasoning_effort`? | Default `false`. See [thinking](#thinking-levels) |
+| 9 | How is that model billed? | `metered` or `unmetered`. **No default** — an unstated price is refused by name rather than composed as a zero. See [price](#price-is-asked-not-guessed) |
+| 10-13 | Its input, output, cached-input and cache-write rates | Only asked if you said `metered`. **Dollars per million tokens**: `input_cost_per_token` from the call above **× 1 000 000**. The two cache rates default to `0` |
+| 14 | A second model id, or blank | Suggested for the `light` tier |
+| 15 | Context window for the second model | Only asked if you gave one |
+| 16 | Does the second model take a `reasoning_effort`? | Only asked if you gave one |
+| 17 | How is the second model billed? | Only asked if you gave one. Asked separately because the light tier is frequently the cheap alias, and sometimes the free one |
+| 18-21 | Its four rates | Only asked if you said `metered` for it |
 
 The credential's **value** is asked for later, in the credentials step, and written to
 `~/.pi/secrets.env` (chmod 0600) or the macOS Keychain. `config/models.json` gets only the
@@ -145,6 +146,7 @@ deliberately. Every row names the file it came from, so you can check it rather 
 | `supportsFinishReason` | `true` | The proxy returns the OpenAI response schema. If a turn never ends, flip this to `false` and PI infers the stop itself |
 | `maxTokensField` | `max_tokens` | `gpt_5_transformation.py:270-275` — "max_tokens is not supported for gpt-5 models on OpenAI API", and LiteLLM rewrites it to `max_completion_tokens` for you. The legacy field is right *through* a proxy and wrong *at* the endpoint |
 | `supportsDeveloperRole` | `false` | Depends on the model behind the id, not on LiteLLM. Under-declaring costs nothing: the turn is sent with a `system` message instead |
+| `supportsPromptCacheKey` | *your answer* | The one key here that states a fact about **your gateway** rather than about LiteLLM, so it is asked. Written only when you answer yes; a no deletes the key rather than writing `false`. See [below](#prompt-cache-keys-through-a-proxy) |
 
 `supportsStrictMode` and `cacheControlFormat` are deliberately left unset — both depend on the model
 behind the alias, and declaring `cacheControlFormat` would report prompt-cache savings that did not
@@ -171,6 +173,122 @@ a minute.
     earlier draft of this page claimed the proxy adds `include_usage` itself and then strips the
     usage block back out; no such code exists in litellm 1.89.7 and the symbol it named exists
     nowhere. The flag was right, the mechanism was invented.
+
+---
+
+## Prompt cache keys through a proxy
+
+A gateway in front of Azure OpenAI or another OpenAI-compatible backend may partition its prompt
+cache by the client-sent **`prompt_cache_key`**. Without one, every session of every client shares a
+single partition and evicts the others: the cache does not error, it just never hits, and the only
+symptom is a bill that never falls.
+
+**PI does not send one through a proxy.** `pi-ai` builds the field under exactly two conditions
+(`dist/api/openai-completions.js:523-527` in 0.84.0):
+
+```js
+prompt_cache_key: (model.baseUrl.includes("api.openai.com") && cacheRetention !== "none") ||
+    (cacheRetention === "long" && compat.supportsLongCacheRetention)
+    ? clampOpenAIPromptCacheKey(options?.sessionId)
+    : undefined,
+prompt_cache_retention: cacheRetention === "long" && compat.supportsLongCacheRetention ? "24h" : undefined,
+```
+
+Read that against a gateway. Your `baseUrl` is the proxy's, so the first branch can never fire. The
+second one can — and it is not a workaround, because the *same* condition on the next line also sends
+`prompt_cache_retention: "24h"`. You would be buying a cache key at the price of a retention request
+your gateway may answer **400** to, and asking for 24-hour retention of your prompts on somebody
+else's infrastructure is a different decision than asking it to partition a cache.
+
+So the fragment asks the deployment question separately, and writes a **third, independent gate**:
+
+```json title="config/models.json, if you answered yes"
+"compat": { "…": "…", "supportsPromptCacheKey": true }
+```
+
+Answer **no** — the default — and the key is *deleted*, not written as `false`: a fragment token that
+resolves to `null` removes the key it sits in (`config/providers/README.md` §3 rule 3), so a
+default install's `models.json` is unchanged from before the question existed, and an answers file
+written before it existed still resolves.
+
+!!! danger "The flag is not in `pi-ai` 0.84.0. Answering yes changes nothing on its own."
+
+    `supportsPromptCacheKey` is a **patch**, not a feature. The shipped runtime has no such
+    condition and ignores the key, so a yes with an unpatched runtime is a declaration in your config
+    and no change on the wire — the same silent nothing the flag exists to fix. This repository ships
+    no patch. What follows is how to make one, and what it costs.
+
+### Patching the runtime, and the copy nobody patches
+
+The patch itself is three lines: add `compat.supportsPromptCacheKey` as a third disjunct on the
+`prompt_cache_key` expression above, and **leave `prompt_cache_retention` alone**. Keeping the two
+independent is the whole point; a patch that reuses the long-retention branch reintroduces the 400.
+
+[`patch-package`](https://www.npmjs.com/package/patch-package) is the right tool for generating and
+naming the diff. Two facts about *this* tree change how you use it.
+
+**1. npm installs `pi-ai` twice, and the second copy is the one that runs.**
+`@earendil-works/pi-coding-agent` declares its own dependency on `@earendil-works/pi-ai`, and npm
+leaves a nested copy under it even when the versions match:
+
+```bash
+find . -path '*@earendil-works/pi-ai/package.json' -not -path '*/dist/*'
+# node_modules/@earendil-works/pi-ai/package.json
+# node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/package.json
+```
+
+A patch named for the package alone — `@earendil-works+pi-ai+<version>.patch` — lands on the
+**top-level** copy only. That copy is what `tsc` reads for types; the nested one is what the agent
+loads to build a request. Patch the first and the gates stay green, the diff looks applied, and the
+wire is unchanged. Name the nesting explicitly instead:
+
+```bash
+# generate: the path you pass is the nesting, and the filename it writes records it
+npx patch-package @earendil-works/pi-coding-agent/@earendil-works/pi-ai
+# -> patches/@earendil-works+pi-coding-agent++@earendil-works+pi-ai+<version>.patch
+```
+
+The `++` between the two package names is what makes the patch resolve into the nested tree. Read the
+filename the command actually writes rather than typing it from here: it is the authority, and it
+carries the version, so an upgrade renames it and a stale patch stops applying instead of applying to
+the wrong source.
+
+**2. `postinstall` will not run it.** The usual `"postinstall": "patch-package"` wiring is
+unavailable here: `scripts/install.sh` runs `npm install --ignore-scripts`, and says so as a
+property — *"no piped shells; npm is always `--ignore-scripts`"*. Dropping that flag to gain a patch
+hook trades a supply-chain guarantee for a convenience. Apply the patch as an explicit, visible step
+instead — `npx patch-package` with no arguments, or `git apply patches/<file>` — and remember that
+**every `npm install` and every runtime update reverts it**. It is a re-applied edit, not an
+installed one.
+
+**Patch the copy that serves your turns.** Which one that is depends on how PI was installed
+([install modes](../getting-started/install.md#the-pi-runtime-itself)):
+
+| Install mode | What runs your turns | Can `patch-package` reach it? |
+|---|---|---|
+| `--mode npm` | the global package under `$(npm root -g)/@earendil-works/pi-coding-agent`, with its own nested `pi-ai` | Yes, but the patch has to be applied *there*, not in this checkout |
+| `--mode binary` (the default) | an unpacked release archive under `~/.local/share/pi-config/runtime/<version>/` with its modules beside it | No — there is no package tree to run `patch-package` against. Edit in place after each update, or switch to `--mode npm` |
+
+This checkout's own `node_modules` is a **development** dependency: it is what `npm run typecheck`
+and the test suite read. Patching it makes the flag typecheck, and does not make it send anything.
+
+Verify rather than assume — the fragment ships this as its last `verify` line:
+
+```bash
+grep -rl supportsPromptCacheKey "$(npm root -g)/@earendil-works" ~/.local/share/pi-config/runtime 2>/dev/null \
+  || echo 'no installed copy reads it: the flag is inert'
+```
+
+### The pinning test
+
+`test/providers-prompt-cache-key.test.ts` walks `node_modules` for **every** copy of `pi-ai` and
+holds each one to the same two statements: `prompt_cache_key` is still gated on `api.openai.com` or
+`supportsLongCacheRetention`, and no copy reads `supportsPromptCacheKey`.
+
+It fails in both directions on purpose. If upstream adopts the flag, the patch is redundant and this
+section is wrong — that should be read, not absorbed. If a tree is patched, it fails until *every*
+copy is patched, which is exactly the half-applied state that otherwise produces a green suite and an
+unchanged request.
 
 ---
 
@@ -247,6 +365,10 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 
 # one real turn
 pi -p 'reply with OK' --model litellm/<id>
+
+# whether the runtime that serves your turns reads supportsPromptCacheKey (a stock pi-ai does not)
+grep -rl supportsPromptCacheKey "$(npm root -g)/@earendil-works" ~/.local/share/pi-config/runtime 2>/dev/null \
+  || echo 'no installed copy reads it: the flag is inert'
 ```
 
 A **429** is your key's budget, not an outage: LiteLLM enforces rpm/tpm and `max_budget` per virtual
