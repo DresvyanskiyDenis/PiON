@@ -3150,7 +3150,7 @@
   <span class="md-ellipsis">
     
   
-    compaction — loop guard, keep/drop, pinning, threshold
+    compaction — loop guard, keep/drop, pinning, threshold, preflight
   
 
     
@@ -4627,6 +4627,13 @@ compactable dialogue against a <code>keepRecentTokens</code> of 20 000.</p>
 <li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Leave <code>reserveTokens</code> alone as a threshold lever. It is global.</li>
 <li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Verify with <code>/context</code> and confirm the reported window and trigger are the ones you intended.</li>
 </ul>
+<p>An over-declared window has one more consequence worth knowing before you meet it: a request that
+is already past the real limit does not necessarily come back as an error. On an OpenAI-compatible
+gateway it came back as a <code>200</code> with an empty body — an
+<a href="../../configuration/routing/#onprovidererror"><code>empty-response</code></a> that killed the turn and named no
+cause. The harness now refuses to send a prompt its own declared window cannot hold, which turns
+that silence into one line naming the model, the estimate and the window:
+<a href="../../extensions/compaction/#5-the-context-window-preflight"><code>compaction</code> §5</a>.</p>
 
 
 

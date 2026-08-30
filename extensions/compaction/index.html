@@ -27,7 +27,7 @@
     
     
       
-        <title>compaction — loop guard, keep/drop, pinning, threshold - PiON</title>
+        <title>compaction — loop guard, keep/drop, pinning, threshold, preflight - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#compaction-loop-guard-keepdrop-pinning-threshold" class="md-skip">
+        <a href="#compaction-loop-guard-keepdrop-pinning-threshold-preflight" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              compaction — loop guard, keep/drop, pinning, threshold
+              compaction — loop guard, keep/drop, pinning, threshold, preflight
             
           </span>
         </div>
@@ -3041,7 +3041,7 @@
   <span class="md-ellipsis">
     
   
-    compaction — loop guard, keep/drop, pinning, threshold
+    compaction — loop guard, keep/drop, pinning, threshold, preflight
   
 
     
@@ -3059,7 +3059,7 @@
   <span class="md-ellipsis">
     
   
-    compaction — loop guard, keep/drop, pinning, threshold
+    compaction — loop guard, keep/drop, pinning, threshold, preflight
   
 
     
@@ -3162,6 +3162,56 @@
     <span class="md-ellipsis">
       
         /autocompact — the flat number, or one model's own trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-the-context-window-preflight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The context-window preflight
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. The context-window preflight">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-estimate-and-the-bound-on-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The estimate, and the bound on it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-cannot-fire-before-auto-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it cannot fire before auto-compaction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#it-gives-up-rather-than-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        It gives up rather than loop
       
     </span>
   </a>
@@ -4429,6 +4479,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#5-the-context-window-preflight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The context-window preflight
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. The context-window preflight">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-estimate-and-the-bound-on-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The estimate, and the bound on it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-cannot-fire-before-auto-compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it cannot fire before auto-compaction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#it-gives-up-rather-than-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        It gives up rather than loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#an-extension-cannot-abort-a-headless-run" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4475,8 +4575,8 @@
   
 
 
-<h1 id="compaction-loop-guard-keepdrop-pinning-threshold"><code>compaction</code> — loop guard, keep/drop, pinning, threshold<a class="headerlink" href="#compaction-loop-guard-keepdrop-pinning-threshold" title="Permanent link">&para;</a></h1>
-<p>Four parts, in the order they matter. Configured by
+<h1 id="compaction-loop-guard-keepdrop-pinning-threshold-preflight"><code>compaction</code> — loop guard, keep/drop, pinning, threshold, preflight<a class="headerlink" href="#compaction-loop-guard-keepdrop-pinning-threshold-preflight" title="Permanent link">&para;</a></h1>
+<p>Five parts, in the order they matter. Configured by
 <a href="../../configuration/sessions/#compactionjson"><code>config/compaction.json</code></a>; PI's own three keys are in
 <a href="../../configuration/settings/#compaction"><code>settings.json</code></a>.</p>
 <p>Registers <code>/compaction-status</code>, <code>/autocompact</code> and the <code>fact</code> tool.</p>
@@ -4599,6 +4699,66 @@ settled by the session's own provider and refused otherwise, naming both candida
 the catalogue does not declare is refused rather than guessed.</p>
 <p>The write is textual and re-parsed before it is offered: re-serialising the config would reformat 14
 lines to change one number, and <code>config/compaction.json</code> is tracked.</p>
+<h2 id="5-the-context-window-preflight">5. The context-window preflight<a class="headerlink" href="#5-the-context-window-preflight" title="Permanent link">&para;</a></h2>
+<p>Auto-compaction is evaluated <strong>after a run</strong>. That leaves one case it structurally cannot catch: a
+single run issues several provider requests, the context grows between two post-run checks, and one
+of those requests goes out already larger than the declared window. The provider does not
+necessarily refuse it — an OpenAI-compatible gateway answered one such request with a <code>200</code> and an
+empty body, which this harness classifies as
+<a href="../../configuration/routing/#onprovidererror"><code>empty-response</code></a>, which killed the turn. Every number
+needed to prevent it was in the process before the request was assembled.</p>
+<p>So a <code>before_provider_request</code> handler estimates the outgoing prompt and compares it against
+<code>ctx.model.contextWindow</code>. Over the bar, the request is <strong>not sent</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[pi-config] compaction: refused a request this harness estimates at ~273110 tokens against
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>&lt;provider&gt;/&lt;model&gt;'s declared 200000-token window (~37% over, estimate is chars/3.5 on the
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>assembled body). Nothing was sent: an over-window request to this fleet comes back as a 200 with
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>an empty body, not as an error. Compaction runs next and the turn continues.
+</span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">A harness decision, filed as one</p>
+<p>The refusal is written to the session as a <code>context_preflight</code> entry, never as a
+<code>provider_failure</code>, and it never carries the <code>[pi-config] provider call failed:</code> marker
+<code>extensions/dispatch/failure-slot.ts</code> greps for. Nothing failed, because nothing was sent —
+and a harness refusal filed in the channel an operator greps for provider failures is how you
+end up debugging a gateway that was working.</p>
+</div>
+<h3 id="the-estimate-and-the-bound-on-it">The estimate, and the bound on it<a class="headerlink" href="#the-estimate-and-the-bound-on-it" title="Permanent link">&para;</a></h3>
+<p>There is no tokenizer here. The estimate is the total length of the <strong>string leaves</strong> of the
+assembled request body — not <code>JSON.stringify().length</code>, which counts keys, braces and escapes no
+tokenizer ever sees — divided by <strong>3.5 characters per token</strong>. English prose runs about 4, code and
+JSON about 3, and this harness's contexts are mostly the latter; PI's own internal estimator uses a
+flat 4, which on the incident above would have read ~202 000 and missed it.</p>
+<p>The residual error is roughly ±15 % in both directions. That is why the bar is not the window but
+<strong><code>contextWindow × 1.05</code></strong> — 210 000 tokens on a 200 000 window. A prompt sitting at 98 % of the
+window, where the estimator's error genuinely could decide the verdict, is left to auto-compaction,
+which by then has long since fired.</p>
+<h3 id="why-it-cannot-fire-before-auto-compaction">Why it cannot fire before auto-compaction<a class="headerlink" href="#why-it-cannot-fire-before-auto-compaction" title="Permanent link">&para;</a></h3>
+<p>PI compacts at <code>contextTokens &gt; contextWindow − reserveTokens</code>, i.e. always <em>below</em> the window. The
+preflight only ever acts <em>above</em> it, plus the 5 % tolerance. At any size where auto-compaction has
+something to say, the preflight is silent: it cannot trigger a compaction that was not going to
+happen anyway, and cannot spend a summarisation call the reserve would have spent.</p>
+<p>Refusing is also all it does. The refused turn returns to PI, whose own post-run check now sees a
+context demonstrably over the window, compacts, and continues. Calling <code>ctx.compact()</code> here as well
+would put a second compaction against the same context — the exact shape §1's loop guard exists to
+shoot down.</p>
+<p>This is also the one place in this module where <code>ctx.abort()</code> works. <a href="#an-extension-cannot-abort-a-headless-run">The section
+below</a> records that it is a no-op on the automatic
+compaction paths, because <code>activeRun</code> has already been cleared by then. A <code>before_provider_request</code>
+handler is the opposite case: it runs <em>inside</em> the active run, immediately before the HTTP call, so
+the abort lands on the very request being assembled.</p>
+<h3 id="it-gives-up-rather-than-loop">It gives up rather than loop<a class="headerlink" href="#it-gives-up-rather-than-loop" title="Permanent link">&para;</a></h3>
+<p>Two consecutive refusals per session is the budget — one for the request that was over, one for a
+request that is <em>still</em> over after the compaction. A third is let through, loudly, naming the real
+fix (<code>/compact</code> with instructions, a new session, or a <code>contextWindow</code> that matches what the
+endpoint serves). A doomed request whose failure is visible beats a session that never sends
+anything and never says why. The streak resets at the first request that fits.</p>
+<div class="admonition warning">
+<p class="admonition-title">These three numbers are constants, not config keys</p>
+<p><code>CHARS_PER_TOKEN</code>, <code>OVER_WINDOW_TOLERANCE</code> and <code>MAX_CONSECUTIVE_REFUSALS</code> live in
+<code>extensions/compaction/preflight.ts</code>. They describe the estimator's own error; an operator
+tuning them without new measurements is tuning the wrong thing. The lever that is yours is
+<a href="../../configuration/models/#modeloverrides"><code>modelOverrides.&lt;id&gt;.contextWindow</code></a>.</p>
+</div>
 <h2 id="an-extension-cannot-abort-a-headless-run">An extension cannot abort a headless run<a class="headerlink" href="#an-extension-cannot-abort-a-headless-run" title="Permanent link">&para;</a></h2>
 <p>Answered against the shipped code of 0.84.0 rather than the docs. Both documented candidates fail,
 and the second fails for a reason the runbook did not anticipate:</p>
@@ -4619,6 +4779,7 @@ root is unwritable — a sentinel-only wrapper would report success in exactly t
 guard could not speak.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../concepts/context-windows/">Context windows</a> ·
+<a href="../../configuration/routing/#onprovidererror"><code>onProviderError</code></a> ·
 <a href="../../configuration/sessions/#compactionjson"><code>compaction.json</code></a> ·
 <a href="../../reference/exit-codes/">Exit codes</a> · <a href="../context-report/">context-report</a></p>
 

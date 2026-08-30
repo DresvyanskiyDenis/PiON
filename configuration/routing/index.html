@@ -1347,6 +1347,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="onProviderError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#retry-the-two-classes-that-are-weather-not-a-verdict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        retry — the two classes that are weather, not a verdict
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3189,7 +3206,7 @@
   <span class="md-ellipsis">
     
   
-    compaction — loop guard, keep/drop, pinning, threshold
+    compaction — loop guard, keep/drop, pinning, threshold, preflight
   
 
     
@@ -4430,6 +4447,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="onProviderError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#retry-the-two-classes-that-are-weather-not-a-verdict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        retry — the two classes that are weather, not a verdict
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4734,11 +4768,69 @@ id versus an upstream-shaped one — does <strong>not</strong> discriminate a dr
 check found it decided entirely by whether the request carried <code>tools</code>, which every agent turn
 does. Neither is printed as a cause; both are printed as what they are, an observation.</p>
 </div>
+<h3 id="retry-the-two-classes-that-are-weather-not-a-verdict"><code>retry</code> — the two classes that are weather, not a verdict<a class="headerlink" href="#retry-the-two-classes-that-are-weather-not-a-verdict" title="Permanent link">&para;</a></h3>
+<p>An optional block. It is <strong>not</strong> in the shipped file, because its absence already means the
+defaults below; write it only to change them.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">"onProviderError"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"policy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abort"</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">"substituteProvider"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"retry"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"classes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">],</span><span class="w"> </span><span class="nt">"maxAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">}</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>classes</code></td>
+<td><code>["network", "empty-response"]</code></td>
+<td>Which classified failures get another attempt</td>
+</tr>
+<tr>
+<td><code>maxAttempts</code></td>
+<td><code>1</code></td>
+<td>Retries <strong>after</strong> the first attempt. <code>0</code> turns retrying off without deleting the block</td>
+</tr>
+</tbody>
+</table>
+<p>Two of the six classes describe the weather and four describe a verdict, and only the first two are
+worth re-sending:</p>
+<ul>
+<li><strong><code>network</code></strong> — DNS, TLS, proxy, timeout, 5xx. The request never got an answer from the model, so
+  nothing about it was refused.</li>
+<li><strong><code>empty-response</code></strong> — a well-formed <code>200</code> whose body carried no completion. Nothing about the
+  request caused it and nothing about it will be different next time.</li>
+</ul>
+<p><code>auth</code>, <code>quota</code>, <code>model-not-found</code> and <code>policy</code> are answers. Retrying <code>auth</code> re-presents a
+credential that was just rejected; <code>quota</code> spends the next second of a budget that is already
+spent; <code>model-not-found</code> asks again for an id the endpoint does not serve; and retrying <code>policy</code>
+re-submits, on a loop, text a tenant filter just refused — which is how an account gets flagged.</p>
+<div class="admonition danger">
+<p class="admonition-title">One retry, then abort — and the retry goes to the same provider and the same model</p>
+<p>This is <strong>not</strong> failover, and it does not soften
+<a href="../../adr/0001-no-provider-failover/">ADR 0001</a>: <code>policy</code> stays <code>abort</code>, <code>substituteProvider</code>
+stays <code>false</code>, and every one of these still ends in an abort. The only change is that two
+classes get one more attempt before they get there.</p>
+<p>One rather than three, because the failure this exists for is a coin flip and not a queue. If
+the second attempt is empty too, the answer is not "try a third time", it is "this endpoint is
+broken now and the operator needs to know". A larger budget also multiplies the token cost of a
+hard-failing fan-out by the budget, with nothing in the transcript that looks like an
+explanation.</p>
+</div>
+<p>The budget is per <strong>failure streak</strong>, not per session: a turn that succeeds clears it, because the
+next transient failure is a new coin flip and not the continuation of an old one. A malformed key
+here is reported and ignored rather than fatal — a typo in one integer must not become "no session
+talks to any provider". Read <code>extensions/lib/provider-retry.ts</code> for the whole argument.</p>
 <hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pi-tier<span class="w"> </span>light<span class="w">             </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pi-tier<span class="w"> </span>light<span class="w">             </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
 </span></code></pre></div>
 <p><code>pi-tier</code> exiting <strong>2</strong> on an unknown tier is deliberate: a typo in a cron job must fail, never
 fall back to a default model you did not choose.</p>

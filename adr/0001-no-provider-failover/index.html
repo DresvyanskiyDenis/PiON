@@ -3010,7 +3010,7 @@
   <span class="md-ellipsis">
     
   
-    compaction — loop guard, keep/drop, pinning, threshold
+    compaction — loop guard, keep/drop, pinning, threshold, preflight
   
 
     
@@ -4393,6 +4393,18 @@ tree, and <code>PC-05</code> fails it if a sub-agent definition carries <code>fa
 <code>retry</code> setting, three attempts by default. <code>retry.provider.maxRetries</code> is set to <code>0</code>, because a
 provider-level error (auth, quota, policy) is almost never transient and retrying it three times
 turns a two-second diagnosis into a two-minute one.</p>
+<div class="admonition note">
+<p class="admonition-title">Amended — one harness-level retry for <code>network</code> and <code>empty-response</code></p>
+<p><code>retry.provider.maxRetries</code> stays <code>0</code> for the reason above, and it is right for four of the six
+classes. It is wrong for two: a <code>network</code> failure never reached the model, and an
+<code>empty-response</code> is a <code>200</code> that carried no completion. Neither is a verdict about the request,
+and one of them was observed killing a <strong>dispatched sub-agent mid-mission</strong> — destroying paid
+work rather than a turn an operator can retype.</p>
+<p>So <code>onProviderError.retry</code> gives exactly those two classes exactly one more attempt, <strong>to the
+same provider and the same model</strong>. The decision above is unchanged: no substitution, no
+fallback chain, and the abort is still where all six classes end up.
+<a href="../../configuration/routing/#retry-the-two-classes-that-are-weather-not-a-verdict">Reference</a>.</p>
+</div>
 <h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
 <p><strong>Positive</strong></p>
 <ul>

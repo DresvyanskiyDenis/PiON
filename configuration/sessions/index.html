@@ -3178,7 +3178,7 @@
   <span class="md-ellipsis">
     
   
-    compaction — loop guard, keep/drop, pinning, threshold
+    compaction — loop guard, keep/drop, pinning, threshold, preflight
   
 
     
@@ -4714,6 +4714,14 @@ global settings → PI default — and <strong>carries the source alongside the 
 consequence of an earlier bug in this repository where a hard-coded PI default was printed as if it
 were a measurement, and the resulting advice would have broken three of five providers. A default
 must never again be printed as a measurement.</p>
+<div class="admonition note">
+<p class="admonition-title">The threshold is evaluated after a run; the preflight covers what that misses</p>
+<p>A single run can issue several provider requests, so the context can pass the window <em>between</em>
+two post-run checks. A <code>before_provider_request</code> handler refuses a request the declared window
+demonstrably cannot hold, and hands the turn back to PI to compact. It has no keys in this file
+on purpose — its three numbers describe an estimator's error, not an operator's intent. See
+<a href="../../extensions/compaction/#5-the-context-window-preflight"><code>compaction</code> §5</a>.</p>
+</div>
 <hr />
 <h2 id="digestjson"><code>digest.json</code><a class="headerlink" href="#digestjson" title="Permanent link">&para;</a></h2>
 <p>Read by <a href="../../extensions/digest/"><code>extensions/digest</code></a>. Writes an end-of-session summary.</p>
