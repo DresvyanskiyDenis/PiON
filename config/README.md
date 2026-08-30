@@ -44,9 +44,12 @@ git-ignored so a fork can never publish your endpoints. The contract that descri
    stops a cloned repository executing its own TypeScript.
 5. `models.json` and `settings.json` are **plain JSON, not JSON5** — pi will not parse comments. All
    commentary for the provider blocks lives in `providers/*.json`'s `notes[]`, block by block.
-6. **No provider failover, anywhere.** `routing.json`'s `onProviderError` is `{"policy": "abort",
-   "substituteProvider": false}` and is copied through the installer untouched. `bin/pi-check` rule
-   PC-03 fails on a re-introduced `fallback` key.
+6. **No provider failover on the working path.** `routing.json`'s `onProviderError` is
+   `{"policy": "abort", "substituteProvider": false}` and is copied through the installer untouched.
+   `bin/pi-check` rule PC-03 fails on a re-introduced `fallback` key. The one declared exception is
+   `routing.json`'s `compaction.route`, which gives the *summariser* an ordered list of endpoints so
+   a quota wall on the lead cannot also stop the session shrinking; it is announced at every hop.
+   See [ADR 0001](../docs/adr/0001-no-provider-failover.md).
 
 ## 60-second smoke test
 

@@ -5,6 +5,16 @@ export const id = "PC-03";
 export const title = 'No "fallback", "failover" or "egressOrder" key anywhere in config/routing.json';
 export const closes = ["REQ-EXT-08-cancelled"]; // EXT-08 provider failover is cancelled (owner decision)
 
+// WHAT THIS RULE MEANS NOW THAT routing.json HAS A `compaction` BLOCK
+// -------------------------------------------------------------------
+// That block walks an ordered route and hops on a classified failure, which is a failover — and is
+// deliberately not what these three keys name. The scope of this rule is unchanged and is exactly
+// right as it stands: these keys, at any depth, attach a fallback chain to a TIER, i.e. to the path
+// that produces the WORK, which is what ADR 0001 refuses. The compaction block attaches one to the
+// SERVICE path, under its own key names, declared in config and announced at every hop.
+//
+// Adding a `"fallback"` key under `compaction` is still a finding, and should be: the route lives
+// in `route`, and a second spelling for the same idea is how a rule quietly stops meaning anything.
 const FORBIDDEN_KEY = /"(fallback|failover|egressOrder)"\s*:/g;
 
 /** @param {RuleContext} ctx @returns {Finding[]} */
