@@ -27,7 +27,8 @@ vendor: the fragment has nothing to do with any particular company's account.
 
 Fragments for individual vendors are the exception, not the pattern: one exists only when it knows
 something the interview cannot ask for. `litellm` knows four wire fields that may not be deferred to
-a prompt. `openai` knows that a ChatGPT subscription has no API key at all, which a gateway fragment
+a prompt — and asks the one field that must be, whether your gateway partitions its prompt cache by
+`prompt_cache_key`. `openai` knows that a ChatGPT subscription has no API key at all, which a gateway fragment
 cannot express — no answer produces an *absent* field — and it knows the published list prices for
 models it names by id. `deepseek` knows that PI's own bundled rates for those ids had fallen behind
 the vendor's page. `qwen` knows that Alibaba sells the same models twice — metered on Model Studio
