@@ -145,6 +145,34 @@ nothing — an agent that asked for isolation asked because running in the user'
 
 Use it for mechanical multi-file work: migrations, codemods, dependency bumps.
 
+### The refusal arrives at dispatch, not afterwards
+
+Falling back to `pi-subagents`' own worktree support means setting `worktree: true`, which is a
+**request**: the package builds the tree inside the child it spawns, not at dispatch. So a
+repository that cannot host one used to return a well-formed run id for a child that then died out
+of band — indistinguishable, from where you are standing, from a run that launched.
+
+A preflight now answers the question while the refusal can still reach you. It refuses when the
+session's directory is not in a git working tree, when there is no commit to branch from, and —
+the one that catches people — when **your** working tree is dirty:
+
+```
+agent "surgeon" declares isolation: worktree, no worktree provider (EXT-23) is registered, and
+pi-subagents cannot create one from /repo: /repo has 3 uncommitted change(s), and pi-subagents
+refuses managed worktree isolation on a dirty tree. Commit or stash them first. Do not answer
+this by declaring isolation: none — that drops the child into this very checkout, which is what
+the declaration exists to prevent.
+```
+
+`git worktree add` does not need a clean source tree; it materialises a fresh tree at HEAD and the
+dirt never reaches the child. The requirement is the package's own, imposed on itself, and this
+repository patches nothing under `node_modules` — so the honest move is to predict the refusal
+rather than argue with it. The remedy is in the message, and it is not `isolation: none`.
+
+Repository identity in that check is `git rev-parse --git-common-dir`, never a path prefix: a
+session running in a linked worktree has a toplevel nowhere near the primary checkout and shares
+only the common dir, and a linked worktree is exactly where this project expects to be run from.
+
 ---
 
 ## `returns: object`

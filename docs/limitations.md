@@ -112,6 +112,25 @@ indistinguishable.
 aborts, not read it afterwards. A flag set ahead of `signal.abort()` is the only thing at that call
 site that carries a reason.
 
+### `pi-subagents` refuses managed worktree isolation while your tree is dirty
+
+`createWorktrees` calls `resolveRepoState`, which runs `git status --porcelain` on the **source**
+checkout and throws `worktree isolation requires a clean git working tree` if anything is
+uncommitted. `git worktree add` itself has no such requirement — it materialises a fresh tree at
+HEAD, and the source tree's dirt never reaches the child — so this is a precondition the package
+imposes on itself.
+
+**Consequence:** a lead holding any work in progress cannot delegate to an agent declaring
+`isolation: worktree`. The tempting way out, `isolation: none`, drops the child into the very
+checkout the declaration exists to keep it out of, so it is the wrong answer.
+
+**Not worked around, on purpose.** The fix would be a patch to `node_modules`, and the installed
+tree is what runs here: this repository keeps it unmodified and `PC-21` enforces that for the
+vendored tree. Instead `extensions/dispatch/isolation.ts` *predicts* the refusal, so it arrives at
+dispatch with a remedy in the message rather than out of band after a run id has been handed back.
+`test/dispatch/isolation.test.ts` loads the real package through `jiti` and asserts the two still
+agree, so the day upstream drops the precondition, that test says so.
+
 ### `pi-subagents`' supervisor channel bounds the request and not the reply
 
 A child's `contact_supervisor` request is size-checked against `MAX_MESSAGE_BYTES` (64 KiB) at
