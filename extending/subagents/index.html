@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -3578,6 +3608,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="isolation: worktree">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-refusal-arrives-at-dispatch-not-afterwards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The refusal arrives at dispatch, not afterwards
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4513,6 +4560,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="isolation: worktree">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-refusal-arrives-at-dispatch-not-afterwards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The refusal arrives at dispatch, not afterwards
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4859,6 +4923,27 @@ If you want a genuinely non-executing agent, drop <code>bash</code>.</p>
 available, <strong>the dispatch is refused</strong>. It does not fall back to running in your checkout and saying
 nothing — an agent that asked for isolation asked because running in the user's tree is unsafe.</p>
 <p>Use it for mechanical multi-file work: migrations, codemods, dependency bumps.</p>
+<h3 id="the-refusal-arrives-at-dispatch-not-afterwards">The refusal arrives at dispatch, not afterwards<a class="headerlink" href="#the-refusal-arrives-at-dispatch-not-afterwards" title="Permanent link">&para;</a></h3>
+<p>Falling back to <code>pi-subagents</code>' own worktree support means setting <code>worktree: true</code>, which is a
+<strong>request</strong>: the package builds the tree inside the child it spawns, not at dispatch. So a
+repository that cannot host one used to return a well-formed run id for a child that then died out
+of band — indistinguishable, from where you are standing, from a run that launched.</p>
+<p>A preflight now answers the question while the refusal can still reach you. It refuses when the
+session's directory is not in a git working tree, when there is no commit to branch from, and —
+the one that catches people — when <strong>your</strong> working tree is dirty:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>agent "surgeon" declares isolation: worktree, no worktree provider (EXT-23) is registered, and
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pi-subagents cannot create one from /repo: /repo has 3 uncommitted change(s), and pi-subagents
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>refuses managed worktree isolation on a dirty tree. Commit or stash them first. Do not answer
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>this by declaring isolation: none — that drops the child into this very checkout, which is what
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>the declaration exists to prevent.
+</span></code></pre></div>
+<p><code>git worktree add</code> does not need a clean source tree; it materialises a fresh tree at HEAD and the
+dirt never reaches the child. The requirement is the package's own, imposed on itself, and this
+repository patches nothing under <code>node_modules</code> — so the honest move is to predict the refusal
+rather than argue with it. The remedy is in the message, and it is not <code>isolation: none</code>.</p>
+<p>Repository identity in that check is <code>git rev-parse --git-common-dir</code>, never a path prefix: a
+session running in a linked worktree has a toplevel nowhere near the primary checkout and shares
+only the common dir, and a linked worktree is exactly where this project expects to be run from.</p>
 <hr />
 <h2 id="returns-object"><code>returns: object</code><a class="headerlink" href="#returns-object" title="Permanent link">&para;</a></h2>
 <p>The agent must return a structured report rather than prose. Four schemas ship in <code>config/schemas/</code>
@@ -4869,7 +4954,7 @@ Use the default <code>text</code> when a human reads it.</p>
 <hr />
 <h2 id="where-agents-are-discovered">Where agents are discovered<a class="headerlink" href="#where-agents-are-discovered" title="Permanent link">&para;</a></h2>
 <p><code>config/dispatch.json</code>'s <code>registryDirs</code>, in order:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">[</span><span class="s2">"&lt;repo&gt;/agents"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;repo&gt;/agents-private"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;agentDir&gt;/agents"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;cwd&gt;/.pi/agents"</span><span class="p">]</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">[</span><span class="s2">"&lt;repo&gt;/agents"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;repo&gt;/agents-private"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;agentDir&gt;/agents"</span><span class="p">,</span><span class="w"> </span><span class="s2">"&lt;cwd&gt;/.pi/agents"</span><span class="p">]</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -4973,8 +5058,8 @@ which is set.</p>
 workflow can exhaust its run budget at width 2 as surely as at width 20 — it is a spend ceiling, not
 a concurrency one. A batch that does not fit is rejected <strong>whole</strong>, with none of its children
 started:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Run fan-out limit reached at &lt;path&gt; (64/64 used; 4 requested, 0 remaining). No children from this
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>admission group were started. Start a new top-level run or raise config.maxSubagentSpawnsPerRun.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Run fan-out limit reached at &lt;path&gt; (64/64 used; 4 requested, 0 remaining). No children from this
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>admission group were started. Start a new top-level run or raise config.maxSubagentSpawnsPerRun.
 </span></code></pre></div>
 <p><code>maxActiveAsyncRunsPerSession</code> is the only one of the three that counts anything simultaneous, and it
 counts top-level async runs — not the children inside one of them.</p>
@@ -4988,16 +5073,16 @@ release should find the conservative value already there rather than the package
 <p><code>config/subagent.json</code>, generated at install time from <code>config/subagent.default.json</code> and git-ignored
 like the rest of the personal config (see
 <a href="../../configuration/#fact-2-generated-vs-tracked">Generated vs tracked</a>):</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"toolDescriptionMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"custom"</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"globalConcurrencyLimit"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">"parallel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">"maxTasks"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="p">},</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">"maxSubagentSpawnsPerRun"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">"maxActiveAsyncRunsPerSession"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"toolDescriptionMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"custom"</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">"globalConcurrencyLimit"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"parallel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">"maxTasks"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">"concurrency"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">"maxSubagentSpawnsPerRun"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">"maxActiveAsyncRunsPerSession"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><code>4</code> mirrors the <code>concurrency</code> this repository's own <code>routing.default.json</code> ships for its one bundled
 provider — a conservative, obviously-safe number for a machine nobody has tuned yet, not a
@@ -5046,7 +5131,7 @@ after any change — the description is built once, when the tool is registered.
 <h3 id="fleetkeybindings-one-block-two-views"><code>fleetKeybindings</code> — one block, two views<a class="headerlink" href="#fleetkeybindings-one-block-two-views" title="Permanent link">&para;</a></h3>
 <p>The same file takes an optional <code>fleetKeybindings</code> block, which is <code>pi-subagents</code>' escape hatch for
 a terminal that swallows a named key — <code>PgUp</code> and <code>PgDn</code> are the usual casualties:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"fleetKeybindings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"pageUp"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ctrl+b"</span><span class="p">],</span><span class="w"> </span><span class="nt">"pageDown"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ctrl+f"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"fleetKeybindings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"pageUp"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ctrl+b"</span><span class="p">],</span><span class="w"> </span><span class="nt">"pageDown"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"ctrl+f"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>It retunes <strong>both</strong> navigable views: the package's own <code>/subagents-fleet</code> and this repository's
 <a href="../../extensions/jobs/#looking-through-them-yourself-jobs"><code>/jobs</code></a> browser, which spells its ten
@@ -5056,9 +5141,9 @@ intercepts, so they need no hatch. A malformed entry is ignored rather than appl
 that silently unbound <code>close</code> would trap you inside an overlay.</p>
 <hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pi
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>/doctor<span class="w">            </span><span class="c1"># D-03: every agent name mentioned has a file</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>/agents<span class="w">            </span><span class="c1"># the registry, including invalid and restricted entries</span>
 </span></code></pre></div>
 <p>An agent that appears as <strong>invalid</strong> carries its reason. An agent that appears as <strong>restricted</strong>
 resolved fine but names a model nothing is currently serving — usually an <code>optional</code> tier whose

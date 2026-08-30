@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -2510,15 +2540,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-behaviours-that-are-choices" class="md-nav__link">
+  <a href="#four-behaviours-that-are-choices" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three behaviours that are choices
+        Four behaviours that are choices
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Three behaviours that are choices">
+    <nav class="md-nav" aria-label="Four behaviours that are choices">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2537,6 +2567,17 @@
     <span class="md-ellipsis">
       
         A dismissed dialog is an answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        …unless it was not yours to decide
       
     </span>
   </a>
@@ -4323,15 +4364,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-behaviours-that-are-choices" class="md-nav__link">
+  <a href="#four-behaviours-that-are-choices" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three behaviours that are choices
+        Four behaviours that are choices
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Three behaviours that are choices">
+    <nav class="md-nav" aria-label="Four behaviours that are choices">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4350,6 +4391,17 @@
     <span class="md-ellipsis">
       
         A dismissed dialog is an answer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        …unless it was not yours to decide
       
     </span>
   </a>
@@ -4435,7 +4487,9 @@ a description that restates the label wastes the dialog.</p>
 options can trap you into an answer you do not mean. Declaring your own <code>Other</code> option is rejected,
 because two rows meaning the same thing make the answer ambiguous — as do a repeated label, and two
 options that render as the same line.</p>
-<h2 id="three-behaviours-that-are-choices">Three behaviours that are choices<a class="headerlink" href="#three-behaviours-that-are-choices" title="Permanent link">&para;</a></h2>
+<p><code>consequence</code> is the fourth field, and the only one that changes what a <em>non</em>-answer means. It is
+<code>"reversible"</code> by default; see <a href="#a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide">below</a>.</p>
+<h2 id="four-behaviours-that-are-choices">Four behaviours that are choices<a class="headerlink" href="#four-behaviours-that-are-choices" title="Permanent link">&para;</a></h2>
 <h3 id="it-fails-loudly-where-there-is-nobody-to-ask">It fails loudly where there is nobody to ask<a class="headerlink" href="#it-fails-loudly-where-there-is-nobody-to-ask" title="Permanent link">&para;</a></h3>
 <p>The gate is <code>ctx.hasUI</code>. When it is false the tool throws, naming the mode, rather than returning
 anything at all.</p>
@@ -4460,6 +4514,31 @@ sending the main agent after a tool it has not got would be its own small fabric
 <p>Closing the box means <em>I decline to choose</em>. It comes back as a decline, the model is told in as
 many words that no answer was given, and nothing re-asks. The guidelines shipped with the tool say
 what to do with that: proceed on your own judgement, and say which assumption you made.</p>
+<h3 id="a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide">…unless it was not yours to decide<a class="headerlink" href="#a-dismissed-dialog-is-an-answer-unless-it-was-not-yours-to-decide" title="Permanent link">&para;</a></h3>
+<p>"Proceed on your own judgement" is the right reading of a decline on a question about a library or
+a naming convention. It is the wrong reading, and an expensive one, on a question that authorises
+spending money, an outward send, a deletion, or a write to restricted storage. There, no answer is
+a <strong>refusal</strong> — and a model told to use its judgement will helpfully do the thing nobody approved.</p>
+<p>A question may therefore declare <code>consequence: "irreversible"</code>. Its decline renders as <code>DENIED</code>,
+leading with the verdict and saying outright that silence is not approval, that the model must not
+act, must not choose on your behalf, and must not re-ask in a loop.</p>
+<p>Three things about that are deliberate:</p>
+<p><strong>The stakes are declared, never sniffed.</strong> A regex over <code>$</code> or <code>delete</code> would be wrong in both
+directions and cannot be instructed. The obligation lives in the tool's own <code>promptGuidelines</code>
+instead. A model that fails to declare an irreversible question still gets the ordinary decline —
+the strict reading is added, not imposed.</p>
+<p><strong>It is a rendered line, not a thrown error.</strong> One call carries up to four questions. Throwing on
+the denied one would discard the answers you <em>did</em> give and send the model back to ask everything
+again.</p>
+<p><strong>The cause is recorded when it happens.</strong> PI resolves a dismissal, an aborted signal and an
+expired dialog all to the same <code>undefined</code>
+(<a href="../../limitations/#platform-limits--things-pi-does-not-let-an-extension-do">why</a>), so nothing
+about the returned value distinguishes them. The decline is stamped <code>dismissed</code> or <code>cancelled</code> at
+the moment the dialog gives up, by reading the caller's signal — and the <code>DENIED</code> line names it,
+because <em>you closed it</em> and <em>nobody was ever asked</em> are different refusals.</p>
+<p>This module arms no deadline of its own, and should not grow one. A question that authorises
+spending must not expire from inattention, and a second signal would make the two causes
+indistinguishable again. The only thing that ends a wait here is the session itself.</p>
 <h3 id="multiselect-is-honoured-not-degraded"><code>multiSelect</code> is honoured, not degraded<a class="headerlink" href="#multiselect-is-honoured-not-degraded" title="Permanent link">&para;</a></h3>
 <p>PI's <code>select</code> is single-choice and there is no richer dialog to reach for. Multi-select is
 therefore a loop over <code>select</code> that renders its own <code>[x]</code> / <code>[ ]</code> markers, an Other row, and a Done

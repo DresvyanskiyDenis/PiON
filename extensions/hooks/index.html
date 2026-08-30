@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -4398,6 +4428,11 @@ nothing loaded.</p>
 <p>The practical cost of the old polarity was the whole argument against it: one YAML typo bricked the
 session. <a href="../doctor/"><code>doctor</code></a>'s <code>D-09</code> reports a hook layer sitting degraded, so the fact stays
 visible without being fatal.</p>
+<p>The mirror image is the <code>run</code> action, whose script lives outside the repository. That one still
+fails <strong>closed</strong> — a rule that cannot reach its script blocks the tool it matches, for the whole
+session — so it announces itself once per rule and joins <code>D-09</code>, and
+<a href="../../extending/hooks/#when-the-script-is-not-installed"><code>bin/pi-check --doctor</code></a> answers the same
+question from a shell before a session ever hits the rule.</p>
 <h2 id="hooks-stack-on-the-guard">Hooks stack on the guard<a class="headerlink" href="#hooks-stack-on-the-guard" title="Permanent link">&para;</a></h2>
 <p>They may only <strong>add</strong> denial, never remove it. That is why <code>hooks</code> loads after <code>guard</code>.</p>
 <p>Merge order: the global file first, then <code>&lt;project&gt;/.pi/hooks.yaml</code> <strong>when the project is trusted</strong>.</p>

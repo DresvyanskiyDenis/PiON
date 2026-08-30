@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -3235,6 +3265,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#6-the-compaction-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The compaction route
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#an-extension-cannot-abort-a-headless-run" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4551,6 +4592,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#6-the-compaction-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The compaction route
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#an-extension-cannot-abort-a-headless-run" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4815,6 +4867,52 @@ anything and never says why. The streak resets at the first request that fits.</
 tuning them without new measurements is tuning the wrong thing. The lever that is yours is
 <a href="../../configuration/models/#modeloverrides"><code>modelOverrides.&lt;id&gt;.contextWindow</code></a>.</p>
 </div>
+<h2 id="6-the-compaction-route">6. The compaction route<a class="headerlink" href="#6-the-compaction-route" title="Permanent link">&para;</a></h2>
+<p>The summariser call used to borrow <code>ctx.model</code> — the session's own provider, model and budget. That
+made compaction, the one call that has to work <em>while the session is failing</em>, depend on the thing
+that was failing. A quota wall on the lead's deployment ended the turn and removed the session's
+ability to shrink out of the corner at the same time.</p>
+<p><code>config/routing.json</code>'s <a href="../../configuration/routing/#compaction"><code>compaction</code></a> block gives it an
+ordered list of endpoints instead. <code>route.ts</code> parses and resolves that list; this module walks it —
+find the model, resolve the credential, call <code>compact()</code> — and stops at the first candidate that
+produces a summary.</p>
+<p>What you see when it matters:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Where it goes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The route, at every session start</td>
+<td>an announcement naming each candidate as <code>tier -&gt; provider/model:level [egress]</code></td>
+</tr>
+<tr>
+<td>A candidate failing</td>
+<td>an announcement with the error class, plus a <code>compaction_route_hop</code> session entry</td>
+</tr>
+<tr>
+<td>A summary produced on candidate 2+</td>
+<td>an announcement naming the candidate and every one that failed first</td>
+</tr>
+<tr>
+<td>The route running out</td>
+<td>a classified provider failure, a status cell, <strong>and a session fact</strong></td>
+</tr>
+</tbody>
+</table>
+<p>That last row is the one to read twice. A session entry and a toast both die with the context, and
+the context is about to be cut — which is why we are here at all. The facts file is re-stated after
+every compaction (§3), so recording the exhausted route there is what makes the next turn's model
+read <em>"compaction has no working path"</em> instead of silently trying again and dying the same way.</p>
+<p>A <code>policy</code> refusal never hops: a content filter rejecting the transcript is a verdict about the
+data, not about the endpoint. Neither does a cancellation, which is not a verdict about anything and
+must not turn one interrupt into three provider calls.</p>
+<p>If nothing resolves — an empty route, or every candidate unknown to this install — compaction falls
+back to the session's own model and says so at session start. That restores the behaviour this block
+exists to replace, so it is reported as the degradation it is rather than passed off as a default.</p>
 <h2 id="an-extension-cannot-abort-a-headless-run">An extension cannot abort a headless run<a class="headerlink" href="#an-extension-cannot-abort-a-headless-run" title="Permanent link">&para;</a></h2>
 <p>Answered against the shipped code of 0.84.0 rather than the docs. Both documented candidates fail,
 and the second fails for a reason the runbook did not anticipate:</p>
@@ -4834,10 +4932,13 @@ signals rather than one, because writing the sentinel is best-effort and returns
 root is unwritable — a sentinel-only wrapper would report success in exactly the case where the
 guard could not speak.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<p><a href="../../concepts/context-windows/">Context windows</a> ·
+<ul>
+<li><a href="../../configuration/routing/#compaction"><code>config/routing.json</code> — <code>compaction</code></a> — the route this module walks
+<a href="../../concepts/context-windows/">Context windows</a> ·
 <a href="../../configuration/routing/#onprovidererror"><code>onProviderError</code></a> ·
 <a href="../../configuration/sessions/#compactionjson"><code>compaction.json</code></a> ·
-<a href="../../reference/exit-codes/">Exit codes</a> · <a href="../context-report/">context-report</a></p>
+<a href="../../reference/exit-codes/">Exit codes</a> · <a href="../context-report/">context-report</a></li>
+</ul>
 
 
 

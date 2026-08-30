@@ -1367,6 +1367,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compaction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="compaction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        route
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#onroutefailurefailoverclasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        onRouteFailure.failoverClasses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-is-not-the-failover-adr-0001-forbids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this is not the failover ADR 0001 forbids
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verifying-a-change" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1536,6 +1586,8 @@
       
         
       
+        
+      
     
     
     
@@ -1627,6 +1679,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -4467,6 +4547,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compaction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="compaction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        route
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#onroutefailurefailoverclasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        onRouteFailure.failoverClasses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-is-not-the-failover-adr-0001-forbids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this is not the failover ADR 0001 forbids
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verifying-a-change" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4827,10 +4957,91 @@ next transient failure is a new coin flip and not the continuation of an old one
 here is reported and ignored rather than fatal — a typo in one integer must not become "no session
 talks to any provider". Read <code>extensions/lib/provider-retry.ts</code> for the whole argument.</p>
 <hr />
+<h2 id="compaction"><code>compaction</code><a class="headerlink" href="#compaction" title="Permanent link">&para;</a></h2>
+<p>Compaction is the one call this harness makes that has to succeed <strong>while the session is already
+failing</strong>. Until it had a block here it borrowed <code>ctx.model</code> — the lead's provider, the lead's
+model, the lead's budget — so the call that rescues a session was aimed at whatever was breaking it.
+A quota refusal on the lead's deployment therefore took out both the turn and the ability to shrink
+enough to keep going, and the only exit was an operator changing model by hand.</p>
+<p>Retrying does not reach that. A retry re-issues the same request to the same endpoint, which is the
+right answer to a transient artifact (see <a href="#retry-the-two-classes-that-are-weather-not-a-verdict"><code>retry</code></a>)
+and no answer at all to a budget that is already spent. What compaction needed was a different
+endpoint.</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">"compaction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">"route"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"light"</span><span class="p">,</span><span class="w"> </span><span class="s2">"confidential"</span><span class="p">],</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">"onRouteFailure"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">"failoverClasses"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"quota"</span><span class="p">,</span><span class="w"> </span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">,</span><span class="w"> </span><span class="s2">"auth"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model-not-found"</span><span class="p">]</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="route"><code>route</code><a class="headerlink" href="#route" title="Permanent link">&para;</a></h3>
+<p>Ordered candidates, read with exactly the vocabulary the rest of this file uses: a bare word is a
+<a href="#tiers">tier</a> name, a <code>provider/id</code> is a literal model, and a <code>:level</code> suffix — or the tier's own
+<code>thinkingLevel</code> — sets the reasoning effort. The first candidate that produces a summary wins and
+the rest are never called.</p>
+<p>The shipped route is <code>light</code> then <code>confidential</code>, and each entry is there for a different failure:</p>
+<table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th>Survives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>light</code></td>
+<td>the lead's own model or deployment refusing — a different model, and summarisation is the shape that tier exists for</td>
+</tr>
+<tr>
+<td><code>confidential</code></td>
+<td>the whole <em>provider</em> being down or rate-limited, because it is a different one</td>
+</tr>
+</tbody>
+</table>
+<p>A stock install has one provider, so <code>confidential</code> is listed under <a href="#tiersunbound"><code>tiersUnbound</code></a>
+and the second hop resolves to nothing. That is not a misconfiguration and is not reported as one:
+naming an unbound tier in the route is a forward declaration, and the day <code>scripts/install.sh</code> binds
+a provider for it the route grows the second hop with no edit to this file. Until then the route is
+one candidate long, which still moves compaction off the lead's model.</p>
+<div class="admonition tip">
+<p class="admonition-title">The one rule for editing this list</p>
+<p>A candidate's <code>contextWindow</code> in <code>models.json</code> must be at least the auto-compact trigger in
+<code>compaction.json</code>, because that is roughly the size of the transcript it will be handed. A model
+with a smaller window is not a fallback: it cannot physically accept the input, so it fails on
+every call rather than on a bad day. Nothing enforces this at runtime on purpose — a candidate
+that is too small fails on its own provider's context error and the route hops past it, which
+costs one round trip and is honest, where a harness-side veto would be one more place to be
+wrong about a number the provider owns.</p>
+</div>
+<p>An empty route, or one whose every candidate is unresolvable, degrades to the session's own model —
+the behaviour this block exists to replace — and says so at every session start. That is a
+degradation, not a default.</p>
+<h3 id="onroutefailurefailoverclasses"><code>onRouteFailure.failoverClasses</code><a class="headerlink" href="#onroutefailurefailoverclasses" title="Permanent link">&para;</a></h3>
+<p>The failure classes that move to the <strong>next</strong> candidate. Any other class ends the route where it
+stands. The five shipped classes each say something about <em>this</em> candidate and nothing about the
+next: <code>quota</code> is the whole reason the block exists, <code>network</code> and <code>empty-response</code> are provider
+artifacts with no verdict in them, <code>auth</code> means this candidate's credential is missing or rejected,
+and <code>model-not-found</code> means this candidate is misconfigured in this install.</p>
+<p><code>policy</code> is <strong>not</strong> eligible, and is refused as a configured value rather than merely absent from
+the default. A content filter refusing the transcript is a verdict about the <em>data</em>; walking the
+route until some tenant accepts it is egress-shopping around a refusal that was made on purpose.</p>
+<h3 id="why-this-is-not-the-failover-adr-0001-forbids">Why this is not the failover <a href="../../adr/0001-no-provider-failover/">ADR 0001</a> forbids<a class="headerlink" href="#why-this-is-not-the-failover-adr-0001-forbids" title="Permanent link">&para;</a></h3>
+<p><a href="#onprovidererror"><code>onProviderError</code></a> governs the path that produces the <strong>work</strong>, where a quietly
+substituted weaker model hands back worse work under the stronger model's name. That stays
+<code>abort</code> / <code>substituteProvider: false</code>, and <code>PC-03</code> still fails the repository on a <code>fallback</code>,
+<code>failover</code> or <code>egressOrder</code> key anywhere in this file.</p>
+<p>Compaction is the <strong>service</strong> path. Its product is a summary of a conversation rather than the work,
+so there is no weaker answer for a reader to be fooled by, and the alternative to hopping is not
+"the operator picks another model" but "the session dies on context". The property the two blocks
+share is the one that carried the original decision: <strong>nothing is silent.</strong> The route is printed at
+session start, every hop announces provider, model, egress class and error class and is persisted as
+a <code>compaction_route_hop</code> entry, and an exhausted route surfaces a classified provider failure <em>and</em>
+writes a session fact — the one surface that survives the very cut it is about.</p>
+<hr />
 <h2 id="verifying-a-change">Verifying a change<a class="headerlink" href="#verifying-a-change" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pi-tier<span class="w"> </span>light<span class="w">             </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pi-tier<span class="w"> </span>--list<span class="w">            </span><span class="c1"># the whole table, resolved</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pi-tier<span class="w"> </span>light<span class="w">             </span><span class="c1"># one tier -&gt; provider/model-id ; exit 2 on an unknown name</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>bin/pi-check<span class="w"> </span>--all<span class="w">        </span><span class="c1"># PC-01, PC-02, PC-04, PC-08</span>
 </span></code></pre></div>
 <p><code>pi-tier</code> exiting <strong>2</strong> on an unknown tier is deliberate: a typo in a cron job must fail, never
 fall back to a default model you did not choose.</p>
@@ -4841,6 +5052,8 @@ human and the model are reading different lists, the one nobody can see is the o
 <li><a href="../../concepts/providers-and-tiers/">Providers and tiers</a></li>
 <li><a href="../models/"><code>models.json</code></a></li>
 <li><a href="../dispatch/"><code>dispatch.json</code></a> — the defaults used when an agent declares nothing</li>
+<li><a href="../../extensions/compaction/#6-the-compaction-route"><code>compaction</code></a> — the extension that walks the route above</li>
+<li><a href="../../adr/0001-no-provider-failover/">ADR 0001</a> — why the working path has no route at all</li>
 </ul>
 
 

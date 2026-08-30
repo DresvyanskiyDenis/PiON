@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -2321,10 +2351,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-this-is-four-mechanisms-and-not-one" class="md-nav__link">
+  <a href="#why-this-is-three-mechanisms-and-not-one" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why this is four mechanisms and not one
+        Why this is three mechanisms and not one
       
     </span>
   </a>
@@ -4295,10 +4325,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#why-this-is-four-mechanisms-and-not-one" class="md-nav__link">
+  <a href="#why-this-is-three-mechanisms-and-not-one" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why this is four mechanisms and not one
+        Why this is three mechanisms and not one
       
     </span>
   </a>
@@ -4401,7 +4431,7 @@ symlink your own directory in.</p>
 <p>An absent directory is a normal, unconfigured install — zero rules, no warning. A single rule file
 with a bad <code>---</code> block, invalid YAML or an unsupported glob is dropped with a loud warning and
 <strong>every other file still loads</strong>: a typo in one rule must not disable the rest.</p>
-<h2 id="why-this-is-four-mechanisms-and-not-one">Why this is four mechanisms and not one<a class="headerlink" href="#why-this-is-four-mechanisms-and-not-one" title="Permanent link">&para;</a></h2>
+<h2 id="why-this-is-three-mechanisms-and-not-one">Why this is three mechanisms and not one<a class="headerlink" href="#why-this-is-three-mechanisms-and-not-one" title="Permanent link">&para;</a></h2>
 <p>The obvious design is to watch <code>tool_call</code> and inject the matching rule lazily. It has a hole that
 does not show up until the <em>following</em> turn, and both halves of it were traced against the pinned
 0.84.0 package rather than assumed:</p>
@@ -4411,7 +4441,7 @@ already assembled. A rule matched there arrives after the edit it was meant to g
 <p><strong><code>before_agent_start</code> fires once, before the turn loop starts.</strong> So it cannot see a file the model
 touches partway through a turn. "Read a file, then edit it, same turn" is not one round trip late
 under a <code>before_agent_start</code>-only design — it is invisible until the next turn.</p>
-<p>The detection point and the injection point are therefore different events, which is what the four
+<p>The detection point and the injection point are therefore different events, which is what the three
 layers are for:</p>
 <table>
 <thead>
@@ -4425,7 +4455,7 @@ layers are for:</p>
 <tr>
 <td>1</td>
 <td><code>session_start</code></td>
-<td>A bounded walk of the project seeds the rule set from files that <strong>already exist</strong>. The primary path: the rule is in the system prompt before the model's first token.</td>
+<td>A bounded walk of the project seeds the rule set from files that <strong>already exist</strong>. The primary path: the rule is in context before the model's first token.</td>
 </tr>
 <tr>
 <td>2</td>
@@ -4435,22 +4465,26 @@ layers are for:</p>
 <tr>
 <td>3</td>
 <td><code>context</code></td>
-<td>Fires before <strong>every</strong> LLM call within a turn, including mid-turn after a tool result. This is what actually delivers a rule detected by (2) before the model's next action.</td>
-</tr>
-<tr>
-<td>4</td>
-<td><code>before_agent_start</code></td>
-<td>The durable net, recomputed live each turn, so the block survives compaction, <code>/reload</code> and fork.</td>
+<td>The only delivery path. It fires before <strong>every</strong> LLM call — the first of a turn, every mid-turn call after a tool result, and every call after a compaction, <code>/reload</code> or fork — and it carries the <strong>whole</strong> active rule set each time.</td>
 </tr>
 </tbody>
 </table>
-<p>Layers 3 and 4 do not double-inject: <code>before_agent_start</code> clears the pending set the moment it folds
-it into the system prompt, so <code>context</code> only ever carries what surfaced <em>after</em> that point.</p>
-<div class="admonition note">
-<p class="admonition-title">The <code>context</code> injection appends at the tail, on purpose</p>
-<p>Prompt caching is prefix-based. A tail append after the real conversation costs nothing against
-the cache; a mid-array insert nearer whatever the note is about would invalidate every cached
-prefix behind it. The placement is load-bearing, not an oversight.</p>
+<p>There is no fourth layer, and the missing one is the point.</p>
+<div class="admonition warning">
+<p class="admonition-title">Why the rule block is not in the system prompt</p>
+<p>It used to be, on the reasoning that the system prompt is the durable surface. It is durable,
+and it is also the head of the provider's <strong>cached prefix</strong>. The active rule set grows as the
+session touches files, so every newly activated rule rewrote that block — invalidating the
+cache for the system prompt <em>and the entire conversation behind it</em>, a full-context re-write at
+cache-write rates, bought by nothing more than the model reading its first <code>.py</code> file.</p>
+<p>The <code>context</code> tail-append costs the opposite: the note lands after the last real message, so a
+change to it invalidates only itself. Re-sending the whole set every call is free there, and it
+is what lets the "already sent" bookkeeping disappear entirely — one delivery path, nothing to
+fall out of step with the wire. See
+<a href="../../limitations/#prompt-cache-limits--what-moves-the-cached-prefix">prompt-cache limits</a>.</p>
+<p>A mask rule is the standing exception in the other direction: it moves the <em>tool roster</em>, which
+is also prefix, and that cost is accepted because a capability cannot be made absent any other
+way.</p>
 </div>
 <h2 id="the-startup-scan-is-bounded">The startup scan is bounded<a class="headerlink" href="#the-startup-scan-is-bounded" title="Permanent link">&para;</a></h2>
 <p><code>.git</code>, <code>node_modules</code>, <code>.venv</code>, <code>dist</code> and <code>__pycache__</code> are skipped outright, depth and total
@@ -4466,6 +4500,7 @@ happens once, at compile time, into a flat pattern list — the same internal sh
 engine derives from a <code>paths:</code> list.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <p><a href="../../configuration/settings/"><code>AGENTS.md</code> and instruction files</a> · <a href="../path-defaults/">path-defaults</a> ·
+<a href="../../limitations/#prompt-cache-limits--what-moves-the-cached-prefix">Prompt-cache limits</a> ·
 <a href="../tool-masks/">tool-masks</a> ·
 <a href="../session-context/">session-context</a> · <a href="../../concepts/architecture/">Architecture</a></p>
 

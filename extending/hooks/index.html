@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -3536,6 +3566,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#when-the-script-is-not-installed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the script is not installed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-something-is-wrong-with-the-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4433,6 +4474,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#when-the-script-is-not-installed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the script is not installed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-something-is-wrong-with-the-file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4796,6 +4848,62 @@ misfires.</p>
 <p>Project hooks inherit the whole trust decision: an untrusted project's <code>.pi/</code> is inert. See
 <a href="../../configuration/paths-and-trust/">Paths and trust</a>.</p>
 <hr />
+<h2 id="when-the-script-is-not-installed">When the script is not installed<a class="headerlink" href="#when-the-script-is-not-installed" title="Permanent link">&para;</a></h2>
+<p>A <code>run</code> rule is the one action that depends on something outside the repository: a file on <em>this</em>
+machine, at the path <code>command</code> names. <code>extensions/hooks/run.ts</code> <strong>fails closed</strong> on a script it
+cannot execute, which is the right answer — a guardrail that cannot be evaluated must not permit the
+call it was written to judge.</p>
+<p>The consequence is easy to miss, and it is the opposite of the degraded case below. A missing script
+does not switch the rule off. It switches the <strong>tool</strong> off: every <code>edit</code>, or every <code>bash</code>, for the
+whole session, refused with a reason that appears once per attempt inside a tool result. Nothing in
+that reason says "your install is out of date", because the rule and the file are both perfectly
+correct.</p>
+<p>So the harness says it, twice, in two places:</p>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>When</th>
+<th>What it names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An <code>error</code>-level announcement</td>
+<td>The first time a rule's script fails, <strong>once per rule</strong></td>
+<td>The rule id, the tool it just blocked, and <code>./scripts/install.sh</code> as the fix</td>
+</tr>
+<tr>
+<td><code>/doctor</code>'s <code>D-09</code></td>
+<td>Any time for the rest of the session</td>
+<td>The same, still answerable ten minutes later when you have stopped trusting your own <code>edit</code> tool</td>
+</tr>
+<tr>
+<td><code>bin/pi-check --doctor</code></td>
+<td>From a shell, any time</td>
+<td>Which <strong>path</strong> is wrong, before a session ever hits the rule</td>
+</tr>
+</tbody>
+</table>
+<p><code>bin/pi-check --doctor</code> is a mode, not a rule, and the only part of <code>pi-check</code> that looks outside the
+checkout. It reads <code>config/hooks.yaml</code>, resolves every <code>run.command</code> (expanding a leading <code>~/</code> the
+same way the loader does), and fails when the script is absent, is a real file where the installer's
+symlink belongs, points at a <em>different</em> checkout, or resolves to something missing or without its
+<code>+x</code> bit. It also fails when a rule names a <code>~/bin</code> script this repository does not ship, which no
+install could ever create.</p>
+<div class="language-console highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gp">$ </span>bin/pi-check<span class="w"> </span>--doctor
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="go">PD-01  /home/you/bin/pi-constraints-hook  hook "constraints-edit" (~/bin/pi-constraints-hook) is NOT</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="go">       installed — the rule fails closed, so its tool is dead this session. re-run ./scripts/install.sh</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="go">1 finding(s) — install checked under /home/you/bin, expecting links into /home/you/pi-config</span>
+</span></code></pre></div>
+<p>It runs with no arguments beside <code>--repo</code> and <code>--json</code>, and refuses to combine with <code>--all</code> or a
+named rule: those inspect the repository tree, this inspects the machine, and one exit code cannot
+honestly mean both. <code>scripts/install.sh</code> and <code>scripts/update.sh</code> both run it on the links they have
+just written, and <code>scripts/postinstall-verify.sh</code> carries it as its own row.</p>
+<p>The expected link target is the installer's stable path (<code>~/pi-config/config/bin/&lt;script&gt;</code>) and
+deliberately <strong>not</strong> "wherever this checkout happens to be" — so running it from a worktree tells you
+the truth about the installed machine instead of flagging the worktree.</p>
+<hr />
 <h2 id="when-something-is-wrong-with-the-file">When something is wrong with the file<a class="headerlink" href="#when-something-is-wrong-with-the-file" title="Permanent link">&para;</a></h2>
 <p>Two different failures, treated differently on purpose:</p>
 <ul>
@@ -4817,8 +4925,9 @@ file — do not infer from "nothing blew up" that your rules are live.</p>
 </div>
 <hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pi<span class="w">                 </span><span class="c1"># restart — hooks compile at session start</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>/doctor<span class="w">            </span><span class="c1"># D-09 reports a degraded hook layer, and dropped-rule warnings</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>bin/pi-check<span class="w"> </span>--doctor<span class="w">   </span><span class="c1"># before a session: is every `run` script installed on this machine?</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pi<span class="w">                      </span><span class="c1"># restart — hooks compile at session start</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>/doctor<span class="w">                 </span><span class="c1"># D-09 reports a degraded hook layer, dropped-rule warnings, and dead scripts</span>
 </span></code></pre></div>
 <p>Then trigger the rule deliberately. A hook you have never seen fire is a hook you have not tested.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>

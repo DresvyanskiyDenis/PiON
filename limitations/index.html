@@ -759,6 +759,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pi-subagents-refuses-managed-worktree-isolation-while-your-tree-is-dirty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi-subagents refuses managed worktree isolation while your tree is dirty
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -868,6 +879,67 @@
     <span class="md-ellipsis">
       
         hooks.yaml is deliberately not expressive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt-cache-limits--what-moves-the-cached-prefix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt-cache limits — what moves the cached prefix
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prompt-cache limits — what moves the cached prefix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-harness-already-fixes-do-not-imitate-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the harness already fixes — do not imitate it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-stable-and-what-is-a-deliberate-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is stable, and what is a deliberate trade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retention-is-not-a-knob-you-have-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retention is not a knob you have here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measuring-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring it
       
     </span>
   </a>
@@ -1757,6 +1829,8 @@
       
         
       
+        
+      
     
     
     
@@ -1845,6 +1919,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -4715,6 +4817,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pi-subagents-refuses-managed-worktree-isolation-while-your-tree-is-dirty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pi-subagents refuses managed worktree isolation while your tree is dirty
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4824,6 +4937,67 @@
     <span class="md-ellipsis">
       
         hooks.yaml is deliberately not expressive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prompt-cache-limits--what-moves-the-cached-prefix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt-cache limits — what moves the cached prefix
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prompt-cache limits — what moves the cached prefix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-harness-already-fixes-do-not-imitate-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the harness already fixes — do not imitate it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-stable-and-what-is-a-deliberate-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is stable, and what is a deliberate trade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retention-is-not-a-knob-you-have-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retention is not a knob you have here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measuring-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring it
       
     </span>
   </a>
@@ -5063,6 +5237,21 @@ indistinguishable.</p>
 <p><strong>Consequence:</strong> an extension that needs to know which one happened has to record it <em>before</em> it
 aborts, not read it afterwards. A flag set ahead of <code>signal.abort()</code> is the only thing at that call
 site that carries a reason.</p>
+<h3 id="pi-subagents-refuses-managed-worktree-isolation-while-your-tree-is-dirty"><code>pi-subagents</code> refuses managed worktree isolation while your tree is dirty<a class="headerlink" href="#pi-subagents-refuses-managed-worktree-isolation-while-your-tree-is-dirty" title="Permanent link">&para;</a></h3>
+<p><code>createWorktrees</code> calls <code>resolveRepoState</code>, which runs <code>git status --porcelain</code> on the <strong>source</strong>
+checkout and throws <code>worktree isolation requires a clean git working tree</code> if anything is
+uncommitted. <code>git worktree add</code> itself has no such requirement — it materialises a fresh tree at
+HEAD, and the source tree's dirt never reaches the child — so this is a precondition the package
+imposes on itself.</p>
+<p><strong>Consequence:</strong> a lead holding any work in progress cannot delegate to an agent declaring
+<code>isolation: worktree</code>. The tempting way out, <code>isolation: none</code>, drops the child into the very
+checkout the declaration exists to keep it out of, so it is the wrong answer.</p>
+<p><strong>Not worked around, on purpose.</strong> The fix would be a patch to <code>node_modules</code>, and the installed
+tree is what runs here: this repository keeps it unmodified and <code>PC-21</code> enforces that for the
+vendored tree. Instead <code>extensions/dispatch/isolation.ts</code> <em>predicts</em> the refusal, so it arrives at
+dispatch with a remedy in the message rather than out of band after a run id has been handed back.
+<code>test/dispatch/isolation.test.ts</code> loads the real package through <code>jiti</code> and asserts the two still
+agree, so the day upstream drops the precondition, that test says so.</p>
 <h3 id="pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply"><code>pi-subagents</code>' supervisor channel bounds the request and not the reply<a class="headerlink" href="#pi-subagents-supervisor-channel-bounds-the-request-and-not-the-reply" title="Permanent link">&para;</a></h3>
 <p>A child's <code>contact_supervisor</code> request is size-checked against <code>MAX_MESSAGE_BYTES</code> (64 KiB) at
 <code>intercom/native-supervisor-channel.ts:264</code>. The reply travelling the other way is not: <code>writeReply</code>
@@ -5148,6 +5337,76 @@ outlive a session, write it to a file. See <a href="../extensions/tasks/">tasks<
 <h3 id="hooksyaml-is-deliberately-not-expressive"><code>hooks.yaml</code> is deliberately not expressive<a class="headerlink" href="#hooksyaml-is-deliberately-not-expressive" title="Permanent link">&para;</a></h3>
 <p>Five fields, plus <code>run</code>. Requests for a sixth should become a sub-agent or a guard gate. A hook
 language is a programming language nobody wanted to write.</p>
+<hr />
+<h2 id="prompt-cache-limits--what-moves-the-cached-prefix">Prompt-cache limits — what moves the cached prefix<a class="headerlink" href="#prompt-cache-limits--what-moves-the-cached-prefix" title="Permanent link">&para;</a></h2>
+<p>A provider caches a <strong>prefix</strong>. Everything from the first byte up to the first byte that differs
+from last time is a cache read; everything after it is a cache write. So a request has two zones,
+and every piece of text this repository contributes belongs to exactly one of them:</p>
+<ul>
+<li><strong>The prefix zone</strong> — tool schemas, the system prompt, and the conversation up to the last
+  message. Text here has to be <strong>byte-identical from turn to turn</strong>. A block whose content changes
+  mid-session does not merely cost its own size, it costs <em>everything behind it</em>.</li>
+<li><strong>The tail</strong> — appended after the last real message, through the <code>context</code> event. Text here may
+  change on every single call and costs only itself.</li>
+</ul>
+<p>Volatile content belongs at the tail. That is the whole rule.
+<a href="../extensions/path-rules/"><code>path-rules</code></a> is the worked example: its rule set grows as the session
+touches new files, so it is rendered into the tail before every LLM call rather than into the
+system prompt, where each newly activated rule would have re-written the whole conversation behind
+it at cache-write rates.</p>
+<h3 id="what-the-harness-already-fixes-do-not-imitate-it">What the harness already fixes — do not imitate it<a class="headerlink" href="#what-the-harness-already-fixes-do-not-imitate-it" title="Permanent link">&para;</a></h3>
+<p><strong>Extension system-prompt edits do not accumulate.</strong> PI hands <code>before_agent_start</code> its <em>base</em>
+system prompt every turn and keeps the result for that turn only. The order of the blocks
+extensions append is the registration order in <code>extensions/index.ts</code>, identical on every turn, and
+a module that appends without stripping its own previous block still does not double.</p>
+<p><strong><code>context</code> runs before every provider request</strong> — not once per turn. Once per LLM call, including
+mid-turn calls after a tool result and the first call after a compaction, <code>/reload</code> or fork. There
+is no case where a <code>before_agent_start</code> injection is seen and a <code>context</code> injection is not, which
+is why <code>path-rules</code> needs no second, "durable" delivery path.</p>
+<h3 id="what-is-stable-and-what-is-a-deliberate-trade">What is stable, and what is a deliberate trade<a class="headerlink" href="#what-is-stable-and-what-is-a-deliberate-trade" title="Permanent link">&para;</a></h3>
+<p><a href="../extensions/dispatch/"><code>dispatch</code></a>'s model menu is computed once at <code>session_start</code> and injected
+byte-identically thereafter. Nothing in this tree renders a clock —
+<a href="../extensions/session-context/"><code>session-context</code></a> renders a <em>date</em>, and a message's <code>timestamp</code> is
+harness metadata that never reaches the provider.</p>
+<p>Two things do move the prefix, and both are trades rather than defects:</p>
+<ul>
+<li><strong><a href="../extensions/tool-masks/"><code>tool-masks</code></a> moves the tool roster.</strong> The schemas sit ahead of
+  everything, so each mask application and each release is a full-context rebuild — and a turn mask
+  applies and releases inside one turn, so it costs two. There is no way to make a capability
+  physically absent without changing the roster. Spend it knowingly: a session alternating between
+  two rosters shows cacheRead alternating between two values, which is the signature.</li>
+<li><strong><code>session-context</code>'s block changes at local midnight and on <code>/model</code>.</strong> Correctness wins: a
+  block asserting yesterday's date, or a model the session no longer runs, is worse than one
+  rebuild.</li>
+</ul>
+<h3 id="retention-is-not-a-knob-you-have-here">Retention is not a knob you have here<a class="headerlink" href="#retention-is-not-a-knob-you-have-here" title="Permanent link">&para;</a></h3>
+<p><code>PI_CACHE_RETENTION=long</code> only reaches the wire as <code>prompt_cache_retention</code> when the provider also
+declares <code>supportsLongCacheRetention</code>, and no provider template in this repository declares it —
+<code>cacheControlFormat</code> is deliberately unset on every gateway-shaped provider, because a proxy in the
+path does not reliably surface <code>cache_control</code> breakpoints and declaring it would report savings
+that did not happen (<a href="../configuration/models/"><code>models.json</code></a>, <a href="../configuration/litellm/">LiteLLM</a>).
+On those routes no breakpoint is sent at all: the endpoint does automatic prefix caching, matching
+greedily from the first byte, with no API surface. A full miss after a long idle is that automatic
+cache being evicted, and nothing in this repository or in your environment extends its TTL. The
+variable is still correct for a direct route that <em>does</em> declare the flag; leave it set.</p>
+<h3 id="measuring-it">Measuring it<a class="headerlink" href="#measuring-it" title="Permanent link">&para;</a></h3>
+<p><a href="../extensions/session-index/"><code>session-index</code></a> already records <code>tokens_cache_read</code> and
+<code>tokens_cache_write</code> per session, so prefix stability is observable without adding anything:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>bin/pi-log<span class="w"> </span>cache
+</span></code></pre></div>
+<p>Read the <code>reuse</code> column (cacheRead / cacheWrite). <strong>Healthy</strong>: it climbs with turn count and is
+comfortably above 1 by turn ten — a stable prefix means each turn re-reads the conversation from
+cache and writes only the new tail. <strong>Broken</strong>: at or below ~0.5 over a long session, with <code>w/turn</code>
+near whole-context size rather than near one turn's worth of new text.</p>
+<p>This is a smell test, not a proof. It aggregates a whole session, so it cannot say <em>which</em> turn
+diverged — a session that legitimately switched model or crossed midnight scores like a broken one.
+To localise a suspect block, read the per-turn <code>usage.cacheRead</code> out of the session JSONL: a
+cacheRead that stays constant across turns instead of growing is the signature, and the constant is
+roughly how many tokens sit ahead of the first byte that changes.</p>
+<p>The free half of the regression check is static, and worth copying: assert that no module
+contributing to the prefix returns a <code>systemPrompt</code> from <code>before_agent_start</code> unless its content is
+session-stable. <code>test/path-rules/index.test.ts</code> does exactly that — it asserts the handler count is
+zero and puts the reason in the assertion message.</p>
 <hr />
 <h2 id="not-ported--capabilities-that-exist-elsewhere-and-not-here">Not ported — capabilities that exist elsewhere and not here<a class="headerlink" href="#not-ported--capabilities-that-exist-elsewhere-and-not-here" title="Permanent link">&para;</a></h2>
 <h3 id="browser-connector-integrations">Browser-connector integrations<a class="headerlink" href="#browser-connector-integrations" title="Permanent link">&para;</a></h3>

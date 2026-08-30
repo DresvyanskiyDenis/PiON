@@ -1346,6 +1346,8 @@
       
         
       
+        
+      
     
     
     
@@ -1434,6 +1436,34 @@
     
   
     config/dispatch.json and agents/ — sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The pinned lead model
   
 
     
@@ -4905,7 +4935,13 @@ works with <code>pi</code> running.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>bin/pi-log<span class="w"> </span>sessions<span class="w">     </span><span class="c1"># last 50 sessions: title, model, turns, tokens, cost</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>bin/pi-log<span class="w"> </span>events<span class="w">       </span><span class="c1"># last 200 events</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>bin/pi-log<span class="w"> </span>cost<span class="w">         </span><span class="c1"># spend grouped by model</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>bin/pi-log<span class="w"> </span>cache<span class="w">        </span><span class="c1"># prompt-cache reuse per session — is the prefix stable?</span>
 </span></code></pre></div>
+<p><code>cache</code> is the prefix-stability smell test: <code>reuse</code> is cacheRead / cacheWrite, and it should climb
+with turn count. At or below ~0.5 over a long session, with <code>w/turn</code> near whole-context size,
+something ahead of the conversation is changing between turns. See
+<a href="../../limitations/#prompt-cache-limits--what-moves-the-cached-prefix">prompt-cache limits</a> for how
+to read it and what it cannot tell you.</p>
 <p>Requires the <code>sqlite3</code> CLI. Exits <code>1</code> if no index exists yet — run <code>/index</code> inside <code>pi</code> first.</p>
 <hr />
 <h2 id="binpi-digest-drain"><code>bin/pi-digest-drain</code><a class="headerlink" href="#binpi-digest-drain" title="Permanent link">&para;</a></h2>
