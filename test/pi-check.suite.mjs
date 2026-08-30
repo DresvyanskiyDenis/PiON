@@ -292,6 +292,34 @@ const MUTATIONS = [
       writeFileSync(join(dir, "AGENTS.md"), "Every subagent defaults to the `strong` tier.\n");
     },
   },
+  {
+    id: "PC-29",
+    // The exact defect shape: config/dispatch.json declares the subagent contract's obligation
+    // sections and the contract document no longer carries one of them. The clean fixture ships
+    // neither file, so the break adds both — which also pins the tolerance, since every other
+    // fixture-based test here runs against a tree that declares no contract at all.
+    break: (dir) => {
+      writeFileSync(
+        join(dir, "config", "dispatch.json"),
+        JSON.stringify(
+          {
+            subagentContract: {
+              doc: "config/subagent-tool-description.md",
+              requiredSections: ["Before you write", "Whether to dispatch at all"],
+              minSectionLines: 2,
+              worthiness: { leadHandlesChangedLinesUnder: 40, leadHandlesFilesTouchedAtMost: 2 },
+            },
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+      writeFileSync(
+        join(dir, "config", "subagent-tool-description.md"),
+        "## Whether to dispatch at all\n\nUnder 40 changed lines in at most 2 files: do it yourself.\nOtherwise a dispatch is permitted.\n",
+      );
+    },
+  },
 ];
 
 describe("each rule fires exactly on its own broken fixture", () => {
@@ -1017,6 +1045,122 @@ test("PC-28: a bare tier mention, with no model:level pairing and no defaults-to
       "Deviate only consciously: `fast` for a mechanical one-liner, `strong` for hard debugging.\n",
     );
     assert.deepEqual(pc28Findings(dir), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------------------
+// 10. PC-29 — the subagent contract keeps the obligation sections config/dispatch.json
+//     declares, and states no threshold that block disagrees with. The MUTATIONS entry above
+//     proves a dropped section fires; these prove the rest of the ratchet in both directions,
+//     including the three ways prose decays that this rule was written for: the section is
+//     deleted, the section is hollowed out to a heading, or the number in it drifts from the
+//     number the config carries.
+// ---------------------------------------------------------------------------------------
+
+/** The PC-29 findings from an --all run against `dir`. */
+function pc29Findings(dir) {
+  const { json } = runPiCheck(dir);
+  assert.ok(json, "expected valid --json output");
+  return json.findings.filter((f) => f.rule === "PC-29");
+}
+
+/**
+ * Seeds a fixture with a subagentContract block and a contract document. Both numbers differ from
+ * the ones this repo's own config carries, which is what proves the rule reads them rather than
+ * knowing them.
+ */
+function seedContract(dir, docBody, overrides = {}) {
+  writeFileSync(
+    join(dir, "config", "dispatch.json"),
+    JSON.stringify(
+      {
+        subagentContract: {
+          doc: "config/subagent-tool-description.md",
+          requiredSections: ["Before you write", "Whether to dispatch at all"],
+          minSectionLines: 2,
+          worthiness: { leadHandlesChangedLinesUnder: 40, leadHandlesFilesTouchedAtMost: 2 },
+          ...overrides,
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (docBody !== null) writeFileSync(join(dir, "config", "subagent-tool-description.md"), docBody);
+}
+
+const MATCHING_CONTRACT_DOC = [
+  "## Whether to dispatch at all",
+  "",
+  "Under 40 changed lines in at most 2 files: make the change yourself.",
+  "At or above either bound, a dispatch is permitted.",
+  "",
+  "## Before you write",
+  "",
+  "Read the module map, then name by path the module you extend.",
+  "A new top-level module needs the lead's explicit approval.",
+  "",
+].join("\n");
+
+test("PC-29: a contract carrying every declared section and both declared bounds produces no findings", () => {
+  const dir = freshCopy();
+  try {
+    seedContract(dir, MATCHING_CONTRACT_DOC);
+    assert.deepEqual(pc29Findings(dir), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-29: a section reduced to its heading fires, naming the shortfall", () => {
+  const dir = freshCopy();
+  try {
+    seedContract(
+      dir,
+      MATCHING_CONTRACT_DOC.replace("Read the module map, then name by path the module you extend.\n", ""),
+    );
+    const findings = pc29Findings(dir);
+    assert.equal(findings.length, 1, `expected one PC-29 finding, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /section "Before you write" carries 1 non-blank line\(s\), below the 2/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-29: a threshold that disagrees with config/dispatch.json fires, naming both values", () => {
+  const dir = freshCopy();
+  try {
+    seedContract(dir, MATCHING_CONTRACT_DOC.replace("40 changed lines", "80 changed lines"));
+    const findings = pc29Findings(dir);
+    assert.equal(findings.length, 2, `expected two PC-29 findings, got: ${JSON.stringify(findings)}`);
+    assert.match(findings[0].message, /states "80 changed lines".*leadHandlesChangedLinesUnder is 40/);
+    assert.match(findings[1].message, /never states the worthiness bound of 40 lines/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-29: a contract document the config declares but the tree does not have fires against the config", () => {
+  const dir = freshCopy();
+  try {
+    seedContract(dir, null);
+    const findings = pc29Findings(dir);
+    assert.equal(findings.length, 1, `expected one PC-29 finding, got: ${JSON.stringify(findings)}`);
+    assert.equal(findings[0].file, "config/dispatch.json");
+    assert.match(findings[0].message, /does not exist/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-29: a dispatch.json that declares no subagentContract is silent, not noisy", () => {
+  const dir = freshCopy();
+  try {
+    writeFileSync(join(dir, "config", "dispatch.json"), JSON.stringify({ maxDepth: 2 }, null, 2) + "\n");
+    writeFileSync(join(dir, "config", "subagent-tool-description.md"), "## Anything\n\nNo obligations here at all.\n");
+    assert.deepEqual(pc29Findings(dir), []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

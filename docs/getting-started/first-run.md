@@ -9,7 +9,7 @@ pi-check --all
 ```
 
 `bin/pi-check` is a standalone Node script that reads the config tree and the agent files without
-starting PI. It runs 28 rules (27 without `--live`, which PC-19 needs to reach the npm registry); the ones you
+starting PI. It runs 29 rules (28 without `--live`, which PC-19 needs to reach the npm registry); the ones you
 will actually hit on a fresh clone:
 
 | Rule | Fails when |
@@ -21,6 +21,21 @@ will actually hit on a fresh clone:
 | `PC-10` | a `<PLACEHOLDER>` survived installation |
 
 Zero findings, exit 0. Anything else is a real problem and the message names the file.
+
+For a change in progress there is a second, cheaper question — not whether the tree is consistent,
+but whether the branch that produced it looks healthy:
+
+```bash
+bin/pi-gate                 # rework, parallel modules, sprawl, bounded runs — warn-only, exit 0
+bin/pi-gate --block         # the same four, blocking — exit 1 on any finding
+bin/pi-gate --help          # what each gate catches AND what it does not
+npm run check               # typecheck, then the gates, then the suite
+```
+
+Both are offline and free. `pi-check` reads the config tree as it stands; `pi-gate` reads local git
+history and the working diff, so outside a work tree the history gates report nothing rather than
+guessing. What each gate can and cannot see — and why a green `SG-04` is a smaller claim than it
+looks — is in [structural gates](../operations/structural-gates.md).
 
 ## 2. The tier table (needs `jq`, no network)
 

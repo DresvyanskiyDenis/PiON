@@ -9,6 +9,15 @@
   "dispatchTools": ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
   "genericAgents": ["general-purpose", "general", "generalist"],
   "specialistMatchMinScore": 2,
+  "subagentContract": {
+    "doc": "config/subagent-tool-description.md",
+    "requiredSections": ["Before you write", "Whether to dispatch at all"],
+    "minSectionLines": 6,
+    "worthiness": {
+      "leadHandlesChangedLinesUnder": 50,
+      "leadHandlesFilesTouchedAtMost": 3
+    }
+  },
   "onThinkingClamp": "warn",
   "failureOutputMaxLines": 20,
   "failureOutputMaxChars": 2000

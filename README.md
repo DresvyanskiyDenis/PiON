@@ -80,6 +80,7 @@ Full detail: [Update](https://dresvyanskiydenis.github.io/PiON/getting-started/u
 | **Sessions that can talk to each other** | `message_agent` addresses another *running* session by name over an on-disk directory, and wakes it — peers that never spawned each other, not just a lead and its children. Fire-and-forget, replies come back through the same tool ([message-agent](docs/extensions/message-agent.md)) |
 | **Honest context accounting** | A `/context` command that separates the fixed preamble from the compactable dialogue, a compaction loop guard, and the rule the whole thing rests on: `contextWindow = min(200000, what the endpoint actually serves)` |
 | **A fail-closed headless wrapper** | `pi -p --mode json` exits `0` on a failed turn. `bin/pi-run` parses the stream and exits `20`/`21`/`22`/`23`/`24` when the run failed, was truncated, drifted, looped or was aborted |
+| **Structural gates before the tests** | `bin/pi-gate` asks what a test suite cannot: is the *way* this change was arrived at healthy. Four cheap history-and-diff checks — a fix-streak on one file, a near-duplicate module, a wave of new top-level modules with no sign-off, a job with no way to run on a subset. Warn-only by default, blocking on `--block` ([structural gates](docs/operations/structural-gates.md)) |
 
 Plus declarative YAML hooks, task-list nudges, session digests, a searchable session index, a quota
 meter, `@import` expansion in instruction files, oversized tool-result externalisation with a
@@ -126,7 +127,7 @@ config/            everything the agent reads at runtime; *.default.json are the
 config/bin/        helper commands symlinked onto your PATH (pi-tier, pi-mcp-approve, …)
 config/providers/  one fragment per provider; the installer composes models.json from these
 agents/            sub-agent definitions (12 ship; add your own alongside)
-bin/               pi-run, pi-check, and the 26 repository rules pi-check enforces
+bin/               pi-run, pi-check, pi-gate, and the 29 repository rules pi-check enforces
 scripts/           install.sh, update.sh, uninstall.sh, verification scripts
 pi-packages/       vendored third-party source, patched and pinned by digest
 docs/              the MkDocs site
@@ -163,7 +164,8 @@ uv run --with-requirements requirements-docs.txt mkdocs serve
 ## Verifying an install
 
 ```bash
-~/pi-config/bin/pi-check --all      # 28 repository invariants
+~/pi-config/bin/pi-check --all      # 29 repository invariants
+~/pi-config/bin/pi-gate             # four structural gates over the branch, warn-only
 ./scripts/postinstall-verify.sh     # the install itself
 /doctor                             # inside pi: which modules loaded, which are missing
 ```
@@ -171,7 +173,15 @@ uv run --with-requirements requirements-docs.txt mkdocs serve
 `bin/pi-check` is the interesting one. It refuses a model id that is not provider-qualified, a tier
 bound to a provider that is not present, any `fallback` / `failover` key, a secret-shaped literal in
 a tracked file, an unreplaced `<PLACEHOLDER>`, a vendored tree whose bytes no longer match their
-recorded digests, and sixteen other things.
+recorded digests, and seventeen other things.
+
+`bin/pi-gate` asks the other question — not whether the tree is consistent, but whether the branch
+that produced it looks healthy: consecutive `fix:` commits on one file, a new module that differs
+from an existing one by a single token, four or more new top-level modules with no recorded
+sign-off, a job that advertises no way to run on less than everything. It warns and exits `0`
+unless you pass `--block`; `npm run check` is typecheck, gate, then the suite. What each gate
+cannot see is written down beside what it can, in
+[structural gates](docs/operations/structural-gates.md).
 
 ---
 

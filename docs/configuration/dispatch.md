@@ -23,6 +23,13 @@ Markdown files with YAML frontmatter, one per agent, in `agents/`.
   "dispatchTools": ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
   "genericAgents": ["general-purpose", "general", "generalist"],
   "specialistMatchMinScore": 2,
+  "subagentContract": {
+    "doc": "config/subagent-tool-description.md",
+    "requiredSections": ["Before you write", "Whether to dispatch at all"],
+    "minSectionLines": 6,
+    "worthiness": { "leadHandlesChangedLinesUnder": 50,
+                    "leadHandlesFilesTouchedAtMost": 3 }
+  },
   "onThinkingClamp": "warn",
   "failureOutputMaxLines": 20,
   "failureOutputMaxChars": 2000
@@ -201,6 +208,57 @@ fire more readily.
 **What breaks:** nothing hard. This is a suggestion layer. Setting the score very low turns it into
 noise the model learns to ignore, which is the real cost. Setting it very high, or emptying
 `genericAgents`, switches the nudge off entirely.
+
+---
+
+## `subagentContract` — the obligations a dispatched child carries { #subagentcontract }
+
+```json
+"subagentContract": {
+  "doc": "config/subagent-tool-description.md",
+  "requiredSections": ["Before you write", "Whether to dispatch at all"],
+  "minSectionLines": 6,
+  "worthiness": { "leadHandlesChangedLinesUnder": 50, "leadHandlesFilesTouchedAtMost": 3 }
+}
+```
+
+Everything a dispatched child must do before it writes, and the lead's own test for whether a
+dispatch is worth its cost, is prose in
+`config/subagent-tool-description.md` — because that file is what the
+model actually reads. `pi-subagents` loads it at tool registration and leaves unknown
+`{{placeholders}}` alone, so there is no templating and no way to inject a number from here. The two
+worthiness numbers therefore exist in two files, and **this block is the authority**.
+
+`bin/rules/pc-29-subagent-contract-obligations.mjs` is what keeps the copy honest. It fails when the
+declared document is missing, when a declared section has no heading, when a section is hollowed out
+below `minSectionLines` non-blank body lines, or when any `<n> ... lines` / `<n> ... files` claim in
+the document disagrees with a declared bound — including the case where the document quietly drops
+it. That is the point of holding this as data: an obligation the model has to *remember* per call is
+a habit, and a habit is forgotten on the call where it mattered; a section that cannot be deleted or
+contradicted without a failing check is state.
+
+| Key | What it declares |
+|---|---|
+| `doc` | the contract document, repo-relative. Absent from the tree → one finding against `dispatch.json` |
+| `requiredSections` | **headings**, never wordings — matched case-insensitively at any level, backticks and trailing punctuation ignored |
+| `minSectionLines` | non-blank body lines each declared section must carry, so a heading left standing over nothing fails exactly like a deleted one |
+| `worthiness.leadHandlesChangedLinesUnder` | added-plus-deleted lines below which the lead makes the change itself |
+| `worthiness.leadHandlesFilesTouchedAtMost` | files opened for writing, the second half of the same bound — **both** have to hold |
+
+Below both bounds the lead does the work; at or above either one a dispatch is permitted. Research,
+parallel exploration and independent work streams are dispatch-worthy at any size, and the
+orchestrator's own context past half is the operational override. Those shapes are judgement and
+live only in the prose; only the two numbers are data, because only a number can go stale silently.
+
+**Drop the whole block and the rule goes quiet** — no `subagentContract`, nothing declared, no
+findings, the same posture PC-28 takes toward a missing `routing.json`. That keeps a tree which has
+not adopted the contract silent rather than noisy; it also means deleting the block is the one way
+to switch the ratchet off, and it is a visible act in a tracked file.
+
+**What breaks if you get it wrong:** raise a worthiness number without editing the document and
+`pi-check` fails on the next run, naming both values — which is the intended failure. Rename a
+section in the document without renaming it here and the rule reports the heading as missing.
+Neither is a silent drift, and that is the whole design.
 
 ---
 

@@ -10,6 +10,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "gate": "node bin/pi-gate",
+    "check": "npm run typecheck && npm run gate && npm test",
     "test": "node --test \"test/**/*.test.ts\" \"test/**/*.suite.mjs\"",
     "test:unit": "node --test \"test/**/*.test.ts\"",
     "test:suites": "node --test \"test/**/*.suite.mjs\""

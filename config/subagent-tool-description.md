@@ -21,10 +21,51 @@ not one of these.
 - `local-llm-engineer` — local model serving, quantisation, tool-calling reliability.
 - `general-purpose` — the role of last resort, and only when none of the twelve named ones fits.
 
-Delegate when the work is genuinely wide — a research sweep, a migration across a tree, an audit,
-anything where far more is read than written, or anything at all once context is past half. Work
-that fits in roughly five files and can be named up front is cheaper done directly: a delegation
-costs a round trip, a cold child context and a lossy summary.
+## Whether to dispatch at all
+
+Settle this before choosing a role, and settle it by measuring rather than by judging. Size the
+change you are about to make: changed lines means added plus deleted, files means files opened for
+writing.
+
+- **Under 50 changed lines in at most 3 files, do it yourself.** Both bounds have to hold. A child
+  costs a cold context, a round trip and a lossy summary; below that size the summary is dearer than
+  the edit and less accurate than having made it.
+- **At or above either bound a dispatch is permitted.** Size alone never compels one.
+- **Three shapes are dispatch-worthy at any size, and only these three:** research, where far more is
+  read than written; parallel exploration, where alternatives must not contaminate one another's
+  context; and independent work streams, which share no file and impose no ordering on each other.
+- **The orchestrator's own context past half** is the one operational override: hand work over to
+  keep the thread, whatever the size.
+
+Cannot tell which side of the bounds you are on? Deciding that is the cheap half of the work: open
+the files, count, then choose. "It might grow" is not one of the three shapes, and a dispatch issued
+to avoid measuring is the expensive way to guess.
+
+The two numbers above are `subagentContract.worthiness` in `config/dispatch.json`, which is their
+single authority; `bin/rules/pc-29-subagent-contract-obligations.mjs` fails if this section and that
+block ever disagree.
+
+## Before you write
+
+Three obligations. They bind every child and the lead alike, and none of them is discharged by
+meaning well: each one has to produce something the caller can check.
+
+1. **Read the structure before the first write.** The module map first — how modules, jobs and
+   adapters are laid out, and which naming is already in force. Reading the three files your task
+   happens to name is not that: you need to know what exists, not what one author last did.
+2. **Name the module you extend.** By path, in your result: `extends <path>`. If the honest answer is
+   "none of them", that is obligation 3, not an exemption from this one.
+3. **A new top-level module, job or adapter needs the lead's explicit approval.** Ask before writing
+   it, and carry one sentence saying why the existing one cannot be parameterised to cover the case.
+   No answer is not approval: extend what exists, or return without writing and name what you would
+   have created.
+
+**An axis of variation is a parameter, never a file name.** Model, endpoint, prompt variant, stage,
+dataset, run size — whatever varies between runs of the same idea belongs in the argument or the
+config row that selects it. A file per value looks cheap once and then charges rent twice: every
+later change to the shared idea has to be made N times, and every reader has to load N
+near-identical files to understand one of them. Copying a file and editing two lines of it is the
+tell — those two lines are the parameter.
 
 ## Calling it
 

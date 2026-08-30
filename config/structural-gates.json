@@ -1,0 +1,9 @@
+{
+  "$comment": "bin/pi-gate — structural gates. Full field reference, and what each gate does NOT catch, in docs/structural-gates.md. Every gate ships as 'warn': it reports and the command still exits 0. Set a gate to 'error' to make it block on its own, or pass --block (env PI_GATE_BLOCK=1) to promote every warning for one run. Set 'off' to disable a gate entirely. Thresholds (SG-01 streak, SG-02 numericSeriesMin/minSharedTokens/variantTokens/deriveTokensFrom, SG-03 signoffThreshold/maxDepth/sourceExts, SG-04 jobGlobs/subsetParams/fullScaleLiteralMin) and per-gate 'ignore' globs default in bin/lib/structural-gates.mjs and are overridable here by name; an unknown gate or key is a hard error, never a silent no-op.",
+  "gates": {
+    "SG-01": { "severity": "warn" },
+    "SG-02": { "severity": "warn" },
+    "SG-03": { "severity": "warn" },
+    "SG-04": { "severity": "warn" }
+  }
+}

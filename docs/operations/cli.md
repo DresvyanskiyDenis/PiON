@@ -85,6 +85,7 @@ It asserts things that are invisible until they bite:
 | `PC-25` | nothing on the [do-not-publish list](../skills-portability.md#skills-that-are-deliberately-absent) reaches a path, git history or a tracked file |
 | `PC-26` | user-facing prose carries exactly the number of em dashes recorded in `config/slop-lint.json` — [see below](#pc-26) |
 | `PC-27` | every model declared in `config/models.json` states all four `cost` rates, or four explicit zeros — the [cost-gate's](../extensions/cost-gate.md#the-static-half-pc-27) question, asked before the first request |
+| `PC-29` | the subagent contract keeps the sections `config/dispatch.json` declares, and states no line/file threshold that config disagrees with — [`subagentContract`](../configuration/dispatch.md#subagentcontract) is the authority |
 
 Exit `0` = clean, `1` = findings, `2` = the checker could not run. That last distinction matters in
 CI: treating them the same hides broken tooling behind a red build.
@@ -147,6 +148,43 @@ silence the check.
 
 The shipped budget is the count on the day the rule landed, not a target. Whether zero is the right
 number is a taste call about the voice of a repo, and this tool does not make it for you.
+
+---
+
+## `bin/pi-gate` { #pi-gate }
+
+The other question. `pi-check` asks whether the config tree is internally consistent; `pi-gate`
+reads the branch's history and the working diff and asks whether the way this change was arrived at
+looks healthy.
+
+```bash
+npm run check               # typecheck, then bin/pi-gate, then the suite
+bin/pi-gate                 # all four gates — warn-only, exit 0
+bin/pi-gate --block         # any warning becomes an error — exit 1 (env PI_GATE_BLOCK=1)
+bin/pi-gate SG-01 SG-04     # named gates only
+bin/pi-gate --base origin/main   # compare against a different base ref
+bin/pi-gate --json          # machine-readable findings
+bin/pi-gate --help          # what each gate catches AND what it does not
+```
+
+| Gate | Catches |
+|---|---|
+| `SG-01` | two or more consecutive `fix:` commits on the same file — the approach is wrong, not the code. Reset by writing `Root-cause:` and `Alternative:` into the commit message |
+| `SG-02` | a new file whose name differs from an existing one by exactly one token, where that token is a variant axis the tree already varies at, or a variant word derived from this repo's own model config |
+| `SG-03` | four or more new top-level source modules in one diff with no recorded sign-off (`--signoff`, `PI_GATE_SIGNOFF`, or a `Sprawl-signoff:` commit trailer) |
+| `SG-04` | a job or pipeline file that names no subset parameter, or hard-compares against a full-scale constant — **weak by construction**, see the caveats |
+
+Exit `0` clean or warnings only, `1` an error-severity finding, `2` the gate could not run. Every
+gate ships at `warn`; blocking is an explicit act, per run with `--block` or per gate with
+`"severity": "error"` in `config/structural-gates.json`. Outside a git work tree the history gates
+report nothing rather than guessing.
+
+It is deliberately not a `pretest` hook: the answer changes between two runs of the same suite, and
+a check that fails for reasons unrelated to the tests does not survive inside the command people run
+fifty times an hour.
+
+What each gate can and cannot see — and why a green `SG-04` is a much smaller claim than it looks —
+is in [structural gates](structural-gates.md).
 
 ---
 

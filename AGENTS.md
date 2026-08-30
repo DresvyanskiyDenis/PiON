@@ -119,14 +119,20 @@ repeated, not nine attempts.
 
 ## TRIGGER: delegation is a context budget, not a default
 
-**Do the work yourself while it stays bounded.** Bounded means: it fits in roughly five files, you
-can name the change before you start, and the context report is under 50%. That covers most of what
-you will be asked to do — take it, and edit directly rather than opening with a `subagent` call.
+**The thresholds are not in this file.** How large a change the lead makes itself, and which shapes
+of work justify a dispatch whatever their size, are declared as data in `config/dispatch.json`'s
+`subagentContract.worthiness` block and stated in the `subagent` tool's own description, which is
+where a dispatching model reads them. This paragraph deliberately carries no copy of the numbers: a
+restated threshold goes stale the moment the config moves and then outranks it on every compaction,
+and `bin/rules/pc-29-subagent-contract-obligations.mjs` fails if description and config disagree.
+Read them there before assuming either default.
 
-**Delegate when the work is genuinely wide**, not when it is merely multi-step. A research sweep, a
-migration across a tree, an audit, anything where you would read far more than you write — and
-anything at all once context is past 50%, because an exhausted orchestrator context is what triggers
-compaction and loses the thread.
+**The architectural obligations in that same description bind the lead too, not only its children:**
+read the module map before the first write, name by path the existing module you extend, and take
+explicit approval before creating a new top-level module, job or adapter — with one sentence on why
+the existing one cannot take a parameter instead. Axes of variation (model, endpoint, variant,
+stage) are parameters; a new file per value is the sprawl that later has to be read in full to
+change once.
 
 Delegating narrow work is neither free nor neutral. It costs a round trip, a cold child context that
 knows nothing you have already read, and a summary that is lossy by construction; a child cannot ask

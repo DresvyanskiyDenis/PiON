@@ -1,0 +1,453 @@
+#!/usr/bin/env node
+// bin/pi-gate — the structural gate: four cheap checks that run BEFORE the test suite.
+//
+// A standalone Node script, zero npm dependencies, no import from this repo's `lib/`, no PI
+// dependency — the same contract `bin/pi-check` keeps. It never touches the network, never reads
+// a credential, and makes no paid call of any kind. The one binary it invokes is `git`, locally,
+// read-only (`log`, `diff`, `ls-files`, `rev-parse`), the same way `bin/rules/pc-12` and
+// `pc-24` already do; when `git` is missing or the tree is not a work tree, the history-derived
+// gates report nothing rather than guessing (see `gitOrNull`).
+//
+// WHY IT IS A SEPARATE TOOL AND NOT FOUR MORE `pi-check` RULES
+//
+// `pi-check` answers "is this configuration tree internally consistent" — a property of the files
+// as they are, with every finding equally fatal (any finding, exit 1). These four answer "is the
+// way this change was arrived at healthy" — a property of the history and the diff, where the
+// honest default is a warning, because a judgement about process is sometimes wrong and a gate
+// that blocks on its own false positives gets disabled within the week. Two different questions,
+// two different severity models, two different default postures: folding them into one tool would
+// have meant either making pi-check's findings non-fatal or making these four fatal on day one.
+// The cost of the split is one more command in the gate line, and it is documented in
+// `docs/structural-gates.md`; the benefit is that neither tool has to lie about the other's
+// confidence level.
+//
+// Usage:
+//   bin/pi-gate                          run all four gates, warn-only (exit 0 on warnings)
+//   bin/pi-gate --block                  same, but any warning becomes an error (exit 1)
+//   bin/pi-gate SG-01 SG-04              run named gates only
+//   bin/pi-gate --base origin/main       compare against a different base ref
+//   bin/pi-gate --signoff "reason"       record an explicit lead sign-off for SG-03
+//   bin/pi-gate --json                   machine-readable findings on stdout
+//   bin/pi-gate --repo /path             gate a different tree (default: this repo)
+//   bin/pi-gate --help                   what each gate catches, and what it does not
+//
+// Env: `PI_GATE_BLOCK=1` is `--block`; `PI_GATE_SIGNOFF=<reason>` is `--signoff <reason>`.
+//
+// Exit codes: 0 clean or warnings only, 1 at least one error-severity finding, 2 the gate itself
+// could not run.
+
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import {
+  DEFAULT_CONFIG,
+  GATE_IDS,
+  GATE_TITLES,
+  applyBlockMode,
+  detectBoundedRun,
+  detectFileCountBudget,
+  detectFixStreak,
+  detectParallelModules,
+  hasBlockingFinding,
+  matchesAny,
+  resolveGateConfig,
+} from "./lib/structural-gates.mjs";
+
+const CONFIG_PATH = "config/structural-gates.json";
+
+const HELP = `bin/pi-gate — structural gates, run before the tests.
+
+usage: bin/pi-gate [SG-ID...] [--block] [--json] [--base REF] [--signoff REASON] [--repo PATH]
+
+  --block            promote every warning to an error; exit 1 if any fires (env PI_GATE_BLOCK=1)
+  --json             findings as JSON on stdout
+  --base REF         history/diff base (default: merge-base with origin/main, else main, else HEAD~20)
+  --signoff REASON   explicit lead sign-off for SG-03 (env PI_GATE_SIGNOFF)
+  --repo PATH        gate a different tree (default: the repo this script lives in)
+  --help             this text
+
+All four gates default to severity "warn": they report and exit 0. Blocking is an explicit act —
+--block, or "severity": "error" for a single gate in ${CONFIG_PATH}. "severity": "off"
+there turns a gate off entirely.
+
+SG-01  fix-streak
+  CATCHES   two or more consecutive fix: commits landing on the same file, counted over the
+            commits that touch that file (an unrelated commit elsewhere does not reset it; a
+            feat:/refactor: on the same file does). Reset by writing "Root-cause:" and
+            "Alternative:" lines into the commit message.
+  MISSES    fixes that are not spelled "fix:", work that never gets committed, and a single
+            enormous fix commit that patches ten symptoms at once.
+
+SG-02  parallel-module
+  CATCHES   a new file whose name differs from an existing file's name by exactly one token, when
+            that token is either (a) a position at which the tree already varies — the 16th
+            near-duplicate — or (b) a variant token derived from the repo's own declared model
+            ids plus the generic v2/a1/copy/old shapes.
+  MISSES    duplication that renames more than one token, duplication inside one file (a class
+            per model in a single module), and a genuinely new module that happens to share a
+            name shape. Two deliberate blind spots keep it quiet on normal trees: a numbered
+            series (pc-01, pc-02, ...) never fires on its digit, and a family that shares only
+            one token (bin/pi-check beside bin/pi-gate) is a prefix convention, not a duplicate.
+
+SG-03  file-count budget
+  CATCHES   ${DEFAULT_CONFIG["SG-03"].signoffThreshold} or more new top-level source modules (depth <= ${DEFAULT_CONFIG["SG-03"].maxDepth}) in one diff with no recorded
+            sign-off. A sign-off must carry a reason; silence is never approval. With a reason it
+            still reports, at severity "ok", so the decision stays findable.
+  MISSES    sprawl added one module per commit over ten commits, and growth inside existing
+            modules — this counts files, not complexity.
+
+SG-04  bounded-run  (WEAK BY CONSTRUCTION — read this)
+  CATCHES   a file matching the job globs that (a) names no subset/limit parameter anywhere, or
+            (b) compares something for equality against a literal >= ${DEFAULT_CONFIG["SG-04"].fullScaleLiteralMin} under a name that is not a
+            status/code/port (the "expected_page_count == 701" shape, which makes a bounded run
+            impossible even when a limit parameter exists).
+  MISSES    everything about whether a declared limit is actually HONOURED. It reads names, not
+            semantics: a "limit" in a comment satisfies it, a parameter dropped three frames down
+            does not disturb it, and a job whose scope comes from an external orchestrator or
+            through **kwargs is invisible to it. A full-scale constant below ${DEFAULT_CONFIG["SG-04"].fullScaleLiteralMin} is also missed —
+            that threshold is what keeps HTTP status compares quiet.
+            A green SG-04 means "no job advertises full-scale-only operation".
+            It never means "every job has been shown to run on a subset".
+            The strong form of this check is an actual bounded run; this gate only makes the
+            absence of one visible.
+`;
+
+function usageError(message) {
+  process.stderr.write(`pi-gate: ${message}\n`);
+  process.stderr.write("usage: bin/pi-gate [SG-ID...] [--block] [--json] [--base REF] [--signoff REASON] [--repo PATH]\n");
+  process.exitCode = 2;
+}
+
+/**
+ * Runs `git` read-only in `repoRoot`, or returns `null` when git cannot answer at all — the
+ * binary is absent, or this is not a work tree. Both are the shape of a directory that is not a
+ * repository (a `--repo` pointed at an extracted tarball, a container with no git), where "no
+ * history" is the correct answer rather than a guess. Any OTHER git failure is left to throw:
+ * a real repository that errors for an unrelated reason is a bug in this tool, reported as
+ * exit 2, not folded into a silent zero.
+ *
+ * @param {string} repoRoot @param {string[]} args @returns {string | null}
+ */
+function gitOrNull(repoRoot, args) {
+  try {
+    return execFileSync("git", ["-C", repoRoot, ...args], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") return null;
+    const stderr = err && typeof err === "object" && "stderr" in err ? String(err.stderr ?? "") : "";
+    // `git rev-parse` says "fatal: not a git repository"; `git diff` outside a work tree says
+    // "warning: Not a git repository" and then prints its --no-index usage. Same condition, two
+    // capitalizations, so the match is case-insensitive.
+    if (/not a git repository/i.test(stderr)) return null;
+    throw err;
+  }
+}
+
+/** Is `repoRoot` inside a git work tree at all? Computed once, so that a plain directory never
+ *  reaches a second git invocation whose failure text would have to be recognised again.
+ *  @param {string} repoRoot @returns {boolean} */
+function insideWorkTree(repoRoot) {
+  const out = gitOrNull(repoRoot, ["rev-parse", "--is-inside-work-tree"]);
+  return out !== null && out.trim() === "true";
+}
+
+/** @param {string} repoRoot @param {string} ref */
+function refExists(repoRoot, ref) {
+  try {
+    execFileSync("git", ["-C", repoRoot, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
+      encoding: "utf8",
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The base this branch is measured against. `--base` wins; otherwise the merge-base with
+ * `origin/main` (or `main`), which is what "this branch's own commits" means on a feature branch;
+ * otherwise the last 20 commits, so the gate still says something in a repo with no main.
+ *
+ * @param {string} repoRoot @param {string | null} explicit @returns {string | null}
+ */
+function resolveBase(repoRoot, explicit) {
+  if (explicit !== null) {
+    if (!refExists(repoRoot, explicit)) throw new Error(`--base ref "${explicit}" does not resolve`);
+    return explicit;
+  }
+  for (const candidate of ["origin/main", "main", "origin/master", "master"]) {
+    if (!refExists(repoRoot, candidate)) continue;
+    const base = gitOrNull(repoRoot, ["merge-base", "HEAD", candidate]);
+    if (base !== null && base.trim().length > 0) return base.trim();
+  }
+  return refExists(repoRoot, "HEAD~20") ? "HEAD~20" : null;
+}
+
+/**
+ * Commits on `base..HEAD`, newest first, with the files each one touched.
+ *
+ * `-z` with a `%x00`-separated format is the one parse that survives a commit message containing
+ * a blank line, a `---`, or a path-shaped line — all of which a naive line-oriented reader
+ * attributes to the wrong commit, silently, producing a fix-streak number nobody can reproduce
+ * by hand. Merge commits are excluded (`--no-merges`): a merge touches every file of the branch
+ * it brings in without anyone having edited them, which would fabricate streaks.
+ *
+ * @param {string} repoRoot @param {string | null} base
+ * @returns {import("./lib/structural-gates.mjs").Commit[]}
+ */
+function collectCommits(repoRoot, base) {
+  if (base === null) return [];
+  const range = `${base}..HEAD`;
+  const out = gitOrNull(repoRoot, [
+    "log",
+    range,
+    "--no-merges",
+    "--name-only",
+    "-z",
+    "--format=%x01%H%x00%s%x00%b%x00",
+  ]);
+  if (out === null) return [];
+
+  /** @type {import("./lib/structural-gates.mjs").Commit[]} */
+  const commits = [];
+  for (const chunk of out.split("\x01")) {
+    if (chunk.length === 0) continue;
+    const parts = chunk.split("\x00");
+    if (parts.length < 3) continue;
+    const [sha, subject, body] = parts;
+    const files = parts
+      .slice(3)
+      .flatMap((p) => p.split("\n"))
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+    commits.push({ sha, subject, body, files });
+  }
+  return commits;
+}
+
+/**
+ * Paths added since `base`, including what is staged and what is merely on disk. An uncommitted
+ * new file is exactly the moment SG-02 and SG-03 are useful — after it is committed the decision
+ * has already been made — so untracked files count, minus anything git is ignoring.
+ *
+ * @param {string} repoRoot @param {string | null} base @returns {string[]}
+ */
+function collectNewPaths(repoRoot, base) {
+  /** @type {Set<string>} */
+  const added = new Set();
+  if (base !== null) {
+    const committed = gitOrNull(repoRoot, ["diff", "--name-only", "--diff-filter=A", "-z", `${base}...HEAD`]);
+    for (const p of (committed ?? "").split("\0")) if (p.length > 0) added.add(p);
+  }
+  const working = gitOrNull(repoRoot, ["diff", "--name-only", "--diff-filter=A", "-z", "HEAD"]);
+  for (const p of (working ?? "").split("\0")) if (p.length > 0) added.add(p);
+  const untracked = gitOrNull(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
+  for (const p of (untracked ?? "").split("\0")) if (p.length > 0) added.add(p);
+  return [...added].sort();
+}
+
+/**
+ * Every path in the tree that git can see: tracked, plus untracked-and-not-ignored.
+ *
+ * The untracked half matters. SG-02 compares a new file against the tree it landed in, and SG-04
+ * reads job files — in both cases the interesting file is usually the one that was written five
+ * minutes ago and not yet committed. A `git ls-files`-only view would report a clean tree right
+ * up until the commit that makes the finding too late to act on.
+ *
+ * @param {string} repoRoot @returns {string[]}
+ */
+function collectRepoPaths(repoRoot) {
+  const tracked = gitOrNull(repoRoot, ["ls-files", "-z"]);
+  const untracked = gitOrNull(repoRoot, ["ls-files", "--others", "--exclude-standard", "-z"]);
+  /** @type {Set<string>} */
+  const paths = new Set();
+  for (const out of [tracked, untracked]) {
+    for (const p of (out ?? "").split("\0")) if (p.length > 0) paths.add(p);
+  }
+  return [...paths].sort();
+}
+
+/** @param {string} repoRoot @param {string} rel */
+function readTextOrNull(repoRoot, rel) {
+  const p = join(repoRoot, rel);
+  if (!existsSync(p)) return null;
+  try {
+    return readFileSync(p, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The sign-off for SG-03, from the three places a human can leave one, in precedence order:
+ * the flag they just typed, the environment the run was launched with, and the commit message
+ * they wrote. `null` when nobody left one.
+ *
+ * @param {string} repoRoot @param {string | null} flag @returns {string | null}
+ */
+function resolveSignoff(repoRoot, flag) {
+  if (flag !== null && flag.trim().length > 0) return flag;
+  const env = process.env.PI_GATE_SIGNOFF;
+  if (typeof env === "string" && env.trim().length > 0) return env;
+  const head = gitOrNull(repoRoot, ["log", "-1", "--format=%B", "--no-patch"]);
+  const m = head === null ? null : /^\s*sprawl-signoff\s*:\s*(.+)$/im.exec(head);
+  return m === null ? null : m[1].trim();
+}
+
+/** @param {import("./lib/structural-gates.mjs").GateFinding[]} findings @param {string[]} ran @param {string | null} base */
+function formatText(findings, ran, base) {
+  const lines = [];
+  lines.push(`pi-gate  base ${base ?? "(no git history available)"}  gates ${ran.join(", ")}`);
+  lines.push("");
+  for (const f of findings) {
+    const label = f.severity === "error" ? "error" : f.severity === "warn" ? "warn " : "note ";
+    lines.push(`${f.gate}  ${label}  ${f.subject}`);
+    lines.push(`          ${f.message}`);
+    lines.push(`       -> ${f.action}`);
+  }
+  if (findings.length > 0) lines.push("");
+  const errors = findings.filter((f) => f.severity === "error").length;
+  const warnings = findings.filter((f) => f.severity === "warn").length;
+  lines.push(`${errors} error(s), ${warnings} warning(s) in ${ran.length} gate(s)`);
+  return lines.join("\n");
+}
+
+async function main(argv) {
+  const args = argv.slice(2);
+  let json = false;
+  let block = process.env.PI_GATE_BLOCK === "1";
+  let repoArg = null;
+  let baseArg = null;
+  let signoffArg = null;
+  /** @type {string[]} */
+  const requestedIds = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--help" || a === "-h") {
+      process.stdout.write(HELP);
+      process.exitCode = 0;
+      return;
+    } else if (a === "--json") json = true;
+    else if (a === "--block") block = true;
+    else if (a === "--all") continue; // accepted for symmetry with pi-check; it is the default
+    else if (a === "--repo") {
+      repoArg = args[++i];
+      if (repoArg === undefined) return usageError('"--repo" requires a path argument');
+    } else if (a === "--base") {
+      baseArg = args[++i];
+      if (baseArg === undefined) return usageError('"--base" requires a ref argument');
+    } else if (a === "--signoff") {
+      signoffArg = args[++i];
+      if (signoffArg === undefined) return usageError('"--signoff" requires a reason argument');
+    } else if (a.startsWith("--")) {
+      return usageError(`unknown flag "${a}"`);
+    } else {
+      requestedIds.push(a);
+    }
+  }
+
+  for (const id of requestedIds) {
+    if (!GATE_IDS.includes(id)) return usageError(`unknown gate id "${id}" (known: ${GATE_IDS.join(", ")})`);
+  }
+  const selected = requestedIds.length > 0 ? requestedIds : [...GATE_IDS];
+
+  const scriptPath = realpathSync(fileURLToPath(import.meta.url));
+  const defaultRepoRoot = dirname(dirname(scriptPath));
+  const repoRoot = repoArg ? resolve(process.cwd(), repoArg) : defaultRepoRoot;
+  if (!existsSync(repoRoot) || !statSync(repoRoot).isDirectory()) {
+    process.stderr.write(`pi-gate: --repo path does not exist or is not a directory: ${repoRoot}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
+  let cfg;
+  try {
+    const raw = readTextOrNull(repoRoot, CONFIG_PATH);
+    cfg = resolveGateConfig(raw === null ? null : JSON.parse(raw));
+  } catch (err) {
+    process.stderr.write(`pi-gate: cannot use ${CONFIG_PATH} — ${String(err.message ?? err)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
+  /** @type {import("./lib/structural-gates.mjs").GateFinding[]} */
+  let findings = [];
+  let base = null;
+  try {
+    // One probe for the whole run: outside a work tree there is no history and no diff, so every
+    // history-derived gate is silent by construction rather than by a swallowed error.
+    const hasGit = insideWorkTree(repoRoot);
+    base = hasGit ? resolveBase(repoRoot, baseArg) : null;
+    const repoPaths = hasGit ? collectRepoPaths(repoRoot) : [];
+
+    if (selected.includes("SG-01")) {
+      findings.push(...detectFixStreak({ commits: hasGit ? collectCommits(repoRoot, base) : [] }, cfg));
+    }
+    if (selected.includes("SG-02") || selected.includes("SG-03")) {
+      const newPaths = hasGit ? collectNewPaths(repoRoot, base) : [];
+      if (selected.includes("SG-02")) {
+        const deriveText = cfg["SG-02"].deriveTokensFrom
+          .map((rel) => readTextOrNull(repoRoot, rel))
+          .filter((t) => t !== null);
+        findings.push(
+          ...detectParallelModules(
+            { newPaths, existingPaths: repoPaths, deriveText },
+            cfg,
+          ),
+        );
+      }
+      if (selected.includes("SG-03")) {
+        findings.push(
+          ...detectFileCountBudget({ newPaths, signoff: resolveSignoff(repoRoot, signoffArg) }, cfg),
+        );
+      }
+    }
+    if (selected.includes("SG-04")) {
+      const jobFiles = [];
+      for (const path of repoPaths) {
+        if (!matchesAny(path, cfg["SG-04"].jobGlobs)) continue;
+        const text = readTextOrNull(repoRoot, path);
+        if (text !== null) jobFiles.push({ path, text });
+      }
+      findings.push(...detectBoundedRun({ jobFiles }, cfg));
+    }
+  } catch (err) {
+    process.stderr.write(`pi-gate: could not run — ${String(err.stack ?? err)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
+  if (block) findings = applyBlockMode(findings);
+
+  if (json) {
+    process.stdout.write(
+      JSON.stringify(
+        {
+          base,
+          block,
+          gatesRun: selected,
+          gateTitles: Object.fromEntries(selected.map((id) => [id, GATE_TITLES[id]])),
+          findings,
+          summary: {
+            findingCount: findings.length,
+            errorCount: findings.filter((f) => f.severity === "error").length,
+            warningCount: findings.filter((f) => f.severity === "warn").length,
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  } else {
+    process.stdout.write(formatText(findings, selected, base) + "\n");
+  }
+
+  process.exitCode = hasBlockingFinding(findings) ? 1 : 0;
+}
+
+main(process.argv).catch((err) => {
+  process.stderr.write(`pi-gate: internal error — ${String(err.stack ?? err)}\n`);
+  process.exitCode = 2;
+});
