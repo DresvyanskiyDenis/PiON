@@ -178,6 +178,13 @@ consequence of an earlier bug in this repository where a hard-coded PI default w
 were a measurement, and the resulting advice would have broken three of five providers. A default
 must never again be printed as a measurement.
 
+!!! note "The threshold is evaluated after a run; the preflight covers what that misses"
+    A single run can issue several provider requests, so the context can pass the window *between*
+    two post-run checks. A `before_provider_request` handler refuses a request the declared window
+    demonstrably cannot hold, and hands the turn back to PI to compact. It has no keys in this file
+    on purpose — its three numbers describe an estimator's error, not an operator's intent. See
+    [`compaction` §5](../extensions/compaction.md#5-the-context-window-preflight).
+
 ---
 
 ## `digest.json`

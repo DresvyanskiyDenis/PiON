@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { buildFirstExchange, extractTitle, id, register } from "../../extensions/auto-title/index.ts";
+import {
+  buildFirstExchange,
+  extractTitle,
+  id,
+  register,
+  resolveTitleModel,
+} from "../../extensions/auto-title/index.ts";
+
+const ROUTING_PATH = fileURLToPath(new URL("../../config/routing.default.json", import.meta.url));
 
 test("id is stable", () => {
   assert.equal(id, "auto-title");
@@ -156,4 +166,56 @@ test("does not title on a short/trivial first exchange", async () => {
   await h.fireTurnEnd(2);
   assert.equal(calls, 0);
   assert.equal(h.getName(), undefined);
+});
+
+// --- which model titles a session, and what happens when it cannot be resolved ---
+
+test("the default model is the live `light` tier from the shipped routing table, not a literal", () => {
+  // The shape this guards: a model id frozen into the source of this module. It outlives the seat,
+  // the tier and the catalogue that made it correct, and when it stops being served nothing here
+  // notices. Resolving through the routing table means a retired or repointed tier takes it along.
+  const routing = JSON.parse(readFileSync(ROUTING_PATH, "utf8")) as { tiers: Record<string, { model: string }> };
+  const resolved = resolveTitleModel({} as NodeJS.ProcessEnv);
+  assert.equal(resolved.source, "routing.json");
+  assert.equal(resolved.model, routing.tiers.light?.model);
+  assert.match(resolved.model ?? "", /^[^/]+\/[^/]+$/);
+});
+
+test("no literal survives in the module: every tier's model comes out of the routing table", () => {
+  // Not "is not <one dead id>" — that only ever catches the literal someone already removed. The
+  // check that keeps working is that the resolved id is one the shipped table actually declares.
+  const routing = JSON.parse(readFileSync(ROUTING_PATH, "utf8")) as { tiers: Record<string, { model: string }> };
+  const declared = Object.values(routing.tiers).map((t) => t.model);
+  assert.ok(declared.includes(resolveTitleModel({} as NodeJS.ProcessEnv).model ?? ""));
+});
+
+test("PI_TITLE_MODEL still wins, and is rejected when it is not a provider/id", () => {
+  assert.deepEqual(resolveTitleModel({ PI_TITLE_MODEL: "litellm/gpt-5.6-luna" } as NodeJS.ProcessEnv), {
+    model: "litellm/gpt-5.6-luna",
+    source: "PI_TITLE_MODEL",
+  });
+  const bad = resolveTitleModel({ PI_TITLE_MODEL: "gpt-5.6-luna" } as NodeJS.ProcessEnv);
+  assert.equal(bad.model, undefined);
+  assert.match(bad.problem ?? "", /not a provider\/id/);
+});
+
+test("an unreadable routing.json yields no model and a stated reason — never a guessed default", () => {
+  const resolved = resolveTitleModel({} as NodeJS.ProcessEnv, {
+    raw: undefined,
+    source: "<absent>",
+    problem: "routing.json not found",
+  });
+  assert.equal(resolved.model, undefined);
+  assert.equal(resolved.source, "none");
+  assert.match(resolved.problem ?? "", /no "light" tier/);
+  assert.match(resolved.problem ?? "", /PI_TITLE_MODEL/);
+});
+
+test("a routing.json whose light tier carries no usable model is refused, not half-used", () => {
+  const resolved = resolveTitleModel({} as NodeJS.ProcessEnv, {
+    raw: { tiers: { light: { model: "not-a-provider-id" } } },
+    source: "/fixture/routing.json",
+  });
+  assert.equal(resolved.model, undefined);
+  assert.match(resolved.problem ?? "", /\/fixture\/routing\.json/);
 });

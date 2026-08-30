@@ -71,6 +71,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
+  BeforeProviderRequestEvent,
   CompactionResult,
   ExtensionAPI,
   ExtensionContext,
@@ -111,6 +112,7 @@ import {
   type PinnedLimits,
 } from "./pinned.ts";
 import {
+  absoluteTokensForWindow,
   declaredContextWindows,
   findContextWindow,
   formatThresholdLine,
@@ -123,6 +125,14 @@ import {
   type ReserveTokens,
   type ThresholdReport,
 } from "./threshold.ts";
+import {
+  estimatePromptTokens,
+  MAX_CONSECUTIVE_REFUSALS,
+  passedAnywayLine,
+  type PreflightFacts,
+  preflightVerdict,
+  refusalLine,
+} from "./preflight.ts";
 
 // Re-exported so `REQ-CTX-31`'s arithmetic keeps one public entry point for callers and tests.
 export { thresholdReport, type ThresholdReport };
@@ -149,9 +159,9 @@ interface CompactionConfig {
     readonly enabled: boolean;
     readonly sources: readonly string[];
     /**
-     * The session facts file (`./facts.ts`). It sits under `pinned` because it is restated on the
-     * same event under the same rule; what separates it from `sources` is only that its content is
-     * written during the session instead of being read out of the project.
+     * The session facts file (`./facts.ts`). A sibling of `sources` because it is re-stated on the
+     * same event under the same doctrine — the difference is that its content is written during
+     * the session rather than read from the repo.
      */
     readonly facts: FactsLimits & { readonly enabled: boolean };
   };
@@ -225,9 +235,9 @@ export function parseConfig(raw: unknown): CompactionConfig {
         : DEFAULT_CONFIG.pinned.sources,
       maxBytesPerSource: num(pin.maxBytesPerSource, DEFAULT_CONFIG.pinned.maxBytesPerSource),
       maxTotalBytes: num(pin.maxTotalBytes, DEFAULT_CONFIG.pinned.maxTotalBytes),
-      // An absent key means the defaults, and the defaults are indistinguishable from the old
-      // behaviour on a tree that never records a fact: no file exists, so nothing is restated.
-      // Compatibility here rests on the absence of the file, not on the absence of the key.
+      // Absent key means defaults, and the defaults are what a tree that never records a fact
+      // already does: no file, no block, nothing re-stated. Backwards compatibility is the
+      // absence of the file, not the absence of the key.
       facts: {
         enabled: bool(facts.enabled, DEFAULT_CONFIG.pinned.facts.enabled),
         maxEntries: Math.max(0, Math.trunc(num(facts.maxEntries, DEFAULT_CONFIG.pinned.facts.maxEntries))),
@@ -275,24 +285,25 @@ const cfg = loaded.config;
 let activeThreshold: CompactionConfig["threshold"] = cfg.threshold;
 
 /**
- * Puts {@link UNIVERSAL_ABSOLUTE_TOKENS} in force for this session, so the flat threshold is what
- * you get without running anything.
+ * The universal threshold, applied at every session start so the operator never has to run
+ * `/autocompact` to get it.
  *
- * The write is guarded on the value actually differing, and that guard is what makes writing from
- * a session-start hook tolerable at all: `config/compaction.json` is a tracked file, and a hook
- * that rewrote it unconditionally would put a spurious diff in front of every `git status` and
- * touch the file again on every `/new`, which fires `session_start` a second time. The shipped
- * config already says 200 000, so a fresh clone writes nothing, ever.
+ * Writes only when the file does not already say 200 000. That guard is the whole reason this is
+ * tolerable at all: `config/compaction.json` is a tracked file, and a session start that rewrote
+ * it unconditionally would put a spurious diff in front of every `git status` and re-touch the
+ * file on every `/new`. `FIX-AUTOCOMPACT-RESERVE`'s open question named exactly this trade-off
+ * and declined to pick it; the operator has now picked it, and the write-only-on-change guard is
+ * what keeps the cost to the one start after the number actually moves.
  *
- * The line is printed either way, because it states what this session will do rather than what
- * this function just did.
+ * The line is printed every session either way, because it states what the session will do, not
+ * what this function just did.
  */
 function applyUniversalThreshold(ctx: ExtensionContext): void {
   const path = loaded.source;
   if (activeThreshold.absoluteTokens !== UNIVERSAL_ABSOLUTE_TOKENS) {
     if (path === undefined) {
-      // No file to persist into: this session runs on the built-in defaults, so the number is held
-      // in memory only and the next session starts from the same place. Said, not hidden.
+      // No file to persist into: this session runs on the built-in defaults, so the number is
+      // held in memory and the next session starts from the same place. Said, not hidden.
       activeThreshold = { ...activeThreshold, absoluteTokens: UNIVERSAL_ABSOLUTE_TOKENS };
       announce(
         ctx,
@@ -308,13 +319,13 @@ function applyUniversalThreshold(ctx: ExtensionContext): void {
   announce(ctx, `auto-compact: ${formatUniversal()} tokens`, "info");
 }
 
-/** `200000` the way an operator says it. Kept next to the constant so the two cannot drift. */
+/** `200000` as the operator says it. Kept next to the constant so the two cannot drift apart. */
 function formatUniversal(): string {
   return `${UNIVERSAL_ABSOLUTE_TOKENS / 1000}K`;
 }
 
 /* ---------------------------------------------------------------------------------------------
- * `/autocompact` — declare the flat threshold, or one model's own trigger instead
+ * `/autocompact` — set the declared threshold: the universal 200 000, or one model's own trigger
  * ------------------------------------------------------------------------------------------- */
 
 /** Test seam, mirroring `cost-gate`'s: the same `PI_CONFIG_MODELS_JSON` override. */
@@ -417,12 +428,12 @@ interface WindowResolution {
 /**
  * The window `/autocompact <model-id>` will write from.
  *
- * `models.json` is authoritative and is now the only source. Before the flat threshold this
- * function also served the no-argument form, which needed a named fallback to the live session
- * window for a model served from PI's built-in catalogue with no override of ours; the no-argument
- * form reads no window at all any more, so the fallback went with it rather than staying as
- * unreachable code. A named model never had one: there is no live window for a model that is not
- * running, so an undeclared one is refused rather than guessed.
+ * `models.json` is authoritative and is now the only source. Before the universal threshold this
+ * function also served the no-argument form, which needed a live-session fallback for a model
+ * served from PI's built-in catalogue with no override of ours; the no-argument form reads no
+ * window at all any more, so the fallback went with it. An explicitly named model never had one:
+ * there is no live window for a model that is not running, so an undeclared one is refused rather
+ * than guessed.
  */
 function resolveTargetWindow(ctx: ExtensionContext, requested: string): WindowResolution {
   const models = readModelsJson();
@@ -442,6 +453,12 @@ function resolveTargetWindow(ctx: ExtensionContext, requested: string): WindowRe
 
 const guards = new Map<string, LoopGuardState>();
 
+/**
+ * Consecutive over-window refusals per session (`./preflight.ts`). Cleared by the first request
+ * that fits, which is what makes the count a streak rather than a session total.
+ */
+const preflightRefusals = new Map<string, number>();
+
 function sid(ctx: Pick<ExtensionContext, "sessionManager">): string {
   return ctx.sessionManager.getSessionId() ?? "unknown-session";
 }
@@ -458,6 +475,7 @@ function guardFor(session: string): LoopGuardState {
 /** Test-only: drop all module state so each test starts from a clean registry. */
 export function __resetForTests(): void {
   guards.clear();
+  preflightRefusals.clear();
 }
 
 function announce(ctx: ExtensionContext | undefined, line: string, level: "info" | "warning" | "error" = "warning"): void {
@@ -607,6 +625,8 @@ async function summariseWithContract(
   ctx: ExtensionContext,
   pi: ExtensionAPI,
 ): Promise<BeforeCompactResult | undefined> {
+  // The persistence half of `surfaceProviderFailure`'s sinks — see `credentials.ts`'s identical
+  // seam for why `stderr` and `ctx.ui.notify` alone leave `causeChain` unreadable in a TUI.
   const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
   const model = ctx.model;
   if (!model) {
@@ -703,7 +723,7 @@ async function summariseWithContract(
  * Re-statement after a compaction
  * ------------------------------------------------------------------------------------------- */
 
-/** This session's facts file: one per session id, beside the transcript, outside every project. */
+/** This session's facts file. One per session id, beside the transcript, outside every worktree. */
 function factsPath(ctx: Pick<ExtensionContext, "sessionManager">): string {
   return factsPathFor(ctx.sessionManager.getSessionFile() ?? undefined, sid(ctx), stateRoot());
 }
@@ -731,9 +751,9 @@ async function restatePinnedSources(pi: ExtensionAPI, ctx: ExtensionContext): Pr
 }
 
 /**
- * The same restatement over what the session *learned* rather than what the project *declares*.
- * A session that recorded nothing has no file, `renderFacts` returns `""`, and no message is sent,
- * which is why this path can default to on: it is invisible until the first `fact` call.
+ * The same re-statement, over what this session *learned* rather than what the repo *declares*.
+ * A session that recorded nothing has no file, `renderFacts` returns `""` and nothing is sent, so
+ * this path is invisible until the first `fact` call — which is what makes it safe to default on.
  */
 async function restateFacts(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
   if (!cfg.pinned.facts.enabled) return;
@@ -759,10 +779,79 @@ async function restateFacts(pi: ExtensionAPI, ctx: ExtensionContext): Promise<vo
  * Wiring
  * ------------------------------------------------------------------------------------------- */
 
+/**
+ * `REQ-CTX-31`'s missing half: do not SEND a prompt the declared window cannot hold.
+ *
+ * Read `./preflight.ts` for the arithmetic, the order-of-operations argument against autocompact,
+ * and the bound on the estimate. Two things belong here rather than there, because they are facts
+ * about this runtime and not about the decision:
+ *
+ * **`ctx.abort()` works from here, and this is the one place in this module where it does.** The
+ * header above records that `abort()` is a no-op on the automatic compaction paths, because
+ * `_runAutoCompaction()` runs between `agent.prompt()` and `agent.continue()`, by which time
+ * `finishRun()` has cleared `activeRun` and `agent.abort()` has nothing to abort. A
+ * `before_provider_request` handler is the opposite case: it runs *inside* the active run,
+ * immediately before the HTTP call, so `activeRun.abortController.abort()` lands on the very
+ * request being assembled and the doomed body never goes on the wire.
+ *
+ * **The refusal is a harness decision and is labelled as one.** It goes out through this module's
+ * own `[pi-config] compaction:` channel and is persisted as a `context_preflight` entry — never
+ * through `PROVIDER_FAILURE_MARKER`, never as a `provider_failure`. The provider did nothing here.
+ * Filing a harness refusal in the channel an operator greps for provider failures is how a fleet
+ * ends up debugging a gateway that was working.
+ */
+function registerPreflight(pi: ExtensionAPI): void {
+  pi.on("before_provider_request", (event: BeforeProviderRequestEvent, ctx: ExtensionContext) => {
+    try {
+      const session = sid(ctx);
+      const contextWindow = ctx.model?.contextWindow;
+      const estimatedTokens = estimatePromptTokens(event.payload);
+      const refusalsSoFar = preflightRefusals.get(session) ?? 0;
+      const verdict = preflightVerdict({ estimatedTokens, contextWindow, refusalsSoFar });
+      if (verdict === "send") {
+        // The streak ends at the first request that fits — including the one that fits only
+        // because the compaction this module's refusal handed to PI has just run.
+        if (refusalsSoFar > 0) preflightRefusals.delete(session);
+        return;
+      }
+
+      const facts: PreflightFacts = {
+        estimatedTokens,
+        // `preflightVerdict` returns "send" for every unusable window, so a non-send verdict has
+        // one. The `?? 0` is a type narrowing, not a fallback that can be reached.
+        contextWindow: contextWindow ?? 0,
+        model: ctx.model === undefined ? "(unknown model)" : `${ctx.model.provider}/${ctx.model.id}`,
+      };
+
+      if (verdict === "over-but-passed") {
+        preflightRefusals.delete(session);
+        announce(ctx, passedAnywayLine(facts), "error");
+        pi.appendEntry("context_preflight", { decision: "passed-anyway", ...facts, refusals: MAX_CONSECUTIVE_REFUSALS });
+        return;
+      }
+
+      preflightRefusals.set(session, refusalsSoFar + 1);
+      announce(ctx, refusalLine(facts), "error");
+      // Appended BEFORE the abort, for the same reason the loop guard writes before exiting: a
+      // decision that is not in the session record did not happen as far as any later reader is
+      // concerned, and `appendEntry` is a synchronous append.
+      pi.appendEntry("context_preflight", { decision: "refused", ...facts, refusals: refusalsSoFar + 1 });
+      ctx.abort();
+    } catch (err) {
+      // Fail open, always. This handler stands between every request and its provider; a bug in it
+      // must cost a preflight, never the session.
+      announce(ctx, `preflight failed internally and was skipped: ${describeError(err)}`, "error");
+    }
+  });
+}
+
 export function register(pi: ExtensionAPI): void {
+  registerPreflight(pi);
+
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     try {
       guards.set(sid(ctx), createLoopGuardState());
+      preflightRefusals.delete(sid(ctx));
       // Before the report, so what it reports is the number this session will actually use.
       applyUniversalThreshold(ctx);
       reportThreshold(ctx);
@@ -837,10 +926,9 @@ export function register(pi: ExtensionAPI): void {
   // REQ-CTX-37 — regenerate, then re-state. Runs after PI has appended the compaction entry, so
   // the block lands on the far side of the cut and survives it by construction.
   //
-  // Two sources, restated as two independent blocks: the project's instruction files, and this
-  // session's facts file. Independent because they are configured and fail separately. A project
-  // with no `AGENTS.md` still has to get its facts back, and a session that recorded no facts
-  // still has to get its instructions back.
+  // Two sources, two independent blocks: the instruction files, and this session's facts file.
+  // Independent because they fail and are configured separately — a repo with no `AGENTS.md` must
+  // still get its facts back, and a session that recorded none must still get its doctrine back.
   pi.on("session_compact", async (_event, ctx: ExtensionContext) => {
     await restatePinnedSources(pi, ctx);
     await restateFacts(pi, ctx);
@@ -858,27 +946,19 @@ export function register(pi: ExtensionAPI): void {
    *
    * Two intents are available and the argument chooses between them:
    *
-   * - **no argument** writes {@link UNIVERSAL_ABSOLUTE_TOKENS}, flat, on every model. It is what
-   *   `session_start` already keeps written, so the command exists mainly to put the number back
-   *   after a per-model override. It reads nothing — no `models.json`, no reserve, no arithmetic
-   *   that could refuse — which is the point of a flat number and also why this branch cannot fail
-   *   the way the other one can.
+   * - **no argument** writes {@link UNIVERSAL_ABSOLUTE_TOKENS}, flat, on every model. This is the
+   *   default and it is what `session_start` also keeps written, so the command exists mainly to
+   *   put the number back after a per-model override.
    * - **`<model-id>`** writes that model's own trigger, `contextWindow - reserveTokens`, for the
-   *   case where matching one model exactly is the point. It writes the trigger and **not** the
-   *   window: the window is where the number comes from, the trigger is what the number is
-   *   compared against, and writing the window would state an intent PI can never meet —
-   *   `thresholdReport()` would read `effectiveTrigger < configuredAbsolute` and call it
-   *   `window-too-small` on every model whose window is small enough for the reserve to exceed the
-   *   20 % tolerance (a 64k model, with the 16384-token default reserve, diverges by 26 %). That
-   *   verdict's own remedy line says no PI 0.84.0 setting closes the gap, which would be true and
-   *   permanent and entirely self-inflicted.
+   *   case where matching one model is the point. It is the only path that reads `models.json`
+   *   and `compaction.reserveTokens` at all.
    */
   pi.registerCommand("autocompact", {
     description:
-      "Set the compaction threshold. With no argument, the flat 200000 tokens, the same on every " +
-      "model. With /autocompact <model-id>, that model's own trigger instead (its declared context " +
-      "window minus compaction.reserveTokens). Writes config/compaction.json, so it persists " +
-      "across sessions.",
+      "Set the compaction threshold. With no argument, the universal 200000 tokens, the same on "
+      + "every model. With /autocompact <model-id>, that model's own trigger instead "
+      + "(its declared context window minus compaction.reserveTokens). "
+      + "Writes config/compaction.json, so it persists across sessions.",
     handler: async (args: string, ctx) => {
       try {
         const path = loaded.source;
@@ -891,6 +971,9 @@ export function register(pi: ExtensionAPI): void {
         const requested = args.trim();
         const previous = activeThreshold.absoluteTokens;
 
+        // No argument is the universal threshold, and nothing about the model enters into it:
+        // no models.json read, no reserve, no arithmetic that could refuse. That is the point of
+        // a flat number, and it is also why this branch cannot fail the way the other one can.
         if (requested === "") {
           writeAbsoluteTokens(path, UNIVERSAL_ABSOLUTE_TOKENS);
           activeThreshold = { ...activeThreshold, absoluteTokens: UNIVERSAL_ABSOLUTE_TOKENS };
@@ -899,7 +982,7 @@ export function register(pi: ExtensionAPI): void {
             ctx,
             [
               `Compaction threshold set to ${UNIVERSAL_ABSOLUTE_TOKENS} tokens (was ${previous})`,
-              `  intent     : the flat ${formatUniversal()} threshold, the same on every model`,
+              `  intent     : the universal ${formatUniversal()} threshold, the same on every model`,
               `  written to : ${path} (a tracked file, so commit it to keep the change)`,
               `  verdict    : /compaction-status now reports ` +
                 `${resolved ? resolved.report.verdict : "nothing, until a model is selected"}`,
@@ -910,36 +993,38 @@ export function register(pi: ExtensionAPI): void {
         }
 
         const target = resolveTargetWindow(ctx, requested);
+        // The reserve is read before anything is written: a window it swallows must refuse the
+        // whole command, not leave a half-applied number behind.
         const reserve = readReserveTokens({
           observed: lastReserveTokens,
           agentDir: configDir(),
           cwd: ctx.cwd,
           configDirName: CONFIG_DIR_NAME,
         });
-        const absolute = target.contextWindow - reserve.value;
-        if (absolute <= 0) {
-          throw new Error(
-            `${target.model} declares a ${target.contextWindow}-token window, which is at or below ` +
-              `the ${reserve.value}-token reserve [${reserve.source}]; there is no threshold that ` +
-              `would leave room for a turn. Nothing was written.`,
-          );
-        }
-        writeAbsoluteTokens(path, absolute);
-        activeThreshold = { ...activeThreshold, absoluteTokens: absolute };
+        const plan = absoluteTokensForWindow(target.contextWindow, reserve.value);
+        if (!plan.ok) throw new Error(plan.reason);
 
+        writeAbsoluteTokens(path, plan.absoluteTokens);
+        activeThreshold = { ...activeThreshold, absoluteTokens: plan.absoluteTokens };
+
+        // Reported, not asserted: the verdict comes out of the same function /compaction-status
+        // calls, so this line cannot drift from what that command will say.
+        const verdict = thresholdReport(
+          target.contextWindow,
+          reserve.value,
+          plan.absoluteTokens,
+          activeThreshold.toleranceRatio,
+        ).verdict;
         announce(
           ctx,
           [
-            `Compaction threshold set to ${absolute} tokens ` +
-              `(${target.model}: window ${target.contextWindow} - reserve ${reserve.value} ` +
-              `[${reserve.source}]; was ${previous})`,
+            `Compaction threshold set to ${plan.absoluteTokens} tokens ` +
+              `(from ${target.model} context window; was ${previous})`,
+            `  arithmetic : ${target.contextWindow} window - ${reserve.value} reserve ` +
+              `[${reserve.source}] = ${plan.absoluteTokens}, PI's own trigger for this model`,
             `  read from  : ${target.source}`,
             `  written to : ${path} (a tracked file, so commit it to keep the change)`,
-            `  note       : this moves no trigger. PI already compacts above ${absolute} tokens on ` +
-              `this model; what changed is that REQ-CTX-31 now states that number instead of the ` +
-              `flat ${UNIVERSAL_ABSOLUTE_TOKENS}, so /compaction-status reads "aligned".`,
-            `  lifetime   : the next session start puts the flat ${formatUniversal()} back. An ` +
-              `override that should survive belongs in ${path} as a committed change.`,
+            `  verdict    : /compaction-status now reports ${verdict}`,
           ].join("\n"),
           "info",
         );
@@ -966,26 +1051,25 @@ export function register(pi: ExtensionAPI): void {
         `  pinned     : ${cfg.pinned.enabled ? cfg.pinned.sources.join(", ") || "(none)" : "off"}`,
         `  facts      : ${factsLine(ctx)}`,
         `  ${thresholdLine(ctx)}`,
-        `  /autocompact sets that configured absolute to the flat ${UNIVERSAL_ABSOLUTE_TOKENS}; ` +
+        `  /autocompact sets that configured absolute to the universal ${UNIVERSAL_ABSOLUTE_TOKENS}; ` +
           `/autocompact <model-id> sets it to that model's declared window minus the reserve instead`,
       ];
       announce(ctx, lines.join("\n"), "info");
     },
   });
 
-  // The cheap call the `SYSTEM.md` doctrine names. A tool rather than an instruction to hand-edit
-  // a file, because hand-editing is the step that gets dropped under time pressure, and time
-  // pressure is exactly the condition under which a fact was expensive enough to be worth keeping.
+  // The cheap call the doctrine in `SYSTEM.md` names. It is a tool rather than an instruction to
+  // hand-edit a file because hand-editing is the step that gets skipped under pressure, which is
+  // precisely when a fact was expensive enough to be worth keeping.
   if (cfg.pinned.facts.enabled) {
     pi.registerTool({
       name: "fact",
       label: "Record a fact",
       description:
-        "Write one established fact to this session's facts file, which is re-read from disk and "
-        + "restated after every compaction. Use it for anything that cost a paid call, a remote "
-        + "run, or a correction from the operator: the conversation is summarised repeatedly and "
-        + "every summary loses detail, so a fact that is not on disk is gone by the time it is "
-        + "needed again.",
+        "Write one established fact to this session's facts file, which is re-read and re-stated "
+        + "after every compaction. Use it for anything that cost a paid call, a remote run, or an "
+        + "operator correction: the conversation is summarised repeatedly and every summary loses "
+        + "detail, so a fact not on disk is gone by the time it is needed again.",
       promptSnippet: "Record an established fact so it survives compaction",
       promptGuidelines: [
         "Record a fact the moment it is established, before you act on it, not at the end of the task.",
@@ -1017,12 +1101,12 @@ export function register(pi: ExtensionAPI): void {
   }
 }
 
-/** `/compaction-status`'s facts line: the caps in force, and the file this session writes to. */
+/** `/compaction-status`'s facts line: the caps, and what this session has actually recorded. */
 function factsLine(ctx: ExtensionContext): string {
   if (!cfg.pinned.facts.enabled) return "off";
   const path = factsPath(ctx);
   return (
-    `max ${cfg.pinned.facts.maxEntries} entries / ${cfg.pinned.facts.maxBytes} bytes restated, ` +
+    `max ${cfg.pinned.facts.maxEntries} entries / ${cfg.pinned.facts.maxBytes} bytes re-stated, ` +
     `appended by the fact tool, in ${path}`
   );
 }

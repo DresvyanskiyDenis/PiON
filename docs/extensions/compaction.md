@@ -1,6 +1,6 @@
-# `compaction` — loop guard, keep/drop, pinning, threshold
+# `compaction` — loop guard, keep/drop, pinning, threshold, preflight
 
-Four parts, in the order they matter. Configured by
+Five parts, in the order they matter. Configured by
 [`config/compaction.json`](../configuration/sessions.md#compactionjson); PI's own three keys are in
 [`settings.json`](../configuration/settings.md#compaction).
 
@@ -137,6 +137,78 @@ the catalogue does not declare is refused rather than guessed.
 The write is textual and re-parsed before it is offered: re-serialising the config would reformat 14
 lines to change one number, and `config/compaction.json` is tracked.
 
+## 5. The context-window preflight
+
+Auto-compaction is evaluated **after a run**. That leaves one case it structurally cannot catch: a
+single run issues several provider requests, the context grows between two post-run checks, and one
+of those requests goes out already larger than the declared window. The provider does not
+necessarily refuse it — an OpenAI-compatible gateway answered one such request with a `200` and an
+empty body, which this harness classifies as
+[`empty-response`](../configuration/routing.md#onprovidererror), which killed the turn. Every number
+needed to prevent it was in the process before the request was assembled.
+
+So a `before_provider_request` handler estimates the outgoing prompt and compares it against
+`ctx.model.contextWindow`. Over the bar, the request is **not sent**:
+
+```
+[pi-config] compaction: refused a request this harness estimates at ~273110 tokens against
+<provider>/<model>'s declared 200000-token window (~37% over, estimate is chars/3.5 on the
+assembled body). Nothing was sent: an over-window request to this fleet comes back as a 200 with
+an empty body, not as an error. Compaction runs next and the turn continues.
+```
+
+!!! note "A harness decision, filed as one"
+    The refusal is written to the session as a `context_preflight` entry, never as a
+    `provider_failure`, and it never carries the `[pi-config] provider call failed:` marker
+    `extensions/dispatch/failure-slot.ts` greps for. Nothing failed, because nothing was sent —
+    and a harness refusal filed in the channel an operator greps for provider failures is how you
+    end up debugging a gateway that was working.
+
+### The estimate, and the bound on it
+
+There is no tokenizer here. The estimate is the total length of the **string leaves** of the
+assembled request body — not `JSON.stringify().length`, which counts keys, braces and escapes no
+tokenizer ever sees — divided by **3.5 characters per token**. English prose runs about 4, code and
+JSON about 3, and this harness's contexts are mostly the latter; PI's own internal estimator uses a
+flat 4, which on the incident above would have read ~202 000 and missed it.
+
+The residual error is roughly ±15 % in both directions. That is why the bar is not the window but
+**`contextWindow × 1.05`** — 210 000 tokens on a 200 000 window. A prompt sitting at 98 % of the
+window, where the estimator's error genuinely could decide the verdict, is left to auto-compaction,
+which by then has long since fired.
+
+### Why it cannot fire before auto-compaction
+
+PI compacts at `contextTokens > contextWindow − reserveTokens`, i.e. always *below* the window. The
+preflight only ever acts *above* it, plus the 5 % tolerance. At any size where auto-compaction has
+something to say, the preflight is silent: it cannot trigger a compaction that was not going to
+happen anyway, and cannot spend a summarisation call the reserve would have spent.
+
+Refusing is also all it does. The refused turn returns to PI, whose own post-run check now sees a
+context demonstrably over the window, compacts, and continues. Calling `ctx.compact()` here as well
+would put a second compaction against the same context — the exact shape §1's loop guard exists to
+shoot down.
+
+This is also the one place in this module where `ctx.abort()` works. [The section
+below](#an-extension-cannot-abort-a-headless-run) records that it is a no-op on the automatic
+compaction paths, because `activeRun` has already been cleared by then. A `before_provider_request`
+handler is the opposite case: it runs *inside* the active run, immediately before the HTTP call, so
+the abort lands on the very request being assembled.
+
+### It gives up rather than loop
+
+Two consecutive refusals per session is the budget — one for the request that was over, one for a
+request that is *still* over after the compaction. A third is let through, loudly, naming the real
+fix (`/compact` with instructions, a new session, or a `contextWindow` that matches what the
+endpoint serves). A doomed request whose failure is visible beats a session that never sends
+anything and never says why. The streak resets at the first request that fits.
+
+!!! warning "These three numbers are constants, not config keys"
+    `CHARS_PER_TOKEN`, `OVER_WINDOW_TOLERANCE` and `MAX_CONSECUTIVE_REFUSALS` live in
+    `extensions/compaction/preflight.ts`. They describe the estimator's own error; an operator
+    tuning them without new measurements is tuning the wrong thing. The lever that is yours is
+    [`modelOverrides.<id>.contextWindow`](../configuration/models.md#modeloverrides).
+
 ## An extension cannot abort a headless run
 
 Answered against the shipped code of 0.84.0 rather than the docs. Both documented candidates fail,
@@ -160,5 +232,6 @@ guard could not speak.
 
 ## Related
 [Context windows](../concepts/context-windows.md) ·
+[`onProviderError`](../configuration/routing.md#onprovidererror) ·
 [`compaction.json`](../configuration/sessions.md#compactionjson) ·
 [Exit codes](../reference/exit-codes.md) · [context-report](context-report.md)

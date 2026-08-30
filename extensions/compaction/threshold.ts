@@ -38,18 +38,18 @@
  *    (`settings-manager.js:532`) and is untouched either way.)
  *
  * 2. **`models.json` → `providers.<p>.modelOverrides.<id>.contextWindow`** — per model, exact,
- *    documented in PI's own `models.md`, and applied at `dist/core/provider-composer.js:40`. PI
+ *    documented (`docs/models.md:360`), and applied at `dist/core/provider-composer.js:40`. PI
  *    ships this pattern itself: OpenAI's Sol/Terra/Luna default to a *reduced* 272 000 window and
  *    the docs tell you to raise it to 1 050 000 to opt into the large-context tier
- *    (same doc). This is the only mechanism that survives a model switch, because
+ *    (`docs/models.md:362-373`). This is the only mechanism that survives a model switch, because
  *    the number is declared next to the model rather than globally.
  *
  *    It has one cost this module must not hide: `clampMaxTokensToContext`
  *    (`@earendil-works/pi-ai/dist/api/simple-options.js:4-9`) caps every request's `maxTokens` at
  *    `contextWindow - contextTokens - 4096`, so a declared window also becomes an output ceiling
  *    as the session fills. And it collides head-on with **`REQ-PRV-04`** (MUST — *"an honest
- *    `contextWindow` … matching what the endpoint actually serves"*), which names this exact
- *    workaround as the banned one. Declaring it is therefore an
+ *    `contextWindow` … matching what the endpoint actually serves"*); `docs/requirements-audit.md`
+ *    finding 19 names this exact workaround as the banned one. Declaring it is therefore an
  *    operator decision, not something this extension may take on its own.
  *
  * Hence the shape below: compute the truth, classify it, and say it **once, ever** per distinct
@@ -63,28 +63,28 @@ import { join } from "node:path";
 /** PI's own default when neither settings file declares one (`settings-manager.js:518`). */
 export const PI_DEFAULT_RESERVE_TOKENS = 16384;
 
-/** PI's own default for `keepRecentTokens` (`SettingsManager.getCompactionKeepRecentTokens`). */
-export const PI_DEFAULT_KEEP_RECENT_TOKENS = 20000;
-
 /**
- * The declared auto-compact threshold: a flat 200 000 tokens on every model, whatever its window.
+ * The universal auto-compact threshold: 200 000 tokens on every model, whatever its window.
  *
- * Chosen, not derived. The number this harness used to declare was `contextWindow - reserveTokens`
- * — PI's own trigger — and therefore a different number on every model: 980 000 on a
- * 1 000 000-token model, 180 000 on a 200 000-token one. One line, at 200 000, everywhere is what
- * this repository now states, so `/autocompact` with no argument writes this constant and
- * `session_start` keeps it written. `/autocompact <model-id>` still computes the per-model trigger,
- * for the case where matching one model exactly is the point.
+ * An operator decision, and deliberately not derived from anything. The previous default was
+ * `contextWindow - reserveTokens`, which is PI's own trigger and therefore a different number on
+ * every model: 980 000 on a 1M qwen, 180 000 on a 200K sonnet. One flat number is what the
+ * operator asked for, so `/autocompact` with no argument writes this and `session_start` keeps it
+ * written. `/autocompact <model>` still computes the per-model trigger, for the case where the
+ * point is to match a specific model rather than to hold the line at 200K.
  *
- * What the number can do is bounded by {@link thresholdReport} and by this module's header:
- * `absoluteTokens` is a stated intent that gets checked against PI's real trigger, not a lever PI
- * reads. A flat 200 000 does not make a 1 000 000-token model compact at 200 000; it makes the
- * report say, once, how far that model's trigger is from where the operator wants the line. With a
- * 20 000-token reserve and the shipped 20 % tolerance it reads `aligned` for any declared window in
- * [180 000, 260 000], `window-too-small` below that (no setting closes the gap) and
+ * Read the limits of what this number can do in {@link thresholdReport}: `absoluteTokens` is a
+ * stated intent this module checks PI against, not a lever PI reads. So the flat number does not
+ * make anything compact at 200 000; it states that 200 000 is where the operator wants the line,
+ * and the verdict says how far PI's own trigger is from it. At this repo's reserve (20 000) and
+ * tolerance (0.2) that reads `aligned` for any declared window in [180 000, 260 000], which is
+ * most of the fleet, `window-too-small` below it (no setting closes that gap) and
  * `trigger-too-high` above it, where declaring `modelOverrides.contextWindow = 220000` does.
  */
 export const UNIVERSAL_ABSOLUTE_TOKENS = 200000;
+
+/** PI's own default for `keepRecentTokens` (`SettingsManager.getCompactionKeepRecentTokens`). */
+export const PI_DEFAULT_KEEP_RECENT_TOKENS = 20000;
 
 export type ThresholdVerdict =
   /** `absoluteTokens: 0` — the operator opted out of the check. */
@@ -375,6 +375,38 @@ export function declaredContextWindows(raw: unknown): DeclaredWindow[] {
   return out;
 }
 
+export type AbsoluteTokensPlan =
+  | { readonly ok: true; readonly absoluteTokens: number }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * The number `/autocompact` writes for a model: the **trigger**, not the window.
+ *
+ * `threshold.absoluteTokens` is compared against `contextWindow - reserveTokens` by
+ * {@link thresholdReport}, so writing the bare window guarantees `trigger-too-high` on every model
+ * with a nonzero reserve: the intent is unreachable by construction, and the one report the
+ * operator reads says the configuration is wrong when it is exactly what they asked for. Taking
+ * the reserve off makes `divergenceRatio` zero and the verdict `aligned`, which is what "set the
+ * threshold to this model" means once PI's own arithmetic is admitted into the answer.
+ *
+ * A reserve that swallows the window is refused rather than clamped: the clamp would be `<= 0`,
+ * which `thresholdReport` reads as `disabled`, and a command asked to *set* the threshold must
+ * never be the thing that silently switches it off.
+ */
+export function absoluteTokensForWindow(contextWindow: number, reserveTokens: number): AbsoluteTokensPlan {
+  const absoluteTokens = contextWindow - reserveTokens;
+  if (absoluteTokens <= 0) {
+    return {
+      ok: false,
+      reason:
+        `this model's declared window (${contextWindow}) is not larger than compaction.reserveTokens ` +
+        `(${reserveTokens}), so the trigger would be ${absoluteTokens} and writing it would disable ` +
+        `the threshold instead of setting it. Lower reserveTokens, or declare a larger window.`,
+    };
+  }
+  return { ok: true, absoluteTokens };
+}
+
 export type WindowLookup =
   | { readonly ok: true; readonly window: DeclaredWindow }
   | { readonly ok: false; readonly reason: string };
@@ -395,6 +427,15 @@ export function findContextWindow(
 ): WindowLookup {
   const matches = windows.filter((w) => w.model === modelId);
   if (matches.length === 0) {
+    // `provider/model` is tried only after the bare id fails, because a model id may itself
+    // contain a slash; the unqualified reading must therefore always win when it resolves.
+    const slash = modelId.indexOf("/");
+    if (slash > 0) {
+      const qualified = windows.filter(
+        (w) => w.provider === modelId.slice(0, slash) && w.model === modelId.slice(slash + 1),
+      );
+      if (qualified.length === 1) return { ok: true, window: qualified[0]! };
+    }
     return {
       ok: false,
       reason:
@@ -412,7 +453,7 @@ export function findContextWindow(
     reason:
       `"${modelId}" is declared by ${matches.length} providers with different windows ` +
       `(${matches.map((w) => `${w.provider}=${w.contextWindow}`).join(", ")}); ` +
-      `there is no single answer. Switch to the model you mean, so the session's own provider ` +
-      `settles it.`,
+      `there is no single answer. Qualify it (/autocompact <provider>/<model>), or switch to the ` +
+      `model you mean and run /autocompact with no argument.`,
   };
 }

@@ -268,6 +268,54 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
     check found it decided entirely by whether the request carried `tools`, which every agent turn
     does. Neither is printed as a cause; both are printed as what they are, an observation.
 
+### `retry` — the two classes that are weather, not a verdict
+
+An optional block. It is **not** in the shipped file, because its absence already means the
+defaults below; write it only to change them.
+
+```json
+"onProviderError": {
+  "policy": "abort",
+  "substituteProvider": false,
+  "retry": { "classes": ["network", "empty-response"], "maxAttempts": 1 }
+}
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `classes` | `["network", "empty-response"]` | Which classified failures get another attempt |
+| `maxAttempts` | `1` | Retries **after** the first attempt. `0` turns retrying off without deleting the block |
+
+Two of the six classes describe the weather and four describe a verdict, and only the first two are
+worth re-sending:
+
+- **`network`** — DNS, TLS, proxy, timeout, 5xx. The request never got an answer from the model, so
+  nothing about it was refused.
+- **`empty-response`** — a well-formed `200` whose body carried no completion. Nothing about the
+  request caused it and nothing about it will be different next time.
+
+`auth`, `quota`, `model-not-found` and `policy` are answers. Retrying `auth` re-presents a
+credential that was just rejected; `quota` spends the next second of a budget that is already
+spent; `model-not-found` asks again for an id the endpoint does not serve; and retrying `policy`
+re-submits, on a loop, text a tenant filter just refused — which is how an account gets flagged.
+
+!!! danger "One retry, then abort — and the retry goes to the same provider and the same model"
+    This is **not** failover, and it does not soften
+    [ADR 0001](../adr/0001-no-provider-failover.md): `policy` stays `abort`, `substituteProvider`
+    stays `false`, and every one of these still ends in an abort. The only change is that two
+    classes get one more attempt before they get there.
+
+    One rather than three, because the failure this exists for is a coin flip and not a queue. If
+    the second attempt is empty too, the answer is not "try a third time", it is "this endpoint is
+    broken now and the operator needs to know". A larger budget also multiplies the token cost of a
+    hard-failing fan-out by the budget, with nothing in the transcript that looks like an
+    explanation.
+
+The budget is per **failure streak**, not per session: a turn that succeeds clears it, because the
+next transient failure is a new coin flip and not the continuation of an old one. A malformed key
+here is reported and ignored rather than fatal — a typo in one integer must not become "no session
+talks to any provider". Read `extensions/lib/provider-retry.ts` for the whole argument.
+
 ---
 
 ## Verifying a change

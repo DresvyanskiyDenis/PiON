@@ -39,8 +39,9 @@ model, the error class and the message, keeps the cause chain, and **the turn ab
   caused by   : <cause chain>
 ```
 
-No substitution, no retry into a different provider, no silent degradation. Classification and
-rendering live in `extensions/lib/provider-error.ts`.
+No substitution, no retry into a *different* provider, no silent degradation — see
+[one retry, to the same endpoint](#one-retry-to-the-same-endpoint) for the one thing that is
+retried. Classification and rendering live in `extensions/lib/provider-error.ts`.
 
 Five of the six classes are read off the provider's error text. The sixth, `empty-response`, is
 recognised by the **shape** of a successful-looking turn: HTTP 200, zero content parts, a
@@ -49,6 +50,27 @@ stack — the turn looks ordinary, the retry predicate skips it, and a headless 
 output — so it is reported here and the headless exit code is forced non-zero, which is how a
 dispatcher hears about it at all. See
 [`onProviderError`](../configuration/routing.md#onprovidererror).
+
+## One retry, to the same endpoint
+
+`network` and `empty-response` get **one** more attempt before the abort. Everything else — `auth`,
+`quota`, `model-not-found`, `policy` — aborts on the first failure, because those four are answers
+about the request and asking again gets the same answer a round trip later. The classes and the
+budget come from
+[`onProviderError.retry`](../configuration/routing.md#retry-the-two-classes-that-are-weather-not-a-verdict);
+`maxAttempts: 0` turns it off.
+
+This is still not failover: same provider, same model, and the abort is still where every class
+ends up. What it buys is the case the abort is worst at — an `empty-response` inside a dispatched
+sub-agent, which destroys paid work rather than a turn an operator can retype.
+
+The re-issue is a queued message with `triggerTurn`, and it is **displayed**. That is deliberate: a
+turn that silently ran twice is indistinguishable from a model that repeated itself, and the
+transcript is where that question gets asked. PI's own auto-retry cannot cover this — it requires
+`stopReason === "error"`, and an `empty-response` arrives as an ordinary `stop`.
+
+The budget is per failure **streak**, cleared by the first turn that works and by a session switch,
+so a transient failure an hour after a recovered one starts from a full budget.
 
 ## Field notes: an empty-200 investigation (2026-08-14)
 

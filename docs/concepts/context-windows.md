@@ -200,3 +200,11 @@ The message is true and reads as false. `/context` is what tells them apart.
 - [ ] Never over-declare. Under-declaring is safe; over-declaring truncates silently.
 - [ ] Leave `reserveTokens` alone as a threshold lever. It is global.
 - [ ] Verify with `/context` and confirm the reported window and trigger are the ones you intended.
+
+An over-declared window has one more consequence worth knowing before you meet it: a request that
+is already past the real limit does not necessarily come back as an error. On an OpenAI-compatible
+gateway it came back as a `200` with an empty body — an
+[`empty-response`](../configuration/routing.md#onprovidererror) that killed the turn and named no
+cause. The harness now refuses to send a prompt its own declared window cannot hold, which turns
+that silence into one line naming the model, the estimate and the window:
+[`compaction` §5](../extensions/compaction.md#5-the-context-window-preflight).

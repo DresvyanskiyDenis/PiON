@@ -9,27 +9,29 @@
  * It exists because PI re-executes an `!command` credential on **every request** with no TTL of
  * its own, so an unwrapped `databricks auth token` costs one OAuth round trip per LLM call.
  *
- * **(b) Provider error surfacing** — what replaced the cancelled
+ * **(b) Provider error surfacing** (`implementation_plan.md` §3.4a) — what replaced the cancelled
  * `EXT-08` failover item. A failed provider call names the provider, model, error class and
  * message, keeps the cause chain, and the turn aborts. No substitution, no retry into a different
  * provider, no silent degradation. Classification and rendering are in `lib/provider-error.ts`.
  *
- * This file used to carry a third subject, the `local` lane: a hand-registered `local` provider
- * pointing at an OpenAI-compatible model server on loopback, with its own discovery budget, a
- * `/v1/models` warm-up ping, a footer status marker and a one-line "the local tier is
- * unavailable" warning. It is gone. Owner decision, 2026-08-15: the provider set is exactly
- * `github-copilot`, an OpenAI-compatible gateway and `databricks`, and the tier set is exactly
- * `strong`, `light` and `confidential` — so there is no `local` provider to register and no
- * `local` tier for a warning to be about. Nothing replaced the warning, deliberately: a provider
- * that does not exist cannot be unreachable. A model server on loopback is still perfectly
- * reachable through the gateway lane — `config/providers/openai-compatible.json` with a
- * `http://127.0.0.1:<port>/v1` base URL — which needs no code here at all.
+ * Since 2026-08-30 two of the six classes get ONE more attempt before that abort — `network` and
+ * `empty-response`, at the same provider and the same model, per `routing.json` ->
+ * `onProviderError.retry` (`lib/provider-retry.ts` carries the argument). That is not failover
+ * arriving by the back door: nothing here has ever re-issued a request anywhere else, and nothing
+ * here does now. It is the difference between "this endpoint refused you" and "this endpoint
+ * answered 200 with an empty body", which the old block treated as the same event.
  *
- * No built-in provider is re-registered here either, and none ever was: re-registering
- * `github-copilot` would destroy its OAuth block, and that lane is resolved by configuration
- * instead (a raw `gho_` token as an apiKey credential plus a `baseUrl` override in `models.json`,
- * with `/login github-copilot` never run because its OAuth resolver returns its own `baseUrl` and
- * clobbers the override at request time).
+ * This file used to carry a third subject, the `local` lane: a hand-registered `local` provider
+ * pointing at llama-swap on loopback, with its own discovery budget, a `/v1/models` warm-up ping,
+ * a footer status marker and a one-line "the local tier is unavailable" warning. It is gone.
+ * Owner decision, 2026-08-15: the live provider set is exactly `github-copilot`, `litellm` and
+ * `databricks`, and the live tier set is exactly `strong`, `light` and `confidential` — so there
+ * is no `local` provider to register and no `local` tier for a warning to be about. Nothing
+ * replaced the warning, deliberately: a provider that does not exist cannot be unreachable.
+ * No built-in provider is re-registered here either, and none ever was — re-registering
+ * `github-copilot` would destroy its OAuth block (`coverage_matrix.md`, `REQ-PRV-22`: "impossible
+ * for built-in providers"), and that lane is resolved by configuration instead (a raw `gho_`
+ * token as an apiKey credential plus a `baseUrl` override in `models.json`).
  *
  * `register()` starts no timers, sockets or watchers, and now performs no I/O at all: the factory
  * also runs in invocations that never open a session (`pi --list-models`).
@@ -43,8 +45,14 @@ import {
   buildEmptyCompletionFailure,
   buildProviderFailure,
   isEmptyCompletion,
+  type ProviderFailure,
   surfaceProviderFailure,
 } from "./lib/provider-error.ts";
+import {
+  loadProviderRetryPolicy,
+  type ProviderRetryPolicy,
+  shouldRetry,
+} from "./lib/provider-retry.ts";
 
 export const id = "credentials";
 
@@ -58,7 +66,20 @@ export function register(pi: ExtensionAPI): void {
 
 interface ObservedResponse {
   readonly status: number;
-  readonly headers: Readonly<Record<string, string>>;
+  /**
+   * `AfterProviderResponseEvent.headers`, kept on the SAME reset cycle as the status.
+   *
+   * They were being discarded here, one line from where they were needed. An empty 200 has no body
+   * to quote, so the gateway's own correlation headers — `x-litellm-call-id` above all — are the
+   * only thing in the report a proxy admin can act on. `pickGatewayHeaders` decides which four
+   * survive; this just stops throwing them away.
+   *
+   * Deliberately stored on the existing `observed` record rather than in a second variable with its
+   * own subscriber: two subscribers to the same event would have two reset cycles, and one turn's
+   * headers would eventually be printed against the next turn's status. That is the exact bug
+   * `before_provider_request`'s reset exists to prevent for the status itself.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -86,19 +107,105 @@ interface ObservedResponse {
  */
 function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
   let observed: ObservedResponse | undefined;
+  // The persistence half of `surfaceProviderFailure`'s sinks: without it, `causeChain` for the
+  // top-level session's own failures lives only on `stderr`, invisible inside an interactive TUI.
   const sinks = { appendEntry: (customType: string, data: unknown) => pi.appendEntry(customType, data) };
+  // Read once per process. `routing.json` is not watched anywhere else in this tree either, and a
+  // policy that changed under a running session would make two attempts at the same turn obey two
+  // different rules.
+  let policy: ProviderRetryPolicy | undefined;
+  const retryPolicy = (): ProviderRetryPolicy => (policy ??= loadProviderRetryPolicy());
+  /**
+   * Retries already spent on the CURRENT failure streak — not on the session.
+   *
+   * Cleared by any assistant message that is neither an error nor an empty completion, i.e. by a
+   * turn that worked. A transient failure an hour after a recovered one is a new coin flip, and
+   * carrying the old budget into it would spend a retry that was never used on anything.
+   */
+  let retriesSpent = 0;
+  /**
+   * The session the streak belongs to, so a switched or forked session starts with a full budget.
+   *
+   * Read off `ctx` in `message_end` rather than from a `session_start` subscription, on purpose:
+   * this module deliberately arms no session-lifecycle handlers (the only one it ever had was the
+   * deleted local lane's warm-up ping, and `test/ext-13-credentials.test.ts` holds that line), and
+   * a switch mid-process is a case `session_start` would not cover anyway.
+   */
+  let streakSession: string | undefined;
 
   pi.on("before_provider_request", () => {
     observed = undefined;
   });
 
   pi.on("after_provider_response", (event) => {
-    observed = { status: event.status, headers: event.headers };
+    observed = { status: event.status, ...(event.headers !== undefined ? { headers: event.headers } : {}) };
   });
+
+  /**
+   * Report the failure, and — for a transient class with budget left — ask for the same request
+   * again.
+   *
+   * The re-issue is `pi.sendMessage(..., { triggerTurn: true })`, which is the only lever an
+   * extension has: by `message_end` the provider call is over, `MessageEndEventResult` can replace
+   * the message but not re-run it, and PI's own auto-retry
+   * (`agent-session.js:764`, `_isRetryableError`) requires `stopReason === "error"` and so cannot
+   * see an `empty-response` at all — that shape arrives as a perfectly normal `stop`. The message
+   * is queued rather than sent: `_handlePostAgentRun` continues the agent loop while anything is
+   * queued (`:781`), so mid-run this becomes another turn of the same run, and idle it starts one.
+   * The same code path runs inside a dispatched child, because a child is a `pi` process loading
+   * this same extension — which is the case the 2026-08-30 evidence cared about, since an aborted
+   * subagent loses work an operator cannot simply retype.
+   *
+   * `display: true` on purpose: a turn that silently ran twice is indistinguishable from a model
+   * that repeated itself, and the transcript is where that question gets asked.
+   */
+  const report = (ctx: ExtensionContext, failure: ProviderFailure): void => {
+    const policy = retryPolicy();
+    const willRetry = shouldRetry(policy, failure.klass, retriesSpent);
+    const attempt = retriesSpent + 1;
+    // The retry disposition is attached only when this class is one the policy would retry. A
+    // class that was never in play must keep the block's original `abort` line to the byte: an
+    // `auth` failure rendered as "the transient retry budget is spent" would tell the operator
+    // this harness tried a rejected credential twice, which it did not and must not.
+    const inPlay = policy.classes.has(failure.klass) && (policy.maxAttempts > 0 || retriesSpent > 0);
+    const decided: ProviderFailure = {
+      ...failure,
+      retry: inPlay ? { attempt, maxAttempts: policy.maxAttempts, willRetry } : undefined,
+    };
+    surfaceProviderFailure(ctx, decided, sinks);
+    if (!willRetry) {
+      retriesSpent = 0;
+      return;
+    }
+    retriesSpent = attempt;
+    pi.sendMessage(
+      {
+        customType: "provider-retry",
+        content: [
+          {
+            type: "text",
+            text:
+              `The previous request failed with a transient provider error ` +
+              `(${failure.provider}/${failure.model} — ${failure.klass}) and produced no answer. ` +
+              `This is attempt ${attempt + 1}; nothing about the request changed and no other ` +
+              `provider was tried. Carry on with exactly what you were doing.`,
+          },
+        ],
+        display: true,
+      },
+      { deliverAs: "followUp", triggerTurn: true },
+    );
+  };
 
   pi.on("message_end", (event: MessageEndEvent, ctx: ExtensionContext) => {
     const response = observed;
     observed = undefined;
+
+    const session = ctx.sessionManager?.getSessionId?.() ?? "unknown-session";
+    if (session !== streakSession) {
+      streakSession = session;
+      retriesSpent = 0;
+    }
 
     const message = event.message;
     if (message.role !== "assistant") return;
@@ -106,13 +213,12 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     const status = response?.status;
 
     if (message.stopReason !== "error") {
-      // Observed 2026-08-14 against an OpenAI-compatible LiteLLM gateway serving `gpt-5.6-luna`:
-      // nine subagent runs whose last turn is `content: []` / `stopReason: "stop"` / usage all
-      // zeros. Reported by `pi-subagents` as "Subagent produced no output (possible model
-      // cold-start or empty response)" — a guessed cause that named the model instead of the
-      // gateway. Say what was observed instead.
+      // Observed 2026-08-14 on `litellm/gpt-5.6-luna`: nine subagent runs whose last turn is
+      // `content: []` / `stopReason: "stop"` / usage all zeros. Reported by `pi-subagents` as
+      // "Subagent produced no output (possible model cold-start or empty response)" — a guessed
+      // cause that named the model instead of the gateway. Say what was observed instead.
       if (isEmptyCompletion(message)) {
-        surfaceProviderFailure(
+        report(
           ctx,
           buildEmptyCompletionFailure({
             provider: message.provider ?? "(unknown provider)",
@@ -122,18 +228,21 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
             ...(message.rawStopReason !== undefined ? { rawStopReason: message.rawStopReason } : {}),
             ...(message.responseId !== undefined ? { responseId: message.responseId } : {}),
             ...(ctx.thinkingLevel !== undefined ? { thinkingLevel: ctx.thinkingLevel } : {}),
-            usage: message.usage,
             ...(response?.headers !== undefined ? { headers: response.headers } : {}),
+            usage: message.usage,
           }),
-          sinks,
         );
+        return;
       }
+      // A turn that worked. The retry budget belongs to a streak of consecutive failures, so it
+      // is spent only while one is running, and this is where a streak ends.
+      retriesSpent = 0;
       return;
     }
 
     const midStream = status !== undefined && status >= 200 && status < 300;
 
-    surfaceProviderFailure(
+    report(
       ctx,
       buildProviderFailure({
         provider: message.provider ?? "(unknown provider)",
@@ -148,7 +257,6 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
         // like a preserved chain while adding nothing.
         diagnostics: message.diagnostics,
       }),
-      sinks,
     );
   });
 }

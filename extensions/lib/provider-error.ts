@@ -1,6 +1,6 @@
 /**
  * Provider error surfacing — the deliverable that replaced the cancelled `EXT-08`
- * (`REQ-PRV-32`).
+ * (`implementation_plan.md` §3.4a, `REQ-PRV-32`).
  *
  * The rule, in one sentence: when a provider call fails, the session names the **provider, the
  * model, an error class and the upstream message**, keeps the cause chain, and stops. Nothing in
@@ -90,13 +90,36 @@ export interface ProviderFailure {
    * is the handle a proxy admin greps their own logs for. They were being discarded — the
    * `after_provider_response` handler kept `event.status` and dropped `event.headers`, which is
    * public on `AfterProviderResponseEvent` and populated by `pi-ai`
-   * (`dist/api/openai-completions.js`). An empty 200 has no body to quote, so a header that
+   * (`dist/api/openai-completions.js:144`). An empty 200 has no body to quote, so a header that
    * identifies the request server-side is the single most useful thing the block can carry.
    *
    * Absent headers are omitted rather than rendered empty: `x-litellm-call-id: undefined` reads as
    * a value the gateway sent, and it is not.
    */
   readonly gatewayHeaders?: readonly (readonly [string, string])[];
+  /**
+   * What the harness decided to DO about this failure, when the class was transient enough to be
+   * worth another attempt (`lib/provider-retry.ts`).
+   *
+   * Absent means "no retry was in play" — a terminal class, or a policy with `maxAttempts: 0` —
+   * and the block then renders exactly the abort line it always rendered. Present, it changes one
+   * line and nothing else: the same marker, the same fields, the same evidence.
+   */
+  readonly retry?: RetryDisposition;
+}
+
+/**
+ * One attempt's place in a retry budget. Rendered into the `policy` line, so a reader of a single
+ * block can tell "this failed and the harness is trying again" from "this failed twice and that
+ * was the end of it" without correlating two blocks by hand.
+ */
+export interface RetryDisposition {
+  /** 1-based: this failure was the Nth of `maxAttempts + 1` attempts at the same request. */
+  readonly attempt: number;
+  /** Retries after the first attempt — `routing.json` -> `onProviderError.retry.maxAttempts`. */
+  readonly maxAttempts: number;
+  /** True when the harness re-issued the request after this failure. */
+  readonly willRetry: boolean;
 }
 
 export interface ClassifyInput {
@@ -330,27 +353,28 @@ const NOT_AN_ANSWER: readonly string[] = ["error", "aborted", "pending", "deferr
  * A turn that ended with a completion carrying **nothing** — no text, no thinking block, no tool
  * call — while the provider called it a normal termination.
  *
- * Observed 2026-08-14 against an OpenAI-compatible LiteLLM gateway serving `gpt-5.6-luna`, in nine
- * subagent runs whose transcripts all end on the identical record: `content: []`,
- * `stopReason: "stop"`, `rawStopReason: "stop"`, `usage` zero on every field, and a `responseId` in
- * the gateway's own `chatcmpl-<uuid4>` form rather than the upstream provider's — i.e. the gateway
- * answered 200 with a stream that carried no delta at all. Not luna-only, and not rare: this shape
- * recurs against other models behind the same gateway. Nothing downstream could tell that from
+ * Observed 2026-08-14 on `litellm/gpt-5.6-luna`, in nine subagent runs whose transcripts all end
+ * on the identical record: `content: []`, `stopReason: "stop"`, `rawStopReason: "stop"`,
+ * `usage` zero on every field, and a `chatcmpl-<uuid4>` `responseId` — i.e. the gateway answered
+ * 200 with a stream that carried no delta at all. Observed first on luna and NOT luna-only: the
+ * session history holds 30 empty litellm responses, `gpt-5.6-terra` among them.
+ *
+ * The id FORM is not evidence and was briefly treated as though it were. It is decided by whether
+ * the request body carries `tools` — toolless gets the upstream Azure form, `tools` gets a uuid4 —
+ * and PI attaches `tools` on every agent turn, so this harness only ever sees uuid4: 2644 uuid4 /
+ * 0 upstream-form across `~/.pi/agent/sessions`, of which 2614 are healthy. Zero discriminating
+ * power; `config/routing.json`'s `_concurrencyNote` carries the full refutation. Nothing downstream could tell that from
  * a model that simply had nothing to say: `pi-subagents` reported it as "Subagent produced no
  * output (possible model cold-start or empty response)", a guess that named a cause nobody had
  * established and cost hours of transcript archaeology.
  *
- * The `responseId` FORM (`chatcmpl-<uuid4>` versus an upstream-shaped id) is not evidence and was
- * briefly treated as though it were. A live check of hundreds of session records found it decided
- * by nothing more than whether the request body carried `tools` — toolless calls get the upstream
- * form, calls with `tools` get the gateway's own uuid4 — and PI attaches `tools` on every agent
- * turn, so this harness never sees the upstream form at all, healthy or not. Zero discriminating
- * power; see `buildEmptyCompletionFailure` for the matching correction to the `usage` claim.
+ * `content.length === 0` is the whole predicate. `usage` is NOT part of it and must not become
+ * part of it: `pi-ai` pre-initialises usage to zeros and only overwrites it from a usage chunk, so
+ * an all-zero `usage` is the default rather than a measurement — see `buildEmptyCompletionFailure`.
  *
  * The predicate is shape-only and was checked against the counter-example set before being
  * wired up: across the 19 successful runs in the same artifact directory, 304 assistant messages,
- * **zero** carry an empty `content`. `content.length === 0` is the whole predicate. `usage` is
- * NOT part of it and must not become part of it — see below for why.
+ * **zero** carry an empty `content`. An empty completion is the failure and nothing else.
  */
 export function isEmptyCompletion(message: CompletionShape): boolean {
   if (NOT_AN_ANSWER.includes(message.stopReason)) return false;
@@ -392,7 +416,7 @@ export interface EmptyCompletionInput {
  *   - `x-litellm-version` — so a report stays readable after the proxy is upgraded.
  *
  * Named explicitly rather than swept in by an `x-litellm-*` prefix match: a blanket copy would put
- * whatever the proxy adds next into a message that reaches a log and a report, and
+ * whatever the proxy adds next into a message that reaches a log and a Telegram report, and
  * `x-litellm-key-*` headers on that surface are spend and key metadata. An allow-list is the safe
  * default when the producer is not ours.
  */
@@ -430,8 +454,8 @@ export function pickGatewayHeaders(
  *
  * There is no upstream text to quote here — that is the entire complaint — so `message` states the
  * facts a reader needs to tell "the gateway dropped this" from "the model chose to say nothing":
- * the part count, both stop reasons, the reasoning effort, the response id and the token counts.
- * It explains none of them.
+ * the part count, both stop reasons, the post-clamp reasoning effort, the response id and the token
+ * counts. It explains none of them.
  *
  * ## The one sentence that WAS a cause, and how it was refuted
  *
@@ -439,18 +463,18 @@ export function pickGatewayHeaders(
  * means the gateway billed nothing for it — the request did not reach the model behind it."* That
  * is an inference, it was printed as fact, and it is wrong on the instrument alone.
  *
- * `pi-ai`'s OpenAI-completions stream initialises `output.usage` to zeros on every field and
- * overwrites it ONLY from a usage chunk sent partway through the stream. On this failure no usage
- * chunk arrives at all, so the assistant message reports 0/0 no matter what the gateway did or did
- * not bill. `0 prompt tokens` is therefore the DEFAULT, not a measurement, and it carries no
+ * `pi-ai`'s OpenAI-completions stream initialises `output.usage` to zeros on every field
+ * (`node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js:105-118`) and overwrites it
+ * ONLY from `chunk.usage` / `choice.usage` (`:315` and `:323`). On this failure no usage chunk
+ * arrives at all, so the assistant message reports 0/0 no matter what the gateway did or did not
+ * bill. `0 prompt tokens` is therefore the DEFAULT, not a measurement, and it carries no
  * information about whether the request reached the model.
  *
- * A live probe then contradicted the claim outright: every empty-200 reproduction had no usage
- * chunk, every healthy response had one, and an identical NON-streaming request against the same
- * gateway returned a real rate-limit error seconds later instead of an empty 200 — streaming never
- * did. The leading hypothesis is now the opposite of what the sentence said — the gateway's
- * streaming path swallowing an upstream rate limit — and it is a hypothesis, so it is not printed
- * either, and nothing here retries automatically on it.
+ * A live probe then contradicted the claim outright: 549/549 reproductions of the empty 200 had no
+ * usage chunk, 211/211 healthy responses had one, and an identical NON-streaming request returned a
+ * real `litellm.RateLimitError` seconds later (0 of 38 non-streaming requests ever went empty). The
+ * leading hypothesis is now the opposite of what the sentence said — LiteLLM's streaming path
+ * swallowing an upstream 429 — and it is a hypothesis, so it is not printed either.
  *
  * ## Why the absence is not reported as the discriminator
  *
@@ -501,11 +525,15 @@ function describeWhere(f: ProviderFailure): string {
 }
 
 /**
- * The literal text every classified failure block starts with.
+ * The stable head of every block this module renders, and the ONLY way anything downstream is
+ * allowed to recognise one.
  *
- * Exported so `extensions/dispatch/failure-slot.ts` can find this exact marker in a child's raw
- * stderr tail and lift it to the front of a tool result, rather than re-deriving the string in two
- * places and having them drift.
+ * It exists because a classified failure has to survive a process boundary. A subagent child
+ * reports through `surfaceProviderFailure`'s log sink, i.e. stderr; `pi-subagents` then hands the
+ * child's whole stderr tail to the parent as the run's error text
+ * (`runs/foreground/execution.ts:1094-1095`), startup notices and all. `extensions/dispatch/
+ * failure-slot.ts` finds the classified block inside that tail by this marker so the parent can
+ * lead with it. Producer owns the marker so the two cannot drift apart.
  */
 export const PROVIDER_FAILURE_MARKER = "[pi-config] provider call failed:";
 
@@ -529,19 +557,21 @@ export function formatProviderFailure(f: ProviderFailure): string {
         ? `${f.status ?? "2xx"} (a complete, well-formed response whose body carried no completion — ` +
           `the status is not the error)`
         : f.midStream
-          ? `${f.status ?? "2xx"} (headers ok; the stream failed after them, so the status is not the error)`
-          : // Not "the request never reached the provider": that is an inference, and it was the
-            // wrong one on the Databricks 403 that `recoverStatus` now catches. State only what was
-            // established — no status anywhere — and leave the message line to say the rest.
-            (f.status?.toString() ?? "(no status — none on the wire, none in the upstream text)")
+        ? `${f.status ?? "2xx"} (headers ok; the stream failed after them, so the status is not the error)`
+        : // Not "the request never reached the provider": that is an inference, and it was the
+          // wrong one on the Databricks 403 that `recoverStatus` now catches. State only what was
+          // established — no status anywhere — and leave the message line to say the rest.
+          (f.status?.toString() ?? "(no status — none on the wire, none in the upstream text)")
     }`,
     `  message  : ${f.message}`,
   ];
-  if (f.gatewayHeaders !== undefined && f.gatewayHeaders.length > 0) {
-    lines.push(`  gateway  : ${f.gatewayHeaders.map(([k, v]) => `${k}=${v}`).join(", ")}`);
-  }
   if (f.rawStopReason !== undefined) {
     lines.push(`  rawStop  : ${f.rawStopReason}`);
+  }
+  // One line, so it survives being pasted into a ticket, and named `gateway` rather than `headers`
+  // because who reads it is the point: this is the proxy admin's half of the report.
+  if (f.gatewayHeaders !== undefined && f.gatewayHeaders.length > 0) {
+    lines.push(`  gateway  : ${f.gatewayHeaders.map(([k, v]) => `${k}=${v}`).join(", ")}`);
   }
   if (f.cause !== undefined && f.cause !== null) {
     lines.push(`  cause    : ${describeError(f.cause)}`);
@@ -549,17 +579,48 @@ export function formatProviderFailure(f: ProviderFailure): string {
   for (const line of formatDiagnostics(f.diagnostics)) {
     lines.push(line);
   }
-  lines.push(
-    "  policy   : abort — no failover, no substitution, no retry against another provider " +
-      "(routing.json onProviderError.policy)",
-  );
+  lines.push(`  policy   : ${policyLine(f.retry)}`);
   return lines.join("\n");
 }
 
 /**
+ * The `policy` line, which is the one line in the block that says what happens next.
+ *
+ * Three forms, and the wording of each is load-bearing:
+ *
+ *   - **no retry in play** — the line this block has always carried, unchanged to the byte. Four
+ *     of the six classes are verdicts about the request and end here, and so does every class
+ *     when an operator sets `maxAttempts: 0`.
+ *   - **retrying** — says which attempt this was and that the next one goes to the SAME provider
+ *     and model. A reader who sees this line has not lost their turn, and the block above it is
+ *     evidence rather than a postmortem.
+ *   - **aborting after retries** — the case the operator actually needs to recognise. It names
+ *     how many attempts were spent, so "one empty 200" and "two empty 200s in a row" are
+ *     distinguishable in the transcript, and it repeats that no other provider was tried, because
+ *     the word "retry" in a failover-free harness is exactly the word that invites that reading.
+ */
+function policyLine(retry: RetryDisposition | undefined): string {
+  const noFailover = "no failover, no substitution, no retry against another provider";
+  if (retry === undefined) {
+    return `abort — ${noFailover} (routing.json onProviderError.policy)`;
+  }
+  if (retry.willRetry) {
+    return (
+      `retry ${retry.attempt} of ${retry.maxAttempts} — transient class, re-issued against the same ` +
+      `provider and model, then abort (routing.json onProviderError.retry)`
+    );
+  }
+  const spent = retry.attempt === 1 ? "1 attempt" : `${retry.attempt} attempts`;
+  return (
+    `abort after ${spent} — the transient retry budget (${retry.maxAttempts}) is spent and the class ` +
+    `recurred; ${noFailover} (routing.json onProviderError.policy, onProviderError.retry)`
+  );
+}
+
+/**
  * Render PI's diagnostics. Untruncated on purpose, stack included: this block is the only place
- * a stack trace from a provider failure survives to a log, and "no truncation" is
- * one of the three rules of this item.
+ * a stack trace from a provider failure survives to a log, and `implementation_plan.md` §3.4a
+ * spells out "no truncation" as one of the three rules of this item.
  */
 export function formatDiagnostics(
   diagnostics: readonly ProviderDiagnostic[] | undefined,
@@ -599,20 +660,19 @@ export interface SurfaceSinks {
   /** Defaults to `process.exitCode`. A seam so tests can assert it without poisoning the run. */
   readonly setExitCode?: (code: number) => void;
   /**
-   * Persist the classified block to the session's own record. No default: a caller with nothing
-   * to write to — a bare unit test, or a call site not yet threaded through to `pi.appendEntry` —
-   * must not be forced to fabricate one, and this module must not import `ExtensionAPI` just to
-   * type a parameter most call sites cannot supply.
+   * Persist the classified block to the session record. No default: a caller with no session to
+   * write to (a bare unit test, or a call site not yet threaded through to `pi.appendEntry`) must
+   * not be forced to fabricate one, and `surfaceProviderFailure` must not import `ExtensionAPI`
+   * just to type a parameter most call sites cannot supply.
    *
-   * Why it exists: without it, `causeChain` reaches an interactive operator's own top-level
-   * failures nowhere durable. A session with `hasUI` true runs inside an alt-screen TUI that never
-   * displays raw `stderr`, and `ctx.ui.notify` below deliberately carries only
-   * `summariseProviderFailure`'s one-line form. A dispatched subagent's `causeChain` still reaches
-   * the operator today — `pi-subagents` hands the child's whole stderr tail up as the run's own
-   * tool-result text, which `failure-slot.ts` promotes to the front and which lands in the session
-   * like any other tool output — but that is a side effect of how dispatch propagates a child's
-   * stderr, not something this module arranged, and it says nothing about the top-level session's
-   * own failures. This sink is the other half.
+   * Without this, `causeChain` reaches an interactive operator's own top-level failures nowhere
+   * durable: `hasUI` sessions run inside an alt-screen TUI that never displays raw `stderr`, and
+   * `ctx.ui.notify` deliberately carries only `summariseProviderFailure`'s one-line form (below).
+   * A dispatched subagent's causeChain still reaches the operator — `pi-subagents` hands the
+   * child's whole stderr tail up as the run's own tool-result text, which `failure-slot.ts`
+   * promotes and which lands in the session like any other tool output — but that path is a side
+   * effect of how dispatch propagates a child's stderr, not something this module arranged, and it
+   * says nothing about a failure in the top-level session itself. This sink closes that half.
    */
   readonly appendEntry?: (customType: string, data: unknown) => void;
 }
@@ -626,14 +686,19 @@ export interface SurfaceSinks {
  *   - `dist/modes/print-mode.js` sets `exitCode = 1` for an assistant message whose `stopReason`
  *     is `"error"` or `"aborted"` — but the whole branch is inside `if (mode === "text")`. So
  *     `pi -p` is covered natively and **`pi --mode json` returns 0 on a turn that never reached a
- *     model**, which is exactly what this item's rules forbid. It also inspects only
+ *     model**, which is exactly what `implementation_plan.md` §3.4a forbids. It also inspects only
  *     the LAST message, so a failed turn with anything after it is invisible even in text mode.
  *   - `dist/main.js` applies it as `if (exitCode !== 0) process.exitCode = exitCode` — it never
  *     resets a non-zero code back to 0, so a code set from an extension survives.
  *
- * Hence: set it when there is no UI, which is `-p` and `--mode json` (`ctx.hasUI` is
+ * Hence: set it when there is no UI, which is `-p` and `--mode json` (`07` §4 — `ctx.hasUI` is
  * false in both) and never in interactive mode, where a single failed turn must not poison the
  * exit status of an otherwise normal quit.
+ *
+ * And never for an attempt the harness is about to retry (`failure.retry.willRetry`). `main.js`
+ * never resets a non-zero code back to zero, so setting it on the first of two attempts would
+ * make a headless run that RECOVERED exit 1 — `bin/pi-run` would report a failure that did not
+ * happen, and every gate downstream of it would agree.
  */
 export function surfaceProviderFailure(
   ctx: ExtensionContext | undefined,
@@ -641,6 +706,11 @@ export function surfaceProviderFailure(
   sinks: SurfaceSinks = {},
 ): void {
   const block = formatProviderFailure(failure);
+  // A failure the harness is about to retry is not the turn's outcome yet, and the three sinks
+  // below each have to know that: the session record must not file it under the entry type an
+  // operator greps for dead turns, the toast must not shout, and — the one that would be an
+  // outright lie — the process must not take a non-zero exit code for a run that then succeeds.
+  const retrying = failure.retry?.willRetry === true;
   const write = sinks.log ?? ((line: string) => void process.stderr.write(`${line}\n`));
   try {
     write(block);
@@ -649,16 +719,23 @@ export function surfaceProviderFailure(
     // throwing out of a message_end handler.
   }
   try {
-    sinks.appendEntry?.("provider_failure", { classified: block });
+    sinks.appendEntry?.(retrying ? "provider_retry" : "provider_failure", { classified: block });
   } catch {
     // A broken session write must not turn a reported error into an unreported crash.
   }
   try {
-    if (ctx?.hasUI) ctx.ui.notify(summariseProviderFailure(failure), "error");
+    if (ctx?.hasUI) {
+      ctx.ui.notify(
+        retrying
+          ? `${summariseProviderFailure(failure)} (retrying: attempt ${failure.retry?.attempt} of ${failure.retry?.maxAttempts})`
+          : summariseProviderFailure(failure),
+        retrying ? "warning" : "error",
+      );
+    }
   } catch {
     // A closed TUI must not turn a reported error into an unreported crash.
   }
-  if (ctx?.hasUI === false) {
+  if (ctx?.hasUI === false && !retrying) {
     try {
       const setExitCode = sinks.setExitCode ?? ((code: number) => void (process.exitCode = code));
       setExitCode(1);

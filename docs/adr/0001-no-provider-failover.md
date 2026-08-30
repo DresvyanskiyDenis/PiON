@@ -56,6 +56,18 @@ One thing that *is* retried is a transient transport failure against the **same*
 provider-level error (auth, quota, policy) is almost never transient and retrying it three times
 turns a two-second diagnosis into a two-minute one.
 
+!!! note "Amended — one harness-level retry for `network` and `empty-response`"
+    `retry.provider.maxRetries` stays `0` for the reason above, and it is right for four of the six
+    classes. It is wrong for two: a `network` failure never reached the model, and an
+    `empty-response` is a `200` that carried no completion. Neither is a verdict about the request,
+    and one of them was observed killing a **dispatched sub-agent mid-mission** — destroying paid
+    work rather than a turn an operator can retype.
+
+    So `onProviderError.retry` gives exactly those two classes exactly one more attempt, **to the
+    same provider and the same model**. The decision above is unchanged: no substitution, no
+    fallback chain, and the abort is still where all six classes end up.
+    [Reference](../configuration/routing.md#retry-the-two-classes-that-are-weather-not-a-verdict).
+
 ## Consequences
 
 **Positive**
