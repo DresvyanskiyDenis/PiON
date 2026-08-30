@@ -85,6 +85,21 @@
     "~/pi-config/node_modules/pi-hermes-memory",
     "~/pi-config/node_modules/pi-sandbox"
   ],
+  "subagents": {
+    "watchdog": {
+      "enabled": true,
+      "main": {
+        "enabled": false
+      },
+      "children": {
+        "enabled": true
+      },
+      "asyncCompletion": {
+        "enabled": true,
+        "autoFollowBlockers": true
+      }
+    }
+  },
   "enableSkillCommands": true,
   "lastChangelogVersion": "0.84.0"
 }

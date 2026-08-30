@@ -246,6 +246,60 @@ for them elsewhere.
 
 ---
 
+## `subagents.watchdog` — the key PI carries but never reads { #subagentswatchdog }
+
+```json
+"subagents": {
+  "watchdog": {
+    "enabled": true,
+    "main": { "enabled": false },
+    "children": { "enabled": true },
+    "asyncCompletion": { "enabled": true, "autoFollowBlockers": true }
+  }
+}
+```
+
+This block is not PI's. `pi-subagents` reads its watchdog configuration out of the **agent settings
+file** — `watchdog/settings.ts` resolves `getAgentDir()/settings.json` and then looks at exactly
+`settings.subagents.watchdog`. It is not read from [`config/subagent.json`](dispatch.md), which
+feeds a different reader; a `watchdog` key there is silently ignored. PI's own loader passes the
+unknown `subagents` key through a load/save round trip untouched, so this file is the only place
+the setting can go.
+
+It is validated **strictly**. An unknown field throws, and the package then degrades the whole file
+to its own defaults — which are off. A typo here is not an ignored key, it is a watchdog that
+quietly does nothing.
+
+| Key | Ships | Why |
+|---|---|---|
+| `enabled` | `true` | A prerequisite, not decoration: the child flag is ANDed with this one, so `children.enabled` alone resolves to nothing |
+| `main.enabled` | `false` | Said out loud because it is otherwise **derived** from `enabled`. Left implicit, watching children would also buy a review model call at every `agent_end` of the lead. The lead endpoint is its own decision |
+| `children.enabled` | `true` | A writer child's `agent_end` gets reviewed. `children.model` stays unset on purpose — the review then runs on the child's own session model, so no bare model id enters a config file (`PC-08`) |
+| `asyncCompletion.enabled`, `.autoFollowBlockers` | `true` | An async child that comes back empty or blocked is followed up by the watchdog instead of by a manual, full-price `subagent resume` |
+
+`autoFollow.blockers` and `autoFollow.maxAttempts: 3` are already the package's defaults and are
+deliberately not restated. `test/dispatch/watchdog-settings.test.ts` pins them, so a default that
+flips upstream is loud rather than silent.
+
+### Two things this block cannot say
+
+**`asyncCompletion` is parsed and consumed by nothing.** In the pinned `pi-subagents` the string
+occurs in exactly two files — the parser and the type. No runtime reads it. The block above is
+correct and takes effect the day upstream wires it; until then an empty async child is *not*
+recovered by configuration. The test asserts the file list, so it fails the moment that changes.
+
+**`subagent_wait`'s `stopOnAttention` default is code, not config.** The tool resolves it as
+`params.stopOnAttention ?? deps.stopOnAttention !== false`, and the only injector of that dep is
+the package's internal auto-drain; the wait tool's whole config surface is one boolean. So no key
+anywhere makes a blocking wait ignore attention pings by default, and patching `node_modules` would
+be inert — the installed tree is what runs, and [`PC-21`](../operations/verification.md) keeps it
+unmodified. The live surface is per call: `subagent_wait({ stopOnAttention: false })` keeps a
+blocking wait open through idle and long-thinking pings while still stopping for supervisor and
+contact requests. That is a habit for `AGENTS.md`, not a setting. Until upstream adds the key, a
+lead that waits without passing it pays a full cache miss for every progress ping.
+
+---
+
 ## Telemetry
 
 ```json
@@ -272,3 +326,4 @@ then start a session and run `/doctor`.
 - [Context windows](../concepts/context-windows.md) — before touching `compaction`
 - [Paths and trust](paths-and-trust.md) — before touching `defaultProjectTrust`
 - [Adding a skill](../extending/skills.md) — before touching `skills`
+- [`dispatch.json` and `agents/`](dispatch.md) — the sub-agents `subagents.watchdog` watches

@@ -416,5 +416,7 @@ instruction text that has no file.
 
 - [Adding a sub-agent](../extending/subagents.md)
 - [`routing.json`](routing.md) — the tiers the frontmatter names
+- [`settings.json`](settings.md#subagentswatchdog) — the watchdog that reviews a child's `agent_end`,
+  which lives in PI's settings file rather than in this one
 - [dispatch](../extensions/dispatch.md), [teammates](../extensions/teammates.md),
   [jobs](../extensions/jobs.md)
