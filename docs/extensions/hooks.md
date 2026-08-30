@@ -45,6 +45,12 @@ The practical cost of the old polarity was the whole argument against it: one YA
 session. [`doctor`](doctor.md)'s `D-09` reports a hook layer sitting degraded, so the fact stays
 visible without being fatal.
 
+The mirror image is the `run` action, whose script lives outside the repository. That one still
+fails **closed** — a rule that cannot reach its script blocks the tool it matches, for the whole
+session — so it announces itself once per rule and joins `D-09`, and
+[`bin/pi-check --doctor`](../extending/hooks.md#when-the-script-is-not-installed) answers the same
+question from a shell before a session ever hits the rule.
+
 ## Hooks stack on the guard
 
 They may only **add** denial, never remove it. That is why `hooks` loads after `guard`.

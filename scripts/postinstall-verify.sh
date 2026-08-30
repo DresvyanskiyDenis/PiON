@@ -196,6 +196,18 @@ assert_pi_check() {
   ( cd "$REPO_DIR" && run_with_timeout 30 "$REPO_DIR/bin/pi-check" --all )
 }
 
+# ------------------------------------------------------------------------------------- check 4b
+# `--all` above asks whether the REPO is internally consistent. This asks whether this MACHINE ran
+# the installer that the repo's hooks.yaml assumes: every `action: run` hook shells out to a script
+# `install.sh` symlinks into ~/bin, and the executor fails closed, so an absent or stale link does
+# not disable that guardrail — it kills the tool the rule matches, for the whole session, with no
+# signal except one refusal per blocked call. It is a separate row because it is a separate
+# question, and because it is the only pi-check mode that looks outside the checkout.
+assert_hook_scripts() {
+  [ -x "$REPO_DIR/bin/pi-check" ] || { echo "bin/pi-check not present (EXT-04a not built)"; return 1; }
+  ( cd "$REPO_DIR" && HOME="$PREFIX" run_with_timeout 30 "$REPO_DIR/bin/pi-check" --doctor )
+}
+
 # ---------------------------------------------------------------------------- doctor gate (5,7,8)
 # One live call, cached, shared by the three checks that read /doctor's report.
 #
@@ -502,6 +514,7 @@ check      "config symlinks resolved" assert_symlinks
 check      "extensions not linked"    assert_extensions_not_linked
 check      "state not in git"         assert_state_not_symlinked
 check      "pi-check --all"           assert_pi_check
+check      "hook scripts installed"   assert_hook_scripts
 check      "extensions loaded"        assert_doctor_modules
 check      "guardrail blocks rm -rf"  assert_guard_blocks
 check      "skills discovered"        assert_skills_discovered

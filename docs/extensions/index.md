@@ -1,6 +1,6 @@
 # Extensions
 
-Thirty-five modules, composed into one PI extension by `extensions/index.ts`. Each exports `id` and
+Thirty-six modules, composed into one PI extension by `extensions/index.ts`. Each exports `id` and
 `register(pi)` and is imported in a fixed order — the order *is* part of the design, and
 [Architecture](../concepts/architecture.md) explains why.
 

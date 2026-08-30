@@ -53,6 +53,11 @@ function summaryLines(report: DoctorReport): string[] {
   if (report.hooks.degradedReason !== undefined) {
     lines.push(`hooks          DEGRADED — no rules in effect (${report.hooks.degradedReason})`);
   }
+  // Same argument, other direction: a rule whose script is missing blocks its tool silently for
+  // the whole session, so the summary has to carry it even though the module loaded fine.
+  for (const failure of report.hooks.scriptFailures ?? []) {
+    lines.push(`hooks          SCRIPT NOT INSTALLED — ${failure}`);
+  }
 
   return lines;
 }

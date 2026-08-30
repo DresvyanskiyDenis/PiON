@@ -2203,6 +2203,22 @@ else
   warn "bin/pi-check is not executable — the configuration was NOT shape-validated"
 fi
 
+# The link check, and deliberately not behind --no-verify: this step is asking about the symlinks
+# THIS RUN just wrote, a few hundred lines above. config/hooks.yaml's `action: run` rules shell out
+# to ~/bin scripts, and extensions/hooks/run.ts fails closed on a script it cannot execute — so a
+# link that did not land does not switch the guardrail off, it switches `write` and `edit` off, for
+# every future session, announcing nothing an operator would connect back to this install.
+if [ "$DRY_RUN" = 1 ]; then
+  info "a real run would now execute bin/pi-check --doctor"
+elif [ -x "$REPO_DIR/bin/pi-check" ]; then
+  if HOME="$PREFIX" "$REPO_DIR/bin/pi-check" --doctor; then ok "hook scripts are installed and executable"
+  else
+    warn "a hooks.yaml run script is not installed — see the finding(s) above"
+    todo_add "     fix the bin/pi-check --doctor finding(s) above; until then the matching tool is blocked in every session"
+    FINAL_EXIT=1
+  fi
+fi
+
 if [ "$DRY_RUN" = 1 ]; then
   : # already reported above; a dry run verifies nothing because it wrote nothing
 elif [ "$RUN_VERIFY" = 1 ] && [ -x "$REPO_DIR/scripts/postinstall-verify.sh" ]; then

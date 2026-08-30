@@ -34,6 +34,7 @@ function baseInputs(overrides: Partial<DoctorInputs> = {}): DoctorInputs {
     declaredServerNames: ["playwright", "context7"],
     packages: [],
     hooksDegradedReason: undefined,
+    hooksScriptFailures: [],
     toolGuidelines: [],
     onProviderErrorReport: [],
     ...overrides,
@@ -404,6 +405,34 @@ describe("D-09 checkHooks", () => {
     assert.equal(findings[0]?.subject, "hooks.yaml");
     assert.match(findings[0]?.message ?? "", /invalid YAML/);
     assert.match(findings[0]?.action ?? "", /guard\.ts/);
+  });
+
+  it("error: a run script that is not installed is reported even though the file loaded fine", () => {
+    // The opposite polarity of the case above: there the file broke and nothing is guarded, here
+    // the file is fine and a rule is guarding so hard that its tool is unusable.
+    const findings = checkHooks(
+      baseInputs({ hooksScriptFailures: ['hook "constraints-edit" blocks "edit" for this session: script is missing'] }),
+    );
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.check, "D-09");
+    assert.equal(findings[0]?.severity, "error");
+    assert.match(findings[0]?.message ?? "", /constraints-edit/);
+    assert.match(findings[0]?.action ?? "", /install\.sh/, "the fix is an install, not an edit");
+  });
+
+  it("error: a degraded layer and a missing script are both reported, not one instead of the other", () => {
+    const findings = checkHooks(
+      baseInputs({ hooksDegradedReason: "invalid YAML", hooksScriptFailures: ["hook \"a\" blocks \"edit\""] }),
+    );
+    assert.equal(findings.length, 2);
+    assert.ok(findings.every((f) => f.check === "D-09"));
+  });
+
+  it("one finding per broken script, because each one is a separate thing to fix", () => {
+    const findings = checkHooks(
+      baseInputs({ hooksScriptFailures: ['hook "a" blocks "edit"', 'hook "b" blocks "write"'] }),
+    );
+    assert.equal(findings.length, 2);
   });
 
   it("D-09 is in the cheap session_start pass — a hook layer that silently stopped denying must be caught every session", () => {

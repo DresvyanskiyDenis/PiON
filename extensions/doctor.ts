@@ -63,7 +63,7 @@ import { matchDangerous } from "./guard/patterns.ts";
 // `D-09`. A pure getter over `hooks`'s module state — importing it wires nothing, `register()` does
 // that. Read live rather than mirrored into `manifest.ts` because the state changes at every
 // `session_start` load, not once at registration.
-import { hooksDegradedReason } from "./hooks/index.ts";
+import { hooksDegradedReason, hooksScriptFailures } from "./hooks/index.ts";
 import { emitNotice } from "./lib/announce.ts";
 import { describeError, surfaceOnce } from "./lib/once.ts";
 import { repoRoot } from "./lib/paths.ts";
@@ -174,6 +174,7 @@ async function gatherInputs(ctx: ExtensionContext | ExtensionCommandContext, pi:
     declaredServerNames,
     packages,
     hooksDegradedReason: hooksDegradedReason(),
+    hooksScriptFailures: hooksScriptFailures(),
     toolGuidelines,
     onProviderErrorReport,
   };

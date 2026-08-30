@@ -20,9 +20,18 @@
 //   bin/pi-check PC-19 --live           a rule tagged "live" MUST be named with --live
 //   bin/pi-check --all --json           machine-readable findings on stdout
 //   bin/pi-check --all --repo /path     validate a different tree (default: this repo)
+//   bin/pi-check --doctor               check THIS MACHINE's install of the `run` hook scripts
 //   bin/pi-check --write-vendor-manifest   re-record pi-packages/**/*.ts hashes for PC-21
 //
 // Exit codes: 0 clean, 1 findings, 2 the checker itself could not run.
+//
+// `--doctor` is the second mode that runs no rule, and the only one that looks outside the repo
+// tree. It answers the one question the rule set structurally cannot — "is what this repo declares
+// actually installed HERE, and pointing at THIS checkout?" — for the `action: run` hooks in
+// config/hooks.yaml, whose executor fails closed. bin/lib/hook-scripts.mjs's header explains why
+// that is a mode rather than a rule (short version: CI has no $HOME/bin, so a rule would fail
+// every CI run for a reason CI cannot fix). It stays offline and spawns nothing, like everything
+// else here.
 //
 // `--write-vendor-manifest` is the ONE mode in which this tool writes anything, and it writes
 // exactly one file (pi-packages/vendor-files.lock.json) and runs no rule. It is the deliberate,
@@ -35,13 +44,14 @@ import { readdirSync, existsSync, statSync, realpathSync, readFileSync, writeFil
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { createContext } from "./lib/context.mjs";
+import { checkInstalledHookScripts, installPaths } from "./lib/hook-scripts.mjs";
 import { MANIFEST_PATH, VENDOR_ROOT, hashVendoredTree, serializeVendorManifest } from "./lib/vendor-manifest.mjs";
 
 /** @typedef {import("./types.mjs").Finding} Finding */
 
 function usageError(message) {
   process.stderr.write(`pi-check: ${message}\n`);
-  process.stderr.write("usage: bin/pi-check (--all | --only TAG | RULE-ID...) [--live] [--json] [--repo PATH]\n");
+  process.stderr.write("usage: bin/pi-check (--all | --only TAG | --doctor | RULE-ID...) [--live] [--json] [--repo PATH]\n");
   process.exitCode = 2;
 }
 
@@ -105,6 +115,36 @@ function writeVendorManifest(repoRoot) {
   process.exitCode = 0;
 }
 
+/**
+ * `--doctor`: the installed-hook-script check. See bin/lib/hook-scripts.mjs's header.
+ *
+ * Prints the machine's two anchor paths even when clean, because "0 finding(s)" is only meaningful
+ * once the reader knows which $HOME was inspected — a green run under the wrong HOME is precisely
+ * the reassurance this mode exists to stop giving.
+ *
+ * @param {string} repoRoot absolute path
+ * @param {boolean} json
+ * @returns {void}
+ */
+function runDoctor(repoRoot, json) {
+  const ctx = createContext(repoRoot, { live: false });
+  const paths = installPaths();
+  const findings = checkInstalledHookScripts(ctx, paths);
+
+  if (json) {
+    process.stdout.write(
+      JSON.stringify({ mode: "doctor", paths, findings, summary: { findingCount: findings.length } }, null, 2) + "\n",
+    );
+  } else {
+    // Wider than `formatText`'s 32 and with a hard separator: these locations are absolute machine
+    // paths, not repo-relative ones, and a long one must not run into the message.
+    const lines = findings.map((f) => `${f.rule.padEnd(7)}${(f.line ? `${f.file}:${f.line}` : f.file).padEnd(44)}  ${f.message}`);
+    lines.push(`${findings.length} finding(s) — install checked under ${paths.binDir}, expecting links into ${paths.stableLink}`);
+    process.stdout.write(lines.join("\n") + "\n");
+  }
+  process.exitCode = findings.length > 0 ? 1 : 0;
+}
+
 function formatText(findings, ranCount) {
   const lines = [];
   for (const f of findings) {
@@ -123,6 +163,7 @@ async function main(argv) {
   let live = false;
   let onlyTag = null;
   let writeManifest = false;
+  let doctor = false;
   /** @type {string[]} */
   const requestedIds = [];
 
@@ -132,6 +173,7 @@ async function main(argv) {
     else if (a === "--all") all = true;
     else if (a === "--live") live = true;
     else if (a === "--write-vendor-manifest") writeManifest = true;
+    else if (a === "--doctor") doctor = true;
     else if (a === "--only") {
       onlyTag = args[++i];
       if (onlyTag === undefined) return usageError('"--only" requires a tag argument');
@@ -145,13 +187,18 @@ async function main(argv) {
     }
   }
 
-  if (writeManifest && (all || onlyTag || live || json || requestedIds.length > 0)) {
+  if (writeManifest && (all || onlyTag || live || json || doctor || requestedIds.length > 0)) {
     return usageError('"--write-vendor-manifest" runs no rule — use it alone (only "--repo" may accompany it)');
+  }
+  // `--doctor` inspects the machine, the rules inspect the tree. Combining them would report both
+  // under one exit code, and "pi-check failed" would stop meaning one thing.
+  if (doctor && (all || onlyTag || live || requestedIds.length > 0)) {
+    return usageError('"--doctor" runs no rule — use it alone ("--repo" and "--json" may accompany it)');
   }
   if (all && onlyTag) return usageError('cannot combine "--all" and "--only"');
   if (onlyTag && requestedIds.length > 0) return usageError('cannot combine "--only" with named rule ids');
-  if (!all && !onlyTag && !writeManifest && requestedIds.length === 0) {
-    return usageError("nothing to run — pass --all, --only TAG, or one or more rule ids");
+  if (!all && !onlyTag && !writeManifest && !doctor && requestedIds.length === 0) {
+    return usageError("nothing to run — pass --all, --only TAG, --doctor, or one or more rule ids");
   }
 
   const scriptPath = realpathSync(fileURLToPath(import.meta.url));
@@ -165,6 +212,7 @@ async function main(argv) {
   }
 
   if (writeManifest) return writeVendorManifest(repoRoot);
+  if (doctor) return runDoctor(repoRoot, json);
 
   let allRules;
   try {

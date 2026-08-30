@@ -24,6 +24,7 @@ function inputsFor(tool: string, guidelines: readonly string[]): DoctorInputs {
     declaredServerNames: [],
     packages: [],
     hooksDegradedReason: undefined,
+    hooksScriptFailures: [],
     toolGuidelines: [{ tool, guidelines }],
     onProviderErrorReport: [],
   };
