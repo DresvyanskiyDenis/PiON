@@ -320,6 +320,24 @@ const MUTATIONS = [
       );
     },
   },
+  {
+    id: "PC-30",
+    // The defect worth pinning is not a typo in the pin file, it is a pin that has quietly stopped
+    // pinning. The clean fixture's routing.json defines `strong` and `fast` and nothing else, so a
+    // pin naming a third tier is exactly what a rename in the routing table leaves behind: the file
+    // stays syntactically perfect and the project silently runs unpinned.
+    break: (dir) => {
+      mkdirSync(join(dir, ".pi"), { recursive: true });
+      writeFileSync(
+        join(dir, ".pi", "lead-model.json"),
+        JSON.stringify(
+          { version: 1, tier: "renamed-away", since: "2026-08-31", reason: "a reason long enough to pass the floor" },
+          null,
+          2,
+        ) + "\n",
+      );
+    },
+  },
 ];
 
 describe("each rule fires exactly on its own broken fixture", () => {

@@ -15,6 +15,9 @@
  *     reads a load registry in which `guard`'s entry is already written, and so its
  *     `project_trust` handler is bound before any project resource is considered.
  *   - `hooks` (`EXT-15`) stacks on the guard and may only add denial, so it follows it.
+ *   - `lead-model` follows `path-defaults` immediately: both decide this session's model on
+ *     `session_start`, and the project pin is the more specific statement, so it must land after
+ *     the install-wide default rather than be overwritten by it.
  *   - `path-defaults`, `path-rules` and `skills-env` publish configuration later modules read;
  *     `skill-mask` keeps its slot beside them although it registers nothing.
  *   - `tool-masks` precedes `path-rules`: a `mask:` rule answers a touch by calling into it, so
@@ -46,6 +49,7 @@ import { id as ctxId, register as registerSessionContext } from "./session-conte
 import { id as credId, register as registerCredentials } from "./credentials.ts";
 import { id as costGateId, register as registerCostGate } from "./cost-gate/index.ts";
 import { id as pathDefaultsId, register as registerPathDefaults } from "./path-defaults/index.ts";
+import { id as leadModelId, register as registerLeadModel } from "./lead-model/index.ts";
 import { id as toolMasksId, register as registerToolMasks } from "./tool-masks/index.ts";
 import { id as pathRulesId, register as registerPathRules } from "./path-rules/index.ts";
 import { id as skillsEnvId, register as registerSkillsEnv } from "./skills-env.ts";
@@ -90,6 +94,7 @@ const ORDER: ReadonlyArray<readonly [string, Registrar]> = [
   [costGateId, registerCostGate],
   // capability configuration that later modules read
   [pathDefaultsId, registerPathDefaults],
+  [leadModelId, registerLeadModel],
   [toolMasksId, registerToolMasks],
   [pathRulesId, registerPathRules],
   [skillsEnvId, registerSkillsEnv],
