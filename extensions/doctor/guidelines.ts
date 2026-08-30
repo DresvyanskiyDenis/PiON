@@ -172,11 +172,14 @@ export const ACKNOWLEDGED_GUIDELINES: Readonly<Record<string, GuidelineAck>> = {
   "web_answer:1": ["tool-contract", "[n] markers back to the source list"],
   "web_answer:2": ["tool-contract", "SearXNG engine bang"],
   "expand_result:0": ["tool-contract", "instead of re-running the original tool"],
-  // `fact:0` and `fact:1` are doctrine and are stated in `SYSTEM.md` § "# Check"; `fact:2` is a
-  // call mechanic and travels in the parameter schema, where `customPrompt` cannot discard it.
+  // `fact:0`..`fact:2` are doctrine and are stated in `SYSTEM.md` § "# Check" — `fact:2`'s two
+  // halves are the two paragraphs there for the `ruled_out` class, and its precondition is also an
+  // `AGENTS.md` § "## Work" bullet. `fact:3` is a call mechanic and travels in the parameter
+  // schema, where `customPrompt` cannot discard it.
   "fact:0": ["system-prompt", "before you act on it"],
   "fact:1": ["system-prompt", "An operator correction is a fact"],
-  "fact:2": ["tool-contract", "Always pass provenance"],
+  "fact:2": ["system-prompt", "Abandoning an approach is a fact"],
+  "fact:3": ["tool-contract", "Always pass provenance"],
   "message_agent:0": ["tool-contract", "a message to an unknown name is refused"],
   "message_agent:1": ["tool-contract", "does not wait for an answer"],
   "message_agent:2": ["tool-contract", "target set to the sender's name"],

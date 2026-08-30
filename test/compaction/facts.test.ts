@@ -17,6 +17,7 @@ import {
   DEFAULT_FACTS_LIMITS,
   factsPathFor,
   formatFactLine,
+  isRuledOutLine,
   PROVENANCE_UNSTATED,
   readFacts,
   renderFacts,
@@ -52,9 +53,15 @@ test("two sessions running at once never write the same file", async () => {
   // Interleaved, the way a parent session and a subagent would actually append. Each file has to
   // hold its own facts and nothing else, or a compaction in one session restates the other's
   // context as though it were established here.
-  await appendFact(first, "the first session resolved the endpoint to /v1", "curl");
-  await appendFact(second, "the second session resolved the endpoint to /v2", "curl");
-  await appendFact(first, "the first session confirmed it twice", "curl");
+  const firstA = await appendFact(first, "the first session resolved the endpoint to /v1", "curl");
+  const secondA = await appendFact(second, "the second session resolved the endpoint to /v2", "curl");
+  const firstB = await appendFact(first, "the first session confirmed it twice", "curl");
+
+  // The index is per file too, so the second session's first entry is its entry 1 even though the
+  // first session had already recorded one. A counter shared across sessions would have said 2.
+  assert.deepEqual([firstA.index, firstA.total], [1, 1]);
+  assert.deepEqual([secondA.index, secondA.total], [1, 1]);
+  assert.deepEqual([firstB.index, firstB.total], [2, 2]);
 
   const readFirst = await readFacts(first);
   const readSecond = await readFacts(second);
@@ -214,4 +221,154 @@ test("a malformed facts block falls back to the defaults rather than switching t
     assert.equal(parsed.pinned.facts.maxEntries, DEFAULT_FACTS_LIMITS.maxEntries);
     assert.equal(parsed.pinned.facts.maxBytes, DEFAULT_FACTS_LIMITS.maxBytes);
   }
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * Parallel writes: nothing lost, and the number reported back is an identity
+ * ------------------------------------------------------------------------------------------- */
+
+test("the index is the entry's own position, and total is the count it is not a substitute for", async () => {
+  const path = join(dir, "identity.facts.md");
+  const first = await appendFact(path, "the first thing", "test");
+  const second = await appendFact(path, "the second thing", "test");
+  assert.deepEqual([first.index, first.total], [1, 1]);
+  assert.deepEqual([second.index, second.total], [2, 2]);
+  assert.equal(first.kind, "fact");
+});
+
+test("N parallel writes produce N lines with N distinct indices and lose none", async () => {
+  const path = join(dir, "parallel.facts.md");
+  const n = 24;
+  // The shape that motivated the change: several fact calls issued in one turn and resolved
+  // together. A post-hoc count answers two of them with the same number, which is
+  // indistinguishable from a lost write, so both halves are asserted here: the count on disk, and
+  // the uniqueness of the answers handed back.
+  const written = await Promise.all(
+    Array.from({ length: n }, (_v, i) => appendFact(path, `parallel fact ${i}`, "test")),
+  );
+
+  const indices = written.map((w) => w.index).sort((x, y) => x - y);
+  assert.deepEqual(indices, Array.from({ length: n }, (_v, i) => i + 1), "every index is used exactly once");
+
+  const result = await readFacts(path, { maxEntries: 1000, maxBytes: 1_000_000 });
+  assert.equal(result.total, n, "no append overwrote another");
+  for (const { line } of written) {
+    assert.equal(result.lines.filter((l) => l === line).length, 1, `exactly one copy of: ${line}`);
+  }
+  for (let i = 0; i < n; i += 1) {
+    assert.equal(result.lines.filter((l) => l.includes(`parallel fact ${i} `)).length, 1);
+  }
+  // The last write to resolve saw the whole file, so at least one report carries the final count.
+  assert.equal(Math.max(...written.map((w) => w.total)), n);
+});
+
+test("a race to create the file writes one header, not one per writer", async () => {
+  const path = join(dir, "header-race.facts.md");
+  await Promise.all(Array.from({ length: 8 }, (_v, i) => appendFact(path, `racing fact ${i}`, "test")));
+  const raw = await readFile(path, "utf8");
+  assert.equal(raw.split("# Session facts").length - 1, 1, "the header is created exclusively, once");
+  assert.equal((await readFacts(path)).total, 8);
+});
+
+test("two entries recorded in the same millisecond are still two addressable lines", async () => {
+  const path = join(dir, "same-ms.facts.md");
+  const clock = new Date("2026-08-30T16:36:54.000Z");
+  const a = await appendFact(path, "first in this millisecond", "test", { now: clock });
+  const b = await appendFact(path, "second in this millisecond", "test", { now: clock });
+  assert.notEqual(a.line, b.line);
+  assert.deepEqual([a.index, b.index], [1, 2]);
+  assert.match(a.line, /2026-08-30T16:36:54\.000Z/);
+  assert.match(b.line, /2026-08-30T16:36:54\.001Z/);
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * The ruled_out class
+ * ------------------------------------------------------------------------------------------- */
+
+test("a ruled-out approach is recorded as its own class, with the reason in the line", async () => {
+  const path = join(dir, "ruled-out.facts.md");
+  const { line, kind } = await appendFact(
+    path,
+    "reading the schema from the catalog API",
+    "returns 403 for this token; three attempts, same result",
+    { kind: "ruled_out" },
+  );
+  assert.equal(kind, "ruled_out");
+  assert.ok(isRuledOutLine(line));
+  assert.match(line, /\*\*ruled out:\*\* reading the schema from the catalog API/);
+  assert.match(line, /_\(because: returns 403 for this token/);
+
+  const result = await readFacts(path);
+  assert.equal(result.total, 1);
+  assert.equal(result.ruledOut, 1);
+  assert.deepEqual([...result.lines], [line]);
+});
+
+test("a ruled_out entry with no reason is refused — the reason is the whole point of the class", async () => {
+  const path = join(dir, "ruled-out-no-reason.facts.md");
+  await assert.rejects(
+    () => appendFact(path, "an approach", undefined, { kind: "ruled_out" }),
+    /must say what ruled the approach out/,
+  );
+  await assert.rejects(() => appendFact(path, "an approach", "  ", { kind: "ruled_out" }), /ruled the approach out/);
+  assert.equal((await readFacts(path)).total, 0, "nothing was written");
+});
+
+test("an ordinary fact is not marked, and formatFactLine defaults to that class", () => {
+  const plain = formatFactLine("2026-08-29T10:00:00.000Z", "a fact", "a source");
+  assert.equal(isRuledOutLine(plain), false);
+  assert.match(plain, /^- `2026-08-29T10:00:00\.000Z` a fact _\(established: a source\)_$/);
+  const ruled = formatFactLine("2026-08-29T10:00:00.000Z", "an approach", "why", "ruled_out");
+  assert.equal(isRuledOutLine(ruled), true);
+});
+
+test("the restatement marks the class and states the obligation, in chronological order", async () => {
+  const path = join(dir, "restate-ruled-out.facts.md");
+  await appendFact(path, "the gateway base URL is the /openai/v1 form", "curl, 200 OK");
+  await appendFact(path, "the mlflow/v1 form", "INVALID_PARAMETER_VALUE on every call", { kind: "ruled_out" });
+  await appendFact(path, "the token is read from the environment", "config/providers/example.json");
+
+  const result = await readFacts(path);
+  assert.equal(result.ruledOut, 1);
+  const rendered = renderFacts(result);
+  assert.match(rendered, /\*\*ruled out:\*\* the mlflow\/v1 form/);
+  assert.match(rendered, /because: INVALID_PARAMETER_VALUE on every call/);
+  assert.match(rendered, /1 of the entries above are approaches already ruled out/);
+  assert.match(rendered, /Read them before any further fix-work/);
+  // One list, in the order the work happened: the outcome that replaced the dead end follows it.
+  assert.ok(rendered.indexOf("mlflow/v1") > rendered.indexOf("openai/v1 form"));
+  assert.ok(rendered.indexOf("read from the environment") > rendered.indexOf("mlflow/v1"));
+});
+
+test("ruled-out entries are capped on a par with facts, and a dropped one is named as dropped", async () => {
+  const path = join(dir, "ruled-out-caps.facts.md");
+  await appendFact(path, "the first dead end", "it timed out", { kind: "ruled_out" });
+  await appendFact(path, "the second dead end", "wrong permissions", { kind: "ruled_out" });
+  for (let i = 1; i <= 4; i += 1) await appendFact(path, `ordinary fact ${i}`, "test");
+
+  // The caps do not privilege the class in either direction: oldest first, whatever it is.
+  const result = await readFacts(path, { maxEntries: 3, maxBytes: 100_000 });
+  assert.equal(result.total, 6);
+  assert.equal(result.dropped, 3);
+  assert.equal(result.droppedRuledOut, 2);
+  assert.equal(result.ruledOut, 0);
+
+  const rendered = renderFacts(result);
+  assert.match(rendered, /3 older fact\(s\) dropped/);
+  assert.match(rendered, /2 of the dropped entries were ruled-out approaches/);
+  assert.doesNotMatch(rendered, /of the entries above are approaches already ruled out/);
+
+  // Read whole, both classes are there and both survive a restatement.
+  const whole = renderFacts(await readFacts(path));
+  assert.match(whole, /the first dead end/);
+  assert.match(whole, /ordinary fact 4/);
+});
+
+test("a reader counts a ruled_out line as an entry, so half the file cannot go missing", async () => {
+  const path = join(dir, "both-classes.facts.md");
+  await appendFact(path, "an outcome", "test");
+  await appendFact(path, "an approach", "a reason", { kind: "ruled_out" });
+  const result = await readFacts(path);
+  assert.equal(result.total, 2);
+  assert.equal(result.lines.length, 2);
 });

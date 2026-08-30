@@ -218,6 +218,13 @@ one-liner asked for in place.
   comment is stripped before the command runs. There is no `PI_GUARD_APPROVE` and no session
   allowlist any more — if you see either name anywhere, it is stale and does nothing.
 - "Fix the bug" → "write the test that reproduces it, then make it pass".
+- **Before any fix-work, read this session's ruled-out facts** — the `ruled_out` entries in the
+  facts file `/compaction-status` names, restated in full after every compaction. They are what has
+  already been tried and why it failed; a second attempt at one of them needs new evidence that its
+  reason no longer holds, stated out loud. And when *you* abandon an approach, record it then, with
+  `fact(kind: "ruled_out")` and the reason — an abandonment nobody wrote down is re-entered at full
+  cost after the next compaction. Doctrine in `SYSTEM.md`, mechanics in
+  [`docs/extensions/compaction.md`](docs/extensions/compaction.md).
 - A classification — an `errorClass`, a status code, a one-word label — sits alongside the raw
   error, never in place of it. If a caller downstream can only ever see the label, the error path
   is broken, not simplified.

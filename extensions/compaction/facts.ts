@@ -25,6 +25,40 @@
  * pinned block. Provenance is not decoration: without it a later turn cannot tell a thing that was
  * verified from a thing that was assumed, and a fact it cannot trust is one it will re-derive.
  *
+ * ## Two classes, because only one of them was ever recorded
+ *
+ * A file that holds only outcomes is a record of what worked. The other half was missing entirely:
+ * every approach that was tried and abandoned left no trace, so after a compaction the session no
+ * longer remembered refusing a dead end and walked back into it at full cost — the same failure
+ * this module exists to prevent, pointed at the negative result instead of the positive one.
+ *
+ * `ruled_out` is therefore a first-class kind rather than a convention in the prose: it is marked
+ * in the line, counted on read, and named in the restatement, so a later turn reads "this was
+ * tried, and here is what ruled it out" instead of one more faceless fact. A `ruled_out` entry
+ * with no reason is refused, because an abandonment carrying no reason is exactly the record a
+ * later turn talks itself back out of.
+ *
+ * ## Concurrency, and what "fact N" is allowed to mean
+ *
+ * Two `fact` calls in one turn run in parallel against one file. Two properties are needed, and
+ * they are met differently:
+ *
+ *  - **No entry is lost.** Each append is one `appendFile` on an `O_APPEND` descriptor, so the
+ *    seek-to-end and the write are a single atomic step and interleaved writers cannot overwrite
+ *    each other. The header is created with `wx` — create-exclusive, one winner, the losers see
+ *    `EEXIST` — rather than by a read-then-write, which let two first writers each conclude the
+ *    file was absent and each prepend a header.
+ *  - **The number reported back is an identity, not a count.** A count of the whole file taken
+ *    after the write answers the same number to every caller whose append landed before any of
+ *    them re-read, which is indistinguishable from a write that was lost — and being blind to
+ *    that distinction is worse than either failure alone. {@link appendFact} returns the 1-based
+ *    position of *its own* line, located in the file it just wrote, with the count alongside it.
+ *
+ * Locating one's own line requires the line to be unique, so timestamps are strictly increasing
+ * per file within a process ({@link stampFor}): two entries recorded in the same millisecond are
+ * written one millisecond apart. That is the price of an addressable entry, and it is paid
+ * knowingly rather than by adding a nonce every reader would then have to read forever.
+ *
  * ## Where the file lives, and why not somewhere more convenient
  *
  * Beside the session transcript, named after it. Three properties follow from that one choice, and
@@ -50,8 +84,12 @@
  * the part that cannot be skipped: a list quietly cut to fit looks complete, so its *absences* get
  * read as evidence — the agent concludes a thing was never established and goes to establish it,
  * which is the precise failure this module exists to prevent.
+ *
+ * Both classes are capped by the same rule, oldest first: a `ruled_out` entry is neither
+ * privileged nor sacrificed. The marker additionally says how many of the dropped entries were
+ * ruled-out approaches, because that is the absence most likely to be misread as permission.
  */
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { capBytes } from "./pinned.ts";
 
@@ -69,16 +107,32 @@ export const DEFAULT_FACTS_LIMITS: FactsLimits = {
 export const PROVENANCE_UNSTATED = "not stated";
 
 /**
+ * The two classes of entry. `fact` is an outcome, something established. `ruled_out` is an approach
+ * that was abandoned together with the reason it was abandoned, which is the half a session never
+ * kept and therefore paid for twice.
+ */
+export type FactKind = "fact" | "ruled_out";
+
+/** The in-line marker for the `ruled_out` class. Written by the writer, read by the reader. */
+const RULED_OUT_MARK = "**ruled out:**";
+
+/**
  * A fact line, and the only shape `readFacts` counts. Anchored on the timestamp so the file's own
  * header, and anything a human adds to it by hand, are left alone rather than restated as facts.
+ * Both classes match it: the class marker sits inside the body, so a reader that knows nothing
+ * about `ruled_out` still sees every entry instead of silently dropping half the file.
  */
 const FACT_LINE = /^- `[^`]+` \S/;
+
+/** The same anchor, plus the class marker. */
+const RULED_OUT_LINE = /^- `[^`]+` \*\*ruled out:\*\* \S/;
 
 const HEADER = [
   "# Session facts",
   "",
-  "Appended by the `fact` tool, re-read after every compaction. One fact per line: when it was",
-  "established, what it is, and how it was established. Session-scoped, never committed.",
+  "Appended by the `fact` tool, re-read after every compaction. One entry per line: when it was",
+  "established, what it is, and how it was established. Entries marked `**ruled out:**` are",
+  "approaches that were abandoned, with the reason. Session-scoped, never committed.",
   "",
 ].join("\n");
 
@@ -91,10 +145,26 @@ export interface FactsResult {
   readonly dropped: number;
   /** How many entries the file holds. */
   readonly total: number;
+  /** How many of {@link lines} are ruled-out approaches. */
+  readonly ruledOut: number;
+  /** How many of the dropped entries were ruled-out approaches. Named in the drop marker. */
+  readonly droppedRuledOut: number;
   /** The newest entry alone was over `maxBytes` and was cut. */
   readonly truncated: boolean;
   /** One line per condition that stopped a read. Announced, never swallowed. */
   readonly problems: readonly string[];
+}
+
+/** What one append did: the line, and where in the file it landed. */
+export interface AppendedFact {
+  /** The line exactly as written. */
+  readonly line: string;
+  /** Its 1-based position among the file's entries. An identity: two appends never share one. */
+  readonly index: number;
+  /** How many entries the file holds now. Larger than `index` when another writer got there too. */
+  readonly total: number;
+  /** The class recorded. */
+  readonly kind: FactKind;
 }
 
 /**
@@ -112,8 +182,15 @@ export function factsPathFor(sessionFile: string | undefined, sessionId: string,
 }
 
 /** One line, exactly as it is written and exactly as it is restated. */
-export function formatFactLine(at: string, fact: string, provenance: string): string {
-  return `- \`${at}\` ${collapse(fact)} _(established: ${collapse(provenance)})_`;
+export function formatFactLine(at: string, fact: string, provenance: string, kind: FactKind = "fact"): string {
+  return kind === "ruled_out"
+    ? `- \`${at}\` ${RULED_OUT_MARK} ${collapse(fact)} _(because: ${collapse(provenance)})_`
+    : `- \`${at}\` ${collapse(fact)} _(established: ${collapse(provenance)})_`;
+}
+
+/** Whether a line records an abandoned approach rather than an outcome. */
+export function isRuledOutLine(line: string): boolean {
+  return RULED_OUT_LINE.test(line);
 }
 
 /** A newline inside a fact would split it across two lines and break the file's one contract. */
@@ -122,24 +199,75 @@ function collapse(s: string): string {
 }
 
 /**
- * Appends one fact, creating the file and its directory on first use. Returns the line written.
+ * Strictly increasing timestamps, per file, within this process.
+ *
+ * Two parallel `fact` calls in one turn land in the same millisecond routinely, and an entry that
+ * cannot be told apart from its neighbour cannot be given an identity. One millisecond of drift
+ * under a burst buys an addressable line; the alternative, a nonce carried in the text, would be
+ * paid for in every restatement, forever, by every reader.
+ */
+const lastStampMs = new Map<string, number>();
+
+function stampFor(path: string, now: Date): string {
+  const ms = Math.max(now.getTime(), (lastStampMs.get(path) ?? 0) + 1);
+  lastStampMs.set(path, ms);
+  return new Date(ms).toISOString();
+}
+
+export interface AppendFactOptions {
+  /** `ruled_out` records an abandoned approach, and its reason is mandatory. Defaults to `fact`. */
+  readonly kind?: FactKind;
+  /** Injectable clock. Still passed through {@link stampFor}, so two calls never collide. */
+  readonly now?: Date;
+}
+
+/**
+ * Appends one entry, creating the file and its directory on first use.
  *
  * An empty fact throws instead of appending a blank entry. The caller asked for something to be
- * recorded and nothing was: that is exactly the case that must not pass quietly.
+ * recorded and nothing was: that is exactly the case that must not pass quietly. A `ruled_out`
+ * with no reason throws for the same reason, because the reason is the entire content of the class.
+ *
+ * The returned {@link AppendedFact.index} is read back from the file, so it accounts for whatever a
+ * concurrent writer appended in between rather than assuming this call was alone.
  */
 export async function appendFact(
   path: string,
   fact: string,
   provenance: string | undefined,
-  now: Date = new Date(),
-): Promise<string> {
+  options: AppendFactOptions = {},
+): Promise<AppendedFact> {
+  const kind = options.kind ?? "fact";
   const text = collapse(fact);
   if (text.length === 0) throw new Error("fact: the fact text is empty, so there is nothing to record");
-  const line = formatFactLine(now.toISOString(), text, provenance ?? PROVENANCE_UNSTATED);
+  const reason = collapse(provenance ?? "");
+  if (kind === "ruled_out" && reason.length === 0) {
+    throw new Error(
+      "fact: a ruled_out entry must say what ruled the approach out. Pass the reason as provenance, "
+        + "or record it as an ordinary fact instead.",
+    );
+  }
+
+  const line = formatFactLine(stampFor(path, options.now ?? new Date()), text, reason || PROVENANCE_UNSTATED, kind);
   await mkdir(dirname(path), { recursive: true });
-  const existing = await readOrUndefined(path);
-  await appendFile(path, `${existing === undefined ? HEADER : ""}${line}\n`, "utf8");
-  return line;
+  // Create-exclusive, so exactly one of N racing first writers writes the header and the losers get
+  // EEXIST instead of each concluding the file is absent and prepending a second copy.
+  try {
+    await writeFile(path, HEADER, { encoding: "utf8", flag: "wx" });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+  }
+  // One `appendFile` is one write on an O_APPEND descriptor: atomic against other appenders.
+  await appendFile(path, `${line}\n`, "utf8");
+
+  const all = factLinesOf((await readOrUndefined(path)) ?? "");
+  // `lastIndexOf`: if an identical line somehow already existed, the one just written is the later.
+  const found = all.lastIndexOf(line);
+  return { line, index: found >= 0 ? found + 1 : all.length, total: all.length, kind };
+}
+
+function factLinesOf(raw: string): string[] {
+  return raw.split("\n").map((line) => line.trimEnd()).filter((line) => FACT_LINE.test(line));
 }
 
 async function readOrUndefined(path: string): Promise<string | undefined> {
@@ -173,15 +301,19 @@ export async function readFacts(path: string, limits: FactsLimits = DEFAULT_FACT
   } catch (err) {
     const problems =
       (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : [`${path} — unreadable: ${(err as Error).message}`];
-    return { path, lines: [], dropped: 0, total: 0, truncated: false, problems };
+    return { path, lines: [], dropped: 0, total: 0, ruledOut: 0, droppedRuledOut: 0, truncated: false, problems };
   }
 
-  const all = raw.split("\n").map((line) => line.trimEnd()).filter((line) => FACT_LINE.test(line));
+  const all = factLinesOf(raw);
   const maxEntries = Math.max(0, Math.trunc(limits.maxEntries));
   const maxBytes = Math.max(0, Math.trunc(limits.maxBytes));
 
   const kept = all.slice(Math.max(0, all.length - maxEntries));
   while (kept.length > 1 && Buffer.byteLength(kept.join("\n"), "utf8") > maxBytes) kept.shift();
+
+  const dropped = all.length - kept.length;
+  const droppedRuledOut = all.slice(0, dropped).filter(isRuledOutLine).length;
+  const ruledOut = kept.filter(isRuledOutLine).length;
 
   let truncated = false;
   if (kept.length === 1 && Buffer.byteLength(kept[0]!, "utf8") > maxBytes) {
@@ -190,13 +322,18 @@ export async function readFacts(path: string, limits: FactsLimits = DEFAULT_FACT
     truncated = cut.truncated;
   }
 
-  return { path, lines: kept, dropped: all.length - kept.length, total: all.length, truncated, problems: [] };
+  return { path, lines: kept, dropped, total: all.length, ruledOut, droppedRuledOut, truncated, problems: [] };
 }
 
 /**
  * Renders the block restated after a compaction. Returns `""` when the session has recorded
  * nothing, so the caller can skip the send rather than push an empty message into a context that
  * was just cleared.
+ *
+ * The entries stay in one chronological list. An approach was ruled out *at a point in the work*,
+ * and splitting the two classes into separate blocks would lose the order that explains why. The
+ * class travels in each line's own marker and is named once below the list, which is what turns
+ * "one more fact" into "this was tried, and here is what ruled it out".
  */
 export function renderFacts(result: FactsResult): string {
   if (result.total === 0) return "";
@@ -208,15 +345,33 @@ export function renderFacts(result: FactsResult): string {
     "",
     ...result.lines,
   ];
+  if (result.ruledOut > 0) {
+    parts.push(
+      "",
+      `[${result.ruledOut} of the entries above are approaches already ruled out this session, marked ` +
+        `"${RULED_OUT_MARK}" with what ruled each one out. They bind exactly as the facts do: do not ` +
+        `retry one, or reason your way back into it, without new evidence that its stated reason no ` +
+        `longer holds. Read them before any further fix-work.]`,
+    );
+  }
   if (result.dropped > 0) {
+    const ruledOutNote =
+      result.droppedRuledOut > 0
+        ? ` ${result.droppedRuledOut} of the dropped entries were ruled-out approaches, so an approach ` +
+          `missing from this block is not an approach that was never refused.`
+        : "";
     parts.push(
       "",
       `[${result.dropped} older fact(s) dropped from this block by the budget on a ${result.total}-entry ` +
         `file. Every one of them is still in ${result.path} — read it before concluding that ` +
-        `something was never established.]`,
+        `something was never established.${ruledOutNote}]`,
     );
   }
   if (result.truncated) parts.push("", `[the newest fact was cut to fit the byte budget — read ${result.path}]`);
-  parts.push("", `Record the next one with the fact tool. The file is ${result.path}.`);
+  parts.push(
+    "",
+    `Record the next one with the fact tool, kind "ruled_out" for an approach you are abandoning, ` +
+      `with the reason. The file is ${result.path}.`,
+  );
   return parts.join("\n");
 }

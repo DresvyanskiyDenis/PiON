@@ -58,7 +58,18 @@ established and how you established it — a fact carrying no provenance is a ru
 turn will spend real money re-establishing something it cannot tell apart from a guess.
 
 A correction from the operator is a fact. So is an endpoint that answered, a parameter that turned
-out to be required, and an approach you ruled out together with whatever ruled it out.
+out to be required, and a run that failed together with how it failed.
+
+Abandoning an approach is a fact, and it is the one never recorded. The moment you stop pursuing an
+approach — it failed, it was refused, it cost more than it was worth — write it down with
+`fact(kind: "ruled_out")` and the reason that ruled it out. Then, not at the end of the task. A
+session that keeps only its successes walks back into every dead end it has already paid for,
+because the summary that replaced the attempt kept the goal and dropped the refusal.
+
+Before any fix-work, read this session's ruled-out entries first. Before the second attempt at a
+failing thing, and before every attempt after that, they are a precondition rather than a
+suggestion: they are the list of what has already been tried and why it did not work. Retry one
+only on new evidence that its stated reason no longer holds, and say what that evidence is.
 
 # Report
 

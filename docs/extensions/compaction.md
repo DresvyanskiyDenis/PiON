@@ -63,6 +63,37 @@ on every read, oldest first, and the block states how many entries were dropped 
 holding the rest. A silently shortened list is worse than no list, because it reads as complete and
 its absences then look like evidence.
 
+### Two kinds: `fact` and `ruled_out`
+
+A file that holds only outcomes is a record of what worked. The other half — every approach that was
+tried and abandoned — used to leave no trace at all, so after a compaction the session no longer
+remembered refusing a dead end and walked back into it at full cost.
+
+```
+fact(kind: "ruled_out",
+     fact: "reading the schema from the catalog API",
+     provenance: "403 for this token, three attempts, same result")
+```
+
+`kind` defaults to `"fact"`. For `"ruled_out"`, `provenance` is **the reason, and it is mandatory** —
+the call is refused without one, because an abandonment carrying no reason is exactly the record a
+later turn talks itself back out of. The two shapes on disk:
+
+```
+- `2026-08-30T16:36:54.000Z` the base URL is the /openai/v1 form _(established: curl, 200 OK)_
+- `2026-08-30T16:36:54.001Z` **ruled out:** the mlflow/v1 form _(because: INVALID_PARAMETER_VALUE)_
+```
+
+They stay in **one chronological list**. An approach was ruled out at a point in the work, and
+splitting the classes into two blocks would lose the order that explains why. The restatement marks
+the class, counts the ruled-out entries and states the obligation that comes with them: do not retry
+one without new evidence that its stated reason no longer holds, and read them before further
+fix-work. `SYSTEM.md` carries the same rule on the writing side — abandoning an approach *is* a fact.
+
+Both classes are capped by the same rule, oldest first, neither privileged nor sacrificed. When the
+caps drop ruled-out entries the marker says how many, because an approach missing from the block
+must not read as an approach that was never refused.
+
 ### The `fact` tool
 
 ```
@@ -73,6 +104,22 @@ fact(fact: "…", provenance: "…")
 recorded as `not stated`, and a later turn that cannot tell a verified thing from an assumed one
 will re-derive it anyway. Pass the command that proved it, a `file:line`, a run id, or
 `"operator correction"`.
+
+The reply names the entry twice over:
+
+```
+recorded fact 13 of 14 in this session
+```
+
+The first number is that entry's **position in the file**, read back after the write; the second is
+the file's count. They differ when another `fact` call appended in parallel — which is the whole
+reason the reply is not a single count. A count of the file taken *after* the append answers the
+same number to every caller whose write landed before any of them re-read, and "we both appended" is
+then indistinguishable from "one of us was overwritten". Nothing is in fact lost (each append is one
+write on an `O_APPEND` descriptor, atomic against the others), but a report that cannot tell those
+two apart is blind to the worse one. Two entries recorded in the same millisecond are written one
+millisecond apart so each line stays addressable, and the file header is created with `wx` so N
+racing first writers cannot prepend N headers.
 
 It is a tool rather than an instruction to keep a notes file by hand because hand-editing is the
 step that gets skipped under time pressure — and time pressure is exactly the condition under which

@@ -1066,15 +1066,20 @@ export function register(pi: ExtensionAPI): void {
       name: "fact",
       label: "Record a fact",
       description:
-        "Write one established fact to this session's facts file, which is re-read and re-stated "
+        "Write one entry to this session's facts file, which is re-read and re-stated "
         + "after every compaction. Use it for anything that cost a paid call, a remote run, or an "
         + "operator correction: the conversation is summarised repeatedly and every summary loses "
-        + "detail, so a fact not on disk is gone by the time it is needed again.",
-      promptSnippet: "Record an established fact so it survives compaction",
+        + "detail, so a fact not on disk is gone by the time it is needed again. Two kinds: the "
+        + "default \"fact\" records something established; \"ruled_out\" records an approach you are "
+        + "abandoning and what ruled it out, so a later turn does not walk back into it.",
+      promptSnippet: "Record an established fact, or an approach you ruled out, so it survives compaction",
       promptGuidelines: [
         "Record a fact the moment it is established, before you act on it, not at the end of the task.",
-        "An operator correction is a fact. So is a confirmed URL, a working parameter, a ruled-out approach.",
-        "Always pass provenance: the command, the file:line, the run id, or \"operator correction\".",
+        "An operator correction is a fact. So is a confirmed URL, a working parameter, a failed run.",
+        "Abandoning an approach is a fact too: record it with kind \"ruled_out\" and the reason, at the "
+          + "moment you abandon it. Before any further fix-work, read this session's ruled-out entries.",
+        "Always pass provenance: the command, the file:line, the run id, or \"operator correction\". "
+          + "For kind \"ruled_out\" it is the reason, and it is mandatory.",
       ],
       parameters: Type.Object({
         fact: Type.String({
@@ -1084,17 +1089,31 @@ export function register(pi: ExtensionAPI): void {
           Type.String({
             description:
               "How it was established: the command that proved it, a file:line, a run id, or "
-              + "\"operator correction\". A fact without provenance is recorded as unverified.",
+              + "\"operator correction\". A fact without provenance is recorded as unverified. For "
+              + "kind \"ruled_out\" this is the reason the approach was ruled out, and it is required.",
+          }),
+        ),
+        kind: Type.Optional(
+          Type.Union([Type.Literal("fact"), Type.Literal("ruled_out")], {
+            description:
+              "\"fact\" (default) for something established. \"ruled_out\" for an approach you tried "
+              + "and abandoned; provenance then carries the reason and is mandatory.",
           }),
         ),
       }),
       async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
         const path = factsPath(ctx);
-        const line = await appendFact(path, params.fact, params.provenance);
-        const { total } = await readFacts(path, cfg.pinned.facts);
+        const kind = params.kind ?? "fact";
+        // `index` is this entry's own position in the file, read back after the write; `total` is
+        // the count. They differ exactly when another call appended in parallel, which is the case
+        // a single post-hoc count, printed as if it were an identity, could not show.
+        const { line, index, total } = await appendFact(path, params.fact, params.provenance, { kind });
+        const label = kind === "ruled_out" ? "ruled-out approach" : "fact";
         return {
-          content: [{ type: "text" as const, text: `recorded fact ${total} of this session\n${line}\n${path}` }],
-          details: { path, total },
+          content: [
+            { type: "text" as const, text: `recorded ${label} ${index} of ${total} in this session\n${line}\n${path}` },
+          ],
+          details: { path, index, total, kind },
         };
       },
     });
