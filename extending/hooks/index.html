@@ -3514,6 +3514,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#hard-constraints-constraintsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard constraints: constraints.json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-file-lives-and-project-hooks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4400,6 +4411,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#hard-constraints-constraintsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard constraints: constraints.json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-file-lives-and-project-hooks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4611,13 +4633,19 @@ restricted list?".</p>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>command</code> is not run through a shell</p>
-<p>It is spawned directly, so <strong><code>~</code> is not expanded</strong>, <code>$VARS</code> are not substituted, and no glob,
-pipe or redirect works. <code>command: ~/bin/check-sql-tables</code> fails with <code>ENOENT</code> — silently, as far
-as your rule is concerned, because the script never runs.</p>
-<p>Give it either an <strong>absolute path</strong>, or a <strong>bare name</strong> that is on <code>PATH</code> (<code>check-sql-tables</code>),
-which is resolved for you. Arguments go in <code>args</code> as separate list entries, never packed into
-<code>command</code> as one string. If you genuinely need shell features, make the command your shell and
-put the script in <code>args</code>: <code>command: /bin/sh</code>, <code>args: ["-c", "..."]</code> — and accept that you have
+<p>It is spawned directly, so <code>$VARS</code> are not substituted and no glob, pipe or redirect works.</p>
+<p>A <strong>leading <code>~/</code> is expanded</strong> to your home directory when the file is loaded, and that is the
+<em>only</em> substitution there is. It exists because the alternatives do not work: the command is
+checked with <code>access(X_OK)</code> and spawned with the <strong>project</strong> as <code>cwd</code>, so a bare name
+(<code>check-sql-tables</code>) is <strong>not</strong> searched on <code>PATH</code>, and a relative path (<code>./scripts/…</code>) silently
+means a different file in every repository you open. That left an absolute path with your
+username baked into a version-controlled config file, which is why no shipped rule used <code>run</code>
+at all until the constraint rules below.</p>
+<p>So: an <strong>absolute path</strong>, or <code>~/…</code> — and <code>~/bin/&lt;script&gt;</code> is exactly where the installer links
+everything in <code>config/bin/</code>, so a rule can name one portably. Arguments go in <code>args</code> as separate
+list entries, never packed into <code>command</code> as one string. If you genuinely need shell features,
+make the command your shell and put the script in <code>args</code>: <code>command: /bin/sh</code>,
+<code>args: ["-c", "..."]</code> — and accept that you have
 just taken responsibility for quoting whatever the agent passes you.</p>
 </div>
 <h3 id="the-protocol">The protocol<a class="headerlink" href="#the-protocol" title="Permanent link">&para;</a></h3>
@@ -4673,20 +4701,75 @@ just taken responsibility for quoting whatever the agent passes you.</p>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'{"decision":"deny","reason":"restricted table — use the anonymised view"}\n'</span>
 </span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">fi</span>
 </span></code></pre></div>
-<p>Make it executable (<code>chmod +x</code>), and give it an <strong>absolute path</strong> in <code>command</code>.</p>
+<p>Make it executable (<code>chmod +x</code>), and give it an <strong>absolute path</strong> or a <code>~/…</code> path in <code>command</code>.</p>
 <div class="admonition danger">
 <p class="admonition-title">Fail-closed, on purpose — and what that means the day you write one</p>
 <p>Every failure class above blocks. A missing script, a typo'd path, a <code>set -e</code> tripping on an
 unrelated line, a slow network call inside your script: all of them deny the tool call.</p>
-<p>This is why <strong>no <code>run</code> rule ships enabled</strong>. A <code>run</code> rule with <code>match: { tool: bash }</code> and no
-script at the named path would block <em>every bash call in every session</em>, immediately, by design.
-Write the script first, test it by hand with <code>echo '{}' | your-script</code>, then add the rule.</p>
+<p>A <code>run</code> rule with <code>match: { tool: bash }</code> and no script at the named path would block <em>every
+bash call in every session</em>, immediately, by design. Write the script first, test it by hand
+with <code>echo '{}' | your-script</code>, then add the rule. The only <code>run</code> rules that ship enabled are
+the two constraint rules below, and they name a script this repository ships and installs.</p>
 <p>The reasoning is on <a href="../../adr/0002-fail-open-guard-fail-closed-hooks/">ADR 0002</a>: a rule you wrote
 that silently stops applying <strong>is</strong> the bug.</p>
 </div>
 <p>Keep the script fast. It runs inside the tool call, and 5 seconds is the default ceiling — a script
 that phones an API is a script that will one day block your session because someone else's service was
 slow.</p>
+<hr />
+<h2 id="hard-constraints-constraintsjson">Hard constraints: <code>constraints.json</code><a class="headerlink" href="#hard-constraints-constraintsjson" title="Permanent link">&para;</a></h2>
+<p>The rule this makes true: <strong>a constraint written down as NEVER gets a hook; if it does not get a
+hook, it was a preference.</strong> Prose in <code>AGENTS.md</code>, in <code>SYSTEM.md</code> or in a project plan is advisory by
+construction. "Do not use LangChain in this POC" sits in a plan file, an agent adds the dependency
+anyway, and nothing objects, because the layer that could object knows about protected branches and
+credential paths, not about project decisions. That is safe behaviour encoded as a model habit
+rather than as system state, and habits are silent when they fail.</p>
+<p>Two rules ship enabled — <code>constraints-edit</code> and <code>constraints-write</code> — and both run
+<code>~/bin/pi-constraints-hook</code> (installed from <code>config/bin/</code>). The script reads two files and merges
+them, global first:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>~/.pi/agent/constraints.json</code> (i.e. <code>config/constraints.json</code>)</td>
+<td>ships <strong>empty on purpose</strong> — a global ban applies to every repository this harness opens</td>
+</tr>
+<tr>
+<td><code>&lt;project&gt;/.pi/constraints.json</code></td>
+<td>where NEVERs actually belong, because they are project decisions</td>
+</tr>
+</tbody>
+</table>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"constraints"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no-langchain"</span><span class="p">,</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">"pattern"</span><span class="p">:</span><span class="w"> </span><span class="s2">"\\b(?:import|from)\\s+langchain|langchain[_-]\\w+"</span><span class="p">,</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">"flags"</span><span class="p">:</span><span class="w"> </span><span class="s2">"i"</span><span class="p">,</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nt">"paths"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"\\.py$"</span><span class="p">],</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"This POC talks to the endpoint directly; LangChain was ruled out in docs/plan.md."</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p><code>pattern</code> is matched against <strong>only the text the call adds</strong> — <code>write.content</code>,
+<code>edit.edits[].newText</code> — never <code>oldText</code>. Matching removals would block the edit that <em>deletes</em> a
+banned import: a gate standing in the way of complying with itself. <code>paths</code> (optional) scopes the
+constraint to target paths one of its regexes matches, so the doc that quotes a banned string stays
+writable. A writing tool whose input shape the script does not recognise is scanned wholesale, minus
+the removal keys, rather than being silently exempt.</p>
+<p>The refusal names the file, the rule and the way out, verbatim:</p>
+<blockquote>
+<p>constraint "no-langchain" from /home/…/.pi/constraints.json, rule says: … The text this write
+adds to src/transport.py matches /…/i. <strong>Override path: none, ask the owner to change the
+constraint file in a commit.</strong></p>
+</blockquote>
+<p><strong>Fail-closed, with one door left open.</strong> An unparseable constraints file, or a constraint whose
+regex does not compile, <strong>denies</strong> rather than degrading to "no constraints" — a silently disarmed
+guard reads exactly like a satisfied one. The single exemption: a write to a constraints file itself
+is never blocked, neither by a broken file nor by a matching constraint, because the declared
+override path has to stay reachable. Without it, one bad regex locks you out of the only file that
+could fix it. Both files absent is the one true no-op.</p>
 <hr />
 <h2 id="where-the-file-lives-and-project-hooks">Where the file lives, and project hooks<a class="headerlink" href="#where-the-file-lives-and-project-hooks" title="Permanent link">&para;</a></h2>
 <table>
@@ -4734,8 +4817,8 @@ file — do not infer from "nothing blew up" that your rules are live.</p>
 </div>
 <hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pi<span class="w">                 </span><span class="c1"># restart — hooks compile at session start</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>/doctor<span class="w">            </span><span class="c1"># D-09 reports a degraded hook layer, and dropped-rule warnings</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pi<span class="w">                 </span><span class="c1"># restart — hooks compile at session start</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>/doctor<span class="w">            </span><span class="c1"># D-09 reports a degraded hook layer, and dropped-rule warnings</span>
 </span></code></pre></div>
 <p>Then trigger the rule deliberately. A hook you have never seen fire is a hook you have not tested.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>

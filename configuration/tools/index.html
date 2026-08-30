@@ -4607,7 +4607,19 @@ rule carries a comment saying exactly this, because it cost somebody the discove
 <p class="admonition-title">The <code>run</code> action fails closed too</p>
 <p>A <code>run</code> rule with <code>match: { tool: bash }</code> and no script yet in place blocks <strong>every</strong> bash call
 — by design, since a missing script fails closed. Wire one in only once the script exists at
-the path you name. That is why no <code>run</code> rule ships enabled.</p>
+the path you name. The two <code>constraints-*</code> rules are the only <code>run</code> rules that ship enabled,
+and they name <code>~/bin/pi-constraints-hook</code>, which the installer links from <code>config/bin/</code>.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title"><code>constraints-edit</code> and <code>constraints-write</code></p>
+<p>The two shipped <code>run</code> rules. They turn a constraint written as NEVER into something the harness
+enforces instead of something the model has to keep remembering: the script matches the text an
+<code>edit</code>/<code>write</code> <strong>adds</strong> against the patterns in <code>config/constraints.json</code> and
+<code>&lt;project&gt;/.pi/constraints.json</code>, and denies with that constraint's own reason. Both files
+absent is a no-op — the shipped global one carries an empty list, because a global ban would
+apply to every repository you open. Full mechanism, including the fail-closed rule and the one
+exemption that keeps the override path reachable, on
+<a href="../../extending/hooks/#hard-constraints-constraintsjson">Writing a hook</a>.</p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Why <code>preflight-before-remote-job</code> confirms instead of blocking</p>
@@ -4693,12 +4705,13 @@ correct.</p>
 <h3 id="web-searchjson"><code>web-search.json</code><a class="headerlink" href="#web-searchjson" title="Permanent link">&para;</a></h3>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="s2">"none"</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"searxngBaseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"webSearch"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">"ssrf"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"trustEnvProxy"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">"allowBrowserCookies"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">"toolNames"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"fetchContent"</span><span class="p">:</span><span class="w"> </span><span class="s2">"web_fetch"</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"workflow"</span><span class="p">:</span><span class="w"> </span><span class="s2">"none"</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"searxngBaseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">"webSearch"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">},</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">"ssrf"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"trustEnvProxy"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">"allowBrowserCookies"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">"toolNames"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"fetchContent"</span><span class="p">:</span><span class="w"> </span><span class="s2">"web_fetch"</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>This is the file the web package actually reads at runtime. It follows a <strong>foreign schema</strong> — it
 belongs to the package, not to us — which is why the two files exist and why
@@ -4718,6 +4731,11 @@ error, not silent drift.</p>
 <td><code>provider</code></td>
 <td><code>"none"</code></td>
 <td><code>searxng</code>, <code>tavily</code>, <code>brave</code>, <code>exa</code> or <code>none</code>. <strong>Change it in both files or the session refuses to start</strong></td>
+</tr>
+<tr>
+<td><code>workflow</code></td>
+<td><code>"none"</code></td>
+<td>The <strong>search curator</strong>. <code>"summary-review"</code> opens a localhost page per search where you pick results and approve a summary; <code>"auto-summary"</code> writes the summary without the page; <code>"none"</code> returns results directly. Pinned here because the package resolves <code>params.workflow ?? config.workflow</code> and only then falls back to <code>summary-review</code> — so an unpinned key means an unattended run opens a browser and waits for a human. <code>session_start</code> reports the key going missing; it does not care which value you pinned</td>
 </tr>
 <tr>
 <td><code>searxngBaseUrl</code></td>
