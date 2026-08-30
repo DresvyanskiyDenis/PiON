@@ -90,7 +90,7 @@ import {
   type ProviderAdmission,
 } from "./catalogue.ts";
 import { requestedLevel, splitThinkingSuffix } from "./thinking.ts";
-import { reorderResultContent } from "./failure-slot.ts";
+import { reorderResultContent, resolveFullOutputPointer } from "./failure-slot.ts";
 import { slimDispatchDetails } from "./result-slim.ts";
 import {
   createAsyncFleet,
@@ -258,8 +258,10 @@ export function register(pi: ExtensionAPI): void {
   //
   // The failure slot. `pi-subagents` hands the parent the child's WHOLE stderr tail as the run's
   // error text, so a classified provider abort ends up underneath whichever extension announced
-  // itself first at the child's session_start. This reorders that one text part — nothing is
-  // dropped, filtered or shortened; see `failure-slot.ts`.
+  // itself first at the child's session_start. This reorders that one text part, and bounds what
+  // follows the classified block to `failureOutputMaxLines`/`failureOutputMaxChars` — that tail is
+  // billed to the parent on every later turn of the session, and the elision names the file it can
+  // be read back from. The diagnosis itself is never shortened; see `failure-slot.ts`.
   //
   // The transcript slot. A detached or interrupted child slips past the package's own
   // `compactForegroundDetails` and carries its live `messages` array into `details`, which is
@@ -275,9 +277,18 @@ export function register(pi: ExtensionAPI): void {
   pi.on("tool_result", (event: ToolResultEvent) => {
     try {
       if (!state.settings.dispatch.dispatchTools.includes(event.toolName)) return undefined;
-      const content = reorderResultContent(event.content);
-      // `isError` is the runner's own verdict and is never restated: this handler reorders text and
-      // drops a transcript the child already wrote to disk, and neither re-judges the run.
+      // The pointer is read off `details` BEFORE `slimDispatchDetails` rewrites it, and it is what
+      // makes an elision permissible at all: with no file named, `reorderResultContent` keeps the
+      // remainder whole rather than cutting the only copy of it.
+      const cfg = state.settings.dispatch;
+      const content = reorderResultContent(
+        event.content,
+        { maxLines: cfg.failureOutputMaxLines, maxChars: cfg.failureOutputMaxChars },
+        resolveFullOutputPointer(event.details),
+      );
+      // `isError` is the runner's own verdict and is never restated: this handler reorders text,
+      // bounds a failed child's remaining output and drops a transcript the child already wrote to
+      // disk, and none of the three re-judges the run.
       // `details` is patched only when a child carried a droppable `messages` array — the async
       // run's own metadata (`asyncId`, `asyncDir`, which `noteAsyncSpawn` reads) and every other
       // field are copied through untouched.

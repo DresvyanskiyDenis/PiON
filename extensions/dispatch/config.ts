@@ -85,6 +85,20 @@ export interface DispatchConfig {
    * — and it refuses by name rather than quietly delivering less. Neither ever reroutes.
    */
   readonly onThinkingClamp: "warn" | "abort";
+  /**
+   * How many lines of a FAILED child's unclassified output reach the parent's context, and the
+   * character budget those lines share. `0` on either switches that bound off; `0` on both restores
+   * the old behaviour of forwarding the tail whole.
+   *
+   * They exist because `pi-subagents` makes the child's ENTIRE captured output the run's error text
+   * (`runs/foreground/execution.ts:1372-1379`), and that text lands in the tool result's `content`
+   * — the one field of a result a provider serialiser actually sends. A single failed dispatch
+   * therefore used to buy the parent every startup notice the child emitted, on every later turn of
+   * the session. `extensions/dispatch/failure-slot.ts` applies them, never to the classified
+   * provider-failure block and never at all when the result named no file to point at.
+   */
+  readonly failureOutputMaxLines: number;
+  readonly failureOutputMaxChars: number;
 }
 
 export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
@@ -99,6 +113,8 @@ export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
   genericAgents: ["general-purpose", "general", "generalist"],
   specialistMatchMinScore: 2,
   onThinkingClamp: "warn",
+  failureOutputMaxLines: 20,
+  failureOutputMaxChars: 2_000,
 };
 
 export interface DispatchSettings {
@@ -251,6 +267,8 @@ function parseDispatchConfig(raw: Record<string, unknown> | undefined, problems:
     genericAgents: strArray(raw, "genericAgents", d.genericAgents, problems),
     specialistMatchMinScore: num(raw, "specialistMatchMinScore", d.specialistMatchMinScore, problems, 1),
     onThinkingClamp,
+    failureOutputMaxLines: num(raw, "failureOutputMaxLines", d.failureOutputMaxLines, problems, 0),
+    failureOutputMaxChars: num(raw, "failureOutputMaxChars", d.failureOutputMaxChars, problems, 0),
   };
 }
 
