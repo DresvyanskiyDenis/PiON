@@ -1255,6 +1255,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#prompt-cache-keys-through-a-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt cache keys through a proxy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prompt cache keys through a proxy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#patching-the-runtime-and-the-copy-nobody-patches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patching the runtime, and the copy nobody patches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-pinning-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pinning test
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#egress-describes-where-the-bytes-end-up" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4388,6 +4427,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#prompt-cache-keys-through-a-proxy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt cache keys through a proxy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prompt cache keys through a proxy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#patching-the-runtime-and-the-copy-nobody-patches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patching the runtime, and the copy nobody patches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-pinning-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The pinning test
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#egress-describes-where-the-bytes-end-up" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4516,7 +4594,7 @@ probe — is <em>useful</em> knowledge about LiteLLM, and none of it is a reason
 deployment.</p>
 <hr />
 <h2 id="the-interview">The interview<a class="headerlink" href="#the-interview" title="Permanent link">&para;</a></h2>
-<p>Twelve questions for one model, plus eight more if you configure a second. Five of each set are the
+<p>Thirteen questions for one model, plus eight more if you configure a second. Five of each set are the
 price, and four of those five are asked only if you answer <code>metered</code>.</p>
 <table>
 <thead>
@@ -4549,51 +4627,56 @@ price, and four of those five are asked only if you answer <code>metered</code>.
 </tr>
 <tr>
 <td>5</td>
+<td>Does this proxy partition its prompt cache by <code>prompt_cache_key</code>?</td>
+<td>Default <code>false</code>, and <strong>inert on an unpatched runtime</strong>. See <a href="#prompt-cache-keys-through-a-proxy">prompt cache keys</a></td>
+</tr>
+<tr>
+<td>6</td>
 <td>Model id, exactly as the proxy serves it</td>
 <td><code>model_name</code> from the call above. Suggested for the <code>strong</code> tier</td>
 </tr>
 <tr>
-<td>6</td>
+<td>7</td>
 <td>Context window for that model</td>
 <td><code>min(200000, max_input_tokens)</code></td>
 </tr>
 <tr>
-<td>7</td>
+<td>8</td>
 <td>Does that model take a <code>reasoning_effort</code>?</td>
 <td>Default <code>false</code>. See <a href="#thinking-levels">thinking</a></td>
 </tr>
 <tr>
-<td>8</td>
+<td>9</td>
 <td>How is that model billed?</td>
 <td><code>metered</code> or <code>unmetered</code>. <strong>No default</strong> — an unstated price is refused by name rather than composed as a zero. See <a href="#price-is-asked-not-guessed">price</a></td>
 </tr>
 <tr>
-<td>9-12</td>
+<td>10-13</td>
 <td>Its input, output, cached-input and cache-write rates</td>
 <td>Only asked if you said <code>metered</code>. <strong>Dollars per million tokens</strong>: <code>input_cost_per_token</code> from the call above <strong>× 1 000 000</strong>. The two cache rates default to <code>0</code></td>
 </tr>
 <tr>
-<td>13</td>
+<td>14</td>
 <td>A second model id, or blank</td>
 <td>Suggested for the <code>light</code> tier</td>
 </tr>
 <tr>
-<td>14</td>
+<td>15</td>
 <td>Context window for the second model</td>
 <td>Only asked if you gave one</td>
 </tr>
 <tr>
-<td>15</td>
+<td>16</td>
 <td>Does the second model take a <code>reasoning_effort</code>?</td>
 <td>Only asked if you gave one</td>
 </tr>
 <tr>
-<td>16</td>
+<td>17</td>
 <td>How is the second model billed?</td>
 <td>Only asked if you gave one. Asked separately because the light tier is frequently the cheap alias, and sometimes the free one</td>
 </tr>
 <tr>
-<td>17-20</td>
+<td>18-21</td>
 <td>Its four rates</td>
 <td>Only asked if you said <code>metered</code> for it</td>
 </tr>
@@ -4678,6 +4761,11 @@ deliberately. Every row names the file it came from, so you can check it rather 
 <td><code>false</code></td>
 <td>Depends on the model behind the id, not on LiteLLM. Under-declaring costs nothing: the turn is sent with a <code>system</code> message instead</td>
 </tr>
+<tr>
+<td><code>supportsPromptCacheKey</code></td>
+<td><em>your answer</em></td>
+<td>The one key here that states a fact about <strong>your gateway</strong> rather than about LiteLLM, so it is asked. Written only when you answer yes; a no deletes the key rather than writing <code>false</code>. See <a href="#prompt-cache-keys-through-a-proxy">below</a></td>
+</tr>
 </tbody>
 </table>
 <p><code>supportsStrictMode</code> and <code>cacheControlFormat</code> are deliberately left unset — both depend on the model
@@ -4703,6 +4791,108 @@ usage block back out; no such code exists in litellm 1.89.7 and the symbol it na
 nowhere. The flag was right, the mechanism was invented.</p>
 </div>
 <hr />
+<h2 id="prompt-cache-keys-through-a-proxy">Prompt cache keys through a proxy<a class="headerlink" href="#prompt-cache-keys-through-a-proxy" title="Permanent link">&para;</a></h2>
+<p>A gateway in front of Azure OpenAI or another OpenAI-compatible backend may partition its prompt
+cache by the client-sent <strong><code>prompt_cache_key</code></strong>. Without one, every session of every client shares a
+single partition and evicts the others: the cache does not error, it just never hits, and the only
+symptom is a bill that never falls.</p>
+<p><strong>PI does not send one through a proxy.</strong> <code>pi-ai</code> builds the field under exactly two conditions
+(<code>dist/api/openai-completions.js:523-527</code> in 0.84.0):</p>
+<div class="language-js highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">prompt_cache_key</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">model</span><span class="p">.</span><span class="nx">baseUrl</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s2">"api.openai.com"</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">cacheRetention</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s2">"none"</span><span class="p">)</span><span class="w"> </span><span class="o">||</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="p">(</span><span class="nx">cacheRetention</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">"long"</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">compat</span><span class="p">.</span><span class="nx">supportsLongCacheRetention</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="o">?</span><span class="w"> </span><span class="nx">clampOpenAIPromptCacheKey</span><span class="p">(</span><span class="nx">options</span><span class="o">?</span><span class="p">.</span><span class="nx">sessionId</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="o">:</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nx">prompt_cache_retention</span><span class="o">:</span><span class="w"> </span><span class="nx">cacheRetention</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">"long"</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">compat</span><span class="p">.</span><span class="nx">supportsLongCacheRetention</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s2">"24h"</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kc">undefined</span><span class="p">,</span>
+</span></code></pre></div>
+<p>Read that against a gateway. Your <code>baseUrl</code> is the proxy's, so the first branch can never fire. The
+second one can — and it is not a workaround, because the <em>same</em> condition on the next line also sends
+<code>prompt_cache_retention: "24h"</code>. You would be buying a cache key at the price of a retention request
+your gateway may answer <strong>400</strong> to, and asking for 24-hour retention of your prompts on somebody
+else's infrastructure is a different decision than asking it to partition a cache.</p>
+<p>So the fragment asks the deployment question separately, and writes a <strong>third, independent gate</strong>:</p>
+<div class="language-json highlight"><span class="filename">config/models.json, if you answered yes</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"compat"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"…"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"supportsPromptCacheKey"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>Answer <strong>no</strong> — the default — and the key is <em>deleted</em>, not written as <code>false</code>: a fragment token that
+resolves to <code>null</code> removes the key it sits in (<code>config/providers/README.md</code> §3 rule 3), so a
+default install's <code>models.json</code> is unchanged from before the question existed, and an answers file
+written before it existed still resolves.</p>
+<div class="admonition danger">
+<p class="admonition-title">The flag is not in <code>pi-ai</code> 0.84.0. Answering yes changes nothing on its own.</p>
+<p><code>supportsPromptCacheKey</code> is a <strong>patch</strong>, not a feature. The shipped runtime has no such
+condition and ignores the key, so a yes with an unpatched runtime is a declaration in your config
+and no change on the wire — the same silent nothing the flag exists to fix. This repository ships
+no patch. What follows is how to make one, and what it costs.</p>
+</div>
+<h3 id="patching-the-runtime-and-the-copy-nobody-patches">Patching the runtime, and the copy nobody patches<a class="headerlink" href="#patching-the-runtime-and-the-copy-nobody-patches" title="Permanent link">&para;</a></h3>
+<p>The patch itself is three lines: add <code>compat.supportsPromptCacheKey</code> as a third disjunct on the
+<code>prompt_cache_key</code> expression above, and <strong>leave <code>prompt_cache_retention</code> alone</strong>. Keeping the two
+independent is the whole point; a patch that reuses the long-retention branch reintroduces the 400.</p>
+<p><a href="https://www.npmjs.com/package/patch-package"><code>patch-package</code></a> is the right tool for generating and
+naming the diff. Two facts about <em>this</em> tree change how you use it.</p>
+<p><strong>1. npm installs <code>pi-ai</code> twice, and the second copy is the one that runs.</strong>
+<code>@earendil-works/pi-coding-agent</code> declares its own dependency on <code>@earendil-works/pi-ai</code>, and npm
+leaves a nested copy under it even when the versions match:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>find<span class="w"> </span>.<span class="w"> </span>-path<span class="w"> </span><span class="s1">'*@earendil-works/pi-ai/package.json'</span><span class="w"> </span>-not<span class="w"> </span>-path<span class="w"> </span><span class="s1">'*/dist/*'</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># node_modules/@earendil-works/pi-ai/package.json</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/package.json</span>
+</span></code></pre></div>
+<p>A patch named for the package alone — <code>@earendil-works+pi-ai+&lt;version&gt;.patch</code> — lands on the
+<strong>top-level</strong> copy only. That copy is what <code>tsc</code> reads for types; the nested one is what the agent
+loads to build a request. Patch the first and the gates stay green, the diff looks applied, and the
+wire is unchanged. Name the nesting explicitly instead:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># generate: the path you pass is the nesting, and the filename it writes records it</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>npx<span class="w"> </span>patch-package<span class="w"> </span>@earendil-works/pi-coding-agent/@earendil-works/pi-ai
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># -&gt; patches/@earendil-works+pi-coding-agent++@earendil-works+pi-ai+&lt;version&gt;.patch</span>
+</span></code></pre></div>
+<p>The <code>++</code> between the two package names is what makes the patch resolve into the nested tree. Read the
+filename the command actually writes rather than typing it from here: it is the authority, and it
+carries the version, so an upgrade renames it and a stale patch stops applying instead of applying to
+the wrong source.</p>
+<p><strong>2. <code>postinstall</code> will not run it.</strong> The usual <code>"postinstall": "patch-package"</code> wiring is
+unavailable here: <code>scripts/install.sh</code> runs <code>npm install --ignore-scripts</code>, and says so as a
+property — <em>"no piped shells; npm is always <code>--ignore-scripts</code>"</em>. Dropping that flag to gain a patch
+hook trades a supply-chain guarantee for a convenience. Apply the patch as an explicit, visible step
+instead — <code>npx patch-package</code> with no arguments, or <code>git apply patches/&lt;file&gt;</code> — and remember that
+<strong>every <code>npm install</code> and every runtime update reverts it</strong>. It is a re-applied edit, not an
+installed one.</p>
+<p><strong>Patch the copy that serves your turns.</strong> Which one that is depends on how PI was installed
+(<a href="../../getting-started/install/#the-pi-runtime-itself">install modes</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Install mode</th>
+<th>What runs your turns</th>
+<th>Can <code>patch-package</code> reach it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--mode npm</code></td>
+<td>the global package under <code>$(npm root -g)/@earendil-works/pi-coding-agent</code>, with its own nested <code>pi-ai</code></td>
+<td>Yes, but the patch has to be applied <em>there</em>, not in this checkout</td>
+</tr>
+<tr>
+<td><code>--mode binary</code> (the default)</td>
+<td>an unpacked release archive under <code>~/.local/share/pi-config/runtime/&lt;version&gt;/</code> with its modules beside it</td>
+<td>No — there is no package tree to run <code>patch-package</code> against. Edit in place after each update, or switch to <code>--mode npm</code></td>
+</tr>
+</tbody>
+</table>
+<p>This checkout's own <code>node_modules</code> is a <strong>development</strong> dependency: it is what <code>npm run typecheck</code>
+and the test suite read. Patching it makes the flag typecheck, and does not make it send anything.</p>
+<p>Verify rather than assume — the fragment ships this as its last <code>verify</code> line:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>grep<span class="w"> </span>-rl<span class="w"> </span>supportsPromptCacheKey<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>npm<span class="w"> </span>root<span class="w"> </span>-g<span class="k">)</span><span class="s2">/@earendil-works"</span><span class="w"> </span>~/.local/share/pi-config/runtime<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'no installed copy reads it: the flag is inert'</span>
+</span></code></pre></div>
+<h3 id="the-pinning-test">The pinning test<a class="headerlink" href="#the-pinning-test" title="Permanent link">&para;</a></h3>
+<p><code>test/providers-prompt-cache-key.test.ts</code> walks <code>node_modules</code> for <strong>every</strong> copy of <code>pi-ai</code> and
+holds each one to the same two statements: <code>prompt_cache_key</code> is still gated on <code>api.openai.com</code> or
+<code>supportsLongCacheRetention</code>, and no copy reads <code>supportsPromptCacheKey</code>.</p>
+<p>It fails in both directions on purpose. If upstream adopts the flag, the patch is redundant and this
+section is wrong — that should be read, not absorbed. If a tree is patched, it fails until <em>every</em>
+copy is patched, which is exactly the half-applied state that otherwise produces a green suite and an
+unchanged request.</p>
+<hr />
 <h2 id="egress-describes-where-the-bytes-end-up"><code>egress</code> describes where the bytes end up<a class="headerlink" href="#egress-describes-where-the-bytes-end-up" title="Permanent link">&para;</a></h2>
 <p>Not who owns the first hop. A proxy your own company runs that fans out to a third-party vendor API
 is <strong><code>public</code></strong>: the class is a declaration about the destination, and it is what lets the
@@ -4717,9 +4907,9 @@ shows a flat <code>0.000</code> spend while really costing money.</p>
 <p>The fragment cannot state the price, because the price behind a proxy is whatever that deployment's
 operator configured rather than the vendor's list price. So it asks, per model, and writes your
 answer into <code>config/models.json</code> before the first request. Two answers exist and there is no third:</p>
-<div class="language-json highlight"><span class="filename">metered — the four rates</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.25</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><span class="filename">metered — the four rates</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.25</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<div class="language-json highlight"><span class="filename">unmetered — this alias is not billed by the token</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+<div class="language-json highlight"><span class="filename">unmetered — this alias is not billed by the token</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">"cost"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"input"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheRead"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"cacheWrite"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
 <p>The second is a decision, not a gap: written down, it satisfies <code>bin/pi-check</code>'s <code>PC-27</code> and
 <a href="../../extensions/cost-gate/"><code>cost-gate</code></a> permanently. An omitted <code>cost</code> satisfies neither — it is
@@ -4743,21 +4933,25 @@ adding matching rows to <code>egress</code> and <code>concurrency</code> in <cod
 <p>The installer writes these into <code>~/.pi/agent/provider-notes.md</code> with your base URL and credential
 variable already substituted in, and names that file in its closing list of manual steps. It does
 not run them: they need a credential collected later and a reachable endpoint.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># the proxy answers, and these are the ids it will serve you</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/model/info"</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[] | [.model_name, .model_info.max_input_tokens] | @tsv'</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># PI sees the provider as configured</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>pi<span class="w"> </span>--list-models<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'^litellm/'</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># reasoning_effort is accepted (expect 200; a 400 means answer `false` to the reasoning question)</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s1">'%{http_code}\n'</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"model":"&lt;id&gt;","messages":[{"role":"user","content":"hi"}],"max_tokens":8,"reasoning_effort":"low"}'</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/chat/completions"</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c1"># one real turn</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span>litellm/&lt;id&gt;
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># the proxy answers, and these are the ids it will serve you</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/model/info"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.data[] | [.model_name, .model_info.max_input_tokens] | @tsv'</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># PI sees the provider as configured</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>pi<span class="w"> </span>--list-models<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'^litellm/'</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="c1"># reasoning_effort is accepted (expect 200; a 400 means answer `false` to the reasoning question)</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>curl<span class="w"> </span>-sS<span class="w"> </span>-o<span class="w"> </span>/dev/null<span class="w"> </span>-w<span class="w"> </span><span class="s1">'%{http_code}\n'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$LITELLM_API_KEY</span><span class="s2">"</span><span class="w"> </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"model":"&lt;id&gt;","messages":[{"role":"user","content":"hi"}],"max_tokens":8,"reasoning_effort":"low"}'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$BASE_URL</span><span class="s2">/chat/completions"</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># one real turn</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>pi<span class="w"> </span>-p<span class="w"> </span><span class="s1">'reply with OK'</span><span class="w"> </span>--model<span class="w"> </span>litellm/&lt;id&gt;
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="c1"># whether the runtime that serves your turns reads supportsPromptCacheKey (a stock pi-ai does not)</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>grep<span class="w"> </span>-rl<span class="w"> </span>supportsPromptCacheKey<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>npm<span class="w"> </span>root<span class="w"> </span>-g<span class="k">)</span><span class="s2">/@earendil-works"</span><span class="w"> </span>~/.local/share/pi-config/runtime<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s1">'no installed copy reads it: the flag is inert'</span>
 </span></code></pre></div>
 <p>A <strong>429</strong> is your key's budget, not an outage: LiteLLM enforces rpm/tpm and <code>max_budget</code> per virtual
 key. Lower the concurrency answer or ask for a larger budget — retrying harder makes it worse.</p>
