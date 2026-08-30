@@ -9,5 +9,7 @@
   "dispatchTools": ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
   "genericAgents": ["general-purpose", "general", "generalist"],
   "specialistMatchMinScore": 2,
-  "onThinkingClamp": "warn"
+  "onThinkingClamp": "warn",
+  "failureOutputMaxLines": 20,
+  "failureOutputMaxChars": 2000
 }

@@ -23,7 +23,9 @@ Markdown files with YAML frontmatter, one per agent, in `agents/`.
   "dispatchTools": ["subagent", "subagent_run", "dispatch_agent", "task", "agent"],
   "genericAgents": ["general-purpose", "general", "generalist"],
   "specialistMatchMinScore": 2,
-  "onThinkingClamp": "warn"
+  "onThinkingClamp": "warn",
+  "failureOutputMaxLines": 20,
+  "failureOutputMaxChars": 2000
 }
 ```
 
@@ -239,6 +241,59 @@ the audit record carries both.
     If the registry does not know the model, nothing is reported and nothing is rewritten. "Cannot
     say" must not render as "no clamp will happen" — check `thinkingLevelMap` for a model you added
     by hand.
+
+---
+
+## `failureOutputMaxLines` and `failureOutputMaxChars` — how much of a dead child you pay for { #failureoutput }
+
+```json
+"failureOutputMaxLines": 20,
+"failureOutputMaxChars": 2000
+```
+
+When a dispatched child dies, `pi-subagents` makes its **entire captured output** the run's error
+text, and a headless child announces on stderr — so the error text you get back is every startup
+notice, every extension announcement and every debug line the child emitted, with the actual cause
+somewhere inside it. That text becomes the tool result's `content`, which is the one field of a
+result that is serialised to the provider. It is not a one-off cost: the result stays in the
+transcript, so the parent re-sends the whole dead child's console on **every later turn of the
+session**.
+
+These two keys bound what survives into that context. Ships **20 lines / 2000 characters**,
+whichever binds first, always cutting on a line boundary. What is left says how many lines went and
+names the file that still holds all of them:
+
+```
+--- the run's output, first 20 of 60 line(s), startup notices included ---
+…
+... (40 more line(s) elided — full output at /runs/<id>/output-0.log)
+```
+
+Three things are **never** bounded, and they are the reason this is a bound and not a filter:
+
+| Never bounded | Why |
+|---|---|
+| The classified provider-failure block | It is the part that says what went wrong. It is already a fixed field set, and shortening a diagnosis to save tokens is the silent substitution this repo refuses everywhere else |
+| Anything at all, when the result named no file | With nowhere to read the rest, a cut cannot be undone — that is suppression, not a reference. The tail is forwarded whole, whatever these keys say |
+| A successful run's output | This path only runs on a failure that carried a classified block |
+
+The file named in the elision is chosen by **what it actually contains**, most exact first: the
+run's metadata artifact, whose `error` field is this very text; then the async run's own
+`output-0.log`, which is where the startup notices came from (with several children the run
+directory is named instead, because the failing step's index cannot be derived from the result and a
+confidently wrong path is worse than a directory); then the child's transcript, labelled as a
+transcript because it does *not* carry the stderr tail.
+
+**Who would change it:** raise both if you debug failing children by reading the parent's context
+rather than the run directory. Set **either to `0`** to switch that one bound off — a line count
+alone does not bound bytes, since one JSON blob is one line of any size, and a character count alone
+would cut mid-line. Set **both to `0`** to forward the whole tail again, which is what this repo did
+before the bound existed.
+
+**What breaks if you get it wrong:** too small and the useful first lines of a crash go with the
+noise — the cause is still in the classified block, but the context around it is a file away. Too
+large, or `0`, and one dead subagent quietly raises the price of every remaining turn in the
+session.
 
 ---
 
