@@ -159,7 +159,10 @@ describe("what config cannot say to pi-subagents 0.57.0", () => {
     // A progress ping with no question still ends a blocking wait, and every spurious wake is a
     // full cache miss. The default comes from injected deps, and the only injector is the package's
     // own auto-drain. Patching node_modules would be inert anyway — the installed tree is what
-    // runs, and PC-21 keeps it unmodified — so this is documented rather than worked around.
+    // runs, and PC-21 keeps it unmodified — so the harness writes the value onto the call instead,
+    // from the `DSP-WAIT` rule in `extensions/dispatch/wait-attention.ts`. These assertions stay:
+    // they are what says that workaround is still needed and still correct, and the day one of
+    // them fails, a real key exists and the workaround can be deleted.
     assert.match(
       SUBAGENT_WAIT,
       /const stopOnAttention = params\.stopOnAttention \?\? deps\.stopOnAttention !== false;/,
@@ -187,7 +190,7 @@ describe("what config cannot say to pi-subagents 0.57.0", () => {
     assert.match(
       read(`${PKG}/runs/background/wait-tool.ts`),
       /\{ stopOnAttention: false \} .{0,20}for blocking waits only/,
-      "the wait tool stopped advertising the per-call override that the docs tell a lead to use",
+      "the wait tool stopped advertising the per-call override that DSP-WAIT writes for the lead",
     );
   });
 });

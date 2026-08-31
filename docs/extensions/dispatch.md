@@ -340,6 +340,36 @@ Logging cannot fail a dispatch. The write swallows its own failures by contract,
 lookup that precedes it is wrapped, so an unwritable index degrades the event log and leaves the
 verdict and the arguments exactly as they were.
 
+## A blocking wait does not wake on heartbeats
+
+`subagent_wait` is the one tool in `dispatch`'s rule set that dispatches nothing: it blocks. The
+`DSP-WAIT` rule fires on it, writes `stopOnAttention: false` onto a blocking call that did not name
+the flag, and never blocks or refuses.
+
+The reason is that `pi-subagents` resolves the flag as
+`params.stopOnAttention ?? deps.stopOnAttention !== false`, so an omitted parameter means **true**
+and the wait ends on *any* `needs_attention` run. Two of the three producers of that state are
+heuristics rather than questions: idle beyond 60 s (scaled ×2/×5/×10 for medium/high/xhigh thinking)
+and one tool call open for 240 s or more. A child thinking hard, or four minutes into one `bash`, is
+not asking the lead anything, and each of those wakes costs the lead a full re-read of its context
+at cache-miss price.
+
+Nothing is lost by lowering it. The genuine ask, a pending `contact_supervisor`/intercom request, is
+checked *independently* of the flag (`isDone()` reads `stopOnAttention || hasSupervisorTool(run)`),
+and terminal states and the timeout are separate branches of the same predicate.
+
+It is a call rewrite and not a key because the package exposes no key: the wait tool's own config
+resolves to `{ enabled }` and nothing else, and `subagents.watchdog` is a strict parser that rejects
+unknown fields. The only injector of the dep is the package's internal auto-drain, which passes
+`false` — upstream agrees with the value, it just does not expose it. Patching `node_modules` is not
+the alternative; `PC-21` keeps the vendored tree unmodified and the installed tree is what runs.
+
+- An explicit `stopOnAttention` on the call always wins, in either direction.
+- A `nonBlocking: true` subscription is left alone: it returns before the flag is read.
+- `waitStopOnAttention: true` in `dispatch.json` restores the package default by writing nothing.
+- The first rewritten wait of a session announces the changed semantics once, because the package's
+  own tool description still advertises the opposite.
+
 ## Where the semaphore cannot reach
 
 Documented honestly in `extensions/dispatch/concurrency.ts`: there is no extension-visible hook

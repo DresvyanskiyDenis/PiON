@@ -37,7 +37,16 @@
       "model-not-found",
       "policy",
       "empty-response"
-    ]
+    ],
+    "retry": {
+      "classes": ["network", "empty-response"],
+      "maxAttempts": 1,
+      "onEmpty": {
+        "strategy": "vary",
+        "thinkingLevel": "low",
+        "maxExtraAttempts": 0
+      }
+    }
   },
 
   "compaction": {

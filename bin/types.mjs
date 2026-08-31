@@ -11,6 +11,14 @@
  * @property {string} file    - path to the offending file, relative to the scanned repo root
  * @property {number} [line]  - 1-indexed line number, when the finding is line-addressable
  * @property {string} message - human-readable description, greppable, no secrets ever included
+ * @property {"error" | "warn"} [severity]
+ *   Absent means `"error"` — the original and overwhelmingly common case, so it stays the
+ *   default rather than becoming a field every rule has to remember. `"warn"` is reported and
+ *   counted separately and does NOT set a non-zero exit code: it is for a configuration that is
+ *   legal, loads, and is nonetheless known to buy nothing (PC-31's identical `empty-response`
+ *   retry is the first). A rule that can prove the tree is wrong emits an error; a rule that can
+ *   only say "this will not do what you think" emits a warning, and blocking CI on the second
+ *   kind is how a gate gets turned off, taking every real finding with it.
  */
 
 /**

@@ -410,7 +410,7 @@ model — that is `bin/pi-run`'s job (recipe 22), not the guard's.
 ### 24. Check the install is still coherent
 
 ```bash
-~/pi-config/bin/pi-check --all        # 30 repository invariants
+~/pi-config/bin/pi-check --all        # 31 repository invariants
 ./scripts/postinstall-verify.sh       # the install itself
 /doctor                               # inside pi: modules loaded vs expected-but-absent
 ```

@@ -68,6 +68,12 @@ turns a two-second diagnosis into a two-minute one.
     fallback chain, and the abort is still where all six classes end up.
     [Reference](../configuration/routing.md#retry-the-two-classes-that-are-weather-not-a-verdict).
 
+    Amended again for one of the two: an `empty-response` retry may now vary the **reasoning
+    effort** it is issued at (`retry.onEmpty`), because the class was measured to correlate with
+    the route and an identical resend to a route that just failed recovers least often. Still the
+    same provider, still the same model — the one thing that may differ is a request parameter, not
+    a destination. [Reference](../configuration/routing.md#onempty-what-the-retry-is-allowed-to-change).
+
 !!! note "Amended — compaction has a route, and the working path still does not"
     This decision was written about the path that produces the **work**, and it is unchanged there.
     It was also being applied, by inheritance, to a path it was never argued for: **compaction**.

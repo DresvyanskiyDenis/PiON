@@ -165,9 +165,10 @@ describe("rule set shape", () => {
       // DSP-EGRESS sat between DSP-DEPTH and DSP-CONTRACT until 2026-08-13; it refused a call-time
       // `model` override whose provider was classed looser than the session, which is exactly the
       // switch a session has to be able to make. Withdrawn whole.
-      // DSP-SCHEMA is last on purpose: it only ever rewrites, so nothing that can refuse the call
-      // runs after it.
-      ["DSP-READY", "DSP-DEPTH", "DSP-CONTRACT", "DSP-AGENT", "DSP-RESOLVE", "DSP-SCHEMA"],
+      // DSP-SCHEMA and DSP-WAIT are last on purpose: both only ever rewrite, so nothing that can
+      // refuse the call runs after them. DSP-WAIT is also the only rule here that fires on a tool
+      // which dispatches nothing — every rule above it returns immediately for `subagent_wait`.
+      ["DSP-READY", "DSP-DEPTH", "DSP-CONTRACT", "DSP-AGENT", "DSP-RESOLVE", "DSP-SCHEMA", "DSP-WAIT"],
     );
   });
 
@@ -466,6 +467,37 @@ describe("DSP-SCHEMA", () => {
     };
     assert.equal(await run(rules(stateOf()), eventOf("bash", input)), undefined);
     assert.deepEqual(input.outputSchema, { type: "object", additionalProperties: false });
+  });
+});
+
+describe("DSP-WAIT", () => {
+  it("ACCEPTANCE: a bare blocking wait stops waking the lead on heartbeats", async () => {
+    const input: Record<string, unknown> = {};
+    assert.equal(await run(rules(stateOf()), eventOf("subagent_wait", input)), undefined, "never blocks");
+    assert.deepEqual(input, { stopOnAttention: false });
+  });
+
+  it("honours an explicit stopOnAttention: true", async () => {
+    const input: Record<string, unknown> = { all: true, stopOnAttention: true };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent_wait", input)), undefined);
+    assert.deepEqual(input, { all: true, stopOnAttention: true });
+  });
+
+  it("touches no tool outside waitTools — the dispatch tools included", async () => {
+    // `subagent` blocks on nothing and has no such parameter; writing one would be an argument
+    // pi-subagents' own schema does not admit.
+    const input: Record<string, unknown> = { agent: "scout", prompt: "x" };
+    assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+    assert.equal(input.stopOnAttention, undefined);
+  });
+
+  it("announces the changed default once, not on every wait", async () => {
+    resetSurfaced();
+    const { ctx, notices } = capturingCtx();
+    for (const _ of [0, 1, 2]) await run(rules(stateOf()), eventOf("subagent_wait", {}), ctx);
+    assert.equal(notices.length, 1, `announced ${notices.length} times`);
+    assert.match(notices[0] ?? "", /stopOnAttention to false/);
+    assert.match(notices[0] ?? "", /supervisor\/contact request/);
   });
 });
 
