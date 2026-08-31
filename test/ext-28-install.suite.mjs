@@ -97,7 +97,10 @@ function makeRepoSkeleton() {
   writeFileSync(join(repo, "config", "mcp.json"), JSON.stringify({ mcpServers: {} }, null, 2) + "\n");
   writeFileSync(join(repo, "config", "web.json"), "{}\n");
   writeFileSync(join(repo, "config", "web-search.json"), "{}\n");
-  writeFileSync(join(repo, "config", "hooks.yaml"), "hooks: []\n");
+  writeFileSync(join(repo, "config", "hooks.yaml"), "version: 1\nrules: []\n");
+  // The gate the installer links by DEFAULT — required, not optional, since guardrails-off is the
+  // default posture and E18 fires on its absence exactly as it would for the rule set.
+  writeFileSync(join(repo, "config", "hooks-off.yaml"), "version: 1\nrules: []\n");
   // The provider templates the installer reads before it links anything (scripts/lib/providers.mjs)
   // and the tracked `config/*.default.json` it generates every config file FROM. Symlinked to the
   // real ones rather than stubbed: their schema is the installer's own, a hand-written stub drifts
@@ -688,6 +691,73 @@ describe("the installer schedules the update check", () => {
       readFileSync(join(on.repo, "config", "auto-update.json"), "utf8").includes('"enabled": false'),
       true,
       "the preference file still says enabled",
+    );
+  });
+});
+
+// =========================================================================================
+// install.sh — the hook gate: guardrails are opt-in
+// =========================================================================================
+
+describe("the installer links the hook gate the operator asked for", () => {
+  const platform = platformAsset();
+
+  /** A real (not --dry-run) offline install into a throwaway $HOME. */
+  function offlineInstall(fixtureHome, extraArgs = []) {
+    const repo = makeRepoSkeleton();
+    const stageDir = freshDir("ext28-offline-hooks-");
+    const { sha256 } = stageFakePiTarball(stageDir, platform);
+    writeLock(repo, { platform, sha256 });
+    const run = (...args) =>
+      runScript(
+        join(repo, "scripts", "install.sh"),
+        ["--mode", "binary", "--offline", "--offline-dir", stageDir, "--yes", ...extraArgs, ...args],
+        baseEnv(fixtureHome),
+      );
+    return { repo, run };
+  }
+
+  const gate = (fixtureHome, name) => join(fixtureHome, "pi-config", "config", name);
+
+  test("by default: the empty gate is linked, and no rule can block anything", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const { run } = offlineInstall(fixtureHome);
+    const res = run();
+    assert.equal(res.status, 0, `install failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.equal(
+      readlinkSync(join(fixtureHome, ".pi", "agent", "hooks.yaml")),
+      gate(fixtureHome, "hooks-off.yaml"),
+      "a fresh install armed the guardrails without being asked",
+    );
+    assert.match(res.stdout, /guardrails OFF/);
+  });
+
+  test("--with-guardrails: the rule set is linked instead", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const { run } = offlineInstall(fixtureHome, ["--with-guardrails"]);
+    const res = run();
+    assert.equal(res.status, 0, `install failed:\nSTDOUT:${res.stdout}\nSTDERR:${res.stderr}`);
+    assert.equal(
+      readlinkSync(join(fixtureHome, ".pi", "agent", "hooks.yaml")),
+      gate(fixtureHome, "hooks.yaml"),
+      "the opt-in flag did not link the rule set",
+    );
+    assert.match(res.stdout, /guardrails ON/);
+  });
+
+  // The flag would be a trap if the next --repair silently reversed it: a machine deliberately
+  // running with the guardrails armed must not have them disarmed by a maintenance command.
+  test("the opt-in survives a later run that does not repeat the flag", () => {
+    const fixtureHome = freshDir("ext28-home-");
+    const { run } = offlineInstall(fixtureHome, ["--with-guardrails"]);
+    assert.equal(run().status, 0);
+
+    const again = run("--repair");
+    assert.equal(again.status, 0, `--repair failed:\nSTDOUT:${again.stdout}\nSTDERR:${again.stderr}`);
+    assert.equal(
+      readlinkSync(join(fixtureHome, ".pi", "agent", "hooks.yaml")),
+      gate(fixtureHome, "hooks.yaml"),
+      "--repair disarmed guardrails the operator had opted into",
     );
   });
 });
