@@ -67,7 +67,8 @@ import { createFleetWidget } from "./fleet-widget.ts";
 import { applyMaxDepthEnv, currentDepth, evaluateDepth } from "./depth.ts";
 import { capFor, clampConcurrency, isFanoutCall } from "./concurrency.ts";
 import { ProviderSemaphoreSet } from "./semaphore.ts";
-import { applyIsolation } from "./isolation.ts";
+import { applyChildrenIsolation, applyIsolation } from "./isolation.ts";
+import { dispatchChildren, distinctAgents } from "./call-children.ts";
 import { loadAgentRegistry, renderRegistry, type AgentDef, type AgentRegistry } from "./registry.ts";
 import { installCeiling, installVetoes } from "./ceiling.ts";
 import { agentRosterDirs, readAgentRoster } from "./roster.ts";
@@ -846,15 +847,58 @@ export function rules(state: State): GuardRule[] {
           if (outcome?.changed) applied.concurrency = outcome;
         }
 
-        // 3. isolation: worktree.
-        if (def && def.isolation === "worktree") {
-          const outcome = await applyIsolation(input, def.isolation, {
-            agent: def.name,
-            toolCallId: event.toolCallId,
-            cwd: ctx.cwd,
-          });
-          if (outcome.kind === "refused") return { block: true, reason: outcome.reason };
-          applied.isolation = outcome;
+        // 3. isolation: worktree — decided per CHILD, not per tool call.
+        //
+        //    `def` above is the ONE agent named at the top level of the call, which is every child
+        //    a `{agent, task}` call has and none of the children a `workflowScript` or a fanout
+        //    has. Applying isolation off `def` alone therefore honoured the declaration for one
+        //    call shape and dropped it for the others, silently, which is precisely what an
+        //    `isolation: worktree` frontmatter exists to make impossible. `call-children.ts`
+        //    enumerates the children of any shape; `isolation.ts` holds the two mechanisms and the
+        //    argument for which shape gets which.
+        const shape = dispatchChildren(input, ctx.cwd);
+        if (shape.unreadable !== undefined) {
+          report(ctx, `[pi-config] dispatch: ${shape.unreadable}`, "warning");
+        }
+        if (shape.shape === "single") {
+          if (def && def.isolation === "worktree") {
+            const outcome = await applyIsolation(input, def.isolation, {
+              agent: def.name,
+              toolCallId: event.toolCallId,
+              cwd: ctx.cwd,
+            });
+            if (outcome.kind === "refused") return { block: true, reason: outcome.reason };
+            applied.isolation = outcome;
+          }
+        } else if (shape.shape === "children" && state.registry) {
+          const declaring = distinctAgents(
+            shape.children.filter((child) => state.registry?.byName.get(child.agent)?.isolation === "worktree"),
+          );
+          if (declaring.length > 0) {
+            const outcome = applyChildrenIsolation(input, {
+              agents: declaring,
+              toolCallId: event.toolCallId,
+              cwd: ctx.cwd,
+            });
+            if (outcome.kind === "refused") return { block: true, reason: outcome.reason };
+            applied.isolation = outcome;
+            const overrode =
+              outcome.kind === "package" && outcome.children?.overrode !== undefined
+                ? ` This call asked for ${outcome.children.overrode}; the agent file's declaration ` +
+                  `outranks it, because running there is what the declaration forbids.`
+                : ``;
+            report(
+              ctx,
+              `[pi-config] dispatch: ${declaring.map((a) => `"${a}"`).join(", ")} ` +
+                `${declaring.length === 1 ? "declares" : "declare"} isolation: worktree and this call ` +
+                `launches ${declaring.length === 1 ? "it" : "them"} as a child, so pi-subagents' managed ` +
+                `per-child isolation was requested on the call (worktree: true). EXT-23's provider grants ` +
+                `one directory per tool call and cannot serve N children; the package gives each child ` +
+                `its own worktree. Every child of this call is isolated, not only the declaring ` +
+                `${declaring.length === 1 ? "one" : "ones"}.${overrode}`,
+              overrode ? "warning" : "info",
+            );
+          }
         }
 
         if (Object.keys(applied).length > 0) {

@@ -18,6 +18,12 @@
  * quietly running it there anyway is the failure this project exists to avoid. If neither path is
  * available the dispatch is refused, by name.
  *
+ * Those two are the SINGLE-CHILD rule. A call that launches its children by name — a
+ * `workflowScript`, a fanout — has no single `input.cwd` to write and no way to address one child
+ * from out here, so it takes a third path: `applyChildrenIsolation` at the bottom of this file,
+ * which requests the package's per-child managed isolation. The argument for it, and for why the
+ * provider cannot serve that shape, is in its own docstring.
+ *
  * The same standard applies to the package path, and used not to. Setting `input.worktree = true`
  * is a *request*: `pi-subagents` does not create the worktree at dispatch, it creates it inside
  * the child it spawns. So a repository that cannot host one still produced a dispatch that
@@ -181,7 +187,11 @@ export function resetWorktreePreflight(): void {
 export type IsolationOutcome =
   | { readonly kind: "none" }
   | { readonly kind: "provider"; readonly providerId: string; readonly cwd: string; readonly detail?: string }
-  | { readonly kind: "package" }
+  | {
+      readonly kind: "package";
+      /** Set by `applyChildrenIsolation`: which declaring agents forced it, and what it overrode. */
+      readonly children?: { readonly agents: readonly string[]; readonly overrode?: string };
+    }
   | { readonly kind: "refused"; readonly reason: string };
 
 /**
@@ -248,4 +258,83 @@ export async function applyIsolation(
   }
   input.worktree = true;
   return { kind: "package" };
+}
+
+/** The children of one call that declared `isolation: worktree`, named for the audit and refusals. */
+export interface ChildrenWorktreeRequest {
+  /** Distinct agent names, in the order the call names them. Never empty. */
+  readonly agents: readonly string[];
+  readonly toolCallId: string;
+  /** The session's cwd — the worktrees are created from the repository containing it. */
+  readonly cwd: string;
+}
+
+/**
+ * `isolation: worktree` for a call that launches its children BY NAME — a `workflowScript` or a
+ * fanout.
+ *
+ * ## Why this is not `applyIsolation` with a loop around it
+ *
+ * `applyIsolation` honours the declaration by writing the child's cwd. That works because a single
+ * `{agent, task}` call has exactly one child and `input.cwd` is its cwd. Neither half survives here:
+ *
+ *   - **`EXT-23` grants one directory per request, and the request is the tool call.** Its live-grant
+ *     map is keyed by `toolCallId` and released on that call's `tool_result`
+ *     (`extensions/worktree/index.ts`), so N grants for one call would leave N−1 worktrees with no
+ *     release path. And N children in ONE granted directory is not isolation at all — it is the
+ *     shared-checkout failure this module exists to prevent, moved one directory sideways.
+ *   - **A workflow child's launch params are built inside the sandbox.** `runs.run(key, {agent, …})`
+ *     is authored in the script; `prepareWorkflowChildLaunchParams` spreads the call's fields under
+ *     each child's own (`runs/foreground/subagent-executor.ts:4252`). From out here we can set a
+ *     DEFAULT for every child, never a value for one of them.
+ *
+ * So the mechanism is the one that IS per child: `pi-subagents`' own managed isolation. `worktree:
+ * true` on the call is a workflow-level default — "true gives each workflow child a separate git
+ * worktree; an individual runs.run/runs.all item can override a workflow default with
+ * worktree:false" (`src/extension/schemas.ts:319`), carried onto every child at
+ * `subagent-executor.ts:4220`, and one worktree per parallel task on the fanout shapes
+ * (`schemas.ts:224`).
+ *
+ * That path is chosen here even when `EXT-23` is registered, which is the opposite of the
+ * single-agent rule above, and deliberately so: for one child the provider is strictly better
+ * (registry, crash sweep, "never nest"), and for N children it structurally cannot answer.
+ *
+ * ## What it costs, said out loud
+ *
+ * The flag is per call, so one child declaring `isolation: worktree` isolates every child of that
+ * call. That is the direction to be wrong in — a sibling that expected the shared cwd gets its own
+ * tree, rather than a declaring child getting the user's checkout — but it is a real effect, and
+ * `index.ts` reports it rather than letting it be discovered.
+ */
+export function applyChildrenIsolation(
+  input: Record<string, unknown>,
+  request: ChildrenWorktreeRequest,
+): IsolationOutcome {
+  const one = request.agents.length === 1;
+  const named = request.agents.map((a) => `"${a}"`).join(", ");
+  const feasible = preflight(request.cwd);
+  if (!feasible.ok) {
+    return {
+      kind: "refused",
+      reason:
+        `${one ? "agent" : "agents"} ${named} ${one ? "declares" : "declare"} isolation: worktree and ` +
+        `this call launches them as children, which only pi-subagents' managed per-child isolation ` +
+        `can honour — and it cannot create a worktree from ${request.cwd}: ${feasible.reason}. ` +
+        `Refusing now rather than returning a run id for children that would run in your checkout.`,
+    };
+  }
+
+  // `isolation` is the public alias for this flag and is normalised into it before the executor
+  // sees either (`src/extension/public-execution.ts`), which also REJECTS the call outright when
+  // the two disagree. So a stale `isolation: "none"` cannot be left next to the flag we are about
+  // to set: it would turn an isolation fix into a hard tool error.
+  let overrode: string | undefined;
+  if (input.isolation === "none") {
+    delete input.isolation;
+    overrode = `isolation: "none"`;
+  } else if (input.worktree === false) {
+    overrode = "worktree: false";
+  }
+  input.worktree = true;
+  return { kind: "package", children: { agents: request.agents, ...(overrode !== undefined ? { overrode } : {}) } };
 }

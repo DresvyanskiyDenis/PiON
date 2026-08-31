@@ -21,6 +21,17 @@ An agent declaring `isolation: worktree` in its frontmatter runs in its own tree
 - If the session is **already** inside a worktree, that worktree is **reused** — never nested.
 - If the session is in the primary checkout, a fresh one is created.
 
+### Only the single-child shape reaches this provider
+
+This module grants **one directory per tool call**, and the eager release above is keyed on that
+call's `tool_result`. That fits a `{agent, task}` dispatch exactly — one child, whose cwd is
+`input.cwd` — and fits nothing else. A call that launches its children by name (a `workflowScript`,
+a `tasks`/`parallel`/`chain` fanout) is honoured by `extensions/dispatch/call-children.ts` +
+`applyChildrenIsolation()` instead, which asks `pi-subagents` for its own managed per-child
+isolation (`worktree: true` on the call, one worktree per child). Nothing about this module changes
+for it — it is simply not asked, because N children in one granted directory would not be isolated
+from each other, and N grants against one `toolCallId` would leak all but the last.
+
 ## 3. Crash-safe cleanup
 
 !!! abstract "The registry entry is written BEFORE `git worktree add` runs"
