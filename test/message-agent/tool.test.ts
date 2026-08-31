@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
@@ -16,7 +16,12 @@ import {
   wakeOnIdle,
   __resetForTests,
 } from "../../extensions/message-agent/index.ts";
-import { agentsRoot, listAgents } from "../../extensions/message-agent/directory.ts";
+import {
+  agentsRoot,
+  deliveringDir,
+  listAgents,
+} from "../../extensions/message-agent/directory.ts";
+import { openIndexDb, resetIndexDbCache } from "../../extensions/session-index/db.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => Promise<void> | void;
@@ -25,8 +30,16 @@ type CommandDefinition = { description: string; handler: (args: string, ctx: nev
 interface SentMessage {
   customType: string;
   text: string;
+  details?: unknown;
   deliverAs?: string;
   triggerTurn?: boolean;
+}
+
+/** Only the fields `settle()` reads; enough to stand in for a `CustomMessageEntry`. */
+interface FakeEntry {
+  type: string;
+  customType?: string;
+  details?: unknown;
 }
 
 interface Session {
@@ -36,6 +49,8 @@ interface Session {
   tool: ToolDefinition;
   commands: Map<string, CommandDefinition>;
   sent: SentMessage[];
+  /** This session's transcript. `sendMessage` does *not* write here — the turn loop does. */
+  entries: FakeEntry[];
   notices: string[];
 }
 
@@ -49,18 +64,23 @@ function fakeSession(sessionId: string): Session {
   const tools = new Map<string, ToolDefinition>();
   const commands = new Map<string, CommandDefinition>();
   const sent: SentMessage[] = [];
+  const entries: FakeEntry[] = [];
   const notices: string[] = [];
   const pi = {
     on: (event: string, handler: Handler) => void handlers.set(event, handler),
     registerTool: (tool: ToolDefinition) => void tools.set(tool.name, tool),
     registerCommand: (name: string, command: CommandDefinition) => void commands.set(name, command),
+    // Deliberately does not touch `entries`: the real `sendCustomMessage` queues the payload and the
+    // turn loop persists it as a `custom_message` entry only when it is actually consumed, which is
+    // the whole gap this fixture exists to model. `consume()` is that later moment.
     sendMessage: (
-      message: { customType: string; content: Array<{ text?: string }> },
+      message: { customType: string; content: Array<{ text?: string }>; details?: unknown },
       options?: { deliverAs?: string; triggerTurn?: boolean },
     ) => {
       sent.push({
         customType: message.customType,
         text: message.content.map((part) => part.text ?? "").join(""),
+        details: message.details,
         deliverAs: options?.deliverAs,
         triggerTurn: options?.triggerTurn,
       });
@@ -74,13 +94,34 @@ function fakeSession(sessionId: string): Session {
     sessionManager: {
       getSessionId: () => sessionId,
       getSessionFile: () => `/sessions/${sessionId}.jsonl`,
+      getEntries: () => entries,
     },
   } as unknown as ExtensionContext;
 
   registerMessageAgent(pi);
   const tool = tools.get("message_agent");
   assert.ok(tool, "message_agent must be registered");
-  return { pi, ctx, handlers, tool, commands, sent, notices };
+  return { pi, ctx, handlers, tool, commands, sent, entries, notices };
+}
+
+/** The turn loop finally reads what was queued: every pending payload lands in the transcript. */
+function consume(session: Session): void {
+  for (const message of session.sent.slice(session.entries.length)) {
+    session.entries.push({
+      type: "custom_message",
+      customType: message.customType,
+      details: message.details,
+    });
+  }
+}
+
+/** The names of every `ok=true` audit row this session wrote, oldest first. */
+function okEvents(sessionId: string): string[] {
+  resetIndexDbCache();
+  return openIndexDb()
+    .prepare("SELECT name FROM events WHERE session_id = ? AND ok = 1 ORDER BY id")
+    .all(sessionId)
+    .map((row) => String(row.name));
 }
 
 async function start(session: Session, name: string): Promise<void> {
@@ -119,16 +160,21 @@ async function until(check: () => boolean, budgetMs = 8_000): Promise<void> {
 
 let sandbox: string;
 let previousState: string | undefined;
+let previousIndexDb: string | undefined;
 let counter = 0;
 
 before(async () => {
   sandbox = await mkdtemp(join(tmpdir(), "pi-message-agent-tool-"));
   previousState = process.env.XDG_STATE_HOME;
+  previousIndexDb = process.env.PI_INDEX_DB;
 });
 after(async () => {
   __resetForTests();
+  resetIndexDbCache();
   if (previousState === undefined) delete process.env.XDG_STATE_HOME;
   else process.env.XDG_STATE_HOME = previousState;
+  if (previousIndexDb === undefined) delete process.env.PI_INDEX_DB;
+  else process.env.PI_INDEX_DB = previousIndexDb;
   await rm(sandbox, { recursive: true, force: true });
 });
 beforeEach(() => {
@@ -136,7 +182,12 @@ beforeEach(() => {
   resetSurfaced();
   delete process.env[POLL_INTERVAL_ENV];
   delete process.env[WAKE_ENV];
-  process.env.XDG_STATE_HOME = join(sandbox, `run-${counter++}`);
+  const run = join(sandbox, `run-${counter++}`);
+  process.env.XDG_STATE_HOME = run;
+  // The audit log is the assertion target for the delivery boundary, and `logEvent` swallows every
+  // error — so it is pointed at the sandbox both to be readable and to keep the real index clean.
+  process.env.PI_INDEX_DB = join(run, "index.db");
+  resetIndexDbCache();
 });
 
 describe("message_agent knobs (EXT-32)", () => {
@@ -329,6 +380,59 @@ describe("message_agent tool (EXT-32)", () => {
       ["session-a"],
     );
     await assert.rejects(() => call(a, { target: "session-b", message: "hi" }), /no live session/);
+  });
+
+  it("keeps the envelope staged, and the audit silent, until the payload reaches the transcript", async () => {
+    const a = fakeSession("s-a");
+    const b = fakeSession("s-b");
+    await start(a, "session-a");
+    await start(b, "session-b");
+
+    await call(a, { target: "session-b", message: "still in flight" });
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+
+    // Handed to the turn loop, not yet read by it: the only copy is on disk, and the audit log
+    // says "received" — never "delivered", which has not happened.
+    assert.equal(b.sent.length, 1);
+    assert.deepEqual(await readdir(deliveringDir(agentsRoot(), "session-b")), [
+      `${String((b.sent[0]?.details as { ids?: string[] })?.ids?.[0])}.json`,
+    ]);
+    assert.deepEqual(okEvents("s-b"), ["message_agent.receive:session-b"]);
+
+    // The turn loop consumes it. Only now is delivery observable, and only now is it logged.
+    consume(b);
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+    assert.deepEqual(await readdir(deliveringDir(agentsRoot(), "session-b")), []);
+    assert.deepEqual(okEvents("s-b"), ["message_agent.receive:session-b", "message_agent.delivered:session-b"]);
+  });
+
+  it("redelivers a message that was still in flight when the session stopped", async () => {
+    const a = fakeSession("s-a");
+    const b = fakeSession("s-b");
+    await start(a, "session-a");
+    await start(b, "session-b");
+
+    await call(a, { target: "session-b", message: "survive the crash" });
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+    assert.equal(b.sent.length, 1, "staged and handed over, but never consumed");
+
+    // The process dies here — no session_shutdown, no confirmation, the staged file is all there is.
+    __resetForTests();
+    const restarted = fakeSession("s-b");
+    await start(restarted, "session-b");
+
+    assert.equal(restarted.sent.length, 1);
+    assert.match(restarted.sent[0]?.text ?? "", /survive the crash/);
+    assert.ok(
+      restarted.notices.some((line) => /still being delivered when "session-b" last stopped/.test(line)),
+      `expected a recovery notice, got ${JSON.stringify(restarted.notices)}`,
+    );
+
+    // Exactly once, not twice: confirming the redelivery clears the staged copy for good.
+    consume(restarted);
+    await restarted.handlers.get("turn_end")?.({}, restarted.ctx);
+    assert.equal(restarted.sent.length, 1);
+    assert.deepEqual(await readdir(deliveringDir(agentsRoot(), "session-b")), []);
   });
 
   it("exposes the directory as /peers", async () => {
