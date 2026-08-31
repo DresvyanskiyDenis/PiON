@@ -239,6 +239,25 @@ describe("pi-check --doctor: what ~/.pi/agent/hooks.yaml currently is", () => {
     assert.match(r.stdout, /ln -sf .*config\/hooks\.yaml/);
   });
 
+  // Guardrails are off by default, so "the gate is empty and the run script was never linked" is
+  // the ordinary state of a fresh install, not a defect. A finding here would fail --doctor, and
+  // install.sh and update.sh both treat that as fatal — the default install would refuse itself.
+  test("with the empty gate live, an uninstalled run script is not a finding", () => {
+    const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook"), link: "missing", hooksLink: "off" });
+    const r = doctor(m);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(findingCount(r.stdout), 0, "a rule that is not loaded on this machine cannot fail closed on it");
+  });
+
+  // The one question that does not depend on which gate is live: a rule naming a ~/bin script the
+  // repo never ships is broken for every machine that opts in, and this is where it is caught.
+  test("with the empty gate live, a rule naming a script the repo does not ship is still reported", () => {
+    const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook"), ships: null, link: "missing", hooksLink: "off" });
+    const r = doctor(m);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stdout, /this repo has no config\/bin\/pi-constraints-hook/);
+  });
+
   test("a real file where the installer's symlink belongs is reported, not failed", () => {
     // link_one already backs this up and relinks on the next install. Saying so is this mode's
     // whole job here; failing on it would break `bin/pi-check --doctor` for anyone hand-editing.

@@ -124,6 +124,8 @@ function writeVendorManifest(repoRoot) {
  *
  * It also prints, on its own `hooks:` line, what `$AGENT_DIR/hooks.yaml` currently resolves to.
  * That line is never a finding and never moves the exit code — see `describeInstalledHooksFile`.
+ * It is resolved BEFORE the script check and handed to it, because a machine on the empty gate is
+ * not running those `run` rules at all and must not be failed for their install state.
  *
  * @param {string} repoRoot absolute path
  * @param {boolean} json
@@ -132,8 +134,8 @@ function writeVendorManifest(repoRoot) {
 function runDoctor(repoRoot, json) {
   const ctx = createContext(repoRoot, { live: false });
   const paths = installPaths();
-  const findings = checkInstalledHookScripts(ctx, paths);
   const hooksFile = describeInstalledHooksFile(paths);
+  const findings = checkInstalledHookScripts(ctx, paths, hooksFile);
 
   if (json) {
     process.stdout.write(

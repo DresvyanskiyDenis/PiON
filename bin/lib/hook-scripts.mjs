@@ -171,8 +171,19 @@ export function describeInstalledHooksFile(paths) {
   };
 }
 
-export function checkInstalledHookScripts(ctx, paths) {
+/**
+ * @param ctx repo-reading context
+ * @param paths from `installPaths()`
+ * @param installed from `describeInstalledHooksFile()`. When the machine's gate is the empty one,
+ *   `config/hooks.yaml`'s `run` rules are not loaded on this machine and cannot fail closed on it —
+ *   so their install state is not a finding, and reporting it would make `--doctor` fail (and with
+ *   it `install.sh` and `update.sh`) over a rule nobody is running. The one check that survives is
+ *   the repo-shape one: a rule naming a `~/bin` script this repo does not ship is broken for every
+ *   machine that DOES opt in, and `--doctor` is where it gets caught.
+ */
+export function checkInstalledHookScripts(ctx, paths, installed = null) {
   const rule = "PD-01";
+  const gateIsOff = installed?.state === "off";
   const text = ctx.readText(HOOKS_FILE);
   if (text === null) return [];
 
@@ -198,6 +209,7 @@ export function checkInstalledHookScripts(ctx, paths) {
       });
       continue;
     }
+    if (gateIsOff) continue;
 
     let stats;
     try {
