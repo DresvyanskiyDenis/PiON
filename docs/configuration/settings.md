@@ -275,18 +275,36 @@ quietly does nothing.
 | `enabled` | `true` | A prerequisite, not decoration: the child flag is ANDed with this one, so `children.enabled` alone resolves to nothing |
 | `main.enabled` | `false` | Said out loud because it is otherwise **derived** from `enabled`. Left implicit, watching children would also buy a review model call at every `agent_end` of the lead. The lead endpoint is its own decision |
 | `children.enabled` | `true` | A writer child's `agent_end` gets reviewed. `children.model` stays unset on purpose — the review then runs on the child's own session model, so no bare model id enters a config file (`PC-08`) |
-| `asyncCompletion.enabled`, `.autoFollowBlockers` | `true` | An async child that comes back empty or blocked is followed up by the watchdog instead of by a manual, full-price `subagent resume` |
+| `asyncCompletion.enabled` | `true` | An async child that comes back **empty** is followed up automatically instead of by a manual, full-price `subagent resume`. Upstream still reads this nowhere; the harness does — [`extensions/dispatch/async-resume.ts`](../extensions/dispatch.md#an-async-child-that-came-back-empty-gets-one-follow-up), gated on this key AND `enabled` |
+| `asyncCompletion.autoFollowBlockers` | `true` | A **blocked** async child — one that came back with a question or a stated obstacle — is the watchdog's own follow-up cycle. Read and reported by the harness, gating nothing there: it is a different recovery, with a different message and a different budget |
 
 `autoFollow.blockers` and `autoFollow.maxAttempts: 3` are already the package's defaults and are
 deliberately not restated. `test/dispatch/watchdog-settings.test.ts` pins them, so a default that
 flips upstream is loud rather than silent.
 
-### Two things this block cannot say, and what stands in for them
+### Two things this block cannot say to `pi-subagents`, and what stands in for them
 
-**`asyncCompletion` is parsed and consumed by nothing.** In the pinned `pi-subagents` the string
-occurs in exactly two files — the parser and the type. No runtime reads it. The block above is
-correct and takes effect the day upstream wires it; until then an empty async child is *not*
-recovered by configuration. The test asserts the file list, so it fails the moment that changes.
+**`asyncCompletion` is parsed by `pi-subagents` and consumed by nothing *there* — so the harness
+consumes it.** In the pinned package the string still occurs in exactly two files, the parser and
+the type, and no runtime reads it; `test/dispatch/watchdog-settings.test.ts` asserts that file list
+and fails the moment upstream wires it up.
+
+What changed is which side answers. The key now has a first-party consumer,
+[`extensions/dispatch/async-resume.ts`](../extensions/dispatch.md#an-async-child-that-came-back-empty-gets-one-follow-up):
+when the dispatch extension's `turn_end` sweep reconciles an async run whose terminal error carries
+the runner's own `Subagent produced no output …`, it sends exactly one `resume` over the package's
+in-process RPC. It is gated on `watchdog.enabled` AND `asyncCompletion.enabled`, both read from this
+file and both required to be literally `true` — the same AND the package applies to its own endpoint
+flags, and both ship OFF upstream, so a tree that never asked for this never gets it. The budget is
+one attempt per run, written to `~/.local/state/pi-config/dispatch/async-resume.jsonl` before the
+request goes out and re-read from disk on every sweep, so it holds across a restart; the run a
+successful resume starts inherits a spent budget, which is what makes a chain of empty children
+impossible rather than merely unlikely. `autoFollowBlockers` is read and reported and gates nothing
+here: a blocked child is a different recovery, and it is still the watchdog's.
+
+So the block above is no longer inert, and the setting no longer waits on upstream for the case it
+names most concretely. What it still cannot do is reach the package's own watchdog runtime — an
+async completion is *reviewed* by nobody until that lands.
 
 **`subagent_wait`'s `stopOnAttention` default is code, not config — so the harness sets it on the
 call instead.** The tool resolves it as
