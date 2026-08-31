@@ -226,7 +226,8 @@ So a `before_provider_request` handler estimates the outgoing prompt and compare
 [pi-config] compaction: refused a request this harness estimates at ~273110 tokens against
 <provider>/<model>'s declared 200000-token window (~37% over, estimate is chars/3.5 on the
 assembled body). Nothing was sent: an over-window request to this fleet comes back as a 200 with
-an empty body, not as an error. Compaction runs next and the turn continues.
+an empty body, not as an error. This harness resumes the session itself once the run settles;
+compaction runs on that turn's entry. No keystroke needed.
 ```
 
 !!! note "A harness decision, filed as one"
@@ -256,16 +257,31 @@ preflight only ever acts *above* it, plus the 5 % tolerance. At any size where a
 something to say, the preflight is silent: it cannot trigger a compaction that was not going to
 happen anyway, and cannot spend a summarisation call the reserve would have spent.
 
-Refusing is also all it does. The refused turn returns to PI, whose own post-run check now sees a
-context demonstrably over the window, compacts, and continues. Calling `ctx.compact()` here as well
-would put a second compaction against the same context — the exact shape §1's loop guard exists to
-shoot down.
-
 This is also the one place in this module where `ctx.abort()` works. [The section
 below](#an-extension-cannot-abort-a-headless-run) records that it is a no-op on the automatic
 compaction paths, because `activeRun` has already been cleared by then. A `before_provider_request`
 handler is the opposite case: it runs *inside* the active run, immediately before the HTTP call, so
 the abort lands on the very request being assembled.
+
+### Refusing is half a recovery; the harness supplies the other half
+
+The refusal used to be described as handing the context to PI, "which compacts and continues". It
+did not. PI's post-run check skips a message whose `stopReason` is `aborted`, and a refusal aborts —
+so the run ended, the session went idle holding the same over-window context, and nothing restarted
+it. Every refusal cost the run an open-ended stretch of dead wall-clock, ended by a person typing
+"continue"; on an unattended run, ended by nothing at all.
+
+So after aborting, the extension waits for `agent_settled` — the first moment PI reports the session
+idle — and sends the message the human would have, as a **user** message. That path (`prompt()`) is
+the only one carrying the pre-turn compaction check that evaluates aborted messages, which is why a
+custom message with `triggerTurn` would not do: it would restart the session into the same
+over-window context and buy one more refusal. The resume announces itself as the harness in its
+first six words, so the model does not read it as the operator changing course mid-task, and it is
+written to the session as a `context_preflight` entry with `decision: "self-resumed"`.
+
+Calling `ctx.compact()` from the refusal instead would put a second compaction against the same
+context — the exact shape §1's loop guard exists to shoot down — and would still leave the session
+idle afterwards, because `AgentSession.compact()` summarises but starts no turn.
 
 ### It gives up rather than loop
 
@@ -274,6 +290,14 @@ request that is *still* over after the compaction. A third is let through, loudl
 fix (`/compact` with instructions, a new session, or a `contextWindow` that matches what the
 endpoint serves). A doomed request whose failure is visible beats a session that never sends
 anything and never says why. The streak resets at the first request that fits.
+
+That budget is also what bounds the self-resume, and before it the budget was unreachable
+machinery: a streak can only advance if a second request is attempted without human input, which is
+precisely what a dead-ended session never did — every refusal on record reads `refusals: 1`. Now the
+resume is issued only on a refusal, so there are **at most two per streak**; the third verdict
+sends. The subtler cycle — a compaction that frees just enough room for one request to fit,
+resetting the streak, before going over again — is the loop guard's job: every resumed turn compacts
+automatically, so a run of non-reducing passes trips `REQ-CTX-35` and takes the run down loudly.
 
 !!! warning "These three numbers are constants, not config keys"
     `CHARS_PER_TOKEN`, `OVER_WINDOW_TOLERANCE` and `MAX_CONSECUTIVE_REFUSALS` live in
