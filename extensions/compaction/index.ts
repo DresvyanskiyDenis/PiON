@@ -120,7 +120,9 @@ import {
 import {
   appendFact,
   DEFAULT_FACTS_LIMITS,
+  DEFAULT_FACTS_WARN_RATIO,
   factsPathFor,
+  nearingCapLine,
   readFacts,
   renderFacts,
   type FactsLimits,
@@ -184,7 +186,7 @@ interface CompactionConfig {
      * same event under the same doctrine — the difference is that its content is written during
      * the session rather than read from the repo.
      */
-    readonly facts: FactsLimits & { readonly enabled: boolean };
+    readonly facts: FactsLimits & { readonly enabled: boolean; readonly warnRatio: number };
   };
   /**
    * `REQ-CTX-31`'s absolute count. PI cannot act on it (`shouldCompact()` only knows
@@ -201,7 +203,7 @@ const DEFAULT_CONFIG: CompactionConfig = {
     ...DEFAULT_PINNED_LIMITS,
     enabled: true,
     sources: ["AGENTS.md", "CLAUDE.md"],
-    facts: { ...DEFAULT_FACTS_LIMITS, enabled: true },
+    facts: { ...DEFAULT_FACTS_LIMITS, enabled: true, warnRatio: DEFAULT_FACTS_WARN_RATIO },
   },
   threshold: { absoluteTokens: 0, toleranceRatio: 0.2 },
 };
@@ -263,6 +265,9 @@ export function parseConfig(raw: unknown): CompactionConfig {
         enabled: bool(facts.enabled, DEFAULT_CONFIG.pinned.facts.enabled),
         maxEntries: Math.max(0, Math.trunc(num(facts.maxEntries, DEFAULT_CONFIG.pinned.facts.maxEntries))),
         maxBytes: Math.max(0, Math.trunc(num(facts.maxBytes, DEFAULT_CONFIG.pinned.facts.maxBytes))),
+        // Clamped rather than rejected, and both ends stay usable: 0 states usage on every reply,
+        // 1 states it only once a cap is actually reached.
+        warnRatio: Math.min(1, Math.max(0, num(facts.warnRatio, DEFAULT_CONFIG.pinned.facts.warnRatio))),
       },
     },
     threshold: {
@@ -1418,11 +1423,17 @@ export function register(pi: ExtensionAPI): void {
         // a single post-hoc count, printed as if it were an identity, could not show.
         const { line, index, total } = await appendFact(path, params.fact, params.provenance, { kind });
         const label = kind === "ruled_out" ? "ruled-out approach" : "fact";
+        // One extra read of a file that is 8KB by construction, to say how much of the budget is
+        // left. The alternative is what the tool did before: the caps are stated only by
+        // `/compaction-status`, so an agent that never thinks to ask rations against a guess.
+        const usage = await readFacts(path, cfg.pinned.facts);
+        const nearing = nearingCapLine(usage, cfg.pinned.facts, cfg.pinned.facts.warnRatio);
+        const text =
+          `recorded ${label} ${index} of ${total} in this session\n${line}\n${path}`
+          + (nearing === null ? "" : `\n${nearing}`);
         return {
-          content: [
-            { type: "text" as const, text: `recorded ${label} ${index} of ${total} in this session\n${line}\n${path}` },
-          ],
-          details: { path, index, total, kind },
+          content: [{ type: "text" as const, text }],
+          details: { path, index, total, kind, bytes: usage.bytes, nearingCap: nearing !== null },
         };
       },
     });

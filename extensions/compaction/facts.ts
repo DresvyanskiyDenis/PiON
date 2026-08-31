@@ -103,6 +103,16 @@ export const DEFAULT_FACTS_LIMITS: FactsLimits = {
   maxBytes: 8000,
 };
 
+/**
+ * The fraction of either cap at which the `fact` tool starts stating usage in its reply.
+ *
+ * 0.75 leaves a quarter of the budget between the first warning and the first eviction — enough
+ * room that an agent told "you are close" can finish what it is recording rather than stop mid-
+ * task. Lower and the line is noise on every call; higher and it arrives after the oldest entries
+ * have already gone.
+ */
+export const DEFAULT_FACTS_WARN_RATIO = 0.75;
+
 /** Recorded when the caller states no provenance. Visible on purpose: it is the weaker claim. */
 export const PROVENANCE_UNSTATED = "not stated";
 
@@ -145,6 +155,12 @@ export interface FactsResult {
   readonly dropped: number;
   /** How many entries the file holds. */
   readonly total: number;
+  /**
+   * What every entry in the file weighs, before either cap — the figure `maxBytes` is measured
+   * against. Not the size of {@link lines}: those are already under the cap by construction, so
+   * they can never show that the budget is binding.
+   */
+  readonly bytes: number;
   /** How many of {@link lines} are ruled-out approaches. */
   readonly ruledOut: number;
   /** How many of the dropped entries were ruled-out approaches. Named in the drop marker. */
@@ -301,7 +317,17 @@ export async function readFacts(path: string, limits: FactsLimits = DEFAULT_FACT
   } catch (err) {
     const problems =
       (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : [`${path} — unreadable: ${(err as Error).message}`];
-    return { path, lines: [], dropped: 0, total: 0, ruledOut: 0, droppedRuledOut: 0, truncated: false, problems };
+    return {
+      path,
+      lines: [],
+      dropped: 0,
+      total: 0,
+      bytes: 0,
+      ruledOut: 0,
+      droppedRuledOut: 0,
+      truncated: false,
+      problems,
+    };
   }
 
   const all = factLinesOf(raw);
@@ -322,7 +348,51 @@ export async function readFacts(path: string, limits: FactsLimits = DEFAULT_FACT
     truncated = cut.truncated;
   }
 
-  return { path, lines: kept, dropped, total: all.length, ruledOut, droppedRuledOut, truncated, problems: [] };
+  return {
+    path,
+    lines: kept,
+    dropped,
+    total: all.length,
+    bytes: Buffer.byteLength(all.join("\n"), "utf8"),
+    ruledOut,
+    droppedRuledOut,
+    truncated,
+    problems: [],
+  };
+}
+
+/**
+ * The usage line the `fact` tool appends to its reply once the file is within `warnRatio` of
+ * either cap, and `null` while it is not.
+ *
+ * The budget is otherwise invisible from inside a turn: the caps live in config, the eviction
+ * notice fires only after entries have already been dropped, and `/compaction-status` has to be
+ * asked. Stating usage where the agent already looks costs one line and removes the guess.
+ *
+ * Silence is the load-bearing half: below the ratio the reply says nothing about the budget, so
+ * the line means "this is now worth your attention" rather than being noise on every call. A cap
+ * of zero counts as full — nothing can be kept under it — instead of dividing by it.
+ */
+export function nearingCapLine(
+  result: Pick<FactsResult, "total" | "bytes">,
+  limits: FactsLimits,
+  warnRatio: number = DEFAULT_FACTS_WARN_RATIO,
+): string | null {
+  const maxEntries = Math.max(0, Math.trunc(limits.maxEntries));
+  const maxBytes = Math.max(0, Math.trunc(limits.maxBytes));
+  const used = Math.max(ratio(result.total, maxEntries), ratio(result.bytes, maxBytes));
+  if (used < warnRatio) return null;
+  return `${result.total}/${maxEntries} entries, ${kb(result.bytes)}/${kb(maxBytes)} — nearing the cap.`;
+}
+
+/** A cap of zero is full at any usage, rather than `Infinity` or `NaN`. */
+function ratio(used: number, cap: number): number {
+  return cap <= 0 ? 1 : used / cap;
+}
+
+/** Decimal KB, one place, trailing `.0` dropped: `6.2KB`, `8KB`. */
+function kb(bytes: number): string {
+  return `${(bytes / 1000).toFixed(1).replace(/\.0$/, "")}KB`;
 }
 
 /**
