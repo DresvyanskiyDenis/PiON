@@ -9,7 +9,14 @@
  * It exists because PI re-executes an `!command` credential on **every request** with no TTL of
  * its own, so an unwrapped `databricks auth token` costs one OAuth round trip per LLM call.
  *
- * **(b) Provider error surfacing** (`implementation_plan.md` §3.4a) — what replaced the cancelled
+ * **(b) Prompt-cache retention.** `config/models.json` decides the retention tier per route; the
+ * ambient `PI_CACHE_RETENTION` may not. The argument, the paid products a stray `long` opens, and
+ * the exact rule are in `lib/cache-retention.ts`; `pinCacheRetention` below is the wiring. It is
+ * here rather than in a module of its own because it is the same subject as the rest of this file
+ * — what it takes to talk to a provider, decided from config rather than from the environment —
+ * and because the pin has to land before the first provider request, which is what `register()` is.
+ *
+ * **(c) Provider error surfacing** (`implementation_plan.md` §3.4a) — what replaced the cancelled
  * `EXT-08` failover item. A failed provider call names the provider, model, error class and
  * message, keeps the cause chain, and the turn aborts. No substitution, no retry into a different
  * provider, no silent degradation. Classification and rendering are in `lib/provider-error.ts`.
@@ -42,14 +49,24 @@
  * for built-in providers"), and that lane is resolved by configuration instead (a raw `gho_`
  * token as an apiKey credential plus a `baseUrl` override in `models.json`).
  *
- * `register()` starts no timers, sockets or watchers, and now performs no I/O at all: the factory
- * also runs in invocations that never open a session (`pi --list-models`).
+ * `register()` starts no timers, sockets or watchers, and its only I/O is one synchronous read of
+ * `config/models.json` for the retention pin. It is unconditional: the factory also runs in
+ * invocations that never open a session (`pi --list-models`), where that read is one wasted
+ * `readFileSync` of a file PI itself has already read — cheaper than any scheme for skipping it,
+ * and it cannot be deferred to `session_start`, because a pin that lands after the first request
+ * pins nothing. Nothing here opens a socket or awaits anything.
  */
 import type {
   ExtensionAPI,
   ExtensionContext,
   MessageEndEvent,
 } from "@earendil-works/pi-coding-agent";
+import { emitNotice } from "./lib/announce.ts";
+import {
+  decideEnvCacheRetention,
+  pinCacheRetentionEnv,
+  readModelsFile,
+} from "./lib/cache-retention.ts";
 import {
   buildEmptyCompletionFailure,
   buildProviderFailure,
@@ -68,11 +85,34 @@ import {
 export const id = "credentials";
 
 export function register(pi: ExtensionAPI): void {
+  pinCacheRetention();
   registerProviderErrorSurfacing(pi);
 }
 
 /* ------------------------------------------------------------------------------------------- *
- * (b) provider error surfacing
+ * (b) prompt-cache retention: the config decides, the environment does not
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * Rule on the ambient `PI_CACHE_RETENTION` from `config/models.json` and announce an override.
+ *
+ * The notice goes through `emitNotice` with no `ctx`, i.e. to the log sink: `register()` has no
+ * `ExtensionContext` and no UI exists yet at extension-load time. It fires only when this actually
+ * took a decision away from the environment — see `pinCacheRetentionEnv`.
+ *
+ * Deliberately not wrapped in a try/catch: `readModelsFile` returns its failures as a `problem`
+ * rather than throwing, and that path already pins `short` and says why. A throw from here would
+ * be a bug in this module, and `index.ts`'s per-module catch is where bugs in a `register()`
+ * belong — swallowing it locally would leave the retention tier decided by the environment with
+ * nothing on any channel saying so, which is the exact failure this file exists to end.
+ */
+function pinCacheRetention(): void {
+  const notice = pinCacheRetentionEnv(process.env, decideEnvCacheRetention(readModelsFile()));
+  if (notice) emitNotice(undefined, notice, "warning");
+}
+
+/* ------------------------------------------------------------------------------------------- *
+ * (c) provider error surfacing
  * ------------------------------------------------------------------------------------------- */
 
 interface ObservedResponse {
