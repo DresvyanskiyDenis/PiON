@@ -25,6 +25,11 @@
 //
 // Exit codes: 0 clean, 1 findings, 2 the checker itself could not run.
 //
+// A rule may also emit severity `"warn"`. Warnings are printed and counted, are reported under
+// their own `warnings` key in `--json`, and NEVER affect the exit code — they are for a tree that
+// is legal and loads and is nonetheless known not to do what it looks like it does (`PC-31`). A
+// gate that failed a machine for that would be turned off, and then the errors would go with it.
+//
 // `--doctor` is the second mode that runs no rule, and the only one that looks outside the repo
 // tree. It answers the one question the rule set structurally cannot — "is what this repo declares
 // actually installed HERE, and pointing at THIS checkout?" — for the `action: run` hooks in
@@ -156,13 +161,15 @@ function runDoctor(repoRoot, json) {
   process.exitCode = findings.length > 0 ? 1 : 0;
 }
 
-function formatText(findings, ranCount) {
+function formatText(findings, warnings, ranCount) {
   const lines = [];
-  for (const f of findings) {
+  for (const f of [...findings, ...warnings]) {
     const loc = f.line ? `${f.file}:${f.line}` : f.file;
-    lines.push(`${f.rule.padEnd(7)}${loc.padEnd(32)}${f.message}`);
+    const tag = f.severity === "warn" ? "warn " : "";
+    lines.push(`${f.rule.padEnd(7)}${loc.padEnd(32)}${tag}${f.message}`);
   }
-  lines.push(`${findings.length} finding(s) in ${ranCount} rule${ranCount === 1 ? "" : "s"}`);
+  const tail = warnings.length > 0 ? `, ${warnings.length} warning(s)` : "";
+  lines.push(`${findings.length} finding(s)${tail} in ${ranCount} rule${ranCount === 1 ? "" : "s"}`);
   return lines.join("\n");
 }
 
@@ -284,6 +291,17 @@ async function main(argv) {
   const ctx = createContext(repoRoot, { live });
   /** @type {Finding[]} */
   const findings = [];
+  /**
+   * Severity `"warn"` results, kept out of `findings` rather than filtered out of it later.
+   *
+   * The exit-code contract at the bottom of this function is the reason: "1 means findings" is the
+   * sentence every caller of this tool relies on, and a warning that could reach `findings` is one
+   * refactor away from failing a machine for a legal configuration. Two arrays make that mistake
+   * impossible to make quietly. `--json` reports both, under separate keys, so a caller that wants
+   * warnings has to ask for them by name.
+   * @type {Finding[]}
+   */
+  const warnings = [];
   for (const mod of toRun) {
     let result;
     try {
@@ -295,7 +313,10 @@ async function main(argv) {
       process.exitCode = 2;
       return;
     }
-    for (const f of result) findings.push({ ...f, rule: f.rule ?? mod.id });
+    for (const f of result) {
+      const entry = { ...f, rule: f.rule ?? mod.id };
+      (entry.severity === "warn" ? warnings : findings).push(entry);
+    }
   }
 
   if (json) {
@@ -303,15 +324,16 @@ async function main(argv) {
       JSON.stringify(
         {
           findings,
+          warnings,
           rulesRun: toRun.map((m) => m.id),
-          summary: { findingCount: findings.length, ruleCount: toRun.length },
+          summary: { findingCount: findings.length, warningCount: warnings.length, ruleCount: toRun.length },
         },
         null,
         2,
       ) + "\n",
     );
   } else {
-    process.stdout.write(formatText(findings, toRun.length) + "\n");
+    process.stdout.write(formatText(findings, warnings, toRun.length) + "\n");
   }
 
   process.exitCode = findings.length > 0 ? 1 : 0;

@@ -1183,3 +1183,121 @@ test("PC-29: a dispatch.json that declares no subagentContract is silent, not no
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------------------
+// 11. PC-31 and the warning channel — a report that must never fail a build.
+//
+// PC-31 is the first rule that emits `severity: "warn"`, so these tests are as much about the
+// channel as about the rule. The property that matters is the one that is easy to lose in a
+// refactor: a warning is printed, counted and reported under its own key, and the exit code
+// stays 0. The moment a warning can turn a green run red, "legal but pointless" becomes a
+// build break and the whole gate gets switched off.
+// ---------------------------------------------------------------------------------------
+
+/** Rewrites the fixture's routing.json with `retry` merged into its `onProviderError` block. */
+function withRetry(dir, retry) {
+  edit(dir, "config/routing.json", (t) => {
+    const routing = JSON.parse(t);
+    routing.onProviderError.retry = retry;
+    return JSON.stringify(routing, null, 2) + "\n";
+  });
+}
+
+/** Runs PC-31 alone against `dir` and returns { exitCode, stdout, json }. */
+function runPc31(dir, extraArgs = ["--json"]) {
+  const result = spawnSync(process.execPath, [PI_CHECK, "PC-31", ...extraArgs, "--repo", dir], { encoding: "utf8" });
+  let json = null;
+  try {
+    json = JSON.parse(result.stdout);
+  } catch {
+    // text mode: the caller reads stdout
+  }
+  return { exitCode: result.status, stdout: result.stdout, json };
+}
+
+const RETRIES_EMPTY = { classes: ["network", "empty-response"], maxAttempts: 1 };
+
+test('PC-31: retrying "empty-response" with no onEmpty.strategy warns, and warns without failing', () => {
+  const dir = freshRepoCopy();
+  try {
+    withRetry(dir, RETRIES_EMPTY);
+    const { exitCode, json } = runPc31(dir);
+    assert.equal(json.summary.warningCount, 1);
+    assert.equal(json.summary.findingCount, 0);
+    assert.deepEqual(json.findings, [], "a warning must not reach findings — that array is what fails the build");
+    assert.equal(json.warnings[0].rule, "PC-31");
+    assert.equal(json.warnings[0].severity, "warn");
+    assert.equal(json.warnings[0].file, "config/routing.json");
+    assert.match(json.warnings[0].message, /onEmpty\.strategy/);
+    assert.equal(exitCode, 0, "a warning never sets a non-zero exit code");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-31: the warning is line-addressed to the class that triggered it, not to the top of the file", () => {
+  const dir = freshRepoCopy();
+  try {
+    withRetry(dir, RETRIES_EMPTY);
+    const { json } = runPc31(dir);
+    const lines = readFileSync(join(dir, "config", "routing.json"), "utf8").split("\n");
+    assert.ok(json.warnings[0].line > 0);
+    assert.match(lines[json.warnings[0].line - 1], /"empty-response"/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('PC-31: an explicit strategy is a decision and is silent — "identical" as much as "vary"', () => {
+  for (const strategy of ["identical", "vary"]) {
+    const dir = freshRepoCopy();
+    try {
+      withRetry(dir, { ...RETRIES_EMPTY, onEmpty: { strategy, thinkingLevel: "low", maxExtraAttempts: 0 } });
+      const { json } = runPc31(dir);
+      assert.deepEqual(json.warnings, [], `strategy "${strategy}" is written down, so there is nothing to report`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("PC-31: the two configurations that cannot retry pointlessly are silent (no empty-response class, maxAttempts 0)", () => {
+  for (const retry of [{ classes: ["network"], maxAttempts: 1 }, { ...RETRIES_EMPTY, maxAttempts: 0 }]) {
+    const dir = freshRepoCopy();
+    try {
+      withRetry(dir, retry);
+      const { json } = runPc31(dir);
+      assert.deepEqual(json.warnings, [], `no retry happens under ${JSON.stringify(retry)}, so none is wasted`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("PC-31: a routing file with no retry block at all is silent (the clean fixture ships one)", () => {
+  const dir = freshRepoCopy();
+  try {
+    assert.deepEqual(runPc31(dir).json.warnings, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the text report tags a warning and counts it in its own tail, separately from findings", () => {
+  const dir = freshRepoCopy();
+  try {
+    withRetry(dir, RETRIES_EMPTY);
+    const { exitCode, stdout } = runPc31(dir, []);
+    assert.match(stdout, /PC-31 {2}config\/routing\.json:\d+ +warn /);
+    assert.match(stdout, /0 finding\(s\), 1 warning\(s\) in 1 rule/);
+    assert.equal(exitCode, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--json always carries the warning channel, even on a tree with nothing to warn about", () => {
+  const { json } = runPiCheck(CLEAN_FIXTURE);
+  assert.ok(Array.isArray(json.warnings), "the key is unconditional, so a consumer never has to test for it");
+  assert.equal(json.summary.warningCount, 0);
+});
