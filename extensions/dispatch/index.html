@@ -2829,6 +2829,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#an-async-child-that-came-back-empty-gets-one-follow-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An async child that came back empty gets one follow-up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-fleet-is-on-screen-not-behind-a-command" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4485,6 +4496,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#an-async-child-that-came-back-empty-gets-one-follow-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An async child that came back empty gets one follow-up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-fleet-is-on-screen-not-behind-a-command" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4670,6 +4692,10 @@ per-agent permissions, worktrees, the async fleet.</p>
 <td><code>async-fleet.ts</code></td>
 <td>Re-reads the state a background run wrote for itself, and announces the ones that ended</td>
 </tr>
+<tr>
+<td><code>async-resume.ts</code></td>
+<td>Gives an async run that came back <strong>empty</strong> one automatic <code>resume</code>, once, ever</td>
+</tr>
 </tbody>
 </table>
 <h2 id="the-two-non-negotiable-acceptance-criteria">The two non-negotiable acceptance criteria<a class="headerlink" href="#the-two-non-negotiable-acceptance-criteria" title="Permanent link">&para;</a></h2>
@@ -4753,6 +4779,42 @@ that never wrote a <code>status.json</code> — "never started" still gets said.
 <p>The block is built once at <code>session_start</code> and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. <code>/agents</code> prints the same text <strong>verbatim</strong> — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.</p>
+<h2 id="an-async-child-that-came-back-empty-gets-one-follow-up">An async child that came back empty gets one follow-up<a class="headerlink" href="#an-async-child-that-came-back-empty-gets-one-follow-up" title="Permanent link">&para;</a></h2>
+<p>Reporting a failure is not recovering from it, and one failure is worth recovering from
+automatically: the run that ended carrying the runner's own words —
+<code>Subagent produced no output (possible model cold-start or empty response).</code> — a cold start or a
+dropped first token, where the work was never attempted and re-dispatching by hand costs a full
+prompt again.</p>
+<p><a href="../../configuration/settings/#subagentswatchdog"><code>config/settings.default.json</code></a> has asked for that
+recovery since the block was written, under <code>subagents.watchdog.asyncCompletion</code>. The pinned
+<code>pi-subagents</code> parses the key and reads it in no runtime, so the request went nowhere.
+<code>async-resume.ts</code> is the consumer on this side: when the <code>turn_end</code> sweep reconciles a terminal run
+whose error carries that sentence, one <code>resume</code> goes out over the package's in-process RPC
+(<code>subagents:rpc:v1:request</code>) with a message telling the child to produce its result, partial if need
+be, rather than to try again in the abstract. Nothing upstream changed — the canary in
+<a href="../../operations/verification/"><code>test/dispatch/watchdog-settings.test.ts</code></a> still asserts that the
+package itself consumes the setting nowhere, and the day that fails, this module is what should be
+re-read.</p>
+<p><strong>Gated on both flags, and only those.</strong> <code>watchdog.enabled</code> AND <code>asyncCompletion.enabled</code>, both
+literally <code>true</code>, read from the agent settings file the package itself reads. The AND is the
+package's own composition rule, and both flags ship OFF upstream, so anything looser would turn this
+on for a tree that never asked for it. <code>asyncCompletion.autoFollowBlockers</code> is read, reported, and
+deliberately does not gate anything here: a <em>blocked</em> child — one that came back with a question or
+a stated obstacle — is a different recovery with a different message and a different budget, and it
+belongs to the watchdog's own follow-up cycle.</p>
+<p><strong>One attempt, enforced against a file.</strong> The failure being recovered from is "the child said
+nothing". A resume that also says nothing is the same failure, and answering it the same way is a
+loop that spends a model call per iteration for as long as the session lives. So the budget is one
+per run, recorded in <code>~/.local/state/pi-config/dispatch/async-resume.jsonl</code> <strong>before</strong> the request is
+emitted — a crash between the write and the send costs one lost follow-up, a crash the other way
+round would cost an unbounded number of them — and a ledger that cannot be written means no request
+at all. The run a successful resume starts is stamped as spent before it is adopted into the fleet,
+so its ending is announced like any other run's while it can never earn a follow-up of its own. That
+is what stops a chain of empty children from walking the budget forward one run at a time.</p>
+<p>The outcome — resumed, refused, or no reply inside 30s — arrives as one message, and the terminal
+announcement marks the run it already answered for with <code>↻</code> and withdraws the re-dispatch
+instruction for it. Telling the model to re-dispatch a run the harness is already resuming is two
+instructions that contradict each other, and it can only obey one.</p>
 <h2 id="the-fleet-is-on-screen-not-behind-a-command">The fleet is on screen, not behind a command<a class="headerlink" href="#the-fleet-is-on-screen-not-behind-a-command" title="Permanent link">&para;</a></h2>
 <p>The announcement above is written for the model. It fires once per run, and only after the run is
 over — so it is not the surface that answers <em>"is anything still running?"</em>.</p>

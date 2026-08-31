@@ -1396,10 +1396,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#two-things-this-block-cannot-say-and-what-stands-in-for-them" class="md-nav__link">
+  <a href="#two-things-this-block-cannot-say-to-pi-subagents-and-what-stands-in-for-them" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two things this block cannot say, and what stands in for them
+        Two things this block cannot say to pi-subagents, and what stands in for them
       
     </span>
   </a>
@@ -4526,10 +4526,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#two-things-this-block-cannot-say-and-what-stands-in-for-them" class="md-nav__link">
+  <a href="#two-things-this-block-cannot-say-to-pi-subagents-and-what-stands-in-for-them" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two things this block cannot say, and what stands in for them
+        Two things this block cannot say to pi-subagents, and what stands in for them
       
     </span>
   </a>
@@ -5053,20 +5053,40 @@ quietly does nothing.</p>
 <td>A writer child's <code>agent_end</code> gets reviewed. <code>children.model</code> stays unset on purpose — the review then runs on the child's own session model, so no bare model id enters a config file (<code>PC-08</code>)</td>
 </tr>
 <tr>
-<td><code>asyncCompletion.enabled</code>, <code>.autoFollowBlockers</code></td>
+<td><code>asyncCompletion.enabled</code></td>
 <td><code>true</code></td>
-<td>An async child that comes back empty or blocked is followed up by the watchdog instead of by a manual, full-price <code>subagent resume</code></td>
+<td>An async child that comes back <strong>empty</strong> is followed up automatically instead of by a manual, full-price <code>subagent resume</code>. Upstream still reads this nowhere; the harness does — <a href="../../extensions/dispatch/#an-async-child-that-came-back-empty-gets-one-follow-up"><code>extensions/dispatch/async-resume.ts</code></a>, gated on this key AND <code>enabled</code></td>
+</tr>
+<tr>
+<td><code>asyncCompletion.autoFollowBlockers</code></td>
+<td><code>true</code></td>
+<td>A <strong>blocked</strong> async child — one that came back with a question or a stated obstacle — is the watchdog's own follow-up cycle. Read and reported by the harness, gating nothing there: it is a different recovery, with a different message and a different budget</td>
 </tr>
 </tbody>
 </table>
 <p><code>autoFollow.blockers</code> and <code>autoFollow.maxAttempts: 3</code> are already the package's defaults and are
 deliberately not restated. <code>test/dispatch/watchdog-settings.test.ts</code> pins them, so a default that
 flips upstream is loud rather than silent.</p>
-<h3 id="two-things-this-block-cannot-say-and-what-stands-in-for-them">Two things this block cannot say, and what stands in for them<a class="headerlink" href="#two-things-this-block-cannot-say-and-what-stands-in-for-them" title="Permanent link">&para;</a></h3>
-<p><strong><code>asyncCompletion</code> is parsed and consumed by nothing.</strong> In the pinned <code>pi-subagents</code> the string
-occurs in exactly two files — the parser and the type. No runtime reads it. The block above is
-correct and takes effect the day upstream wires it; until then an empty async child is <em>not</em>
-recovered by configuration. The test asserts the file list, so it fails the moment that changes.</p>
+<h3 id="two-things-this-block-cannot-say-to-pi-subagents-and-what-stands-in-for-them">Two things this block cannot say to <code>pi-subagents</code>, and what stands in for them<a class="headerlink" href="#two-things-this-block-cannot-say-to-pi-subagents-and-what-stands-in-for-them" title="Permanent link">&para;</a></h3>
+<p><strong><code>asyncCompletion</code> is parsed by <code>pi-subagents</code> and consumed by nothing <em>there</em> — so the harness
+consumes it.</strong> In the pinned package the string still occurs in exactly two files, the parser and
+the type, and no runtime reads it; <code>test/dispatch/watchdog-settings.test.ts</code> asserts that file list
+and fails the moment upstream wires it up.</p>
+<p>What changed is which side answers. The key now has a first-party consumer,
+<a href="../../extensions/dispatch/#an-async-child-that-came-back-empty-gets-one-follow-up"><code>extensions/dispatch/async-resume.ts</code></a>:
+when the dispatch extension's <code>turn_end</code> sweep reconciles an async run whose terminal error carries
+the runner's own <code>Subagent produced no output …</code>, it sends exactly one <code>resume</code> over the package's
+in-process RPC. It is gated on <code>watchdog.enabled</code> AND <code>asyncCompletion.enabled</code>, both read from this
+file and both required to be literally <code>true</code> — the same AND the package applies to its own endpoint
+flags, and both ship OFF upstream, so a tree that never asked for this never gets it. The budget is
+one attempt per run, written to <code>~/.local/state/pi-config/dispatch/async-resume.jsonl</code> before the
+request goes out and re-read from disk on every sweep, so it holds across a restart; the run a
+successful resume starts inherits a spent budget, which is what makes a chain of empty children
+impossible rather than merely unlikely. <code>autoFollowBlockers</code> is read and reported and gates nothing
+here: a blocked child is a different recovery, and it is still the watchdog's.</p>
+<p>So the block above is no longer inert, and the setting no longer waits on upstream for the case it
+names most concretely. What it still cannot do is reach the package's own watchdog runtime — an
+async completion is <em>reviewed</em> by nobody until that lands.</p>
 <p><strong><code>subagent_wait</code>'s <code>stopOnAttention</code> default is code, not config — so the harness sets it on the
 call instead.</strong> The tool resolves it as
 <code>params.stopOnAttention ?? deps.stopOnAttention !== false</code>, and the only injector of that dep is
