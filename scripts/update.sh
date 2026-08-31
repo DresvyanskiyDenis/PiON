@@ -233,6 +233,42 @@ short() { printf '%s' "${1:0:7}"; }
 # Either way a link somebody re-pointed, and a real file where a link belongs, are reported and
 # left exactly as they are — that promise is in docs/getting-started/update.md and is not
 # conditional on upstream having moved.
+# The EXT-15 gate, which is deliberately not a row in install.sh's link table (see the comment
+# beside the two `link_one … hooks.yaml` calls there). Guardrails are off by default and
+# `./scripts/install.sh --with-guardrails` opts in, so ~/.pi/agent/hooks.yaml has TWO correct
+# targets and which one is right is a posture this machine chose. Reconciling it against a single
+# expected value would re-point it on every update — a security posture silently reversed by a
+# maintenance command, which is the exact failure the rest of this function exists to prevent.
+# Either repo target is accepted and left untouched; anything else is reported, never changed.
+reconcile_hooks_gate() { # reconcile_hooks_gate <1 = may create the missing default link | 0 = report only>
+  local _apply="$1" dst have off on
+  off="$STABLE_LINK/config/hooks-off.yaml"
+  on="$STABLE_LINK/config/hooks.yaml"
+  # A fork that ships neither gate has nothing to reconcile — same "not shipped here" rule the
+  # optional rows above follow, so this never invents a link to a file that does not exist.
+  [ -e "$REPO_DIR/config/hooks-off.yaml" ] || return 0
+  dst="$AGENT_DIR/hooks.yaml"
+  have="$(readlink "$dst" 2>/dev/null || true)"
+  if [ "$have" = "$off" ]; then
+    ok "hooks.yaml — guardrails off (the empty gate)"
+  elif [ "$have" = "$on" ]; then
+    ok "hooks.yaml — guardrails on (the rule set)"
+  elif [ -n "$have" ]; then
+    report_add "$dst points at $have, which is neither $on nor $off — left alone"
+    warn "hooks.yaml — points at neither gate (reported, not changed)"
+  elif [ -e "$dst" ]; then
+    report_add "$dst is a real file where a symlink to one of the two hook gates is expected — left alone"
+    warn "hooks.yaml — a real path is in the way (reported, not changed)"
+  elif [ "$_apply" = 1 ]; then
+    run "ln -sfn '$off' '$dst'"
+    manifest_add LINK "$dst" "$off"
+    changed "hooks.yaml -> $off (guardrails are off by default; --with-guardrails opts in)"
+  else
+    report_add "$dst is missing — './scripts/install.sh --repair' links the empty gate, and '--with-guardrails' links the rules"
+    warn "hooks.yaml — no link (reported; nothing arrived in this run that could have needed one)"
+  fi
+}
+
 reconcile_links() { # reconcile_links <1 = may create missing links | 0 = report only>
   local _apply="$1" LINKS req src name dst want have m_type m_path m_detail
   # install.sh's link table, read out of install.sh. The alternative is a copy of the table here,
@@ -280,6 +316,8 @@ reconcile_links() { # reconcile_links <1 = may create missing links | 0 = report
       warn "$name — no link (reported; nothing arrived in this run that could have needed one)"
     fi
   done < "$LINKS"
+
+  reconcile_hooks_gate "$_apply"
 
   # Anything the manifest recorded that the repo no longer has. This catches links whose repo path
   # was removed or renamed upstream, including ones outside the link table above.
