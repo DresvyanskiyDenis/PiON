@@ -83,6 +83,12 @@ rejected before any child launches.
 `action: 'validate'` checks a script without launching children. `action` otherwise is for
 management and control only.
 
+**Waiting.** A blocking `subagent_wait` here defaults to `stopOnAttention: false`, whatever that
+tool's own description says: it returns when a run completes, fails, pauses or times out, and when a
+child asks you something through `contact_supervisor`, and it keeps waiting through idle and
+long-tool heartbeats, which are progress rather than questions. Pass `stopOnAttention: true` only
+when you genuinely want to be woken by a slow child.
+
 ## Models
 
 Every child in a `workflowScript` must carry its own fully-qualified `model`, e.g.

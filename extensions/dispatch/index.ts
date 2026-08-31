@@ -75,6 +75,7 @@ import { configDir } from "../lib/paths.ts";
 import { homedir } from "node:os";
 import { assertDispatchShape } from "./contract.ts";
 import { describeRelaxation, relaxDispatchOutputSchemas } from "./output-schema.ts";
+import { applyWaitStopOnAttention, WAIT_DEFAULT_NOTICE } from "./wait-attention.ts";
 import { DispatchError, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
 import {
   admissibleProviders,
@@ -882,6 +883,23 @@ export function rules(state: State): GuardRule[] {
         if (applied.length === 0) return { block: false };
         const agent = firstString(input, AGENT_KEYS) ?? "?";
         report(ctx, `[pi-config] ${describeRelaxation(agent, applied)}`, "info");
+        return { block: false };
+      },
+    },
+    {
+      // The one rule here that fires on a tool which dispatches nothing: `subagent_wait` blocks,
+      // and the package's own default ends that block on any `needs_attention` run, including the
+      // two heartbeats (idle, one long tool) that are not a question to the lead. Each of those
+      // wakes costs a full context re-read. The default is written onto the call because the
+      // package exposes no key for it; `wait-attention.ts` has the cites and the argument. Never
+      // blocks, and never overrides an explicit parameter.
+      id: "DSP-WAIT",
+      evaluate(event, ctx): GuardVerdict {
+        if (!state.settings.dispatch.waitTools.includes(event.toolName)) return { block: false };
+        const outcome = applyWaitStopOnAttention(event.input as Record<string, unknown>, state.settings.dispatch);
+        // Constant text, so `report`'s dedup announces the changed default once per session rather
+        // than on every wait: the lead needs to know the semantics, not to be told each time.
+        if (outcome?.changed) report(ctx, `[pi-config] ${WAIT_DEFAULT_NOTICE}`, "info");
         return { block: false };
       },
     },

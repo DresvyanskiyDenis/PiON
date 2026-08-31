@@ -99,6 +99,20 @@ export interface DispatchConfig {
    */
   readonly failureOutputMaxLines: number;
   readonly failureOutputMaxChars: number;
+  /**
+   * Tool names that BLOCK on background work rather than dispatch it. Not a subset of
+   * `dispatchTools` and not a superset of it either: `subagent_wait` launches nothing, and no
+   * dispatch tool waits. Kept as a list because the wait tool is the package's to name.
+   */
+  readonly waitTools: readonly string[];
+  /**
+   * What a blocking wait that did not name `stopOnAttention` itself gets. `false`, the shipped
+   * value, keeps the wait open through idle and long-tool heartbeats; supervisor and contact
+   * requests, terminal states and the timeout still end it. `true` restores the package default by
+   * writing nothing at all. See `wait-attention.ts` for why this is a call rewrite and not a key in
+   * `config/subagent.json`.
+   */
+  readonly waitStopOnAttention: boolean;
 }
 
 export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
@@ -115,6 +129,8 @@ export const DEFAULT_DISPATCH_CONFIG: DispatchConfig = {
   onThinkingClamp: "warn",
   failureOutputMaxLines: 20,
   failureOutputMaxChars: 2_000,
+  waitTools: ["subagent_wait"],
+  waitStopOnAttention: false,
 };
 
 export interface DispatchSettings {
@@ -225,6 +241,16 @@ function num(raw: Record<string, unknown>, key: string, fallback: number, proble
   return value;
 }
 
+function bool(raw: Record<string, unknown>, key: string, fallback: boolean, problems: string[]): boolean {
+  const value = raw[key];
+  if (value === undefined) return fallback;
+  if (typeof value !== "boolean") {
+    problems.push(`dispatch.json: "${key}" must be true or false; using ${fallback}`);
+    return fallback;
+  }
+  return value;
+}
+
 function strArray(raw: Record<string, unknown>, key: string, fallback: readonly string[], problems: string[]): readonly string[] {
   const value = raw[key];
   if (value === undefined) return fallback;
@@ -269,6 +295,8 @@ function parseDispatchConfig(raw: Record<string, unknown> | undefined, problems:
     onThinkingClamp,
     failureOutputMaxLines: num(raw, "failureOutputMaxLines", d.failureOutputMaxLines, problems, 0),
     failureOutputMaxChars: num(raw, "failureOutputMaxChars", d.failureOutputMaxChars, problems, 0),
+    waitTools: strArray(raw, "waitTools", d.waitTools, problems),
+    waitStopOnAttention: bool(raw, "waitStopOnAttention", d.waitStopOnAttention, problems),
   };
 }
 

@@ -281,22 +281,38 @@ quietly does nothing.
 deliberately not restated. `test/dispatch/watchdog-settings.test.ts` pins them, so a default that
 flips upstream is loud rather than silent.
 
-### Two things this block cannot say
+### Two things this block cannot say, and what stands in for them
 
 **`asyncCompletion` is parsed and consumed by nothing.** In the pinned `pi-subagents` the string
 occurs in exactly two files — the parser and the type. No runtime reads it. The block above is
 correct and takes effect the day upstream wires it; until then an empty async child is *not*
 recovered by configuration. The test asserts the file list, so it fails the moment that changes.
 
-**`subagent_wait`'s `stopOnAttention` default is code, not config.** The tool resolves it as
+**`subagent_wait`'s `stopOnAttention` default is code, not config — so the harness sets it on the
+call instead.** The tool resolves it as
 `params.stopOnAttention ?? deps.stopOnAttention !== false`, and the only injector of that dep is
-the package's internal auto-drain; the wait tool's whole config surface is one boolean. So no key
-anywhere makes a blocking wait ignore attention pings by default, and patching `node_modules` would
-be inert — the installed tree is what runs, and [`PC-21`](../operations/verification.md) keeps it
-unmodified. The live surface is per call: `subagent_wait({ stopOnAttention: false })` keeps a
-blocking wait open through idle and long-thinking pings while still stopping for supervisor and
-contact requests. That is a habit for `AGENTS.md`, not a setting. Until upstream adds the key, a
-lead that waits without passing it pays a full cache miss for every progress ping.
+the package's internal auto-drain, which passes `false`; the wait tool's whole config surface is one
+boolean. So no key anywhere makes a blocking wait ignore attention pings by default, and patching
+`node_modules` would be inert — the installed tree is what runs, and
+[`PC-21`](../operations/verification.md) keeps it unmodified.
+
+What the harness does instead: [`extensions/dispatch/wait-attention.ts`](../extensions/dispatch.md#a-blocking-wait-does-not-wake-on-heartbeats)
+writes `stopOnAttention: false` onto a blocking `subagent_wait` that did not name it, from the
+`DSP-WAIT` `tool_call` rule — the same in-place argument rewrite `clampConcurrency` uses, and the
+one mechanism this repo has for a default the package will not take from config. The knobs are
+`waitTools` and `waitStopOnAttention` in [`config/dispatch.json`](dispatch.md); setting the latter to
+`true` restores the package default by writing nothing at all.
+
+**The semantics, stated once.** A wait still returns on every terminal state
+(complete/failed/paused), on the timeout, and on a child's `contact_supervisor`/intercom request:
+`isDone()` reads `stopOnAttention || hasSupervisorTool(run)`, so the genuine ask is checked
+independently of the flag. What stops waking the lead is the two heuristics: idle beyond 60 s
+(scaled ×2/×5/×10 for medium/high/xhigh thinking) and one tool call open for 240 s or more. Neither
+is a question, and each spurious wake cost a full re-read of the lead's context. A call that wants
+the old behaviour passes `stopOnAttention: true` and always wins; a `nonBlocking: true` subscription
+is left untouched, because the flag cannot reach that branch. The first rewritten wait in a session
+announces the changed default once, since the package's own tool description still advertises the
+opposite.
 
 ---
 
