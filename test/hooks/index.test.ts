@@ -352,8 +352,10 @@ rules:
 });
 
 describe("hooks — preflight-before-remote-job: matches a paid submit, not a read-only near-miss", () => {
-  // The pattern under test is copied verbatim from config/hooks.yaml's preflight-before-remote-job
-  // rule — keep the two in sync if either changes.
+  // The pattern under test is the worked example in docs/configuration/tools.md — it used to ship
+  // in config/hooks.yaml and was moved out with the rest of the machine-specific rules. It is kept
+  // under test because what it demonstrates is the hard part of writing one of these: an alternation
+  // that fires on a submit and not on the read-only command one character away from it.
   const PATTERN =
     'databricks\\s+jobs\\s+run-now\\b|databricks\\s+bundle\\s+deploy\\b|gcloud\\s+\\S+\\s+jobs\\s+submit\\b|aws\\s+batch\\s+submit-job\\b|kubectl\\s+create\\s+job\\b';
 

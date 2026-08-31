@@ -13,9 +13,22 @@
 # says so loudly rather than refusing the session — see index.ts's header for why that polarity
 # changed on 2026-08-11.
 #
-# To turn every rule below off without touching this file, point the link at the empty gate:
+# This file is NOT linked by default. `scripts/install.sh` points ~/.pi/agent/hooks.yaml at
+# config/hooks-off.yaml unless it is run with `--with-guardrails`, so nothing below is armed until
+# somebody asks for it. To swap by hand, after an install:
 # `ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml`. See docs/extending/hooks.md,
 # "Turning guardrails off".
+#
+# What ships here, and why it is a short list. This is the rule set a public fork inherits the
+# moment it opts in, so every rule in it has to be defensible on a machine whose work nobody here
+# knows anything about. That rules out the three that used to sit in this file: an npm-install
+# confirm (this repository's own gates run `npm ci` — a personal package-manager preference does
+# not belong in a shared default), a worktree reminder matching the word "implement" in any prompt,
+# and a confirm on Databricks/gcloud/aws/kubectl job submits, which is a rule about one person's
+# workplace. All three are good rules for the machine they were written for; all three are still in
+# the docs as worked examples, which is where a personal rule belongs. What is left is what holds
+# everywhere: one refusal for a destructive, irreversible git operation, and the two `run` rules
+# that arm config/constraints.json — a no-op until a project writes its own constraints.
 version: 1
 rules:
   - id: no-force-push-main
@@ -23,35 +36,6 @@ rules:
     match: { tool: bash, pattern: 'git\s+push\b.*(--force|-f)\b.*\b(main|master)\b' }
     action: block
     reason: "Force-pushing main/master is blocked. Push to a feature branch, or use --force-with-lease with a written reason."
-
-  - id: confirm-npm-install
-    event: tool_call
-    match: { tool: bash, pattern: '(^|[;&|]\s*)npm\s+(i|install)\b' }
-    action: confirm
-    reason: "This harness uses uv, never pip/npm for installs. Run npm install anyway?"
-
-  - id: remind-worktree
-    event: input
-    # No (?i): match.pattern is a plain JS RegExp, and JS has no PCRE-style inline flag
-    # syntax — `new RegExp('(?i)...')` throws "Invalid group" and the rule is dropped at
-    # load. Bracket classes on the leading letter cover the realistic capitalizations instead.
-    match: { pattern: '\b([Ii]mplement|[Rr]efactor|[Ff]ix the bug)\b' }
-    action: warn
-    reason: "Reminder: coding work happens in a git worktree, never the primary checkout."
-
-  # A paid remote job or long-running run used as the first test of a changed code path is an
-  # expensive way to discover an error class that a five-minute local run would have caught for
-  # free. `confirm`, not `block`: this hook cannot know whether a local run already happened, so
-  # `block` would refuse legitimate submits and get routed around within the hour, while `warn` is
-  # invisible in a long transcript. `confirm` costs one keypress on a legitimate submit and
-  # reliably interrupts a repeat of the same failing one.
-  - id: preflight-before-remote-job
-    event: tool_call
-    match:
-      tool: bash
-      pattern: 'databricks\s+jobs\s+run-now\b|databricks\s+bundle\s+deploy\b|gcloud\s+\S+\s+jobs\s+submit\b|aws\s+batch\s+submit-job\b|kubectl\s+create\s+job\b'
-    action: confirm
-    reason: "This submits work to a remote executor or a paid endpoint. A local run against real, committed input should have passed first — submit anyway?"
 
   # Hard constraints. A constraint written as NEVER gets a hook; anything without one was a
   # preference. `run`, not `pattern`, because the banned patterns are per project and each carries
