@@ -1,0 +1,222 @@
+#!/usr/bin/env node
+// config/bin/render-grid — print a character grid that a program computed, not a model.
+//
+// WHAT IT IS FOR
+// --------------
+// Column alignment in a monospace block is a per-character property. A model emits tokens and has
+// no representation of which column a glyph lands in, so a misaligned ASCII table cannot be fixed
+// by retrying: consecutive freehand attempts come out differently wrong rather than progressively
+// better, and feedback like "use bigger spaces" carries no signal any of them can act on. The
+// cheap correct mechanism is to compute the grid and print the result. This script is that
+// mechanism, kept short enough to read in one screen so nobody has to trust it blindly.
+//
+// It is deliberately not a table library. Two input shapes cover the cases that actually come up:
+// `table` (rows of cells, columns padded to a common width) and `spans` (labelled rows of ranges
+// over a fixed cell grid — the shape of a timeline or a boundary diagram). Anything else is ten
+// lines of `python3 -c`, which the AGENTS.md TRIGGER block says just as loudly.
+//
+// PROTOCOL
+// --------
+// stdin (or a file path argument): one JSON object. stdout: the grid. Exit 0 on success, 2 on a
+// bad request, naming the field that is bad. Errors go to stderr, so `render-grid < spec.json >
+// out.txt` never writes a half-grid into the file it was aimed at.
+//
+//   { "type": "table", "rows": [["run","cost"],["a","0.19"]], "header": true,
+//     "align": ["left","right"], "gap": 2, "border": "none" | "ascii" | "unicode" }
+//
+//   { "type": "spans", "cells": 15, "cellWidth": 5, "labelWidth": 14, "ruler": true,
+//     "rows": [{ "label": "gold", "spans": [{ "text": "d1", "from": 1, "to": 4 }] }] }
+//
+// WHY IT REFUSES WIDE CHARACTERS
+// ------------------------------
+// Alignment is measured in code points here, not in terminal cells. A CJK ideograph or an emoji
+// occupies two cells in every monospace font and one code point in this arithmetic, so a grid
+// containing one would come out misaligned while every check in this script passed — exactly the
+// silent failure it exists to prevent. Such a cell is refused by name instead. Implementing real
+// `wcwidth` would be the alternative; refusing is honest and is four lines.
+//
+// Zero dependencies, no import from this repo: it runs as a spawned process from ~/bin/render-grid
+// (scripts/install.sh links every config/bin/* helper onto PATH), with any project as cwd.
+
+import { readFileSync } from "node:fs";
+
+const USAGE = `usage: render-grid [FILE]        # reads one JSON object from FILE, or stdin
+
+  {"type":"table","rows":[["run","cost"],["a","0.19"]],"header":true,
+   "align":["left","right"],"gap":2,"border":"none"|"ascii"|"unicode"}
+
+  {"type":"spans","cells":15,"cellWidth":5,"labelWidth":14,"ruler":true,
+   "rows":[{"label":"gold","spans":[{"text":"d1","from":1,"to":4}]}]}
+
+Exits 2 and names the offending field when the spec cannot be rendered exactly.`;
+
+/** A bad request, as opposed to a bug in this script: reported as text, exit 2. */
+class BadSpec extends Error {}
+
+/** Code points, not UTF-16 units: an astral glyph is one column, not two. */
+function width(text) {
+  return [...text].length;
+}
+
+// Ranges that are two terminal cells wide in every monospace font (a readable subset of
+// UAX #11 "Wide"/"Fullwidth" plus the emoji planes), and the variation selector that turns a
+// narrow glyph into an emoji one.
+const WIDE = /[ᄀ-ᅟ⺀-꓏ꥠ-꥿가-힣豈-﫿︰-﹯＀-｠￠-￦\u{1F300}-\u{1FAFF}\u{20000}-\u{3FFFD}]|️/u;
+
+function cell(value, where) {
+  const text = typeof value === "string" ? value : String(value ?? "");
+  if (text.includes("\n")) throw new BadSpec(`${where}: contains a newline; a cell is one line`);
+  if (WIDE.test(text)) {
+    throw new BadSpec(
+      `${where}: contains a double-width character (${JSON.stringify(text)}); this script aligns by code point, so it would print misaligned`,
+    );
+  }
+  return text;
+}
+
+function pad(text, size, align) {
+  const slack = size - width(text);
+  if (slack <= 0) return text;
+  if (align === "right") return " ".repeat(slack) + text;
+  if (align === "center") {
+    const left = Math.floor(slack / 2);
+    return " ".repeat(left) + text + " ".repeat(slack - left);
+  }
+  return text + " ".repeat(slack);
+}
+
+function integer(value, fallback, where, { min = 0 } = {}) {
+  if (value === undefined) {
+    if (fallback === undefined) throw new BadSpec(`${where}: required`);
+    return fallback;
+  }
+  if (!Number.isInteger(value) || value < min) throw new BadSpec(`${where}: must be an integer >= ${min}, got ${JSON.stringify(value)}`);
+  return value;
+}
+
+const BORDERS = {
+  ascii: { h: "-", v: "|", x: "+" },
+  unicode: { h: "─", v: "│", x: "┼", tl: "┌", tr: "┐", bl: "└", br: "┘", t: "┬", b: "┴", l: "├", r: "┤" },
+};
+
+function renderTable(spec) {
+  if (!Array.isArray(spec.rows) || spec.rows.length === 0) throw new BadSpec("rows: must be a non-empty array of arrays");
+  const rows = spec.rows.map((row, r) => {
+    if (!Array.isArray(row)) throw new BadSpec(`rows[${r}]: must be an array of cells`);
+    return row.map((value, c) => cell(value, `rows[${r}][${c}]`));
+  });
+  const columns = Math.max(...rows.map((row) => row.length));
+  const align = Array.isArray(spec.align) ? spec.align : [];
+  for (const [i, a] of align.entries()) {
+    if (!["left", "right", "center"].includes(a)) throw new BadSpec(`align[${i}]: must be left, right or center, got ${JSON.stringify(a)}`);
+  }
+  const widths = Array.from({ length: columns }, (_, c) => Math.max(...rows.map((row) => width(row[c] ?? ""))));
+  const gap = integer(spec.gap, 2, "gap", { min: 1 });
+  const border = spec.border ?? "none";
+  if (!["none", "ascii", "unicode"].includes(border)) throw new BadSpec(`border: must be none, ascii or unicode, got ${JSON.stringify(border)}`);
+
+  const cells = (row) => widths.map((w, c) => pad(row[c] ?? "", w, align[c] ?? "left"));
+  if (border === "none") {
+    const lines = rows.map((row) => cells(row).join(" ".repeat(gap)).trimEnd());
+    if (spec.header) lines.splice(1, 0, widths.map((w) => "-".repeat(w)).join(" ".repeat(gap)));
+    return lines;
+  }
+
+  const b = BORDERS[border];
+  const inner = widths.map((w) => b.h.repeat(w + 2));
+  const rule = (left, mid, right) => (border === "ascii" ? b.x + inner.join(b.x) + b.x : left + inner.join(mid) + right);
+  const line = (row) => `${b.v} ${cells(row).join(` ${b.v} `)} ${b.v}`;
+  const lines = [rule(b.tl, b.t, b.tr), ...rows.map(line), rule(b.bl, b.b, b.br)];
+  if (spec.header && rows.length > 1) lines.splice(2, 0, rule(b.l, b.x, b.r));
+  return lines;
+}
+
+function renderSpans(spec) {
+  const cellsAcross = integer(spec.cells, undefined, "cells", { min: 1 });
+  const cellWidth = integer(spec.cellWidth, 5, "cellWidth", { min: 2 });
+  if (!Array.isArray(spec.rows) || spec.rows.length === 0) throw new BadSpec("rows: must be a non-empty array of {label, spans}");
+
+  const labels = spec.rows.map((row, r) => cell(row?.label ?? "", `rows[${r}].label`));
+  const labelWidth = integer(spec.labelWidth, Math.max(0, ...labels.map(width)) + 2, "labelWidth", { min: 0 });
+  const track = cellsAcross * cellWidth;
+
+  const lines = spec.rows.map((row, r) => {
+    const spans = row?.spans;
+    if (!Array.isArray(spans)) throw new BadSpec(`rows[${r}].spans: must be an array`);
+    const slots = Array.from({ length: track }, () => " ");
+    const taken = new Array(cellsAcross).fill(-1);
+    let rightmost = 0;
+    spans.forEach((span, s) => {
+      const where = `rows[${r}].spans[${s}]`;
+      const from = integer(span?.from, undefined, `${where}.from`, { min: 1 });
+      const to = integer(span?.to, from, `${where}.to`, { min: 1 });
+      if (to < from) throw new BadSpec(`${where}: to (${to}) is before from (${from})`);
+      if (to > cellsAcross) throw new BadSpec(`${where}: to (${to}) is past cells (${cellsAcross})`);
+      for (let c = from; c <= to; c += 1) {
+        if (taken[c - 1] !== -1) throw new BadSpec(`${where}: overlaps rows[${r}].spans[${taken[c - 1]}] at cell ${c}`);
+        taken[c - 1] = s;
+      }
+      const text = cell(span?.text ?? "", `${where}.text`);
+      const start = (from - 1) * cellWidth;
+      const size = (to - from + 1) * cellWidth;
+      if (width(text) > size - 1) throw new BadSpec(`${where}.text: ${JSON.stringify(text)} needs ${width(text)} columns, the span holds ${size - 1}`);
+      const body = pad(text, size - 1, "center");
+      slots[start] = "|";
+      [...body].forEach((ch, i) => {
+        slots[start + 1 + i] = ch;
+      });
+      rightmost = Math.max(rightmost, start + size);
+    });
+    // One closing bar at the right edge of the last span: every other boundary is a span's own
+    // opening bar, so cells stay exactly cellWidth wide however the spans are packed.
+    if (rightmost > 0) slots[rightmost - 1] = "|";
+    return (pad(labels[r], labelWidth, "left") + slots.join("")).trimEnd();
+  });
+
+  if (spec.ruler) {
+    const marks = Array.from({ length: cellsAcross }, (_, i) => pad(String(i + 1), cellWidth, "center")).join("");
+    lines.push(" ".repeat(labelWidth) + marks.trimEnd());
+  }
+  return lines;
+}
+
+function render(spec) {
+  if (spec === null || typeof spec !== "object" || Array.isArray(spec)) throw new BadSpec("the input must be a JSON object");
+  if (spec.type === "table") return renderTable(spec);
+  if (spec.type === "spans") return renderSpans(spec);
+  throw new BadSpec(`type: must be "table" or "spans", got ${JSON.stringify(spec.type)}`);
+}
+
+function main(argv) {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    process.stdout.write(`${USAGE}\n`);
+    return 0;
+  }
+  const file = argv.find((a) => !a.startsWith("-"));
+  let raw;
+  try {
+    raw = readFileSync(file ?? 0, "utf8");
+  } catch (error) {
+    process.stderr.write(`render-grid: cannot read ${file ?? "stdin"}: ${error.message}\n`);
+    return 2;
+  }
+  let spec;
+  try {
+    spec = JSON.parse(raw);
+  } catch (error) {
+    process.stderr.write(`render-grid: input is not JSON: ${error.message}\n`);
+    return 2;
+  }
+  try {
+    process.stdout.write(`${render(spec).join("\n")}\n`);
+    return 0;
+  } catch (error) {
+    if (error instanceof BadSpec) {
+      process.stderr.write(`render-grid: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
+}
+
+process.exit(main(process.argv.slice(2)));
