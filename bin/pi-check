@@ -44,7 +44,7 @@ import { readdirSync, existsSync, statSync, realpathSync, readFileSync, writeFil
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { createContext } from "./lib/context.mjs";
-import { checkInstalledHookScripts, installPaths } from "./lib/hook-scripts.mjs";
+import { checkInstalledHookScripts, describeInstalledHooksFile, installPaths } from "./lib/hook-scripts.mjs";
 import { MANIFEST_PATH, VENDOR_ROOT, hashVendoredTree, serializeVendorManifest } from "./lib/vendor-manifest.mjs";
 
 /** @typedef {import("./types.mjs").Finding} Finding */
@@ -122,6 +122,9 @@ function writeVendorManifest(repoRoot) {
  * once the reader knows which $HOME was inspected — a green run under the wrong HOME is precisely
  * the reassurance this mode exists to stop giving.
  *
+ * It also prints, on its own `hooks:` line, what `$AGENT_DIR/hooks.yaml` currently resolves to.
+ * That line is never a finding and never moves the exit code — see `describeInstalledHooksFile`.
+ *
  * @param {string} repoRoot absolute path
  * @param {boolean} json
  * @returns {void}
@@ -130,15 +133,21 @@ function runDoctor(repoRoot, json) {
   const ctx = createContext(repoRoot, { live: false });
   const paths = installPaths();
   const findings = checkInstalledHookScripts(ctx, paths);
+  const hooksFile = describeInstalledHooksFile(paths);
 
   if (json) {
     process.stdout.write(
-      JSON.stringify({ mode: "doctor", paths, findings, summary: { findingCount: findings.length } }, null, 2) + "\n",
+      JSON.stringify(
+        { mode: "doctor", paths, hooksFile, findings, summary: { findingCount: findings.length } },
+        null,
+        2,
+      ) + "\n",
     );
   } else {
     // Wider than `formatText`'s 32 and with a hard separator: these locations are absolute machine
     // paths, not repo-relative ones, and a long one must not run into the message.
     const lines = findings.map((f) => `${f.rule.padEnd(7)}${(f.line ? `${f.file}:${f.line}` : f.file).padEnd(44)}  ${f.message}`);
+    lines.push(`hooks: ${hooksFile.path} is ${hooksFile.state.toUpperCase()} — ${hooksFile.note}`);
     lines.push(`${findings.length} finding(s) — install checked under ${paths.binDir}, expecting links into ${paths.stableLink}`);
     process.stdout.write(lines.join("\n") + "\n");
   }

@@ -1,0 +1,27 @@
+# The documented off-switch. This file exists to be symlinked over `~/.pi/agent/hooks.yaml`, so
+# that turning the guardrails off is a link swap rather than a deletion that install.sh's link
+# expectations would silently undo:
+#
+#   ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # off
+#   ln -sf ~/pi-config/config/hooks.yaml     ~/.pi/agent/hooks.yaml   # back on
+#
+# `rules: []` is a legitimate shape, not a degraded one. `schema.ts` requires `version: 1` and an
+# array; an empty array compiles to zero rules, and `index.ts` announces "hooks: 0 rule(s) loaded"
+# at info level with no `degraded` flag and no `/doctor` D-09 finding.
+#
+# Why this file rather than one of the two obvious alternatives:
+#
+#   - Deleting `~/.pi/agent/hooks.yaml` reaches the same runtime state — a missing file is ENOENT,
+#     which the loader treats as normal — but it leaves no trace. A machine with the guardrails
+#     deliberately off becomes indistinguishable from a machine where the install never ran, which
+#     is the quiet-failure class the `run`-script audit already cost us once.
+#   - Corrupting the file reaches it too, and costs an `error`-level DEGRADED banner every session
+#     plus a standing `/doctor` D-09 finding, which is indistinguishable from a real breakage.
+#
+# What this does NOT turn off: `guard`'s hard gates are a separate extension and keep running, and
+# so does everything outside the hook layer. `scripts/install.sh` and `scripts/update.sh` re-point
+# the link at `config/hooks.yaml` on their next run, by design — re-apply the swap afterwards.
+#
+# See docs/extending/hooks.md, "Turning guardrails off".
+version: 1
+rules: []

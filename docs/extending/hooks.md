@@ -333,6 +333,80 @@ keeps working — and the earlier polarity meant one YAML typo bricked the sessi
 
 ---
 
+## Turning guardrails off
+
+There is a recorded way to switch the whole hook layer off, and it is a link swap rather than a
+deletion:
+
+```bash
+ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # off
+ln -sf ~/pi-config/config/hooks.yaml     ~/.pi/agent/hooks.yaml   # back on
+```
+
+`config/hooks-off.yaml` is a valid hooks file carrying an empty rule list. Restart `pi` and the layer
+announces `hooks: 0 rule(s) loaded` at **info** level — no degraded flag, no `/doctor` finding,
+because zero rules is a shape the schema accepts, not a failure it survived.
+
+### Why not just delete the file
+
+Deleting `~/.pi/agent/hooks.yaml` reaches the same *runtime* state — a missing file is `ENOENT`,
+which the loader treats as "nothing to merge here", not as an error. Two things are wrong with it
+anyway:
+
+- **It does not survive an install.** `config/hooks.yaml` is a `required` link, so the next
+  `scripts/install.sh` or `scripts/update.sh` puts the rules back without asking. The link swap above
+  is undone by exactly the same step — re-apply it afterwards. Durability is not what the swap buys.
+- **It is indistinguishable from a broken install.** A deleted file and a machine where the install
+  never ran look identical to every diagnostic you have. That is the same invisibility that made the
+  missing-`run`-script case worth its own section above.
+
+What the swap buys is legibility, and `bin/pi-check --doctor` is where it shows up: the mode prints
+what `~/.pi/agent/hooks.yaml` currently resolves to, on its own `hooks:` line, and says so in as many
+words when the link points at the empty gate.
+
+```console
+$ bin/pi-check --doctor
+hooks: /home/you/.pi/agent/hooks.yaml is OFF — GUARDRAILS OFF, linked to the empty gate.
+       Back on: ln -sf /home/you/pi-config/config/hooks.yaml /home/you/.pi/agent/hooks.yaml
+0 finding(s) — install checked under /home/you/bin, expecting links into /home/you/pi-config
+```
+
+That line is informational and never moves the exit code, including when `hooks.yaml` is a real file
+rather than the installer's symlink. A deliberately disabled layer is a decision, not a defect, and
+both `install.sh` and `update.sh` treat a `--doctor` finding as fatal.
+
+### What "fail-closed" does and does not mean here
+
+The phrase is easy to read as "you cannot turn this off". Precisely:
+
+| State | Effect |
+|---|---|
+| A rule **loaded**, then could not be evaluated | **Blocked.** This is the fail-closed part, and the empty gate does not weaken it: a file with no rules has nothing that can fail. |
+| A `run` **script is missing** | **Blocked**, for the whole session. Deleting the script is not an off-switch, it is an on-switch for refusal. |
+| The **file is broken** | Degrades to zero rules and shouts. That reaches "no hooks" too, at the price of an `error` banner every session and a `/doctor` D-09 that reads exactly like a real breakage. |
+| The **file is missing** | Normal. Zero rules, no complaint, no trace. |
+
+The empty gate is the only one of these that reaches "no rules" *and* still reads as a decision six
+months later.
+
+### What this does not switch off
+
+!!! warning "The constraints layer goes off with the hooks"
+    `constraints-edit` and `constraints-write` are hook rules. Linking the empty gate stops
+    `~/bin/pi-constraints-hook` being consulted, so every `constraints.json` NEVER stops being
+    enforced along with everything else in the file. That is rarely what "turn off the annoying
+    guardrail" was meant to mean.
+
+Everything below is a different layer with a different switch:
+
+| Layer | How it is turned off |
+|---|---|
+| [`guard`](../extensions/guard.md) — the hard gates, secret paths, catastrophic bash patterns, sudo | No config switch. It is a separate extension, and a broken or empty `hooks.yaml` does not touch it — which is the whole reason the hook layer is allowed to degrade. |
+| `pi-sandbox` — OS-level containment | `/sandbox-disable` for the session, or `"enabled": false` in `~/.pi/agent/sandbox.json`. It is **on** here unless you say otherwise: the package's own default is `enabled: true` and this repository ships no `sandbox.json` to override it. |
+| `pi-lean-ctx` — context compression | Not a guardrail, and configured on its own in `config/lean-ctx-config.json`. |
+
+---
+
 ## Verifying
 
 ```bash

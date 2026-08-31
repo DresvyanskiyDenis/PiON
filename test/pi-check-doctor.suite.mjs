@@ -60,13 +60,24 @@ function hooksYaml(command, { count = 1, ruleId = "constraints-edit" } = {}) {
  * nothing at all, "file" a real file in the symlink's place, "stale" a link into a different
  * checkout, "dangling" a link to a path that does not exist, "unexecutable" a correct link whose
  * target has no +x bit.
+ *
+ * `hooksLink` says the same for ~/.pi/agent/hooks.yaml, which the mode reports but never judges:
+ * "none" nothing there, "active" the `link_one required config/hooks.yaml` row install.sh writes,
+ * "off" the documented off-switch, "file" a real file in the symlink's place.
  */
-function machine({ yaml, ships = "pi-constraints-hook", script = "pi-constraints-hook", link = "correct" }) {
+function machine({
+  yaml,
+  ships = "pi-constraints-hook",
+  script = "pi-constraints-hook",
+  link = "correct",
+  hooksLink = "none",
+}) {
   const home = scratch("pi-doctor-home-");
   const repo = scratch("pi-doctor-repo-");
 
   mkdirSync(join(repo, "config", "bin"), { recursive: true });
   writeFileSync(join(repo, "config", "hooks.yaml"), yaml);
+  writeFileSync(join(repo, "config", "hooks-off.yaml"), "version: 1\nrules: []\n");
   if (ships !== null) {
     const target = join(repo, "config", "bin", ships);
     writeFileSync(target, "#!/bin/sh\nexit 0\n");
@@ -87,6 +98,14 @@ function machine({ yaml, ships = "pi-constraints-hook", script = "pi-constraints
     symlinkSync(want, installed);
   }
 
+  if (hooksLink !== "none") {
+    mkdirSync(join(home, ".pi", "agent"), { recursive: true });
+    const installedHooks = join(home, ".pi", "agent", "hooks.yaml");
+    if (hooksLink === "active") symlinkSync(join(home, "pi-config", "config", "hooks.yaml"), installedHooks);
+    else if (hooksLink === "off") symlinkSync(join(home, "pi-config", "config", "hooks-off.yaml"), installedHooks);
+    else if (hooksLink === "file") writeFileSync(installedHooks, "version: 1\nrules: []\n");
+  }
+
   return { home, repo };
 }
 
@@ -94,7 +113,9 @@ function machine({ yaml, ships = "pi-constraints-hook", script = "pi-constraints
 function doctor({ home, repo }, extraArgs = []) {
   const result = spawnSync(process.execPath, [PI_CHECK, "--doctor", "--repo", repo, ...extraArgs], {
     encoding: "utf8",
-    env: { ...process.env, HOME: home },
+    // PI_CODING_AGENT_DIR outranks $HOME in installPaths(), exactly as it does in install.sh. An
+    // operator who exports it would otherwise aim these tests at their live agent directory.
+    env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: undefined },
   });
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
@@ -196,6 +217,47 @@ describe("pi-check --doctor: an install that is wrong", () => {
   });
 });
 
+describe("pi-check --doctor: what ~/.pi/agent/hooks.yaml currently is", () => {
+  // The mode REPORTS this and never judges it. Every case asserts the exit status as hard as it
+  // asserts the wording: a --doctor finding is fatal to install.sh and update.sh, so failing on a
+  // deliberately disabled hook layer would make the documented off-switch impossible to install
+  // around — the opposite of documenting it.
+
+  test("the installer's link is reported as active", () => {
+    const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook"), hooksLink: "active" });
+    const r = doctor(m);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /^hooks: .*hooks\.yaml is ACTIVE/m);
+  });
+
+  test("the off-switch says GUARDRAILS OFF and hands back the way in", () => {
+    const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook"), hooksLink: "off" });
+    const r = doctor(m);
+    assert.equal(r.status, 0, "guardrails off on purpose is a decision, not a finding");
+    assert.equal(findingCount(r.stdout), 0);
+    assert.match(r.stdout, /is OFF — GUARDRAILS OFF/);
+    assert.match(r.stdout, /ln -sf .*config\/hooks\.yaml/);
+  });
+
+  test("a real file where the installer's symlink belongs is reported, not failed", () => {
+    // link_one already backs this up and relinks on the next install. Saying so is this mode's
+    // whole job here; failing on it would break `bin/pi-check --doctor` for anyone hand-editing.
+    const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook"), hooksLink: "file" });
+    const r = doctor(m);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(findingCount(r.stdout), 0);
+    assert.match(r.stdout, /is FILE — a real file, not the installer's symlink/);
+  });
+
+  test("nothing installed is reported as absent, and names the off-switch as the better spelling", () => {
+    const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook") });
+    const r = doctor(m);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /is ABSENT/);
+    assert.match(r.stdout, /hooks-off\.yaml/);
+  });
+});
+
 describe("pi-check --doctor: the mode's own contract", () => {
   test("--json carries the findings, the count and the paths that were inspected", () => {
     const m = machine({ yaml: hooksYaml("~/bin/pi-constraints-hook"), link: "missing" });
@@ -207,6 +269,11 @@ describe("pi-check --doctor: the mode's own contract", () => {
     assert.equal(parsed.paths.home, m.home);
     assert.equal(parsed.paths.binDir, join(m.home, "bin"));
     assert.equal(parsed.paths.stableLink, join(m.home, "pi-config"));
+    assert.equal(parsed.paths.agentDir, join(m.home, ".pi", "agent"));
+    // Reported alongside the findings, never inside them: `hooksFile` carries a `note`, not a
+    // `message`, so it cannot be rendered as one by accident.
+    assert.equal(parsed.hooksFile.state, "absent");
+    assert.equal(parsed.hooksFile.message, undefined);
   });
 
   for (const combination of [["--all"], ["PC-01"], ["--only", "config"], ["--live"]]) {

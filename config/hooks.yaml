@@ -9,8 +9,13 @@
 #
 # A rule that cannot be evaluated, whose action throws, whose script is missing, or whose
 # script times out BLOCKS the tool call — it does not silently permit it. A YAML file that
-# fails to parse, or doesn't match this top-level shape, refuses the whole session rather than
-# loading with zero rules.
+# fails to parse, or doesn't match this top-level shape, degrades the layer to zero rules and
+# says so loudly rather than refusing the session — see index.ts's header for why that polarity
+# changed on 2026-08-11.
+#
+# To turn every rule below off without touching this file, point the link at the empty gate:
+# `ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml`. See docs/extending/hooks.md,
+# "Turning guardrails off".
 version: 1
 rules:
   - id: no-force-push-main
