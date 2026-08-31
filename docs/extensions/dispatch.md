@@ -21,6 +21,7 @@ Registers `/agents`.
 | `catalogue.ts` | The model registry as a dispatch surface |
 | `thinking.ts` | The reasoning-effort suffix: what was asked, what the model serves, what will actually run |
 | `async-fleet.ts` | Re-reads the state a background run wrote for itself, and announces the ones that ended |
+| `async-resume.ts` | Gives an async run that came back **empty** one automatic `resume`, once, ever |
 
 ## The two non-negotiable acceptance criteria
 
@@ -116,6 +117,48 @@ that never wrote a `status.json` — "never started" still gets said.
 The block is built once at `session_start` and is byte-identical for the rest of the session, so it
 does not churn the prompt-cache prefix. `/agents` prints the same text **verbatim** — if the human
 and the model are reading different lists, the one nobody can see is the one that is wrong.
+
+## An async child that came back empty gets one follow-up
+
+Reporting a failure is not recovering from it, and one failure is worth recovering from
+automatically: the run that ended carrying the runner's own words —
+`Subagent produced no output (possible model cold-start or empty response).` — a cold start or a
+dropped first token, where the work was never attempted and re-dispatching by hand costs a full
+prompt again.
+
+[`config/settings.default.json`](../configuration/settings.md#subagentswatchdog) has asked for that
+recovery since the block was written, under `subagents.watchdog.asyncCompletion`. The pinned
+`pi-subagents` parses the key and reads it in no runtime, so the request went nowhere.
+`async-resume.ts` is the consumer on this side: when the `turn_end` sweep reconciles a terminal run
+whose error carries that sentence, one `resume` goes out over the package's in-process RPC
+(`subagents:rpc:v1:request`) with a message telling the child to produce its result, partial if need
+be, rather than to try again in the abstract. Nothing upstream changed — the canary in
+[`test/dispatch/watchdog-settings.test.ts`](../operations/verification.md) still asserts that the
+package itself consumes the setting nowhere, and the day that fails, this module is what should be
+re-read.
+
+**Gated on both flags, and only those.** `watchdog.enabled` AND `asyncCompletion.enabled`, both
+literally `true`, read from the agent settings file the package itself reads. The AND is the
+package's own composition rule, and both flags ship OFF upstream, so anything looser would turn this
+on for a tree that never asked for it. `asyncCompletion.autoFollowBlockers` is read, reported, and
+deliberately does not gate anything here: a *blocked* child — one that came back with a question or
+a stated obstacle — is a different recovery with a different message and a different budget, and it
+belongs to the watchdog's own follow-up cycle.
+
+**One attempt, enforced against a file.** The failure being recovered from is "the child said
+nothing". A resume that also says nothing is the same failure, and answering it the same way is a
+loop that spends a model call per iteration for as long as the session lives. So the budget is one
+per run, recorded in `~/.local/state/pi-config/dispatch/async-resume.jsonl` **before** the request is
+emitted — a crash between the write and the send costs one lost follow-up, a crash the other way
+round would cost an unbounded number of them — and a ledger that cannot be written means no request
+at all. The run a successful resume starts is stamped as spent before it is adopted into the fleet,
+so its ending is announced like any other run's while it can never earn a follow-up of its own. That
+is what stops a chain of empty children from walking the budget forward one run at a time.
+
+The outcome — resumed, refused, or no reply inside 30s — arrives as one message, and the terminal
+announcement marks the run it already answered for with `↻` and withdraws the re-dispatch
+instruction for it. Telling the model to re-dispatch a run the harness is already resuming is two
+instructions that contradict each other, and it can only obey one.
 
 ## The fleet is on screen, not behind a command
 
