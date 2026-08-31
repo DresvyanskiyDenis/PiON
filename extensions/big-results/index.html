@@ -2669,6 +2669,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#two-channels-not-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two channels, not one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-a-handle-and-not-a-shrink" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4292,6 +4303,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#two-channels-not-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two channels, not one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#why-a-handle-and-not-a-shrink" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4361,6 +4383,24 @@ overflow file it wrote. This module does two things that covers:</p>
 </ol>
 <p>The threshold deliberately matches PI's built-in boundary rather than inventing a new one, so there
 is one number to reason about rather than two.</p>
+<h2 id="two-channels-not-one">Two channels, not one<a class="headerlink" href="#two-channels-not-one" title="Permanent link">&para;</a></h2>
+<p>A tool result is not the only way unbounded third-party text reaches a provider request. An
+extension that calls <code>pi.sendMessage()</code> writes a <code>custom_message</code> entry, which PI renders into a
+plain user message carrying the whole content and re-sends on <strong>every subsequent request of the
+session</strong> — the <a href="../web/">web</a> package does exactly that for its search-curator follow-up, so one
+large fetch becomes a permanent per-request cost. That text never passes through <code>tool_result</code>.</p>
+<p>So the boundary is enforced on both channels: <code>tool_result</code>, and a <code>context</code> handler that spills an
+oversized <code>role: "custom"</code> wire message through the same code path — same <code>results/</code> layout, same
+sidecar, same card, same <code>expand_result</code> handle. Only the <strong>wire copy</strong> is shrunk; the session file
+keeps the full text, so the transcript stays a complete record and a package's own "read that fetch
+back by id" tool still works.</p>
+<p>The patch is prompt-cache safe by construction: the handle is a hash of the text and the patch is
+memoised per session, so firing once per request produces byte-identical messages and the
+provider's cached prefix survives. A patch that varied per call would invalidate the whole
+conversation behind it once per request — the exact cost this module exists to avoid.</p>
+<p><strong>Not covered, on purpose:</strong> the <code>type: "custom"</code> session entries written by <code>pi.appendEntry()</code>.
+They do not participate in LLM context at all — they cost session-file bytes and no tokens — and no
+extension hook fires between that call and the entry, so there is nothing to bound.</p>
 <h2 id="why-a-handle-and-not-a-shrink">Why a handle and not a shrink<a class="headerlink" href="#why-a-handle-and-not-a-shrink" title="Permanent link">&para;</a></h2>
 <p>An adopted context-shrinking package was considered for this and rejected for the purpose:
 <strong>shrinking is lossy and irreversible; a handle is neither.</strong></p>

@@ -2927,6 +2927,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="How you hear that it finished">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#jobactionwait-instead-of-polling-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        job(action="wait") instead of polling status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4377,6 +4394,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="How you hear that it finished">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#jobactionwait-instead-of-polling-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        job(action="wait") instead of polling status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4438,7 +4472,7 @@
 
 
 <h1 id="jobs-background-work-that-outlives-the-session"><code>jobs</code> — background work that outlives the session<a class="headerlink" href="#jobs-background-work-that-outlives-the-session" title="Permanent link">&para;</a></h1>
-<p>Registers the <code>job</code> tool: start, poll, read, list, kill, prune.</p>
+<p>Registers the <code>job</code> tool: start, wait, read, list, kill, prune.</p>
 <h2 id="the-gap-it-fills">The gap it fills<a class="headerlink" href="#the-gap-it-fills" title="Permanent link">&para;</a></h2>
 <p>Two faces of background work are already packaged and are <strong>not</strong> rebuilt here — the sub-agent
 package's async runs (machine-readable lifecycle artifacts, a wait tool, a background-work
@@ -4506,6 +4540,21 @@ starts a turn, and <code>job(action="output")</code> is one call away when you c
 not silently leave the wake switched on.</p>
 <p><code>state.json</code>'s <code>finishedAt</code> is the process's real exit time, read from the <code>exit</code> file's mtime, not
 the moment something got round to looking.</p>
+<h3 id="jobactionwait-instead-of-polling-status"><code>job(action="wait")</code> instead of polling <code>status</code><a class="headerlink" href="#jobactionwait-instead-of-polling-status" title="Permanent link">&para;</a></h3>
+<p>The push above exists so the model never has to poll — but polling was still what the tool told it
+to do: <code>job(action="status")</code> costs one full request per check, re-sending the whole transcript
+every time, and a job watched that way can cost dozens of requests to learn a single fact. <code>wait</code>
+blocks the tool call itself until a job finishes, the caller's <code>timeoutSeconds</code> (default 300,
+clamped to 1–3600) elapses, or the call is aborted, sleeping on the same interval the push watcher
+already runs on — so waiting out a ten-minute job costs one tool call, not forty-odd.</p>
+<p>A <code>wait</code> with no <code>id</code> is scoped to this session's own running jobs and returns at once when there
+are none — another session's job can never be announced here, so blocking on the deadline could not
+produce an answer. A <code>wait</code> naming an <code>id</code> may watch a job owned by another session, matching the
+cross-session authority <code>action="kill"</code> already has. Either way the result reports <strong>every</strong> job of
+this session that finished while the wait ran, not only the one it was asked about, and it reports
+rather than also pushing an announcement for them — the caller is already awake and reading the
+result. <code>action="status"</code> is still there for progress on a job you are not waiting for; the
+guidelines steer the model away from looping on it to detect completion.</p>
 <h2 id="looking-through-them-yourself-jobs">Looking through them yourself — <code>/jobs</code><a class="headerlink" href="#looking-through-them-yourself-jobs" title="Permanent link">&para;</a></h2>
 <p><code>job(action=…)</code> is a tool the <em>model</em> calls. <code>/jobs</code> is the half you drive: an overlay listing
 every job in the store newest-first with its id, kind, status, exit code, duration and age, and a

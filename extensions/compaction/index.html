@@ -3181,6 +3181,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#stating-the-budget-warnratio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stating the budget: warnRatio
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4508,6 +4519,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#stating-the-budget-warnratio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stating the budget: warnRatio
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4743,6 +4765,24 @@ racing first writers cannot prepend N headers.</p>
 step that gets skipped under time pressure — and time pressure is exactly the condition under which
 a fact was expensive enough to be worth keeping. <code>SYSTEM.md</code> carries the doctrine that makes it
 fire, which is the load-bearing half: the mechanism without it is a tool nobody calls.</p>
+<h3 id="stating-the-budget-warnratio">Stating the budget: <code>warnRatio</code><a class="headerlink" href="#stating-the-budget-warnratio" title="Permanent link">&para;</a></h3>
+<p>Once the file reaches <code>warnRatio</code> of <strong>either</strong> cap, the tool's reply carries one more line:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>recorded fact 30 of 30 in this session
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>- `2026-08-31T09:12:04Z` the drain runs under `runDetached` (source: bin/pi-digest-drain)
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>/home/you/.local/state/pi-config/facts/2026-08-31T09-00-00_abc123.md
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>30/40 entries, 6.1KB/8KB — nearing the cap.
+</span></code></pre></div>
+<p>Below the ratio the reply says nothing about the budget, which is the load-bearing half: the line
+has to mean "this is now worth your attention" rather than being noise on every call.</p>
+<p>The caps were previously visible only to <code>/compaction-status</code>, which an agent has to think to run.
+An invisible budget is enforced by the agent's caution instead of by its actual value — a session
+that never sees the number rations which facts are "worth" recording against a limit it has
+guessed, while the real budget sits unused.</p>
+<p><code>0.75</code> (the default, in <code>config/compaction.json</code>) leaves a quarter of the budget between the first
+warning and the first eviction — room to finish what you are recording rather than stop mid-task.
+The value is clamped to <code>[0, 1]</code>; both ends stay usable, <code>0</code> states usage on every reply and <code>1</code>
+holds it back until a cap is actually reached. A non-numeric value falls back to the default rather
+than disabling the line.</p>
 <h2 id="4-threshold-reporting">4. Threshold reporting<a class="headerlink" href="#4-threshold-reporting" title="Permanent link">&para;</a></h2>
 <p>The declared threshold is a <strong>flat 200 000 tokens on every model</strong>. <code>session_start</code> puts it in
 force and prints one line — <code>auto-compact: 200K tokens</code> — writing <code>config/compaction.json</code> only
@@ -4817,10 +4857,10 @@ empty body, which this harness classifies as
 needed to prevent it was in the process before the request was assembled.</p>
 <p>So a <code>before_provider_request</code> handler estimates the outgoing prompt and compares it against
 <code>ctx.model.contextWindow</code>. Over the bar, the request is <strong>not sent</strong>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[pi-config] compaction: refused a request this harness estimates at ~273110 tokens against
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>&lt;provider&gt;/&lt;model&gt;'s declared 200000-token window (~37% over, estimate is chars/3.5 on the
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>assembled body). Nothing was sent: an over-window request to this fleet comes back as a 200 with
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>an empty body, not as an error. Compaction runs next and the turn continues.
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[pi-config] compaction: refused a request this harness estimates at ~273110 tokens against
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>&lt;provider&gt;/&lt;model&gt;'s declared 200000-token window (~37% over, estimate is chars/3.5 on the
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>assembled body). Nothing was sent: an over-window request to this fleet comes back as a 200 with
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>an empty body, not as an error. Compaction runs next and the turn continues.
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">A harness decision, filed as one</p>

@@ -2877,6 +2877,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="2. A worktree provider for isolation: worktree">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#only-the-single-child-shape-reaches-this-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only the single-child shape reaches this provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4333,6 +4350,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="2. A worktree provider for isolation: worktree">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#only-the-single-child-shape-reaches-this-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only the single-child shape reaches this provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4409,6 +4443,15 @@ already in one <strong>nests</strong>, and nested worktrees are a mess to clean 
 <li>If the session is <strong>already</strong> inside a worktree, that worktree is <strong>reused</strong> — never nested.</li>
 <li>If the session is in the primary checkout, a fresh one is created.</li>
 </ul>
+<h3 id="only-the-single-child-shape-reaches-this-provider">Only the single-child shape reaches this provider<a class="headerlink" href="#only-the-single-child-shape-reaches-this-provider" title="Permanent link">&para;</a></h3>
+<p>This module grants <strong>one directory per tool call</strong>, and the eager release above is keyed on that
+call's <code>tool_result</code>. That fits a <code>{agent, task}</code> dispatch exactly — one child, whose cwd is
+<code>input.cwd</code> — and fits nothing else. A call that launches its children by name (a <code>workflowScript</code>,
+a <code>tasks</code>/<code>parallel</code>/<code>chain</code> fanout) is honoured by <code>extensions/dispatch/call-children.ts</code> +
+<code>applyChildrenIsolation()</code> instead, which asks <code>pi-subagents</code> for its own managed per-child
+isolation (<code>worktree: true</code> on the call, one worktree per child). Nothing about this module changes
+for it — it is simply not asked, because N children in one granted directory would not be isolated
+from each other, and N grants against one <code>toolCallId</code> would leak all but the last.</p>
 <h2 id="3-crash-safe-cleanup">3. Crash-safe cleanup<a class="headerlink" href="#3-crash-safe-cleanup" title="Permanent link">&para;</a></h2>
 <div class="admonition abstract">
 <p class="admonition-title">The registry entry is written BEFORE <code>git worktree add</code> runs</p>
