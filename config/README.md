@@ -52,6 +52,16 @@ git-ignored so a fork can never publish your endpoints. The contract that descri
    a quota wall on the lead cannot also stop the session shrinking; it is announced at every hop.
    See [ADR 0001](../docs/adr/0001-no-provider-failover.md).
 
+   `onProviderError.retry` is **not** an exception to this and is easy to misread as one. It gives
+   `network` and `empty-response` one more attempt **at the same provider and the same model**
+   before the same abort. Its `onEmpty` block may vary exactly one thing about that attempt — the
+   reasoning effort — because measurement showed a bit-identical resend of an `empty-response` to
+   be the variant that recovers least often. No provider changes, no model changes, and the
+   borrowed effort is given back the moment the failure streak ends. `PC-31` *warns* when
+   `empty-response` is retried with no `onEmpty.strategy` written down; it never fails a build over
+   it, because that default is legal. Keys, defaults and the whole argument:
+   [`routing.json` → `retry`](../docs/configuration/routing.md#retry-the-two-classes-that-are-weather-not-a-verdict).
+
 ## 60-second smoke test
 
 ```bash

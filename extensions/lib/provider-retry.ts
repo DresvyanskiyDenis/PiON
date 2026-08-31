@@ -12,10 +12,27 @@
  *     bounded fan-out, i.e. it destroyed paid work rather than a turn the operator could retype.
  *
  * An empty completion at HTTP 200 is a provider artifact, not a decision — nothing about the
- * request made it happen and nothing about it will be different next time. The same holds for
- * `network`. It does not hold for `auth`, `quota`, `model-not-found` or `policy`: those are
- * verdicts about the request, and re-sending it unchanged asks the same question of the same
- * endpoint and gets the same answer, one round trip later.
+ * request made it happen. The same holds for `network`. It does not hold for `auth`, `quota`,
+ * `model-not-found` or `policy`: those are verdicts about the request, and re-sending it unchanged
+ * asks the same question of the same endpoint and gets the same answer, one round trip later.
+ *
+ * ## The half of that argument measurement took back
+ *
+ * The sentence this module used to carry — "and nothing about it will be different next time" —
+ * was the justification for re-issuing the request UNCHANGED, and it is false as stated. On an
+ * audited session tree the incidence of `empty-response` did not spread evenly across the
+ * configured providers: the overwhelming majority landed on a single gateway route, a couple on
+ * `github-copilot`, and none at all on a second route through the same gateway. The class
+ * correlates with the ROUTE, so on `temperature: 0` a bit-identical resend to that same route is
+ * the retry variant with the LOWEST expected recovery rate of any option available. `network` is
+ * untouched by this — DNS, TLS, proxy and 5xx genuinely are route-independent, and the original
+ * argument still holds there word for word.
+ *
+ * So `empty-response` gets a second lever, `onProviderError.retry.onEmpty` (below): a retry that
+ * is allowed to change the reasoning effort the attempt is issued at, and to say in the re-issue
+ * that it did. It changes no provider and no model — see the next section, which is unchanged.
+ * The default is still `identical`, because the alternative is a harness that silently reasons
+ * less than the operator asked it to; varying is an explicit, config-expressible act.
  *
  * ## What this is NOT
  *
@@ -34,6 +51,8 @@
  * config in this repo is documented against. An absent `retry` block is the documented default
  * below, not "no retries".
  */
+import type { ThinkingLevel } from "@earendil-works/pi-ai";
+
 import type { ProviderErrorClass } from "./provider-error.ts";
 import { readRoutingFile, type RoutingFile } from "./routing-file.ts";
 
@@ -74,10 +93,66 @@ export const DEFAULT_RETRY_CLASSES: readonly ProviderErrorClass[] = ["network", 
  */
 export const DEFAULT_MAX_RETRY_ATTEMPTS = 1;
 
+/**
+ * The reasoning-effort vocabulary `pi.setThinkingLevel` accepts, derived from `pi-ai`'s own type
+ * rather than retyped beside it.
+ *
+ * The `satisfies` is the whole point: a level added upstream makes this object miss a required key
+ * and the build fails, and a level removed upstream makes it an excess property and the build
+ * fails. `extensions/dispatch/thinking.ts` keeps a hand-written mirror because the vocabulary it
+ * needs (`off` included) is `pi-subagents`', not `pi-ai`'s; this one has a real type to lean on,
+ * so it leans on it.
+ */
+export const RETRY_THINKING_LEVELS = Object.keys({
+  minimal: 0,
+  low: 0,
+  medium: 0,
+  high: 0,
+  xhigh: 0,
+  max: 0,
+} satisfies Record<ThinkingLevel, number>) as readonly ThinkingLevel[];
+
+/** What a retry on `empty-response` is allowed to change about the request. */
+export type EmptyResponseStrategy = "identical" | "vary";
+
+/**
+ * `onProviderError.retry.onEmpty` — the answer to "and what is different about this attempt?".
+ *
+ * `identical` is the default and is NOT a shrug: it is the behaviour that shipped with `retry`
+ * itself, kept as the default because the alternative silently lowers the reasoning effort an
+ * operator asked for. Varying is a decision, so it is written down.
+ */
+export interface EmptyResponsePolicy {
+  readonly strategy: EmptyResponseStrategy;
+  /**
+   * The reasoning effort the varied attempt is issued at. Absent means the only thing that differs
+   * is the re-issue's own instruction — which `planRetryVariation` then says out loud rather than
+   * letting "vary" imply a wire-level change that was never configured.
+   */
+  readonly thinkingLevel?: ThinkingLevel;
+  /**
+   * Attempts granted to `empty-response` ON TOP of `maxAttempts`, and only while varying.
+   *
+   * Separate from `maxAttempts` because the argument for a budget of one was about IDENTICAL
+   * resends: a second coin flip with the same coin. A varied attempt is a different experiment, so
+   * it can honestly be worth more than one — but it costs paid tokens per attempt, so it defaults
+   * to `0` and has to be asked for.
+   */
+  readonly maxExtraAttempts: number;
+}
+
+/** No variation, no extra budget. Exactly the behaviour `retry` shipped with. */
+export const DEFAULT_EMPTY_RESPONSE_POLICY: EmptyResponsePolicy = {
+  strategy: "identical",
+  maxExtraAttempts: 0,
+};
+
 export interface ProviderRetryPolicy {
   readonly classes: ReadonlySet<ProviderErrorClass>;
   /** Retries *after* the first attempt. `0` disables retrying without removing the block. */
   readonly maxAttempts: number;
+  /** What an `empty-response` retry varies, if anything. Never applies to any other class. */
+  readonly onEmpty: EmptyResponsePolicy;
   /** Where the policy was read from, for the notice. `<default>` when nothing declared one. */
   readonly source: string;
   /** Anything malformed in the declared block. Reported, never thrown, never silently applied. */
@@ -87,6 +162,7 @@ export interface ProviderRetryPolicy {
 export const DEFAULT_PROVIDER_RETRY_POLICY: ProviderRetryPolicy = {
   classes: new Set(DEFAULT_RETRY_CLASSES),
   maxAttempts: DEFAULT_MAX_RETRY_ATTEMPTS,
+  onEmpty: DEFAULT_EMPTY_RESPONSE_POLICY,
   source: "<default>",
   problems: [],
 };
@@ -148,7 +224,64 @@ export function parseProviderRetryPolicy(routing: RoutingFile): ProviderRetryPol
     }
   }
 
-  return { classes, maxAttempts, source: routing.source, problems };
+  return {
+    classes,
+    maxAttempts,
+    onEmpty: parseEmptyResponsePolicy(retry.onEmpty, problems),
+    source: routing.source,
+    problems,
+  };
+}
+
+/**
+ * Parse `onProviderError.retry.onEmpty`.
+ *
+ * Fails CLOSED, unlike every other field here: anything malformed falls back to `identical`, i.e.
+ * to the old behaviour, and says so. That asymmetry is deliberate. A typo in `classes` costs an
+ * extra round trip; a typo in this block silently runs the whole session at a reasoning effort
+ * nobody asked for, which is the failure mode `routing.json` exists to make impossible.
+ */
+function parseEmptyResponsePolicy(value: unknown, problems: string[]): EmptyResponsePolicy {
+  if (value === undefined) return DEFAULT_EMPTY_RESPONSE_POLICY;
+  const block = plainObject(value);
+  if (block === undefined) {
+    problems.push("onProviderError.retry.onEmpty must be an object; retrying empty-response unchanged");
+    return DEFAULT_EMPTY_RESPONSE_POLICY;
+  }
+
+  let strategy: EmptyResponseStrategy = DEFAULT_EMPTY_RESPONSE_POLICY.strategy;
+  if (block.strategy !== undefined) {
+    if (block.strategy === "identical" || block.strategy === "vary") {
+      strategy = block.strategy;
+    } else {
+      problems.push(`onProviderError.retry.onEmpty.strategy must be "identical" or "vary"; retrying empty-response unchanged`);
+      return DEFAULT_EMPTY_RESPONSE_POLICY;
+    }
+  }
+
+  let thinkingLevel: ThinkingLevel | undefined;
+  if (block.thinkingLevel !== undefined) {
+    if (typeof block.thinkingLevel === "string" && (RETRY_THINKING_LEVELS as readonly string[]).includes(block.thinkingLevel)) {
+      thinkingLevel = block.thinkingLevel as ThinkingLevel;
+    } else {
+      problems.push(
+        `onProviderError.retry.onEmpty.thinkingLevel must be one of ${RETRY_THINKING_LEVELS.join(", ")}; ` +
+          `the retry will not change the reasoning effort`,
+      );
+    }
+  }
+
+  let maxExtraAttempts = DEFAULT_EMPTY_RESPONSE_POLICY.maxExtraAttempts;
+  if (block.maxExtraAttempts !== undefined) {
+    const extra = block.maxExtraAttempts;
+    if (typeof extra !== "number" || !Number.isInteger(extra) || extra < 0) {
+      problems.push(`onProviderError.retry.onEmpty.maxExtraAttempts must be an integer >= 0; using ${maxExtraAttempts}`);
+    } else {
+      maxExtraAttempts = extra;
+    }
+  }
+
+  return { strategy, ...(thinkingLevel !== undefined ? { thinkingLevel } : {}), maxExtraAttempts };
 }
 
 /** Read `config/routing.json` and parse the retry policy out of it. */
@@ -168,5 +301,83 @@ export function shouldRetry(
   klass: ProviderErrorClass,
   retriesSoFar: number,
 ): boolean {
-  return policy.classes.has(klass) && retriesSoFar < policy.maxAttempts;
+  return policy.classes.has(klass) && retriesSoFar < retryBudget(policy, klass);
+}
+
+/**
+ * How many retries this class gets — `maxAttempts`, plus `onEmpty.maxExtraAttempts` when the
+ * `empty-response` retry is actually varying the request.
+ *
+ * `maxAttempts: 0` outranks everything and returns `0`. It is the documented opt-out, and an
+ * opt-out that a second key could quietly overturn is not one.
+ */
+export function retryBudget(policy: ProviderRetryPolicy, klass: ProviderErrorClass): number {
+  if (policy.maxAttempts === 0) return 0;
+  if (klass !== "empty-response" || policy.onEmpty.strategy !== "vary") return policy.maxAttempts;
+  return policy.maxAttempts + policy.onEmpty.maxExtraAttempts;
+}
+
+/** What the next attempt does differently, and the clause that says so in the re-issue. */
+export interface RetryVariation {
+  /** `identical` for every class but `empty-response`, and for that one unless configured. */
+  readonly strategy: EmptyResponseStrategy;
+  /**
+   * The reasoning effort to put on the wire, present ONLY when it differs from `currentLevel`.
+   * Absent therefore means "change nothing about the request parameters", never "unknown".
+   */
+  readonly thinkingLevel?: ThinkingLevel;
+  /**
+   * A factual clause naming what did and did not change, for the re-issue's own text. It states
+   * the honest case in all four shapes, including the two where "vary" was asked for and nothing
+   * on the wire could actually be varied — an instruction that claims a change that did not happen
+   * is worse than no instruction.
+   */
+  readonly summary: string;
+}
+
+const NO_OTHER_PROVIDER = "no other provider was tried";
+
+/**
+ * Decide what the re-issue changes, given the policy, the class, and the effort the session is
+ * currently on.
+ *
+ * `currentLevel` is the LIVE level (post-clamp, as `pi.getThinkingLevel()` reports it), not the
+ * one the tier declares: comparing against a declared level would announce a change on a model
+ * that clamped it away. It is a bare `string` rather than a `ThinkingLevel` because the caller's
+ * vocabulary is PI's session vocabulary, which is free to grow a value this block may never be
+ * configured to ask for; narrowing the parameter would make such a live value unrepresentable
+ * rather than making it safer.
+ */
+export function planRetryVariation(
+  policy: ProviderRetryPolicy,
+  klass: ProviderErrorClass,
+  currentLevel: string | undefined,
+): RetryVariation {
+  if (klass !== "empty-response" || policy.onEmpty.strategy !== "vary") {
+    return { strategy: "identical", summary: `nothing about the request changed and ${NO_OTHER_PROVIDER}` };
+  }
+  const wanted = policy.onEmpty.thinkingLevel;
+  if (wanted === undefined) {
+    return {
+      strategy: "vary",
+      summary:
+        `routing.json onProviderError.retry.onEmpty declares no thinkingLevel, so no request ` +
+        `parameter changed (this instruction is the only difference) and ${NO_OTHER_PROVIDER}`,
+    };
+  }
+  if (wanted === currentLevel) {
+    return {
+      strategy: "vary",
+      summary:
+        `reasoning effort is already \`${wanted}\`, the level onProviderError.retry.onEmpty asks ` +
+        `for, so no request parameter changed and ${NO_OTHER_PROVIDER}`,
+    };
+  }
+  return {
+    strategy: "vary",
+    thinkingLevel: wanted,
+    summary:
+      `reasoning effort moves from \`${currentLevel ?? "the session default"}\` to \`${wanted}\` for ` +
+      `this attempt (routing.json onProviderError.retry.onEmpty) and ${NO_OTHER_PROVIDER}`,
+  };
 }

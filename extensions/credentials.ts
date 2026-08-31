@@ -21,6 +21,15 @@
  * here does now. It is the difference between "this endpoint refused you" and "this endpoint
  * answered 200 with an empty body", which the old block treated as the same event.
  *
+ * That re-issue may now also be allowed to DIFFER from the attempt it replaces, on one axis and one
+ * only: reasoning effort, via `onProviderError.retry.onEmpty`. PI exposes no per-message model or
+ * thinking override — `pi.sendMessage`'s options are `triggerTurn` and `deliverAs`, nothing else —
+ * so the only lever is the session-level `pi.setThinkingLevel`, which means the level has to be
+ * BORROWED and given back. `restoreThinkingLevel` below is that second half, and it is the
+ * load-bearing one: a harness that lowered the effort for a retry and never put it back would keep
+ * reasoning less than the operator asked for, forever, silently, which is the exact failure this
+ * repo's no-silent-degradation rule is about.
+ *
  * This file used to carry a third subject, the `local` lane: a hand-registered `local` provider
  * pointing at llama-swap on loopback, with its own discovery budget, a `/v1/models` warm-up ping,
  * a footer status marker and a one-line "the local tier is unavailable" warning. It is gone.
@@ -50,7 +59,9 @@ import {
 } from "./lib/provider-error.ts";
 import {
   loadProviderRetryPolicy,
+  planRetryVariation,
   type ProviderRetryPolicy,
+  retryBudget,
   shouldRetry,
 } from "./lib/provider-retry.ts";
 
@@ -132,6 +143,33 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
    * a switch mid-process is a case `session_start` would not cover anyway.
    */
   let streakSession: string | undefined;
+  /**
+   * The reasoning effort the session was on before a varied retry borrowed it.
+   *
+   * Set at most once per streak — the level to give back is the one that was live when the streak
+   * STARTED, not the borrowed one a second varied attempt would otherwise record over it.
+   *
+   * Typed off the API rather than off an imported union: PI's session vocabulary is the runtime's
+   * to define, and a level this cannot hold is a level it cannot give back.
+   */
+  let borrowedThinkingLevel: ReturnType<ExtensionAPI["getThinkingLevel"]> | undefined;
+
+  /**
+   * Give the borrowed effort back. Called from every path that ends a streak, without exception:
+   * the abort, the turn that worked, and the session switch.
+   *
+   * The session switch is included on purpose even though the borrowed level belongs to a session
+   * that is no longer current. `setThinkingLevel` is process-wide, so the alternative — dropping
+   * the record — leaves the NEW session running at the lowered effort with nothing that says why.
+   * Restoring can at worst overwrite a level the new session had just picked; not restoring
+   * silently degrades every turn that follows, which is strictly worse and invisible.
+   */
+  const restoreThinkingLevel = (): void => {
+    if (borrowedThinkingLevel === undefined) return;
+    const level = borrowedThinkingLevel;
+    borrowedThinkingLevel = undefined;
+    pi.setThinkingLevel(level);
+  };
 
   pi.on("before_provider_request", () => {
     observed = undefined;
@@ -167,17 +205,34 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     // class that was never in play must keep the block's original `abort` line to the byte: an
     // `auth` failure rendered as "the transient retry budget is spent" would tell the operator
     // this harness tried a rejected credential twice, which it did not and must not.
-    const inPlay = policy.classes.has(failure.klass) && (policy.maxAttempts > 0 || retriesSpent > 0);
+    const budget = retryBudget(policy, failure.klass);
+    const inPlay = policy.classes.has(failure.klass) && (budget > 0 || retriesSpent > 0);
     const decided: ProviderFailure = {
       ...failure,
-      retry: inPlay ? { attempt, maxAttempts: policy.maxAttempts, willRetry } : undefined,
+      retry: inPlay ? { attempt, maxAttempts: budget, willRetry } : undefined,
     };
     surfaceProviderFailure(ctx, decided, sinks);
     if (!willRetry) {
+      restoreThinkingLevel();
       retriesSpent = 0;
       return;
     }
     retriesSpent = attempt;
+    // The live level, not the tier's declared one: PI clamps to what the model supports, and a
+    // re-issue that announced a move away from a level the model never ran at would be fiction.
+    const currentLevel = pi.getThinkingLevel();
+    const variation = planRetryVariation(policy, failure.klass, currentLevel);
+    if (variation.thinkingLevel !== undefined) {
+      borrowedThinkingLevel ??= currentLevel;
+      pi.setThinkingLevel(variation.thinkingLevel);
+    }
+    // `identical` keeps the original wording to the byte. `vary` has to withdraw the "carry on with
+    // exactly what you were doing" half of it: on `temperature: 0` that sentence is itself a pull
+    // back toward the answer that did not arrive, which is what the measurement found.
+    const closing =
+      variation.strategy === "vary"
+        ? "Redo the work rather than reproducing the previous attempt."
+        : "Carry on with exactly what you were doing.";
     pi.sendMessage(
       {
         customType: "provider-retry",
@@ -187,8 +242,7 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
             text:
               `The previous request failed with a transient provider error ` +
               `(${failure.provider}/${failure.model} — ${failure.klass}) and produced no answer. ` +
-              `This is attempt ${attempt + 1}; nothing about the request changed and no other ` +
-              `provider was tried. Carry on with exactly what you were doing.`,
+              `This is attempt ${attempt + 1}; ${variation.summary}. ${closing}`,
           },
         ],
         display: true,
@@ -204,6 +258,7 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     const session = ctx.sessionManager?.getSessionId?.() ?? "unknown-session";
     if (session !== streakSession) {
       streakSession = session;
+      restoreThinkingLevel();
       retriesSpent = 0;
     }
 
@@ -235,7 +290,9 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
         return;
       }
       // A turn that worked. The retry budget belongs to a streak of consecutive failures, so it
-      // is spent only while one is running, and this is where a streak ends.
+      // is spent only while one is running, and this is where a streak ends — which is also where
+      // a borrowed reasoning effort goes back, whether or not the recovery is what earned it.
+      restoreThinkingLevel();
       retriesSpent = 0;
       return;
     }

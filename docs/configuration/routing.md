@@ -270,21 +270,27 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
 
 ### `retry` — the two classes that are weather, not a verdict
 
-An optional block. It is **not** in the shipped file, because its absence already means the
-defaults below; write it only to change them.
-
 ```json
 "onProviderError": {
   "policy": "abort",
   "substituteProvider": false,
-  "retry": { "classes": ["network", "empty-response"], "maxAttempts": 1 }
+  "retry": {
+    "classes": ["network", "empty-response"],
+    "maxAttempts": 1,
+    "onEmpty": { "strategy": "vary", "thinkingLevel": "low", "maxExtraAttempts": 0 }
+  }
 }
 ```
+
+The `classes` and `maxAttempts` values above are exactly the built-in defaults, so an absent block
+behaves identically. They are spelled out anyway because `onEmpty` is **not** a default and needs a
+block to live in.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `classes` | `["network", "empty-response"]` | Which classified failures get another attempt |
 | `maxAttempts` | `1` | Retries **after** the first attempt. `0` turns retrying off without deleting the block |
+| `onEmpty` | `{ "strategy": "identical", "maxExtraAttempts": 0 }` | What an `empty-response` retry is allowed to change. See [below](#onempty-what-the-retry-is-allowed-to-change) |
 
 Two of the six classes describe the weather and four describe a verdict, and only the first two are
 worth re-sending:
@@ -315,6 +321,55 @@ The budget is per **failure streak**, not per session: a turn that succeeds clea
 next transient failure is a new coin flip and not the continuation of an old one. A malformed key
 here is reported and ignored rather than fatal — a typo in one integer must not become "no session
 talks to any provider". Read `extensions/lib/provider-retry.ts` for the whole argument.
+
+#### `onEmpty` — what the retry is allowed to change
+
+!!! note "Amends the section above for one class"
+    The bullet on `empty-response` used to end "and nothing about it will be different next time",
+    and that clause was the entire justification for re-sending the request unchanged. Measurement
+    took it back. On an audited session tree the class did **not** spread evenly across the
+    configured providers: the overwhelming majority landed on a single gateway route, a couple on a
+    second provider, and none at all on a third. It correlates with the **route** — so at
+    `temperature: 0`, a bit-identical resend to the route that just failed is the retry variant
+    with the *lowest* expected recovery rate available.
+
+    `network` is untouched. DNS, TLS, proxy and 5xx genuinely are route-independent, and the
+    original argument holds there word for word.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `strategy` | `"identical"` | `"vary"` lets the retried attempt differ from the one that failed; `"identical"` re-sends it unchanged |
+| `thinkingLevel` | *(absent)* | The reasoning effort the varied attempt is issued at. Absent means nothing on the wire changes and the re-issue says so |
+| `maxExtraAttempts` | `0` | Attempts granted to `empty-response` **on top of** `maxAttempts`, and only while varying |
+
+**Exactly one thing reaches the provider differently: the reasoning effort.** No provider changes,
+no model changes, `substituteProvider` stays `false` and `policy` stays `abort`. This is not
+failover arriving under a new key. `strategy: "vary"` also withdraws the re-issue's closing
+"carry on with exactly what you were doing", which on `temperature: 0` is itself a pull back toward
+the answer that did not arrive.
+
+The shipped file asks for `low` because the tiers it ships run at `high` (`strong`) and `medium`
+(`light`) — one declared level that differs from both, on the axis the finding names. PI exposes no
+per-message thinking override (`pi.sendMessage` takes `triggerTurn` and `deliverAs` and nothing
+else), so `extensions/credentials.ts` **borrows** the session level through `pi.setThinkingLevel`
+and gives it back the moment the streak ends: at the abort, at a turn that worked, and at a session
+switch. The return is the load-bearing half — a borrow that was never returned would mean reasoning
+less than the operator asked for, forever, silently.
+
+`maxExtraAttempts` ships at `0` because the budget of one came from the coin-flip argument about
+*identical* resends. A varied attempt is a different experiment and could honestly earn more, but it
+costs paid tokens per attempt inside a fan-out, so raising it is a deliberate act.
+
+!!! warning "This block fails closed, unlike the two keys above it"
+    A malformed `classes` or `maxAttempts` falls back to its default and costs you a round trip. A
+    malformed field *here* falls back to `identical` and says so, because the failure mode is not a
+    round trip — it is a whole session running at an effort nobody asked for. `maxAttempts: 0` also
+    outranks `maxExtraAttempts`: an opt-out that a second key can overturn is not one.
+
+    An absent `onEmpty` is `identical`, i.e. exactly the behaviour `retry` shipped with. That is
+    legal and honoured, and by measurement it buys close to nothing — so `bin/pi-check`'s `PC-31`
+    **warns** (never fails) when `classes` carries `empty-response` and no `strategy` is written
+    down. Its whole job is to tell a recorded decision apart from a default nobody read.
 
 ---
 

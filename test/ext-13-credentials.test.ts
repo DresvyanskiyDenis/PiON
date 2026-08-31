@@ -48,10 +48,22 @@ interface FakePi {
   /** Every `pi.appendEntry` — `provider_failure` for a final failure, `provider_retry` for one
    *  the harness is about to try again. Which of the two is used is load-bearing. */
   readonly entries: Array<{ customType: string; data: any }>;
+  /**
+   * The session's reasoning effort, as `pi.getThinkingLevel`/`pi.setThinkingLevel` see it.
+   *
+   * A varied `empty-response` retry (`onProviderError.retry.onEmpty`) borrows this and gives it
+   * back, and PI offers no per-message override to do it any other way — so a fake that could not
+   * hold a level could not observe either half of the borrow.
+   */
+  thinkingLevel: string;
+  /** Every `setThinkingLevel`, in order: the borrow and the return are both assertions. */
+  readonly thinkingLevels: string[];
   registerProvider(name: string, config: any): void;
   on(event: string, handler: Handler): void;
   sendMessage(message: any, options?: any): void;
   appendEntry(customType: string, data?: any): void;
+  getThinkingLevel(): string;
+  setThinkingLevel(level: string): void;
   emit(event: string, payload: any, ctx: any): void;
 }
 
@@ -60,11 +72,21 @@ function fakePi(): FakePi {
   const handlers = new Map<string, Handler[]>();
   const sent: Array<{ message: any; options: any }> = [];
   const entries: Array<{ customType: string; data: any }> = [];
+  const thinkingLevels: string[] = [];
   return {
     providers,
     handlers,
     sent,
     entries,
+    thinkingLevel: "high",
+    thinkingLevels,
+    getThinkingLevel() {
+      return this.thinkingLevel;
+    },
+    setThinkingLevel(level) {
+      this.thinkingLevel = level;
+      thinkingLevels.push(level);
+    },
     registerProvider(name, config) {
       providers.set(name, config);
     },
