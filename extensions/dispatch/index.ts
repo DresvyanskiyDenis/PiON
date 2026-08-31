@@ -103,6 +103,7 @@ import {
   retireSettledRuns,
   takeAnnouncements,
 } from "./async-fleet.ts";
+import { followUpEmptyRuns } from "./async-resume.ts";
 
 export const id = "dispatch";
 
@@ -308,7 +309,24 @@ export function register(pi: ExtensionAPI): void {
     try {
       fleetWidget.refresh(ctx);
       const reports = reconcile(fleet);
-      const announcement = formatAnnouncement(takeAnnouncements(fleet, reports));
+      // Before the announcement, because the announcement has to be able to say which runs it
+      // already answered for. `followUpEmptyRuns` sends at most one resume per run, ever, and
+      // enforces that against a file rather than against this process — see `async-resume.ts`.
+      const followedUp = new Set(
+        followUpEmptyRuns(reports, {
+          bus: pi.events,
+          deliver: (text) =>
+            pi.sendMessage(
+              { customType: "dispatch-async-resume", content: [{ type: "text", text }], display: true },
+              { deliverAs: "nextTurn" },
+            ),
+          // The resumed run joins the fleet, so its own ending is reconciled and announced by this
+          // same sweep. Its budget is already spent by the time it gets here.
+          adopt: (result) => noteAsyncSpawn(fleet, result),
+          onProblem: (problem) => report(ctx, `[pi-config] dispatch: async follow-up: ${problem}`, "warning"),
+        }),
+      );
+      const announcement = formatAnnouncement(takeAnnouncements(fleet, reports), followedUp);
       // After announcing, never before: a run becomes retirable BY being announced, and the sweep
       // must not be able to drop one on the same pass that would have reported it.
       retireSettledRuns(fleet, reports);
