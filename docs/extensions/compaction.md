@@ -133,7 +133,7 @@ Once the file reaches `warnRatio` of **either** cap, the tool's reply carries on
 ```
 recorded fact 30 of 30 in this session
 - `2026-08-31T09:12:04Z` the drain runs under `runDetached` (source: bin/pi-digest-drain)
-/home/denis/.pi/facts/2026-08-31T09-00-00_abc123.md
+/home/you/.local/state/pi-config/facts/2026-08-31T09-00-00_abc123.md
 30/40 entries, 6.1KB/8KB — nearing the cap.
 ```
 
