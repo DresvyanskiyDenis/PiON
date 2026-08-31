@@ -72,10 +72,11 @@ describe("big-results (EXT-29)", () => {
     sessionId = `s-${++sessionCounter}`;
   });
 
-  it("registers a tool_result handler and the expand_result tool", () => {
+  it("registers both channel handlers and the expand_result tool", () => {
     const { pi, handlers, tools } = fakePi();
     registerBigResults(pi);
     assert.equal(typeof handlers.get("tool_result"), "function");
+    assert.equal(typeof handlers.get("context"), "function", "the boundary covers two channels, not one");
     assert.ok(tools.has("expand_result"));
     const def = tools.get("expand_result")!;
     assert.equal(def.label, "Expand externalised result");
@@ -277,6 +278,137 @@ describe("big-results (EXT-29)", () => {
     const expand = tools.get("expand_result")!;
     const out = await expand.execute("tc-x", { handle, fromLine: 1, lines: 1 }, undefined, undefined, ctx);
     assert.equal((out.content[0] as { text: string }).text, lines[0]);
+  });
+
+  // ---- the same 50KB boundary on the `context` channel ---------------------------------------
+  //
+  // The channel a web fetch actually charges context on is `custom_message` (`pi.sendMessage`,
+  // `customType: "web-search-results"`), which `buildSessionContext` renders into a wire message
+  // and `tool_result` never sees. The `{"type":"custom"}` entries `pi.appendEntry` writes are NOT
+  // that channel: `sessionEntryToContextMessages` returns `[]` for them, so they cost session-file
+  // bytes and no tokens, and the third-party package calls `pi.appendEntry` directly with no event
+  // in between — there is nothing to hook. These tests drive the hook that does exist, `context`,
+  // with the message shape PI hands it.
+
+  function customMessage(text: string | unknown[], customType = "web-search-results") {
+    return { role: "custom", customType, content: text, display: true, timestamp: Date.now() };
+  }
+
+  it("an oversized web-search custom message is externalised on the context channel", async () => {
+    const { pi, handlers, entries } = fakePi();
+    registerBigResults(pi);
+    const context = handlers.get("context")!;
+    const ctx = fakeCtx(sessionId);
+
+    const lines = Array.from({ length: 4000 }, (_, i) => `fetched-line-${i}`.padEnd(24, "."));
+    const page = lines.join("\n");
+    assert.ok(Buffer.byteLength(page, "utf8") > DEFAULT_MAX_BYTES, "fixture must exceed the 50KB threshold");
+
+    const user = { role: "user", content: "what does the billing page say?", timestamp: Date.now() };
+    const res = await context({ type: "context", messages: [user, customMessage(page)] }, ctx);
+
+    assert.ok(res, "an oversized custom message must be patched");
+    assert.equal(res.messages.length, 2);
+    assert.equal(res.messages[0], user, "unrelated messages are passed through untouched");
+
+    const patched = res.messages[1];
+    assert.equal(patched.role, "custom");
+    assert.equal(patched.customType, "web-search-results");
+    assert.ok(
+      Buffer.byteLength(patched.content, "utf8") < DEFAULT_MAX_BYTES,
+      "the wire copy must land under the threshold",
+    );
+    assert.match(patched.content, /fetched-line-0/);
+    assert.match(patched.content, /fetched-line-3999/);
+    assert.match(patched.content, /externalised; handle "/);
+    assert.match(patched.content, /expand_result\(handle=/);
+
+    // The full body is on disk under a handle the model can read back with the existing tool.
+    const handle = /handle "([0-9a-f]+)"/.exec(patched.content)![1];
+    const written = await readFile(join(scratchDir(sessionId), "results", `${handle}.txt`), "utf8");
+    assert.equal(written, page, "the full page must be recoverable byte-for-byte from disk");
+
+    const meta = JSON.parse(await readFile(join(scratchDir(sessionId), "results", `${handle}.json`), "utf8"));
+    assert.equal(meta.toolName, "custom:web-search-results", "the sidecar records which channel it came off");
+    assert.equal(meta.toolCallId, undefined, "a custom message is not the result of a tool call");
+    assert.equal(meta.reusedExisting, false);
+
+    const cards = entries.filter((e) => e.customType === CARD_ENTRY);
+    assert.equal(cards.length, 1, "one card per externalisation, on this channel too");
+    assert.equal((cards[0]!.data as ExternalisedCard).toolName, "custom:web-search-results");
+  });
+
+  it("the context patch is byte-identical across firings and spills only once (prompt-cache safe)", async () => {
+    const { pi, handlers, entries } = fakePi();
+    registerBigResults(pi);
+    const context = handlers.get("context")!;
+    const ctx = fakeCtx(sessionId);
+    const page = Array.from({ length: 3000 }, (_, i) => `p-${i}`.padEnd(20, "-")).join("\n");
+
+    const first = await context({ type: "context", messages: [customMessage(page)] }, ctx);
+    const second = await context({ type: "context", messages: [customMessage(page)] }, ctx);
+
+    assert.equal(second.messages[0].content, first.messages[0].content, "same text in, same patch out");
+    assert.equal(
+      entries.filter((e) => e.customType === CARD_ENTRY).length,
+      1,
+      "a re-fired context must not re-spill or re-card what is already on disk",
+    );
+  });
+
+  it("expand_result reads back a slice of a context-externalised message", async () => {
+    const { pi, handlers, tools } = fakePi();
+    registerBigResults(pi);
+    const context = handlers.get("context")!;
+    const ctx = fakeCtx(sessionId);
+
+    const lines = Array.from({ length: 5000 }, (_, i) => (i === 4200 ? "BILLING-TABLE" : `row-${i}`.padEnd(20, ".")));
+    const res = await context({ type: "context", messages: [customMessage(lines.join("\n"))] }, ctx);
+    const handle = /handle "([0-9a-f]+)"/.exec(res.messages[0].content)![1];
+
+    const out = await tools
+      .get("expand_result")!
+      .execute("tc-x", { handle, grep: "BILLING-TABLE" }, undefined, undefined, ctx);
+    const text = (out.content[0] as { text: string }).text;
+    assert.match(text, /BILLING-TABLE/);
+    assert.match(text, /row-4199/);
+  });
+
+  it("normal-size and non-custom messages are left exactly as they were", async () => {
+    const { pi, handlers } = fakePi();
+    registerBigResults(pi);
+    const context = handlers.get("context")!;
+    const ctx = fakeCtx(sessionId);
+
+    const big = "u".repeat(DEFAULT_MAX_BYTES + 100);
+    const messages = [
+      { role: "user", content: big, timestamp: Date.now() }, // the conversation itself: never ours
+      customMessage("a short search summary"),
+      customMessage([{ type: "text", text: big }, { type: "image", data: "b64", mimeType: "image/png" }]),
+    ];
+    const res = await context({ type: "context", messages }, ctx);
+
+    assert.equal(res, undefined, "nothing to patch → no replacement array at all");
+    const err = await stat(join(scratchDir(sessionId), "results")).catch((e) => e);
+    assert.equal(err.code, "ENOENT", "no results dir should be created when nothing crosses the threshold");
+  });
+
+  it("a context failure fails open: the messages are left unmodified, logged once", async () => {
+    const { pi, handlers } = fakePi();
+    registerBigResults(pi);
+    const context = handlers.get("context")!;
+
+    const blocker = join(sandbox, `ctx-blocker-${sessionId}`);
+    await writeFile(blocker, "not a directory");
+    process.env.XDG_STATE_HOME = blocker;
+
+    const notified: Array<[string, string | undefined]> = [];
+    const ctx = fakeCtx(sessionId, { hasUI: true, notify: (m, t) => void notified.push([m, t]) });
+
+    const res = await context({ type: "context", messages: [customMessage("v".repeat(DEFAULT_MAX_BYTES + 100))] }, ctx);
+    assert.equal(res, undefined, "must fail open — no patch rather than a dropped message");
+    assert.equal(notified.length, 1);
+    assert.equal(notified[0][1], "error");
   });
 
   it("does not crash the harness when the scratch root is unwritable — fails open, logs once", async () => {

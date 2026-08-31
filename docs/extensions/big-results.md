@@ -13,6 +13,29 @@ overflow file it wrote. This module does two things that covers:
 The threshold deliberately matches PI's built-in boundary rather than inventing a new one, so there
 is one number to reason about rather than two.
 
+## Two channels, not one
+
+A tool result is not the only way unbounded third-party text reaches a provider request. An
+extension that calls `pi.sendMessage()` writes a `custom_message` entry, which PI renders into a
+plain user message carrying the whole content and re-sends on **every subsequent request of the
+session** — the [web](web.md) package does exactly that for its search-curator follow-up, so one
+large fetch becomes a permanent per-request cost. That text never passes through `tool_result`.
+
+So the boundary is enforced on both channels: `tool_result`, and a `context` handler that spills an
+oversized `role: "custom"` wire message through the same code path — same `results/` layout, same
+sidecar, same card, same `expand_result` handle. Only the **wire copy** is shrunk; the session file
+keeps the full text, so the transcript stays a complete record and a package's own "read that fetch
+back by id" tool still works.
+
+The patch is prompt-cache safe by construction: the handle is a hash of the text and the patch is
+memoised per session, so firing once per request produces byte-identical messages and the
+provider's cached prefix survives. A patch that varied per call would invalidate the whole
+conversation behind it once per request — the exact cost this module exists to avoid.
+
+**Not covered, on purpose:** the `type: "custom"` session entries written by `pi.appendEntry()`.
+They do not participate in LLM context at all — they cost session-file bytes and no tokens — and no
+extension hook fires between that call and the entry, so there is nothing to bound.
+
 ## Why a handle and not a shrink
 
 An adopted context-shrinking package was considered for this and rejected for the purpose:
