@@ -24,6 +24,7 @@ import {
   passedAnywayLine,
   preflightVerdict,
   refusalLine,
+  selfResumeLine,
 } from "../../extensions/compaction/preflight.ts";
 
 const WINDOW = 200_000;
@@ -93,7 +94,21 @@ describe("what the operator is told", () => {
     assert.match(line, /37% over/);
     assert.match(line, /estimate is chars\/3\.5/);
     assert.match(line, /Nothing was sent/);
-    assert.match(line, /Compaction runs next/);
+    // It used to promise "compaction runs next and the turn continues", which no code did. The
+    // promise it makes now is one this module keeps itself, and the operator's cue that the
+    // session is not waiting for them is the last four words.
+    assert.match(line, /resumes the session itself/);
+    assert.match(line, /No keystroke needed\./);
+  });
+
+  it("marks the self-resume as the harness talking, and says the turn it interrupts was aborted", () => {
+    // The model reads this as a user message, because only the user-message path compacts first.
+    // If it read as the operator, it would read as the operator changing their mind mid-task.
+    const line = selfResumeLine(facts);
+    assert.match(line, /^\[pi-config] Automatic resume, not a human message\./);
+    assert.match(line, /never reached the provider/);
+    assert.match(line, /no assistant reply/);
+    assert.match(line, /Continue the work exactly where it stopped/);
   });
 
   it("says why it gave up refusing, and what the operator has to do instead", () => {
@@ -109,14 +124,19 @@ describe("what the operator is told", () => {
 
 type Handler = (event: any, ctx: any) => unknown;
 
-function harness() {
+function harness(options: { resumeThrows?: boolean } = {}) {
   __resetForTests();
   const handlers = new Map<string, Handler[]>();
   const entries: Array<{ customType: string; data: any }> = [];
+  const userMessages: string[] = [];
   const pi = {
     on: (event: string, handler: Handler) => void handlers.set(event, [...(handlers.get(event) ?? []), handler]),
     appendEntry: (customType: string, data: any) => void entries.push({ customType, data }),
     sendMessage: () => {},
+    sendUserMessage: (content: string) => {
+      if (options.resumeThrows) throw new Error("no session to prompt");
+      userMessages.push(content);
+    },
     registerCommand: () => {},
     registerTool: () => {},
   };
@@ -133,7 +153,11 @@ function harness() {
   const request = (tokens: number, over: Partial<typeof ctx> = {}) =>
     (handlers.get("before_provider_request") ?? []).map((h) =>
       h({ payload: { messages: [{ text: "x".repeat(Math.round(tokens * CHARS_PER_TOKEN)) }] } }, { ...ctx, ...over }));
-  return { entries, aborts, notices, request };
+  // What PI does at the end of every run, refused or not: `_emitAgentSettled()` drops
+  // `_isAgentRunActive` and then emits, which is why a handler on it may prompt.
+  const settle = (over: Partial<typeof ctx> = {}) =>
+    (handlers.get("agent_settled") ?? []).map((h) => h({}, { ...ctx, ...over }));
+  return { entries, aborts, notices, userMessages, request, settle };
 }
 
 describe("before_provider_request", () => {
@@ -190,5 +214,86 @@ describe("before_provider_request", () => {
     h.request(300_000, { model: { get contextWindow(): number { throw new Error("boom"); } } as any });
     assert.deepEqual(h.aborts, []);
     assert.match(h.notices[0]?.text ?? "", /preflight failed internally and was skipped: .*boom/);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------- *
+ * The refusal must not leave the session waiting for a keystroke
+ * ------------------------------------------------------------------------------------------- */
+
+describe("self-resume after a refusal", () => {
+  it("starts the next turn itself, once the aborted run has settled", () => {
+    // The bug: every refusal left the session idle for an open-ended stretch, ended by a human
+    // typing. `ctx.abort()` stops the doomed request (asserted above) and then stops everything —
+    // `_handlePostAgentRun` skips compaction on an aborted message, so nothing follows it.
+    const h = harness();
+    h.request(300_000);
+    assert.deepEqual(h.userMessages, [], "not while the run it aborted is still unwinding");
+    h.settle();
+    assert.equal(h.userMessages.length, 1, "the session resumes without a human");
+    // A user message, not a custom one: only `prompt()` runs the pre-turn compaction check that
+    // makes the resumed turn fit. `sendMessage({ triggerTurn: true })` would buy a second refusal.
+    assert.match(h.userMessages[0] ?? "", /^\[pi-config] Automatic resume, not a human message\./);
+    assert.equal(h.entries.at(-1)?.data.decision, "self-resumed");
+    assert.equal(h.entries.at(-1)?.data.refusals, 1);
+    assert.equal(h.entries.at(-1)?.data.estimatedTokens, h.entries[0]?.data.estimatedTokens);
+  });
+
+  it("resumes once per refusal, not once per settle", () => {
+    const h = harness();
+    h.request(300_000);
+    h.settle();
+    h.settle();
+    h.settle();
+    assert.equal(h.userMessages.length, 1, "a consumed resume is gone");
+  });
+
+  it("leaves a run that was never refused alone", () => {
+    const h = harness();
+    h.request(WINDOW);
+    h.settle();
+    assert.deepEqual(h.userMessages, []);
+    assert.deepEqual(h.entries, []);
+  });
+
+  it("converges — the refusal streak bounds the resumes, so the cycle cannot run forever", () => {
+    // refuse -> resume -> refuse is a loop unless something ends it. What ends it is the streak
+    // this module already kept and could never advance before: the third verdict is
+    // `over-but-passed`, which sends, and a sent request needs no resume.
+    const h = harness();
+    for (let turn = 0; turn < MAX_CONSECUTIVE_REFUSALS; turn += 1) {
+      h.request(300_000);
+      h.settle();
+    }
+    assert.equal(h.aborts.length, MAX_CONSECUTIVE_REFUSALS);
+    assert.equal(h.userMessages.length, MAX_CONSECUTIVE_REFUSALS);
+    h.request(300_000);
+    assert.equal(h.aborts.length, MAX_CONSECUTIVE_REFUSALS, "the next one is sent, not refused");
+    h.settle();
+    assert.equal(h.userMessages.length, MAX_CONSECUTIVE_REFUSALS, "and it queues no further resume");
+    assert.equal(h.entries.at(-1)?.data.decision, "passed-anyway");
+  });
+
+  it("drops a parked resume when the escape hatch lets a request through", () => {
+    // The settles are omitted on purpose: this is the ordering where a refusal parked a resume and
+    // the run kept going anyway. Firing it would restart a session that is already answering.
+    const h = harness();
+    h.request(300_000);
+    h.request(300_000);
+    h.request(300_000);
+    h.settle();
+    assert.deepEqual(h.userMessages, []);
+  });
+
+  it("fails open into the old behaviour, and says the session is idle", () => {
+    // No resume is exactly where this session was before the self-resume — bad, but not worse, and
+    // unlike before it is announced instead of looking like the agent thinking.
+    const h = harness({ resumeThrows: true });
+    h.request(300_000);
+    h.settle();
+    assert.match(h.notices.at(-1)?.text ?? "", /could not resume the session after an over-window refusal/);
+    assert.match(h.notices.at(-1)?.text ?? "", /needs a message to continue/);
+    h.settle();
+    assert.equal(h.notices.filter((n) => n.text.includes("could not resume")).length, 1, "said once, not per settle");
   });
 });
