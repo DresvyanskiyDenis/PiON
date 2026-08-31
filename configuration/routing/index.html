@@ -4899,14 +4899,19 @@ check found it decided entirely by whether the request carried <code>tools</code
 does. Neither is printed as a cause; both are printed as what they are, an observation.</p>
 </div>
 <h3 id="retry-the-two-classes-that-are-weather-not-a-verdict"><code>retry</code> — the two classes that are weather, not a verdict<a class="headerlink" href="#retry-the-two-classes-that-are-weather-not-a-verdict" title="Permanent link">&para;</a></h3>
-<p>An optional block. It is <strong>not</strong> in the shipped file, because its absence already means the
-defaults below; write it only to change them.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">"onProviderError"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"policy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abort"</span><span class="p">,</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">"substituteProvider"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"retry"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"classes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">],</span><span class="w"> </span><span class="nt">"maxAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="p">}</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"retry"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">"classes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">],</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">"maxAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">"onEmpty"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"strategy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vary"</span><span class="p">,</span><span class="w"> </span><span class="nt">"thinkingLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"low"</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxExtraAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">}</span>
 </span></code></pre></div>
+<p>The <code>classes</code> and <code>maxAttempts</code> values above are exactly the built-in defaults, so an absent block
+behaves identically. They are spelled out anyway because <code>onEmpty</code> is <strong>not</strong> a default and needs a
+block to live in.</p>
 <table>
 <thead>
 <tr>
@@ -4925,6 +4930,11 @@ defaults below; write it only to change them.</p>
 <td><code>maxAttempts</code></td>
 <td><code>1</code></td>
 <td>Retries <strong>after</strong> the first attempt. <code>0</code> turns retrying off without deleting the block</td>
+</tr>
+<tr>
+<td><code>onEmpty</code></td>
+<td><code>{ "strategy": "identical", "maxExtraAttempts": 0 }</code></td>
+<td>What an <code>empty-response</code> retry is allowed to change. See <a href="#onempty-what-the-retry-is-allowed-to-change">below</a></td>
 </tr>
 </tbody>
 </table>
@@ -4956,6 +4966,71 @@ explanation.</p>
 next transient failure is a new coin flip and not the continuation of an old one. A malformed key
 here is reported and ignored rather than fatal — a typo in one integer must not become "no session
 talks to any provider". Read <code>extensions/lib/provider-retry.ts</code> for the whole argument.</p>
+<h4 id="onempty-what-the-retry-is-allowed-to-change"><code>onEmpty</code> — what the retry is allowed to change<a class="headerlink" href="#onempty-what-the-retry-is-allowed-to-change" title="Permanent link">&para;</a></h4>
+<div class="admonition note">
+<p class="admonition-title">Amends the section above for one class</p>
+<p>The bullet on <code>empty-response</code> used to end "and nothing about it will be different next time",
+and that clause was the entire justification for re-sending the request unchanged. Measurement
+took it back. On an audited session tree the class did <strong>not</strong> spread evenly across the
+configured providers: the overwhelming majority landed on a single gateway route, a couple on a
+second provider, and none at all on a third. It correlates with the <strong>route</strong> — so at
+<code>temperature: 0</code>, a bit-identical resend to the route that just failed is the retry variant
+with the <em>lowest</em> expected recovery rate available.</p>
+<p><code>network</code> is untouched. DNS, TLS, proxy and 5xx genuinely are route-independent, and the
+original argument holds there word for word.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>strategy</code></td>
+<td><code>"identical"</code></td>
+<td><code>"vary"</code> lets the retried attempt differ from the one that failed; <code>"identical"</code> re-sends it unchanged</td>
+</tr>
+<tr>
+<td><code>thinkingLevel</code></td>
+<td><em>(absent)</em></td>
+<td>The reasoning effort the varied attempt is issued at. Absent means nothing on the wire changes and the re-issue says so</td>
+</tr>
+<tr>
+<td><code>maxExtraAttempts</code></td>
+<td><code>0</code></td>
+<td>Attempts granted to <code>empty-response</code> <strong>on top of</strong> <code>maxAttempts</code>, and only while varying</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Exactly one thing reaches the provider differently: the reasoning effort.</strong> No provider changes,
+no model changes, <code>substituteProvider</code> stays <code>false</code> and <code>policy</code> stays <code>abort</code>. This is not
+failover arriving under a new key. <code>strategy: "vary"</code> also withdraws the re-issue's closing
+"carry on with exactly what you were doing", which on <code>temperature: 0</code> is itself a pull back toward
+the answer that did not arrive.</p>
+<p>The shipped file asks for <code>low</code> because the tiers it ships run at <code>high</code> (<code>strong</code>) and <code>medium</code>
+(<code>light</code>) — one declared level that differs from both, on the axis the finding names. PI exposes no
+per-message thinking override (<code>pi.sendMessage</code> takes <code>triggerTurn</code> and <code>deliverAs</code> and nothing
+else), so <code>extensions/credentials.ts</code> <strong>borrows</strong> the session level through <code>pi.setThinkingLevel</code>
+and gives it back the moment the streak ends: at the abort, at a turn that worked, and at a session
+switch. The return is the load-bearing half — a borrow that was never returned would mean reasoning
+less than the operator asked for, forever, silently.</p>
+<p><code>maxExtraAttempts</code> ships at <code>0</code> because the budget of one came from the coin-flip argument about
+<em>identical</em> resends. A varied attempt is a different experiment and could honestly earn more, but it
+costs paid tokens per attempt inside a fan-out, so raising it is a deliberate act.</p>
+<div class="admonition warning">
+<p class="admonition-title">This block fails closed, unlike the two keys above it</p>
+<p>A malformed <code>classes</code> or <code>maxAttempts</code> falls back to its default and costs you a round trip. A
+malformed field <em>here</em> falls back to <code>identical</code> and says so, because the failure mode is not a
+round trip — it is a whole session running at an effort nobody asked for. <code>maxAttempts: 0</code> also
+outranks <code>maxExtraAttempts</code>: an opt-out that a second key can overturn is not one.</p>
+<p>An absent <code>onEmpty</code> is <code>identical</code>, i.e. exactly the behaviour <code>retry</code> shipped with. That is
+legal and honoured, and by measurement it buys close to nothing — so <code>bin/pi-check</code>'s <code>PC-31</code>
+<strong>warns</strong> (never fails) when <code>classes</code> carries <code>empty-response</code> and no <code>strategy</code> is written
+down. Its whole job is to tell a recorded decision apart from a default nobody read.</p>
+</div>
 <hr />
 <h2 id="compaction"><code>compaction</code><a class="headerlink" href="#compaction" title="Permanent link">&para;</a></h2>
 <p>Compaction is the one call this harness makes that has to succeed <strong>while the session is already

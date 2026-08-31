@@ -2912,6 +2912,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-blocking-wait-does-not-wake-on-heartbeats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A blocking wait does not wake on heartbeats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-semaphore-cannot-reach" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4557,6 +4568,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-blocking-wait-does-not-wake-on-heartbeats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A blocking wait does not wake on heartbeats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#where-the-semaphore-cannot-reach" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4921,6 +4943,32 @@ asked for. The clamped concurrency and the isolation appear too, when either was
 <p>Logging cannot fail a dispatch. The write swallows its own failures by contract, and the session-id
 lookup that precedes it is wrapped, so an unwritable index degrades the event log and leaves the
 verdict and the arguments exactly as they were.</p>
+<h2 id="a-blocking-wait-does-not-wake-on-heartbeats">A blocking wait does not wake on heartbeats<a class="headerlink" href="#a-blocking-wait-does-not-wake-on-heartbeats" title="Permanent link">&para;</a></h2>
+<p><code>subagent_wait</code> is the one tool in <code>dispatch</code>'s rule set that dispatches nothing: it blocks. The
+<code>DSP-WAIT</code> rule fires on it, writes <code>stopOnAttention: false</code> onto a blocking call that did not name
+the flag, and never blocks or refuses.</p>
+<p>The reason is that <code>pi-subagents</code> resolves the flag as
+<code>params.stopOnAttention ?? deps.stopOnAttention !== false</code>, so an omitted parameter means <strong>true</strong>
+and the wait ends on <em>any</em> <code>needs_attention</code> run. Two of the three producers of that state are
+heuristics rather than questions: idle beyond 60 s (scaled ×2/×5/×10 for medium/high/xhigh thinking)
+and one tool call open for 240 s or more. A child thinking hard, or four minutes into one <code>bash</code>, is
+not asking the lead anything, and each of those wakes costs the lead a full re-read of its context
+at cache-miss price.</p>
+<p>Nothing is lost by lowering it. The genuine ask, a pending <code>contact_supervisor</code>/intercom request, is
+checked <em>independently</em> of the flag (<code>isDone()</code> reads <code>stopOnAttention || hasSupervisorTool(run)</code>),
+and terminal states and the timeout are separate branches of the same predicate.</p>
+<p>It is a call rewrite and not a key because the package exposes no key: the wait tool's own config
+resolves to <code>{ enabled }</code> and nothing else, and <code>subagents.watchdog</code> is a strict parser that rejects
+unknown fields. The only injector of the dep is the package's internal auto-drain, which passes
+<code>false</code> — upstream agrees with the value, it just does not expose it. Patching <code>node_modules</code> is not
+the alternative; <code>PC-21</code> keeps the vendored tree unmodified and the installed tree is what runs.</p>
+<ul>
+<li>An explicit <code>stopOnAttention</code> on the call always wins, in either direction.</li>
+<li>A <code>nonBlocking: true</code> subscription is left alone: it returns before the flag is read.</li>
+<li><code>waitStopOnAttention: true</code> in <code>dispatch.json</code> restores the package default by writing nothing.</li>
+<li>The first rewritten wait of a session announces the changed semantics once, because the package's
+  own tool description still advertises the opposite.</li>
+</ul>
 <h2 id="where-the-semaphore-cannot-reach">Where the semaphore cannot reach<a class="headerlink" href="#where-the-semaphore-cannot-reach" title="Permanent link">&para;</a></h2>
 <p>Documented honestly in <code>extensions/dispatch/concurrency.ts</code>: there is no extension-visible hook
 inside PI's own <code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>

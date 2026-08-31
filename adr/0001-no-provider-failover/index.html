@@ -4434,6 +4434,11 @@ work rather than a turn an operator can retype.</p>
 same provider and the same model</strong>. The decision above is unchanged: no substitution, no
 fallback chain, and the abort is still where all six classes end up.
 <a href="../../configuration/routing/#retry-the-two-classes-that-are-weather-not-a-verdict">Reference</a>.</p>
+<p>Amended again for one of the two: an <code>empty-response</code> retry may now vary the <strong>reasoning
+effort</strong> it is issued at (<code>retry.onEmpty</code>), because the class was measured to correlate with
+the route and an identical resend to a route that just failed recovers least often. Still the
+same provider, still the same model — the one thing that may differ is a request parameter, not
+a destination. <a href="../../configuration/routing/#onempty-what-the-retry-is-allowed-to-change">Reference</a>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Amended — compaction has a route, and the working path still does not</p>
