@@ -94,6 +94,11 @@ function makeFixture() {
   mkdirSync(join(seed, "scripts"));
   writeFileSync(join(seed, "config", "alpha.json"), '{"alpha":true}\n');
   writeFileSync(join(seed, "config", "beta.json"), '{"beta":true}\n');
+  // The two hook gates. They are NOT link_one rows in the install.sh stub below, on purpose:
+  // reconcile_hooks_gate() handles ~/.pi/agent/hooks.yaml outside the link table precisely because
+  // it has two correct targets, and this fixture has to reproduce that shape to exercise it.
+  writeFileSync(join(seed, "config", "hooks.yaml"), "version: 1\nrules: []\n");
+  writeFileSync(join(seed, "config", "hooks-off.yaml"), "version: 1\nrules: []\n");
   writeFileSync(join(seed, "package-lock.json"), '{"lockfileVersion":3}\n');
   writeFileSync(join(seed, "package.json"), '{"name":"fixture","engines":{"node":">=22.19.0"}}\n');
   // Only the shape update.sh reads: the link table, and one `ask` inside one `ask_section` block.
@@ -126,6 +131,8 @@ function makeFixture() {
     ["LINK", join(prefix, "pi-config"), repo],
     ["LINK", join(agentDir, "alpha.json"), join(prefix, "pi-config", "config", "alpha.json")],
     ["LINK", join(agentDir, "beta.json"), join(prefix, "pi-config", "config", "beta.json")],
+    // What a default install leaves behind: the empty gate, guardrails off.
+    ["LINK", join(agentDir, "hooks.yaml"), join(prefix, "pi-config", "config", "hooks-off.yaml")],
   ];
   for (const [, link, target] of rows.slice(1)) symlinkSync(target, link);
   writeFileSync(manifest, rows.map((r) => `${r[0]}\t${r[1]}\t${r[2]}`).join("\n") + "\n");
@@ -343,6 +350,43 @@ describe("scripts/update.sh", () => {
         "the new config was not linked",
       );
       assert.match(readFileSync(fx.manifest, "utf8"), new RegExp(`^LINK\t${link}\t`, "m"));
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  // Guardrails are off by default and `install.sh --with-guardrails` opts in, so the hook gate has
+  // two correct targets. An update that "reconciled" it would silently reverse a security posture.
+  test("an armed hook gate survives an update — the rules are not swapped back out", () => {
+    const fx = makeFixture();
+    try {
+      const link = join(fx.agentDir, "hooks.yaml");
+      const armed = join(fx.prefix, "pi-config", "config", "hooks.yaml");
+      rmSync(link);
+      symlinkSync(armed, link);
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(readlinkSync(link), armed, "the update disarmed guardrails the operator opted into");
+      assert.match(r.stdout, /hooks\.yaml — guardrails on/);
+    } finally {
+      rmSync(fx.dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a missing hook gate is created off, never armed behind the operator's back", () => {
+    const fx = makeFixture();
+    try {
+      const link = join(fx.agentDir, "hooks.yaml");
+      rmSync(link);
+      pushUpstream(fx, (d) => writeFileSync(join(d, "config", "alpha.json"), '{"alpha":2}\n'));
+      const r = update(fx, "--yes", "--no-verify");
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(
+        readlinkSync(link),
+        join(fx.prefix, "pi-config", "config", "hooks-off.yaml"),
+        "an update armed the guardrails on its own",
+      );
     } finally {
       rmSync(fx.dir, { recursive: true, force: true });
     }

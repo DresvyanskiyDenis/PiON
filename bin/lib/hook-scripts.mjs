@@ -21,9 +21,13 @@ import { join, basename } from "node:path";
 
 export const HOOKS_FILE = "config/hooks.yaml";
 
+/** The empty gate `docs/extending/hooks.md` documents as the off-switch, repo-relative. */
+export const HOOKS_OFF_FILE = "config/hooks-off.yaml";
+
 export function installPaths(env = process.env) {
   const home = env.HOME || homedir();
-  return { home, binDir: join(home, "bin"), stableLink: join(home, "pi-config") };
+  const agentDir = env.PI_CODING_AGENT_DIR || join(home, ".pi", "agent");
+  return { home, binDir: join(home, "bin"), stableLink: join(home, "pi-config"), agentDir };
 }
 
 export function extractRunCommands(text) {
@@ -91,8 +95,96 @@ function expandHome(command, home) {
 
 const REINSTALL = "re-run ./scripts/install.sh";
 
-export function checkInstalledHookScripts(ctx, paths) {
+/**
+ * What `$AGENT_DIR/hooks.yaml` currently IS on this machine: the repo's rule set, the documented
+ * off-switch (`config/hooks-off.yaml`), something else, a real file, or nothing.
+ *
+ * Informational, never a finding. It returns a `note`, not a `message`, so it cannot reach the
+ * finding path by accident, and `runDoctor` never lets it move the exit code:
+ *
+ * - Guardrails switched off on purpose is a legitimate state, not a defect. Failing on it would
+ *   make `--doctor` unrunnable exactly when the operator has chosen the state it reports, and both
+ *   `install.sh` and `update.sh` treat a `--doctor` finding as fatal.
+ * - A real file where the installer's symlink belongs is not this mode's business either:
+ *   `link_one` already backs it up and relinks on the next install, loudly.
+ *
+ * What it buys is the one thing an off-switch otherwise lacks. A hook layer carrying zero rules is
+ * indistinguishable from a machine that never installed one — the same invisibility the missing-`run`
+ * -script case is made of — and this line tells the two apart from a shell, before a session starts.
+ */
+export function describeInstalledHooksFile(paths) {
+  const path = join(paths.agentDir, "hooks.yaml");
+  const active = join(paths.stableLink, HOOKS_FILE);
+  const off = join(paths.stableLink, HOOKS_OFF_FILE);
+
+  let stats;
+  try {
+    stats = lstatSync(path);
+  } catch {
+    return {
+      path,
+      state: "absent",
+      target: null,
+      note:
+        `nothing installed here, so the hook layer loads zero rules (a missing file is normal to the ` +
+        `loader, not a failure). If that is deliberate, prefer the recorded off-switch — ` +
+        `ln -sf ${off} ${path} — which still reads as a decision six months later. Otherwise: ${REINSTALL}`,
+    };
+  }
+
+  if (!stats.isSymbolicLink()) {
+    return {
+      path,
+      state: "file",
+      target: null,
+      note:
+        `a real file, not the installer's symlink: whatever rules it carries are the ones running, ` +
+        `and install.sh backs it up and relinks on its next run`,
+    };
+  }
+
+  const target = readlinkSync(path);
+  try {
+    statSync(path); // follows the link
+  } catch {
+    return {
+      path,
+      state: "dangling",
+      target,
+      note: `points at ${target}, which does not exist — the loader reads that as "no file" and loads zero rules. ${REINSTALL}`,
+    };
+  }
+
+  if (target === off) {
+    return { path, state: "off", target, note: `GUARDRAILS OFF — linked to the empty gate. Back on: ln -sf ${active} ${path}` };
+  }
+  if (target === active) {
+    return { path, state: "active", target, note: `linked to the repo's rule set` };
+  }
+  return {
+    path,
+    state: "elsewhere",
+    target,
+    note:
+      `points at ${target}, which is neither ${active} nor ${off} — whatever rules it carries are ` +
+      `the ones running. update.sh reports it and leaves it; install.sh re-points it at the gate ` +
+      `you chose on its next run`,
+  };
+}
+
+/**
+ * @param ctx repo-reading context
+ * @param paths from `installPaths()`
+ * @param installed from `describeInstalledHooksFile()`. When the machine's gate is the empty one,
+ *   `config/hooks.yaml`'s `run` rules are not loaded on this machine and cannot fail closed on it —
+ *   so their install state is not a finding, and reporting it would make `--doctor` fail (and with
+ *   it `install.sh` and `update.sh`) over a rule nobody is running. The one check that survives is
+ *   the repo-shape one: a rule naming a `~/bin` script this repo does not ship is broken for every
+ *   machine that DOES opt in, and `--doctor` is where it gets caught.
+ */
+export function checkInstalledHookScripts(ctx, paths, installed = null) {
   const rule = "PD-01";
+  const gateIsOff = installed?.state === "off";
   const text = ctx.readText(HOOKS_FILE);
   if (text === null) return [];
 
@@ -118,6 +210,7 @@ export function checkInstalledHookScripts(ctx, paths) {
       });
       continue;
     }
+    if (gateIsOff) continue;
 
     let stats;
     try {

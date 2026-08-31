@@ -56,6 +56,14 @@ do not edit a guard gate.
 Five fields per rule: `event`, `match.tool`, `match.pattern`, `action`, `reason` — plus a `run`
 block for the one action that shells out.
 
+!!! info "This file is not linked unless you asked for it"
+    Guardrails are **off by default**: `~/.pi/agent/hooks.yaml` points at `config/hooks-off.yaml`
+    until you run `./scripts/install.sh --with-guardrails`. What `config/hooks.yaml` itself ships is
+    deliberately short — `no-force-push-main` plus the two `constraints-*` rules — because it is
+    what every fork inherits the moment it opts in. The rest of the block below is worked examples,
+    including three rules this repository used to ship and moved here: they were good rules for one
+    machine, which is not the same as good defaults. Copy the ones that fit your work.
+
 ```yaml
 version: 1
 rules:
@@ -106,8 +114,8 @@ rules:
 
 !!! warning "JavaScript regex — no PCRE inline flags"
     `new RegExp('(?i)git push')` throws `Invalid group` and the rule is **dropped at load**. Use a
-    bracket class on the leading letter instead: `[Gg]it\s+[Pp]ush`. The shipped `remind-worktree`
-    rule carries a comment saying exactly this, because it cost somebody the discovery.
+    bracket class on the leading letter instead: `[Gg]it\s+[Pp]ush`. The `remind-worktree` example
+    above is written that way for exactly this reason, because it cost somebody the discovery.
 
 !!! warning "The `run` action fails closed too"
     A `run` rule with `match: { tool: bash }` and no script yet in place blocks **every** bash call
@@ -125,7 +133,7 @@ rules:
     exemption that keeps the override path reachable, on
     [Writing a hook](../extending/hooks.md#hard-constraints-constraintsjson).
 
-!!! tip "Why `preflight-before-remote-job` confirms instead of blocking"
+!!! tip "Why the `preflight-before-remote-job` example confirms instead of blocking"
     The rule cannot know whether a local run against real input already passed this session — it
     only sees the shape of the command. `block` would refuse a legitimate ninth submit along with
     the first, and get routed around within the hour; `warn` is easy to miss in a long transcript.

@@ -102,6 +102,16 @@ One worked example sits in [`examples/skills/`](examples/skills/), tracked but o
 path: copy it in to use it. It is there because "write your own" is a thin answer to "what does a
 good one look like".
 
+**No guardrail is armed by default.** `~/.pi/agent/hooks.yaml` is linked to `config/hooks-off.yaml`
+— a valid hooks file with an empty rule list — so a fresh install blocks nothing. The sandbox ships
+`enabled: false` and the global constraint list ships empty for the same reason: a gate nobody chose
+does not protect a write path, it breaks one silently, and the first thing a surprising refusal
+teaches is to disable the whole layer. `./scripts/install.sh --with-guardrails` arms
+`config/hooks.yaml` and the installer remembers the choice; `ln -sf ~/pi-config/config/hooks-off.yaml
+~/.pi/agent/hooks.yaml` puts it back. `bin/pi-check --doctor` prints which gate is live. The rules
+that then apply are deliberately three: one refusal for force-pushing `main`, and two that arm your
+own `constraints.json`.
+
 **No MCP server definitions either**, for the same reason: a server list is as personal as a password
 manager. The machinery ships — the vendored adapter, the project trust gate, the `mcp-stdio-guard`
 environment-minimising wrapper — and the installer offers two public servers (`context7`,

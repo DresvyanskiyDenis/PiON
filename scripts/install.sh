@@ -45,6 +45,7 @@
 #   ./scripts/install.sh --reconfigure            # re-run the interview over an existing install
 #   ./scripts/install.sh --repair                 # re-link and re-verify, ask nothing
 #   ./scripts/install.sh --section maintenance    # just the auto-update check
+#   ./scripts/install.sh --with-guardrails        # opt into the blocking hook rules (off by default)
 #
 # Flags:
 #   --express                 short path: providers, credentials and the safety posture only
@@ -62,6 +63,10 @@
 #   --offline [--offline-dir D]   no network; artifacts are pre-staged in D
 #   --skip-runtime            do not touch the PI binary; configure only
 #   --skip-packages           do not run npm install for the packaged extensions
+#   --with-guardrails         link config/hooks.yaml, whose rules can BLOCK a tool call. Without
+#                             this flag ~/.pi/agent/hooks.yaml points at config/hooks-off.yaml —
+#                             a valid, empty gate. The choice is saved, so a later --repair or
+#                             --reconfigure keeps it. See docs/extending/hooks.md
 #   --no-shell                do not modify any shell rc file
 #   --no-verify               skip the post-install verification step
 #   --reconfigure | --repair  re-run modes (see above)
@@ -94,6 +99,7 @@ SECTIONS_TOTAL=9
 # ==================================================================================== flags ===
 MODE="auto"; OFFLINE=0; OFFLINE_DIR=""
 RUN_VERIFY=1; DRY_RUN=0; ASSUME_YES=0; DO_SHELL=1; SKIP_RUNTIME=0; SKIP_PACKAGES=0
+WITH_GUARDRAILS=0
 RECONFIGURE=0; REPAIR=0; EXPRESS=0; ONLY_SECTION=""
 ANSWERS_IN="${PI_INSTALL_ANSWERS:-}"; ANSWERS_OUT=""; PRESELECT=""; CLI_TIERS=""
 PREFIX="${PI_INSTALL_PREFIX:-$HOME}"
@@ -165,6 +171,7 @@ ${2:?--tier needs NAME=provider/model}"; shift 2 ;;
     --offline-dir)    OFFLINE_DIR="${2:?--offline-dir needs a directory}"; OFFLINE=1; shift 2 ;;
     --skip-runtime)   SKIP_RUNTIME=1; shift ;;
     --skip-packages)  SKIP_PACKAGES=1; shift ;;
+    --with-guardrails) WITH_GUARDRAILS=1; shift ;;
     --no-shell)       DO_SHELL=0; shift ;;
     --no-verify)      RUN_VERIFY=0; shift ;;
     --reconfigure)    RECONFIGURE=1; shift ;;
@@ -276,6 +283,10 @@ if [ -n "$ANSWERS_IN" ]; then
   load_answer_file "$ANSWERS_IN" 1
 fi
 [ -z "$PRESELECT" ] || ans_set providers "$PRESELECT"
+# Set here, before SECTION 2 loads the previous run's answers with overwrite=0: an explicit
+# --with-guardrails on THIS invocation wins, and without the flag an opt-in recorded by an earlier
+# run survives, so --repair does not quietly disarm a posture somebody chose on purpose.
+[ "$WITH_GUARDRAILS" = 0 ] || ans_set hooks.guardrails 1
 if [ -n "$CLI_TIERS" ]; then
   printf '%s\n' "$CLI_TIERS" | while IFS= read -r t; do
     [ -n "$t" ] || continue
@@ -1226,10 +1237,10 @@ fi
 
 if ask_section tools && [ "$INTERACTIVE" = 1 ] && [ "$EXPRESS" = 0 ]; then
   printf '\n   %sThe remaining files ship with defaults that are good for most people:%s\n' "$C_D" "$C_0"
-  printf '   %scompaction.json digest.json bash-timeouts.json dispatch.json hooks.yaml%s\n' "$C_D" "$C_0"
+  printf '   %scompaction.json digest.json bash-timeouts.json dispatch.json%s\n' "$C_D" "$C_0"
   printf '   %skeybindings.json pi-statusline.json tasks.json%s\n' "$C_D" "$C_0"
   if ! ask_yes_no "keep those defaults?" y; then
-    todo_add "     review and edit by hand: config/{compaction,digest,bash-timeouts,dispatch,tasks}.json, config/hooks.yaml"
+    todo_add "     review and edit by hand: config/{compaction,digest,bash-timeouts,dispatch,tasks}.json"
     info "left as shipped for now — they are plain JSON and safe to edit at any time"
   fi
 fi
@@ -1873,7 +1884,23 @@ link_one optional agents-private            agents-private
 link_one optional config/mcp.json           mcp.json
 link_one required config/web.json           web.json
 link_one required config/web-search.json    web-search.json
-link_one required config/hooks.yaml         hooks.yaml
+# EXT-15's gate. The default is config/hooks-off.yaml — a valid hooks file with an empty rule
+# list — so a fresh install blocks nothing: the guardrails are opt-in, like the sandbox and the
+# constraint list already are. `--with-guardrails` links the rules instead, and the answer file
+# remembers which, so re-running or repairing keeps the posture rather than resetting it.
+#
+# Both calls are indented on purpose. scripts/update.sh rebuilds its link table by awking
+# `^link_one` out of THIS file, and hooks.yaml must not be a row there: which target is correct is
+# a decision this machine made, not something to reconcile against one expected value. update.sh
+# has reconcile_hooks_gate() for it, which accepts either target and re-points neither.
+ans_has hooks.guardrails || ans_set hooks.guardrails 0
+if [ "$(ans_get hooks.guardrails)" = "1" ]; then
+  link_one required config/hooks.yaml       hooks.yaml
+  info "guardrails ON — config/hooks.yaml's rules can block a tool call (--with-guardrails)"
+else
+  link_one required config/hooks-off.yaml   hooks.yaml
+  info "guardrails OFF (the default) — zero hook rules. Re-run with --with-guardrails to enable them"
+fi
 link_one optional config/constraints.json   constraints.json    # read by config/bin/pi-constraints-hook, the run script behind hooks.yaml's constraint rules
 link_one optional config/guard.json         guard.json
 link_one optional config/digest.json        digest.json

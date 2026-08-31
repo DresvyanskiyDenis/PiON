@@ -255,9 +255,42 @@ Other useful flags:
 | `--offline [--offline-dir D]` | no network; artifacts pre-staged in `D` |
 | `--skip-runtime` | do not touch the PI binary; configure only |
 | `--skip-packages` | do not `npm install` the packaged extensions |
+| `--with-guardrails` | link `config/hooks.yaml`, whose rules can **block** a tool call. Off by default — see [Guardrails are off by default](#guardrails-are-off-by-default) |
 | `--no-shell` | do not modify any shell rc file |
 | `--no-verify` | skip the post-install verification step |
 | `--prefix DIR` | install root instead of `$HOME`. Does **not** relocate the generated `config/*.json` — see [the warning under "Look before you leap"](#look-before-you-leap) |
+
+---
+
+## Guardrails are off by default
+
+The installer links `~/.pi/agent/hooks.yaml` to **`config/hooks-off.yaml`**, a valid hooks file
+carrying an empty rule list. A fresh install therefore blocks nothing: no hook rule is armed, the
+sandbox ships `enabled: false`, and `config/constraints.json` ships an empty list. The machinery is
+wired; the policy is yours.
+
+```bash
+./scripts/install.sh --with-guardrails                            # arm config/hooks.yaml
+ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # back off, by hand
+bin/pi-check --doctor                                             # which gate is live right now
+```
+
+The choice is saved with your other answers, so `--repair` and `--reconfigure` keep it rather than
+resetting it, and `./scripts/update.sh` reports which gate it found and re-points neither.
+
+!!! danger "What arming them means: hooks fail closed"
+    A rule that cannot be evaluated — a bad regex, an action that throws, a `run` script that is
+    missing or times out — **blocks** the tool call rather than permitting it. That is correct for a
+    guardrail and it is also why this is opt-in: an armed layer whose `run` script is not installed
+    does not degrade into "no guardrail", it kills `edit` and `write` for the whole session. Read
+    [Writing a hook](../extending/hooks.md) before you turn it on, and re-run
+    `./scripts/install.sh` after any change that moves a hook script.
+
+!!! note "Why off is a file, not a deletion"
+    Deleting `~/.pi/agent/hooks.yaml` reaches the same runtime state, and is indistinguishable from
+    a machine where the install never ran. The empty gate still reads as a decision six months
+    later, which is the whole point of it. Full reasoning, and what stays on regardless (the guard's
+    two refusing gates), in [Turning guardrails off](../extending/hooks.md#turning-guardrails-off).
 
 ---
 
