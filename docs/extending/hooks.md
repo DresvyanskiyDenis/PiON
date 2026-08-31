@@ -335,13 +335,19 @@ keeps working — and the earlier polarity meant one YAML typo bricked the sessi
 
 ## Turning guardrails off
 
-There is a recorded way to switch the whole hook layer off, and it is a link swap rather than a
-deletion:
+**They start off.** `scripts/install.sh` links `~/.pi/agent/hooks.yaml` to
+`config/hooks-off.yaml` unless you pass `--with-guardrails`, so nothing in `config/hooks.yaml` is
+armed until you ask for it. Switching either way is a link swap rather than a deletion:
 
 ```bash
-ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # off
-ln -sf ~/pi-config/config/hooks.yaml     ~/.pi/agent/hooks.yaml   # back on
+./scripts/install.sh --with-guardrails                            # on, and remembered
+ln -sf ~/pi-config/config/hooks.yaml     ~/.pi/agent/hooks.yaml   # on, by hand
+ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # off again
 ```
+
+Neither `scripts/install.sh` nor `scripts/update.sh` will reverse a swap you made by hand: the
+installer records the choice with your other answers, and the updater accepts either target, names
+the one it found and re-points neither. A gate with two correct targets is a posture, not a drift.
 
 `config/hooks-off.yaml` is a valid hooks file carrying an empty rule list. Restart `pi` and the layer
 announces `hooks: 0 rule(s) loaded` at **info** level — no degraded flag, no `/doctor` finding,
@@ -353,9 +359,9 @@ Deleting `~/.pi/agent/hooks.yaml` reaches the same *runtime* state — a missing
 which the loader treats as "nothing to merge here", not as an error. Two things are wrong with it
 anyway:
 
-- **It does not survive an install.** `config/hooks.yaml` is a `required` link, so the next
-  `scripts/install.sh` or `scripts/update.sh` puts the rules back without asking. The link swap above
-  is undone by exactly the same step — re-apply it afterwards. Durability is not what the swap buys.
+- **It does not survive an install.** The gate is a `required` link, so the next
+  `scripts/install.sh` re-creates it — as the empty gate, or as the rule set if that is the answer
+  on file. A deletion is not a durable state; the swap is.
 - **It is indistinguishable from a broken install.** A deleted file and a machine where the install
   never ran look identical to every diagnostic you have. That is the same invisibility that made the
   missing-`run`-script case worth its own section above.

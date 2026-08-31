@@ -166,8 +166,9 @@ export function describeInstalledHooksFile(paths) {
     state: "elsewhere",
     target,
     note:
-      `points at ${target}, which is neither ${active} nor ${off} — install.sh and update.sh will ` +
-      `re-point it at the rule set on their next run`,
+      `points at ${target}, which is neither ${active} nor ${off} — whatever rules it carries are ` +
+      `the ones running. update.sh reports it and leaves it; install.sh re-points it at the gate ` +
+      `you chose on its next run`,
   };
 }
 

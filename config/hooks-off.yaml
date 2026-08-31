@@ -1,9 +1,10 @@
-# The documented off-switch. This file exists to be symlinked over `~/.pi/agent/hooks.yaml`, so
-# that turning the guardrails off is a link swap rather than a deletion that install.sh's link
-# expectations would silently undo:
+# The DEFAULT gate, and the documented off-switch. `scripts/install.sh` symlinks this file over
+# `~/.pi/agent/hooks.yaml` unless it is run with `--with-guardrails`, so a fresh install arms
+# nothing. Switching either way is a link swap rather than a deletion:
 #
-#   ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # off
-#   ln -sf ~/pi-config/config/hooks.yaml     ~/.pi/agent/hooks.yaml   # back on
+#   ./scripts/install.sh --with-guardrails                            # on, and remembered
+#   ln -sf ~/pi-config/config/hooks.yaml     ~/.pi/agent/hooks.yaml   # on, by hand
+#   ln -sf ~/pi-config/config/hooks-off.yaml ~/.pi/agent/hooks.yaml   # off again
 #
 # `rules: []` is a legitimate shape, not a degraded one. `schema.ts` requires `version: 1` and an
 # array; an empty array compiles to zero rules, and `index.ts` announces "hooks: 0 rule(s) loaded"
@@ -19,8 +20,9 @@
 #     plus a standing `/doctor` D-09 finding, which is indistinguishable from a real breakage.
 #
 # What this does NOT turn off: `guard`'s hard gates are a separate extension and keep running, and
-# so does everything outside the hook layer. `scripts/install.sh` and `scripts/update.sh` re-point
-# the link at `config/hooks.yaml` on their next run, by design — re-apply the swap afterwards.
+# so does everything outside the hook layer. What it does NOT cost you either is durability —
+# `scripts/install.sh` records which gate you chose alongside its other answers, and
+# `scripts/update.sh` accepts both targets and re-points neither.
 #
 # See docs/extending/hooks.md, "Turning guardrails off".
 version: 1
