@@ -3260,6 +3260,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#refusing-is-half-a-recovery-the-harness-supplies-the-other-half" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refusing is half a recovery; the harness supplies the other half
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#it-gives-up-rather-than-loop" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4598,6 +4609,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#refusing-is-half-a-recovery-the-harness-supplies-the-other-half" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refusing is half a recovery; the harness supplies the other half
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#it-gives-up-rather-than-loop" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4860,7 +4882,8 @@ needed to prevent it was in the process before the request was assembled.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[pi-config] compaction: refused a request this harness estimates at ~273110 tokens against
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>&lt;provider&gt;/&lt;model&gt;'s declared 200000-token window (~37% over, estimate is chars/3.5 on the
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>assembled body). Nothing was sent: an over-window request to this fleet comes back as a 200 with
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>an empty body, not as an error. Compaction runs next and the turn continues.
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>an empty body, not as an error. This harness resumes the session itself once the run settles;
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>compaction runs on that turn's entry. No keystroke needed.
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">A harness decision, filed as one</p>
@@ -4885,21 +4908,40 @@ which by then has long since fired.</p>
 preflight only ever acts <em>above</em> it, plus the 5 % tolerance. At any size where auto-compaction has
 something to say, the preflight is silent: it cannot trigger a compaction that was not going to
 happen anyway, and cannot spend a summarisation call the reserve would have spent.</p>
-<p>Refusing is also all it does. The refused turn returns to PI, whose own post-run check now sees a
-context demonstrably over the window, compacts, and continues. Calling <code>ctx.compact()</code> here as well
-would put a second compaction against the same context — the exact shape §1's loop guard exists to
-shoot down.</p>
 <p>This is also the one place in this module where <code>ctx.abort()</code> works. <a href="#an-extension-cannot-abort-a-headless-run">The section
 below</a> records that it is a no-op on the automatic
 compaction paths, because <code>activeRun</code> has already been cleared by then. A <code>before_provider_request</code>
 handler is the opposite case: it runs <em>inside</em> the active run, immediately before the HTTP call, so
 the abort lands on the very request being assembled.</p>
+<h3 id="refusing-is-half-a-recovery-the-harness-supplies-the-other-half">Refusing is half a recovery; the harness supplies the other half<a class="headerlink" href="#refusing-is-half-a-recovery-the-harness-supplies-the-other-half" title="Permanent link">&para;</a></h3>
+<p>The refusal used to be described as handing the context to PI, "which compacts and continues". It
+did not. PI's post-run check skips a message whose <code>stopReason</code> is <code>aborted</code>, and a refusal aborts —
+so the run ended, the session went idle holding the same over-window context, and nothing restarted
+it. Every refusal cost the run an open-ended stretch of dead wall-clock, ended by a person typing
+"continue"; on an unattended run, ended by nothing at all.</p>
+<p>So after aborting, the extension waits for <code>agent_settled</code> — the first moment PI reports the session
+idle — and sends the message the human would have, as a <strong>user</strong> message. That path (<code>prompt()</code>) is
+the only one carrying the pre-turn compaction check that evaluates aborted messages, which is why a
+custom message with <code>triggerTurn</code> would not do: it would restart the session into the same
+over-window context and buy one more refusal. The resume announces itself as the harness in its
+first six words, so the model does not read it as the operator changing course mid-task, and it is
+written to the session as a <code>context_preflight</code> entry with <code>decision: "self-resumed"</code>.</p>
+<p>Calling <code>ctx.compact()</code> from the refusal instead would put a second compaction against the same
+context — the exact shape §1's loop guard exists to shoot down — and would still leave the session
+idle afterwards, because <code>AgentSession.compact()</code> summarises but starts no turn.</p>
 <h3 id="it-gives-up-rather-than-loop">It gives up rather than loop<a class="headerlink" href="#it-gives-up-rather-than-loop" title="Permanent link">&para;</a></h3>
 <p>Two consecutive refusals per session is the budget — one for the request that was over, one for a
 request that is <em>still</em> over after the compaction. A third is let through, loudly, naming the real
 fix (<code>/compact</code> with instructions, a new session, or a <code>contextWindow</code> that matches what the
 endpoint serves). A doomed request whose failure is visible beats a session that never sends
 anything and never says why. The streak resets at the first request that fits.</p>
+<p>That budget is also what bounds the self-resume, and before it the budget was unreachable
+machinery: a streak can only advance if a second request is attempted without human input, which is
+precisely what a dead-ended session never did — every refusal on record reads <code>refusals: 1</code>. Now the
+resume is issued only on a refusal, so there are <strong>at most two per streak</strong>; the third verdict
+sends. The subtler cycle — a compaction that frees just enough room for one request to fit,
+resetting the streak, before going over again — is the loop guard's job: every resumed turn compacts
+automatically, so a run of non-reducing passes trips <code>REQ-CTX-35</code> and takes the run down loudly.</p>
 <div class="admonition warning">
 <p class="admonition-title">These three numbers are constants, not config keys</p>
 <p><code>CHARS_PER_TOKEN</code>, <code>OVER_WINDOW_TOLERANCE</code> and <code>MAX_CONSECUTIVE_REFUSALS</code> live in
