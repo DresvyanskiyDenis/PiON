@@ -117,6 +117,30 @@ One line worth keeping past the rest: the same check failing twice against the s
 the approach is wrong, not the input to it. Nine narrower patches to one schema is one attempt
 repeated, not nine attempts.
 
+## TRIGGER: character-grid output is computed, never composed
+
+Fire on **observable markers, not judgement**: the prompt asks for one of these, or you are about
+to emit any block whose correctness depends on characters landing in the same column on consecutive
+lines.
+
+- an ASCII table, or a fixed-width report with aligned columns
+- a diagram, timeline, span or box drawing made of `|`, `+`, `-` or box-drawing characters
+- a tree, a bar chart or a grid drawn in text
+
+**What to do:** compute the grid in a script and print what it produced — `render-grid` (linked onto
+`PATH` from `config/bin/`, `--help` for its two input shapes, `table` and `spans`), or ten lines of
+`python3 -c` that pad every cell to a fixed width. One verify: the columns line up. They don't → the
+script is wrong; fix the script, never re-type the block by hand.
+
+**Skip only when** the output has no columns at all (prose, a plain list), it is a Markdown table
+something else renders (its pipes need not align), or you are re-printing a grid a script already
+produced this session — and say which applies.
+
+Why this is a trigger and not style advice: which column a glyph lands in is a per-character
+property the token stream has no representation of, so a second freehand attempt is not a better
+attempt. Three in a row come out differently wrong rather than converging, and "use bigger spaces"
+carries no signal a model can act on. This is a capability boundary, not a prompting problem.
+
 ## TRIGGER: delegation is a context budget, not a default
 
 **The thresholds are not in this file.** How large a change the lead makes itself, and which shapes
