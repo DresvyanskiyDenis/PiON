@@ -5,8 +5,8 @@
  * touches `pi.sendMessage`; everything here is plain data in, plain data out, so it is unit-tested
  * without any PI runtime or mock `ExtensionContext`.
  *
- * Shape follows the original design (nudge every N turns, or sooner if
- * something has sat `in_progress` past the stale threshold) with two corrections against the real,
+ * Shape follows the original design (nudge every N turns; a task that has sat `in_progress` past
+ * the stale threshold sharpens that nudge's text) with two corrections against the real,
  * installed `@juicesharp/rpiv-todo` 2.4.0: the task field is `subject`, not `title`, and the
  * completed status is `"completed"`, not `"done"` (`node_modules/@juicesharp/rpiv-todo/tool/types.ts`).
  * The file-backed assumption (`listPath`, a `.pi/TODO.md` mention in the nudge text) is removed
@@ -67,8 +67,12 @@ export function evaluateNudge(
     return turnIndex - since >= cfg.staleAfterTurns;
   });
 
+  // The frequency gate is unconditional: staleness escalates the *wording* of a nudge, it never
+  // buys an extra one. Letting `stale` past the gate made every turn a nudge turn — a task sitting
+  // in_progress stays stale on every subsequent turn, and each of those turns also re-stamped
+  // `lastNudgeTurn`, so the cadence could never re-arm and the reminder repeated without end.
   const due = turnIndex - state.lastNudgeTurn >= cfg.nudgeEveryTurns;
-  if (!due && stale.length === 0) return undefined;
+  if (!due) return undefined;
   state.lastNudgeTurn = turnIndex;
 
   const text = stale.length

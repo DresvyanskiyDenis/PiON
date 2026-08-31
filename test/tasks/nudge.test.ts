@@ -46,19 +46,42 @@ describe("evaluateNudge", () => {
     assert.equal(evaluateNudge(state, [task(1, "alpha", "in_progress")], 3, CFG), undefined);
   });
 
-  it("stale detection fires before the next due-nudge would", () => {
+  it("staleness sharpens the text of a due nudge, it does not add one", () => {
     const state = createNudgeState();
     evaluateNudge(state, [task(1, "alpha", "in_progress")], 0, CFG); // fires (first-ever), lastNudgeTurn=0
     evaluateNudge(state, [task(1, "alpha", "in_progress")], 6, CFG); // due again at 6, lastNudgeTurn=6
-    // turn 11: not due (11-6=5 < 6), but stale relative to when it FIRST went in_progress (turn 0):
-    // 11-0=11 < 12 -> not yet stale either.
+    // turn 11: not due (11-6=5 < 6). Stale would not have triggered here either (11-0=11 < 12),
+    // so this only pins the gate.
     assert.equal(evaluateNudge(state, [task(1, "alpha", "in_progress")], 11, CFG), undefined);
-    // turn 12: 12-0=12 >= staleAfterTurns -> stale nudge fires even though only 6 turns since last nudge.
+    // turn 12: due (12-6=6) AND stale (12-0=12 >= staleAfterTurns) -> the due nudge carries the
+    // stale wording instead of the generic one.
     const result = evaluateNudge(state, [task(1, "alpha", "in_progress")], 12, CFG);
     assert.ok(result);
     assert.equal(result.stale, true);
     assert.match(result.text, /alpha/);
     assert.match(result.text, /in_progress for 12\+ turns/);
+  });
+
+  it("a task stale on every turn still only nudges on the cadence", () => {
+    // Regression: staleness used to bypass the frequency gate. Because a stale task stays stale on
+    // every following turn, and every such turn also re-stamped lastNudgeTurn, the nudge fired on
+    // every single turn for the rest of the session.
+    const state = createNudgeState();
+    const tasks = [task(1, "alpha", "in_progress")];
+    evaluateNudge(state, tasks, 0, CFG); // primes lastNudgeTurn=0 and inProgressSince(1)=0
+
+    const firedOn: number[] = [];
+    const staleOn: number[] = [];
+    for (let turn = 1; turn <= 30; turn++) {
+      const result = evaluateNudge(state, tasks, turn, CFG);
+      if (!result) continue;
+      firedOn.push(turn);
+      if (result.stale) staleOn.push(turn);
+    }
+
+    assert.deepEqual(firedOn, [6, 12, 18, 24, 30]);
+    // Stale from turn 12 on (12-0 >= staleAfterTurns), but only ever reported on a due turn.
+    assert.deepEqual(staleOn, [12, 18, 24, 30]);
   });
 
   it("a task that leaves in_progress stops being tracked as stale", () => {
