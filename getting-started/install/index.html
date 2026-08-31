@@ -899,6 +899,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#guardrails-are-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guardrails are off by default
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reconfiguring-later" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4585,6 +4596,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#guardrails-are-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guardrails are off by default
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reconfiguring-later" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4993,6 +5015,10 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 <td>do not <code>npm install</code> the packaged extensions</td>
 </tr>
 <tr>
+<td><code>--with-guardrails</code></td>
+<td>link <code>config/hooks.yaml</code>, whose rules can <strong>block</strong> a tool call. Off by default — see <a href="#guardrails-are-off-by-default">Guardrails are off by default</a></td>
+</tr>
+<tr>
 <td><code>--no-shell</code></td>
 <td>do not modify any shell rc file</td>
 </tr>
@@ -5007,11 +5033,39 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 </tbody>
 </table>
 <hr />
+<h2 id="guardrails-are-off-by-default">Guardrails are off by default<a class="headerlink" href="#guardrails-are-off-by-default" title="Permanent link">&para;</a></h2>
+<p>The installer links <code>~/.pi/agent/hooks.yaml</code> to <strong><code>config/hooks-off.yaml</code></strong>, a valid hooks file
+carrying an empty rule list. A fresh install therefore blocks nothing: no hook rule is armed, the
+sandbox ships <code>enabled: false</code>, and <code>config/constraints.json</code> ships an empty list. The machinery is
+wired; the policy is yours.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./scripts/install.sh<span class="w"> </span>--with-guardrails<span class="w">                            </span><span class="c1"># arm config/hooks.yaml</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>ln<span class="w"> </span>-sf<span class="w"> </span>~/pi-config/config/hooks-off.yaml<span class="w"> </span>~/.pi/agent/hooks.yaml<span class="w">   </span><span class="c1"># back off, by hand</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>bin/pi-check<span class="w"> </span>--doctor<span class="w">                                             </span><span class="c1"># which gate is live right now</span>
+</span></code></pre></div>
+<p>The choice is saved with your other answers, so <code>--repair</code> and <code>--reconfigure</code> keep it rather than
+resetting it, and <code>./scripts/update.sh</code> reports which gate it found and re-points neither.</p>
+<div class="admonition danger">
+<p class="admonition-title">What arming them means: hooks fail closed</p>
+<p>A rule that cannot be evaluated — a bad regex, an action that throws, a <code>run</code> script that is
+missing or times out — <strong>blocks</strong> the tool call rather than permitting it. That is correct for a
+guardrail and it is also why this is opt-in: an armed layer whose <code>run</code> script is not installed
+does not degrade into "no guardrail", it kills <code>edit</code> and <code>write</code> for the whole session. Read
+<a href="../../extending/hooks/">Writing a hook</a> before you turn it on, and re-run
+<code>./scripts/install.sh</code> after any change that moves a hook script.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Why off is a file, not a deletion</p>
+<p>Deleting <code>~/.pi/agent/hooks.yaml</code> reaches the same runtime state, and is indistinguishable from
+a machine where the install never ran. The empty gate still reads as a decision six months
+later, which is the whole point of it. Full reasoning, and what stays on regardless (the guard's
+two refusing gates), in <a href="../../extending/hooks/#turning-guardrails-off">Turning guardrails off</a>.</p>
+</div>
+<hr />
 <h2 id="reconfiguring-later">Reconfiguring later<a class="headerlink" href="#reconfiguring-later" title="Permanent link">&para;</a></h2>
 <p><strong>Re-running the installer is the supported way to change configuration.</strong> It is not a reinstall.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./scripts/install.sh<span class="w"> </span>--reconfigure<span class="w">           </span><span class="c1"># re-run the interview over an existing install</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>providers<span class="w">     </span><span class="c1"># just one section</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>./scripts/install.sh<span class="w"> </span>--repair<span class="w">                </span><span class="c1"># re-link and re-verify, ask nothing</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./scripts/install.sh<span class="w"> </span>--reconfigure<span class="w">           </span><span class="c1"># re-run the interview over an existing install</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./scripts/install.sh<span class="w"> </span>--section<span class="w"> </span>providers<span class="w">     </span><span class="c1"># just one section</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>./scripts/install.sh<span class="w"> </span>--repair<span class="w">                </span><span class="c1"># re-link and re-verify, ask nothing</span>
 </span></code></pre></div>
 <p>Adding a provider six months from now is a re-run, not a hand-edit. Sections:
 <code>providers</code> · <code>tiers</code> · <code>agent</code> · <code>safety</code> · <code>tools</code> · <code>shell</code> · <code>maintenance</code>.</p>
@@ -5020,8 +5074,8 @@ passing <code>--answers</code>. The path is printed in the final summary.</p>
 <p>The summary tells you what you have, what was skipped, what was backed up, and — numbered — what is
 still yours to do by hand.</p>
 <p>Then:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w"> </span>-l<span class="w">          </span><span class="c1"># so PATH and the environment file are loaded</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pi<span class="w">                      </span><span class="c1"># start the agent</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w"> </span>-l<span class="w">          </span><span class="c1"># so PATH and the environment file are loaded</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pi<span class="w">                      </span><span class="c1"># start the agent</span>
 </span></code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">A missing provider credential does not stop PI from starting</p>
@@ -5039,18 +5093,18 @@ failures, the install still completed — read the table. See <a href="../../ope
 config files get their symlinks, a changed lockfile gets an <code>npm ci</code>, and a template you have
 diverged from is named rather than overwritten. It refuses to run on a dirty tree and it never
 merges or rebases for you.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>./scripts/update.sh<span class="w"> </span>--check<span class="w">    </span><span class="c1"># is there an update, and what would it do?</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>./scripts/update.sh<span class="w">            </span><span class="c1"># report, confirm, apply</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>./scripts/update.sh<span class="w"> </span>--check<span class="w">    </span><span class="c1"># is there an update, and what would it do?</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>./scripts/update.sh<span class="w">            </span><span class="c1"># report, confirm, apply</span>
 </span></code></pre></div>
 <p>It hands you back here for anything an update cannot decide — a new interview question, a changed
 provider fragment, a moved PI pin all end in <code>./scripts/install.sh --reconfigure</code> or <code>--repair</code>, and
 update.sh prints the exact command. See <a href="../update/">Update</a>.</p>
 <hr />
 <h2 id="uninstalling">Uninstalling<a class="headerlink" href="#uninstalling" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>./scripts/uninstall.sh<span class="w">                 </span><span class="c1"># remove the agent, keep sessions and credentials</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>./scripts/uninstall.sh<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># print every action, change nothing</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>./scripts/uninstall.sh<span class="w"> </span>--purge<span class="w">         </span><span class="c1"># also remove ~/.pi entirely       (asks first)</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>./scripts/uninstall.sh<span class="w"> </span>--purge-state<span class="w">   </span><span class="c1"># also remove the runtime state dir (asks first)</span>
 </span></code></pre></div>
 <p>To move an install forward rather than take it out, see <a href="../update/">Update</a> — it reads the same
 manifest, and adds to it rather than removing from it.</p>

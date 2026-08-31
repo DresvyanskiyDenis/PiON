@@ -3588,6 +3588,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#turning-guardrails-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning guardrails off
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Turning guardrails off">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-not-just-delete-the-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why not just delete the file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-fail-closed-does-and-does-not-mean-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What "fail-closed" does and does not mean here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-does-not-switch-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this does not switch off
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verifying" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4496,6 +4546,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#turning-guardrails-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning guardrails off
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Turning guardrails off">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-not-just-delete-the-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why not just delete the file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-fail-closed-does-and-does-not-mean-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What "fail-closed" does and does not mean here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-does-not-switch-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this does not switch off
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#verifying" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4924,10 +5024,109 @@ every session. If you rely on a hook for something that matters, check <code>/do
 file — do not infer from "nothing blew up" that your rules are live.</p>
 </div>
 <hr />
+<h2 id="turning-guardrails-off">Turning guardrails off<a class="headerlink" href="#turning-guardrails-off" title="Permanent link">&para;</a></h2>
+<p><strong>They start off.</strong> <code>scripts/install.sh</code> links <code>~/.pi/agent/hooks.yaml</code> to
+<code>config/hooks-off.yaml</code> unless you pass <code>--with-guardrails</code>, so nothing in <code>config/hooks.yaml</code> is
+armed until you ask for it. Switching either way is a link swap rather than a deletion:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./scripts/install.sh<span class="w"> </span>--with-guardrails<span class="w">                            </span><span class="c1"># on, and remembered</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>ln<span class="w"> </span>-sf<span class="w"> </span>~/pi-config/config/hooks.yaml<span class="w">     </span>~/.pi/agent/hooks.yaml<span class="w">   </span><span class="c1"># on, by hand</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>ln<span class="w"> </span>-sf<span class="w"> </span>~/pi-config/config/hooks-off.yaml<span class="w"> </span>~/.pi/agent/hooks.yaml<span class="w">   </span><span class="c1"># off again</span>
+</span></code></pre></div>
+<p>Neither <code>scripts/install.sh</code> nor <code>scripts/update.sh</code> will reverse a swap you made by hand: the
+installer records the choice with your other answers, and the updater accepts either target, names
+the one it found and re-points neither. A gate with two correct targets is a posture, not a drift.</p>
+<p><code>config/hooks-off.yaml</code> is a valid hooks file carrying an empty rule list. Restart <code>pi</code> and the layer
+announces <code>hooks: 0 rule(s) loaded</code> at <strong>info</strong> level — no degraded flag, no <code>/doctor</code> finding,
+because zero rules is a shape the schema accepts, not a failure it survived.</p>
+<h3 id="why-not-just-delete-the-file">Why not just delete the file<a class="headerlink" href="#why-not-just-delete-the-file" title="Permanent link">&para;</a></h3>
+<p>Deleting <code>~/.pi/agent/hooks.yaml</code> reaches the same <em>runtime</em> state — a missing file is <code>ENOENT</code>,
+which the loader treats as "nothing to merge here", not as an error. Two things are wrong with it
+anyway:</p>
+<ul>
+<li><strong>It does not survive an install.</strong> The gate is a <code>required</code> link, so the next
+  <code>scripts/install.sh</code> re-creates it — as the empty gate, or as the rule set if that is the answer
+  on file. A deletion is not a durable state; the swap is.</li>
+<li><strong>It is indistinguishable from a broken install.</strong> A deleted file and a machine where the install
+  never ran look identical to every diagnostic you have. That is the same invisibility that made the
+  missing-<code>run</code>-script case worth its own section above.</li>
+</ul>
+<p>What the swap buys is legibility, and <code>bin/pi-check --doctor</code> is where it shows up: the mode prints
+what <code>~/.pi/agent/hooks.yaml</code> currently resolves to, on its own <code>hooks:</code> line, and says so in as many
+words when the link points at the empty gate.</p>
+<div class="language-console highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span>bin/pi-check<span class="w"> </span>--doctor
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="go">hooks: /home/you/.pi/agent/hooks.yaml is OFF — GUARDRAILS OFF, linked to the empty gate.</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="go">       Back on: ln -sf /home/you/pi-config/config/hooks.yaml /home/you/.pi/agent/hooks.yaml</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="go">0 finding(s) — install checked under /home/you/bin, expecting links into /home/you/pi-config</span>
+</span></code></pre></div>
+<p>That line is informational and never moves the exit code, including when <code>hooks.yaml</code> is a real file
+rather than the installer's symlink. A deliberately disabled layer is a decision, not a defect, and
+both <code>install.sh</code> and <code>update.sh</code> treat a <code>--doctor</code> finding as fatal.</p>
+<h3 id="what-fail-closed-does-and-does-not-mean-here">What "fail-closed" does and does not mean here<a class="headerlink" href="#what-fail-closed-does-and-does-not-mean-here" title="Permanent link">&para;</a></h3>
+<p>The phrase is easy to read as "you cannot turn this off". Precisely:</p>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A rule <strong>loaded</strong>, then could not be evaluated</td>
+<td><strong>Blocked.</strong> This is the fail-closed part, and the empty gate does not weaken it: a file with no rules has nothing that can fail.</td>
+</tr>
+<tr>
+<td>A <code>run</code> <strong>script is missing</strong></td>
+<td><strong>Blocked</strong>, for the whole session. Deleting the script is not an off-switch, it is an on-switch for refusal.</td>
+</tr>
+<tr>
+<td>The <strong>file is broken</strong></td>
+<td>Degrades to zero rules and shouts. That reaches "no hooks" too, at the price of an <code>error</code> banner every session and a <code>/doctor</code> D-09 that reads exactly like a real breakage.</td>
+</tr>
+<tr>
+<td>The <strong>file is missing</strong></td>
+<td>Normal. Zero rules, no complaint, no trace.</td>
+</tr>
+</tbody>
+</table>
+<p>The empty gate is the only one of these that reaches "no rules" <em>and</em> still reads as a decision six
+months later.</p>
+<h3 id="what-this-does-not-switch-off">What this does not switch off<a class="headerlink" href="#what-this-does-not-switch-off" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">The constraints layer goes off with the hooks</p>
+<p><code>constraints-edit</code> and <code>constraints-write</code> are hook rules. Linking the empty gate stops
+<code>~/bin/pi-constraints-hook</code> being consulted, so every <code>constraints.json</code> NEVER stops being
+enforced along with everything else in the file. That is rarely what "turn off the annoying
+guardrail" was meant to mean.</p>
+</div>
+<p>Everything below is a different layer with a different switch:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>How it is turned off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../extensions/guard/"><code>guard</code></a> — the hard gates, secret paths, catastrophic bash patterns, sudo</td>
+<td>No config switch. It is a separate extension, and a broken or empty <code>hooks.yaml</code> does not touch it — which is the whole reason the hook layer is allowed to degrade.</td>
+</tr>
+<tr>
+<td><code>pi-sandbox</code> — OS-level containment</td>
+<td><code>/sandbox-disable</code> for the session, or <code>"enabled": false</code> in <code>~/.pi/agent/sandbox.json</code>. It is <strong>on</strong> here unless you say otherwise: the package's own default is <code>enabled: true</code> and this repository ships no <code>sandbox.json</code> to override it.</td>
+</tr>
+<tr>
+<td><code>pi-lean-ctx</code> — context compression</td>
+<td>Not a guardrail, and configured on its own in <code>config/lean-ctx-config.json</code>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
 <h2 id="verifying">Verifying<a class="headerlink" href="#verifying" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>bin/pi-check<span class="w"> </span>--doctor<span class="w">   </span><span class="c1"># before a session: is every `run` script installed on this machine?</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pi<span class="w">                      </span><span class="c1"># restart — hooks compile at session start</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>/doctor<span class="w">                 </span><span class="c1"># D-09 reports a degraded hook layer, dropped-rule warnings, and dead scripts</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>bin/pi-check<span class="w"> </span>--doctor<span class="w">   </span><span class="c1"># before a session: is every `run` script installed on this machine?</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pi<span class="w">                      </span><span class="c1"># restart — hooks compile at session start</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>/doctor<span class="w">                 </span><span class="c1"># D-09 reports a degraded hook layer, dropped-rule warnings, and dead scripts</span>
 </span></code></pre></div>
 <p>Then trigger the rule deliberately. A hook you have never seen fire is a hook you have not tested.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
