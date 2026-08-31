@@ -83,11 +83,16 @@ const announced = new Set<string>();
 /**
  * How often a session re-checks the store while any job is running.
  *
- * A poll is the only push available: the child is detached and `unref()`d by design, so there is
- * no exit event to subscribe to and no watcher that could survive the session anyway. Self-arming
- * — the timer exists only while `refresh()` reports a running job — so an idle session costs
- * nothing, and one `readdir` plus a handful of small reads every two seconds is cheap next to
- * reporting a dead job as `running` for a quarter of an hour.
+ * The child is detached and `unref()`d by design, so there is no exit event to subscribe to and no
+ * watcher that could survive the session anyway: this interval *is* the exit signal, and both
+ * consumers built on it are a push rather than a poll the model has to pay for. The self-arming
+ * watcher below turns it into an announcement to an idle session; `job(action="wait")` sleeps on
+ * the same beat, so a caller waiting out a job spends one tool call however long it runs. Nothing
+ * here asks the model to re-check anything — see the tool's `promptGuidelines`.
+ *
+ * Self-arming — the timer exists only while `refresh()` reports a running job — so an idle session
+ * costs nothing, and one `readdir` plus a handful of small reads every two seconds is cheap next
+ * to reporting a dead job as `running` for a quarter of an hour.
  */
 export const DEFAULT_WATCH_INTERVAL_MS = 2_000;
 
@@ -115,6 +120,34 @@ export function watchIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
     );
   }
   return parsed;
+}
+
+/** How long `job(action="wait")` blocks when the caller names no timeout, in seconds. */
+export const DEFAULT_WAIT_TIMEOUT_SEC = 300;
+
+/** The shortest wait worth making: below this, `action=status` is the same call for less. */
+export const MIN_WAIT_TIMEOUT_SEC = 1;
+
+/** The longest a single `wait` may hold a tool call open, in seconds. */
+export const MAX_WAIT_TIMEOUT_SEC = 3_600;
+
+/**
+ * The deadline one `wait` call runs under, in milliseconds.
+ *
+ * Out of range is clamped rather than refused, which is the opposite of `watchIntervalMs` and is
+ * deliberate: `MAX_WAIT_TIMEOUT_SEC` is this tool's own ceiling on how long it will hold a call
+ * open, not a claim about the caller's input, and a model that asks for two hours is asking for
+ * "as long as you can" rather than making a mistake it should be sent back to correct. The
+ * clamped value is reported in the result's `details`, so nothing about it is silent. A value
+ * that is not a number at all still throws — the schema already refuses one, and reading garbage
+ * as the default is how a wait silently becomes a five-minute stall.
+ */
+export function waitTimeoutMs(seconds: number | undefined): number {
+  if (seconds === undefined) return DEFAULT_WAIT_TIMEOUT_SEC * 1_000;
+  if (!Number.isFinite(seconds)) {
+    throw new Error(`job: timeoutSeconds is ${JSON.stringify(seconds)}, which is not a number of seconds`);
+  }
+  return Math.min(Math.max(seconds, MIN_WAIT_TIMEOUT_SEC), MAX_WAIT_TIMEOUT_SEC) * 1_000;
 }
 
 /** Whether a finished-job notice may start a turn of its own when the session is idle. */
@@ -172,6 +205,33 @@ function describeJob(job: JobState, root: string): string {
   return lines.join("\n");
 }
 
+/**
+ * The one-line roll-call of finished jobs.
+ *
+ * Shared by the two faces that report a finish, so they cannot drift: the push `announce()` sends
+ * to a session that was not waiting, and the return value of `job(action="wait")` for the caller
+ * that was. A caller who blocked on a wait should read exactly what a caller who did not would
+ * have been told.
+ */
+function summarize(finished: readonly JobState[]): string {
+  return finished
+    .map((job) => `${job.id} (${job.status}${job.exitCode !== undefined ? ` exit ${job.exitCode}` : ""})`)
+    .join(", ");
+}
+
+/** Sleeps, and stops sleeping early if the caller aborts the tool call. */
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
 async function requireJob(root: string, id: string | undefined): Promise<JobState> {
   if (!id) throw new Error(`job: this action needs an "id"`);
   const state = await readState(root, id);
@@ -220,8 +280,16 @@ function publishPanel(ctx: ExtensionContext, jobs: readonly JobState[]): void {
   }
 }
 
-/** Reaps this session's view of the store and updates the footer. Never throws. */
-async function refresh(ctx: ExtensionContext): Promise<{ running: number; finished: JobState[] }> {
+/**
+ * Reaps this session's view of the store and updates the footer. Never throws.
+ *
+ * `jobs` is the reaped store as this sweep saw it, returned alongside the two derived numbers so
+ * that a caller which needs one specific job — `waitFor()` watching its target — does not have to
+ * read and reap the store a second time to get it.
+ */
+async function refresh(
+  ctx: ExtensionContext,
+): Promise<{ running: number; finished: JobState[]; jobs: readonly JobState[] }> {
   const root = jobsRoot();
   const { jobs, problems } = await listJobs(root);
   for (const problem of problems) {
@@ -244,7 +312,18 @@ async function refresh(ctx: ExtensionContext): Promise<{ running: number; finish
   }
 
   if (ctx.hasUI) ctx.ui.setStatus("jobs", running > 0 ? `${running} bg` : undefined);
-  return { running, finished };
+  return { running, finished, jobs };
+}
+
+/** What one `job(action="wait")` call ended up having waited for. */
+interface WaitOutcome {
+  /** Every job of this session that reached a terminal state during the wait, in finish order. */
+  readonly finished: readonly JobState[];
+  /** What was still running when the wait gave up; empty when it did not. */
+  readonly waitingOn: readonly JobState[];
+  readonly waitedMs: number;
+  readonly timedOut: boolean;
+  readonly aborted: boolean;
 }
 
 export function register(pi: ExtensionAPI): void {
@@ -292,9 +371,7 @@ export function register(pi: ExtensionAPI): void {
    */
   function announce(finished: readonly JobState[]): void {
     if (finished.length === 0) return;
-    const summary = finished
-      .map((job) => `${job.id} (${job.status}${job.exitCode !== undefined ? ` exit ${job.exitCode}` : ""})`)
-      .join(", ");
+    const summary = summarize(finished);
     pi.sendMessage(
       {
         customType: "job-done",
@@ -340,23 +417,94 @@ export function register(pi: ExtensionAPI): void {
     arm(ctx, running);
   }
 
+  /**
+   * Blocks the tool call until a job finishes, the deadline passes, or the caller aborts.
+   *
+   * This is the whole point of `action="wait"`, and the reason it is not sugar over `status`: the
+   * store is already being reaped on `DEFAULT_WATCH_INTERVAL_MS` for the announcement path, so a
+   * waiter can sleep on that same interval for free. What it saves is not disk reads, it is model
+   * turns. A job watched with `action=status` costs one full request per check, each re-sending
+   * the entire transcript, and the measured case that produced this action was 44 such checks
+   * across 10.4 minutes for one job. A wait is one call for the same 10.4 minutes.
+   *
+   * Whatever finishes during the wait is *returned* rather than announced: `refresh()` has already
+   * put those ids in `announced`, so the push path will not repeat them, and it should not — the
+   * agent is awake and reading this result, which is exactly the state the push exists to create.
+   * That is also why the wait reports every job of this session that finished while it ran, not
+   * only the one it was asked about: the sweep consumed those finishes, so dropping them would be
+   * the one way this extension could lose a completion outright.
+   */
+  async function waitFor(
+    ctx: ExtensionContext,
+    opts: { root: string; id?: string | undefined; timeoutMs: number; signal?: AbortSignal | undefined },
+  ): Promise<WaitOutcome> {
+    const startedAt = Date.now();
+    const deadline = startedAt + opts.timeoutMs;
+    const sessionId = ctx.sessionManager.getSessionId();
+    const finished: JobState[] = [];
+    const collected = new Set<string>();
+    const collect = (job: JobState): void => {
+      if (collected.has(job.id)) return;
+      collected.add(job.id);
+      finished.push(job);
+    };
+
+    for (;;) {
+      const swept = await refresh(ctx);
+      arm(ctx, swept.running);
+      for (const job of swept.finished) collect(job);
+
+      let waitingOn: JobState[];
+      if (opts.id !== undefined) {
+        // A named job may belong to another session — waiting on one is as legitimate as killing
+        // one, and `refresh()` would never report its finish, so the target is watched directly.
+        const target = swept.jobs.find((job) => job.id === opts.id);
+        if (!target) throw new Error(`job: no such job "${opts.id}" in ${opts.root}`);
+        if (target.status !== "running") {
+          collect(target);
+          return { finished, waitingOn: [], waitedMs: Date.now() - startedAt, timedOut: false, aborted: false };
+        }
+        waitingOn = [target];
+      } else {
+        waitingOn = swept.jobs.filter((job) => job.parentSession === sessionId && job.status === "running");
+        // Nothing of ours left to wait for, or something of ours already finished: either way the
+        // answer is now, and blocking until the deadline could not improve it.
+        if (finished.length > 0 || waitingOn.length === 0) {
+          return { finished, waitingOn, waitedMs: Date.now() - startedAt, timedOut: false, aborted: false };
+        }
+      }
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        return { finished, waitingOn, waitedMs: Date.now() - startedAt, timedOut: true, aborted: false };
+      }
+      await sleep(Math.min(watchIntervalMs(), remaining), opts.signal);
+      if (opts.signal?.aborted) {
+        return { finished, waitingOn, waitedMs: Date.now() - startedAt, timedOut: false, aborted: true };
+      }
+    }
+  }
+
   pi.registerTool({
     name: "job",
     label: "Background job",
     description:
-      "Start, poll, read, list, kill or prune a detached background job. Jobs outlive this " +
+      "Start, wait on, read, list, kill or prune a detached background job. Jobs outlive this " +
       "session's process and are visible from any other session.",
-    promptSnippet: "Run long commands in the background and poll them",
+    promptSnippet: "Run long commands in the background and block on them with action=wait",
     promptGuidelines: [
-      "Use job with action=start for anything expected to run longer than the bash timeout, then poll it with action=status.",
+      "Use job with action=start for anything expected to run longer than the bash timeout, then block on it with action=wait.",
+      "action=wait is how you learn that a job finished: it returns as soon as one does, and one wait costs one tool call however long the job runs. Repeated action=status calls cost one full request each and re-send the whole transcript, so a job watched that way can cost dozens of requests to learn a single fact.",
+      "Use action=status only for progress out of a job you are not waiting for. Never loop on it to detect completion, and never sleep in bash to pace such a loop.",
+      "A finished job is also announced to you unprompted, so there is nothing to check for after a wait returns.",
       "Do not use job for quick commands — plain bash is cheaper.",
       "Use job with action=list to find work started by an earlier session before starting it again.",
     ],
     parameters: Type.Object({
-      action: StringEnum(["start", "status", "output", "list", "kill", "prune"] as const, {
+      action: StringEnum(["start", "wait", "status", "output", "list", "kill", "prune"] as const, {
         description: "what to do",
       }),
-      id: Type.Optional(Type.String({ description: "job id, for status/output/kill" })),
+      id: Type.Optional(Type.String({ description: "job id, for wait/status/output/kill" })),
       // The name `command` is load-bearing: `EXT-03`'s catastrophic-pattern gate scans
       // `command` / `cmd` / `script` on *any* tool call, not only `bash`'s, so a background
       // job is covered by the denylist for free. Renaming it routes jobs around the guard.
@@ -373,11 +521,22 @@ export function register(pi: ExtensionAPI): void {
         StringEnum(["stdout", "stderr", "both"] as const, { description: "which log to read" }),
       ),
       tailLines: Type.Optional(Type.Integer({ minimum: 1, maximum: 2000, default: 200 })),
+      timeoutSeconds: Type.Optional(
+        Type.Integer({
+          minimum: MIN_WAIT_TIMEOUT_SEC,
+          maximum: MAX_WAIT_TIMEOUT_SEC,
+          default: DEFAULT_WAIT_TIMEOUT_SEC,
+          description:
+            `for action=wait: how long to block before returning, in seconds ` +
+            `(${MIN_WAIT_TIMEOUT_SEC} to ${MAX_WAIT_TIMEOUT_SEC}, defaults to ${DEFAULT_WAIT_TIMEOUT_SEC}). ` +
+            `A timed-out wait is not a failure; wait again.`,
+        }),
+      ),
       olderThanHours: Type.Optional(
         Type.Number({ minimum: 0, description: "for action=prune; defaults to 168 (7 days)" }),
       ),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const root = await ensureJobsRoot();
 
       switch (params.action) {
@@ -415,6 +574,38 @@ export function register(pi: ExtensionAPI): void {
               },
             ],
             details: { id: state.id, pid: state.pid, dir: jobDir(root, state.id) },
+          };
+        }
+
+        case "wait": {
+          const timeoutMs = waitTimeoutMs(params.timeoutSeconds);
+          const outcome = await waitFor(ctx, { root, id: params.id, timeoutMs, signal });
+          const waited = `${(outcome.waitedMs / 1000).toFixed(1)}s`;
+          const stillRunning = outcome.waitingOn.map((job) => job.id).join(", ");
+          let text: string;
+          if (outcome.finished.length > 0) {
+            text =
+              `after ${waited}, background job(s) finished: ${summarize(outcome.finished)}. ` +
+              `Read them with job(action="output").`;
+          } else if (outcome.aborted) {
+            text = `wait interrupted after ${waited}; still running: ${stillRunning}`;
+          } else if (outcome.timedOut) {
+            text =
+              `nothing finished within ${waited}; still running: ${stillRunning}. ` +
+              `Wait again to keep blocking, with a longer timeoutSeconds if the job is a slow one.`;
+          } else {
+            text = `nothing to wait for: this session has no running job`;
+          }
+          return {
+            content: [{ type: "text" as const, text }],
+            details: {
+              finished: outcome.finished,
+              waitingOn: outcome.waitingOn.map((job) => job.id),
+              waitedMs: outcome.waitedMs,
+              timeoutMs,
+              timedOut: outcome.timedOut,
+              aborted: outcome.aborted,
+            },
           };
         }
 
