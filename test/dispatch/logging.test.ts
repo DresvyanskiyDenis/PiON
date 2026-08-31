@@ -185,7 +185,15 @@ describe("DSP-RESOLVE: persisting the model-resolution record", () => {
     const dbPath = await useOwnIndexDb("applied-");
 
     setWorktreePreflight(FEASIBLE_WORKTREE);
-    const input: Record<string, unknown> = { agent: "surgeon", prompt: "x", tasks: [1, 2, 3, 4, 5, 6, 7], concurrency: 7 };
+    // Isolation is now decided per CHILD (`call-children.ts`), not off the top-level `agent` — so
+    // each of the 7 tasks has to name `surgeon` itself for the fanout to be recognised as declaring
+    // `isolation: worktree`. The top-level `agent` still drives concurrency/model resolution.
+    const input: Record<string, unknown> = {
+      agent: "surgeon",
+      prompt: "x",
+      tasks: Array.from({ length: 7 }, () => ({ agent: "surgeon" })),
+      concurrency: 7,
+    };
     assert.equal(await run(rules(stateOf()), eventOf("subagent", input), ctxWithSession("s-applied")), undefined);
     resetWorktreePreflight();
     assert.equal(input.concurrency, 4, "databricks is capped at 4 in the routing fixture");

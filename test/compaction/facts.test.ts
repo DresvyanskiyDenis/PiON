@@ -15,14 +15,16 @@ import { after, before, test } from "node:test";
 import {
   appendFact,
   DEFAULT_FACTS_LIMITS,
+  DEFAULT_FACTS_WARN_RATIO,
   factsPathFor,
   formatFactLine,
   isRuledOutLine,
+  nearingCapLine,
   PROVENANCE_UNSTATED,
   readFacts,
   renderFacts,
 } from "../../extensions/compaction/facts.ts";
-import { parseConfig } from "../../extensions/compaction/index.ts";
+import { parseConfig, register } from "../../extensions/compaction/index.ts";
 
 let dir: string;
 
@@ -372,3 +374,76 @@ test("a reader counts a ruled_out line as an entry, so half the file cannot go m
   assert.equal(result.total, 2);
   assert.equal(result.lines.length, 2);
 });
+
+/* ---------------------------------------------------------------------------------------------
+ * The budget is stated where the agent already looks, not only in `/compaction-status`
+ * ------------------------------------------------------------------------------------------- */
+
+test("the tool says nothing about the budget until the file is near a cap, then names both", async () => {
+  const sessionFile = join(dir, "sessions", "2026-08-31T00-00-00_warncap.jsonl");
+  const tool = factTool();
+  const ctx = { sessionManager: { getSessionFile: () => sessionFile, getSessionId: () => "warncap" } };
+  const record = async (n: number) =>
+    (await tool.execute("call", { fact: `fact number ${n}`, provenance: "test" }, undefined, undefined, ctx))
+      .content[0].text as string;
+
+  // The shipped caps: 40 entries, 8000 bytes, warn at 0.75 — so 29 entries is under and 30 is on.
+  let text = "";
+  for (let i = 1; i <= 29; i += 1) text = await record(i);
+  assert.doesNotMatch(text, /nearing the cap/, "29 of 40 entries must not warn");
+
+  text = await record(30);
+  assert.match(text, /^recorded fact 30 of 30 in this session/);
+  assert.match(text, /\n30\/40 entries, [\d.]+KB\/8KB — nearing the cap\.$/);
+});
+
+test("the byte cap warns on its own, before the entry cap is anywhere near", () => {
+  const limits = { maxEntries: 40, maxBytes: 8000 };
+  assert.equal(nearingCapLine({ total: 4, bytes: 5999 }, limits), null);
+  assert.equal(nearingCapLine({ total: 4, bytes: 6200 }, limits), "4/40 entries, 6.2KB/8KB — nearing the cap.");
+  // The line reports the file's own weight, not the weight of what survived the caps: entries
+  // already evicted are exactly the evidence that the budget is binding.
+  assert.equal(nearingCapLine({ total: 60, bytes: 9000 }, limits), "60/40 entries, 9KB/8KB — nearing the cap.");
+});
+
+test("the warn ratio is configurable, and both ends of the clamp stay usable", async () => {
+  const path = join(dir, "ratio.facts.md");
+  for (let i = 1; i <= 10; i += 1) await appendFact(path, `fact number ${i}`, "test");
+  const result = await readFacts(path, { maxEntries: 40, maxBytes: 8000 });
+  assert.equal(result.total, 10);
+
+  assert.equal(nearingCapLine(result, { maxEntries: 40, maxBytes: 8000 }, 0.75), null);
+  assert.match(nearingCapLine(result, { maxEntries: 40, maxBytes: 8000 }, 0.25) ?? "", /10\/40 entries/);
+  // 0 states usage on every call; 1 holds it back until a cap is actually reached.
+  assert.notEqual(nearingCapLine({ total: 0, bytes: 0 }, { maxEntries: 40, maxBytes: 8000 }, 0), null);
+  assert.equal(nearingCapLine({ total: 39, bytes: 10 }, { maxEntries: 40, maxBytes: 8000 }, 1), null);
+  assert.notEqual(nearingCapLine({ total: 40, bytes: 10 }, { maxEntries: 40, maxBytes: 8000 }, 1), null);
+  // A cap of zero can keep nothing, so it is full rather than a division by it.
+  assert.equal(nearingCapLine({ total: 0, bytes: 0 }, { maxEntries: 0, maxBytes: 0 }), "0/0 entries, 0KB/0KB — nearing the cap.");
+});
+
+test("warnRatio is parsed beside the caps, defaults to 0.75, and is clamped to a fraction", () => {
+  assert.equal(parseConfig({}).pinned.facts.warnRatio, DEFAULT_FACTS_WARN_RATIO);
+  assert.equal(parseConfig({ compaction: { pinned: { facts: { warnRatio: 0.5 } } } }).pinned.facts.warnRatio, 0.5);
+  assert.equal(parseConfig({ compaction: { pinned: { facts: { warnRatio: 4 } } } }).pinned.facts.warnRatio, 1);
+  assert.equal(parseConfig({ compaction: { pinned: { facts: { warnRatio: -1 } } } }).pinned.facts.warnRatio, 0);
+  assert.equal(
+    parseConfig({ compaction: { pinned: { facts: { warnRatio: "nonsense" } } } }).pinned.facts.warnRatio,
+    DEFAULT_FACTS_WARN_RATIO,
+  );
+});
+
+/** The registered `fact` tool itself, so the reply under test is the one the agent receives. */
+function factTool(): any {
+  const tools: any[] = [];
+  register({
+    on: () => {},
+    appendEntry: () => {},
+    sendMessage: () => {},
+    registerCommand: () => {},
+    registerTool: (tool: any) => void tools.push(tool),
+  } as any);
+  const tool = tools.find((t) => t.name === "fact");
+  assert.ok(tool, "the fact tool must be registered under the shipped config");
+  return tool;
+}

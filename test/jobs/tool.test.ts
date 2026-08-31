@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, before, beforeEach, describe, it } from "node:test";
+import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 import {
@@ -12,6 +12,10 @@ import {
   WATCH_INTERVAL_ENV,
   wakeOnIdle,
   WAKE_ENV,
+  waitTimeoutMs,
+  DEFAULT_WAIT_TIMEOUT_SEC,
+  MIN_WAIT_TIMEOUT_SEC,
+  MAX_WAIT_TIMEOUT_SEC,
   __resetForTests,
 } from "../../extensions/jobs/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
@@ -450,6 +454,158 @@ describe("job tool (EXT-24)", () => {
       [id],
       "a job that finished moments ago is well inside the default 7-day window",
     );
+  });
+
+  /**
+   * The tool told the model to poll — `promptGuidelines` said "then poll it with action=status"
+   * and no blocking action existed — while this same extension already detected every finish on
+   * its own interval and pushed an announcement. The measured cost of the instruction it gave: 44
+   * `status` calls over 10.4 minutes for one job, each one a full model request re-sending the
+   * whole transcript, where one blocking call would have done.
+   */
+  describe("action=wait, the blocking alternative to being told to poll", () => {
+    interface WaitDetails {
+      finished: JobState[];
+      waitingOn: string[];
+      waitedMs: number;
+      timeoutMs: number;
+      timedOut: boolean;
+      aborted: boolean;
+    }
+
+    let prevInterval: string | undefined;
+
+    beforeEach(() => {
+      // A wait sleeps on the announcement watcher's interval, so the default 2s would make every
+      // assertion below wait a whole beat past the finish it is checking for. The watcher itself
+      // stays inert in these tests because each one opens with `agent_start`: a tool call happens
+      // mid-run by definition, and mid-run the watcher defers to `turn_end`.
+      prevInterval = process.env[WATCH_INTERVAL_ENV];
+      process.env[WATCH_INTERVAL_ENV] = "20";
+    });
+    afterEach(() => {
+      if (prevInterval === undefined) delete process.env[WATCH_INTERVAL_ENV];
+      else process.env[WATCH_INTERVAL_ENV] = prevInterval;
+    });
+
+    it("is offered as an action, and the guidelines send the model to it instead of to a poll loop", () => {
+      const action = (tool.parameters as { properties: { action: { enum?: string[] } } }).properties.action;
+      assert.ok(action.enum?.includes("wait"), "there is no blocking action to recommend");
+      const guidelines = (tool.promptGuidelines ?? []).join("\n");
+      assert.match(guidelines, /action=wait/);
+      assert.doesNotMatch(
+        guidelines,
+        /poll it with action=status/,
+        "the tool still prescribes the polling the wait action exists to replace",
+      );
+    });
+
+    it("blocks until the job finishes, in one call, and returns what the push would have said", async () => {
+      const ctx = fakeCtx("sess-1");
+      await harness.handlers.get("agent_start")!({}, ctx);
+      const started = await call({ action: "start", command: "sleep 0.6" }, ctx);
+      const id = (started.details as { id: string }).id;
+
+      const waited = await call({ action: "wait" }, ctx);
+      const details = waited.details as WaitDetails;
+
+      // One tool call spanning the whole run, rather than one call per check of it.
+      assert.ok(details.waitedMs >= 500, `the wait returned after ${details.waitedMs}ms, before the job could end`);
+      assert.equal(details.timedOut, false);
+      assert.deepEqual(
+        details.finished.map((job) => [job.id, job.status, job.exitCode]),
+        [[id, "done", 0]],
+      );
+      // The same roll-call `announce()` builds, because a caller who blocked should be told
+      // exactly what a caller who did not would have been.
+      assert.match(waited.content[0]!.text!, new RegExp(`${id} \\(done exit 0\\)`));
+      assert.match(waited.content[0]!.text!, /job\(action="output"\)/);
+      assert.equal(harness.sent.length, 0, "the finish was returned, so pushing it too is a wasted wake");
+    });
+
+    it("waits for a named job, including one owned by another session", async () => {
+      const mine = fakeCtx("sess-1");
+      const theirs = fakeCtx("sess-2");
+      await harness.handlers.get("agent_start")!({}, mine);
+      const started = await call({ action: "start", command: "sleep 0.4; exit 7" }, theirs);
+      const id = (started.details as { id: string }).id;
+
+      const waited = await call({ action: "wait", id }, mine);
+      const details = waited.details as WaitDetails;
+      assert.equal(details.timedOut, false);
+      assert.deepEqual(details.finished.map((job) => [job.id, job.status, job.exitCode]), [[id, "failed", 7]]);
+      assert.equal(harness.sent.length, 0, "another session's job is not this session's news");
+    });
+
+    it("reports every job of this session that finished while it waited, not only the named one", async () => {
+      const ctx = fakeCtx("sess-1");
+      await harness.handlers.get("agent_start")!({}, ctx);
+      const quick = await call({ action: "start", command: "exit 0" }, ctx);
+      const slow = await call({ action: "start", command: "sleep 0.6" }, ctx);
+      const quickId = (quick.details as { id: string }).id;
+      const slowId = (slow.details as { id: string }).id;
+
+      const waited = await call({ action: "wait", id: slowId }, ctx);
+      const finished = (waited.details as WaitDetails).finished.map((job) => job.id).sort();
+      // The sweep inside the wait consumed both finishes, so a wait that reported only its target
+      // would be the one path in this extension that can lose a completion outright.
+      assert.deepEqual(finished, [quickId, slowId].sort());
+      assert.equal(harness.sent.length, 0);
+    });
+
+    it("clamps to its timeout instead of blocking forever, and says the job is still running", async () => {
+      const ctx = fakeCtx("sess-1");
+      await harness.handlers.get("agent_start")!({}, ctx);
+      const started = await call({ action: "start", command: "sleep 30" }, ctx);
+      const id = (started.details as { id: string }).id;
+
+      const waited = await call({ action: "wait", timeoutSeconds: 1 }, ctx);
+      const details = waited.details as WaitDetails;
+      assert.equal(details.timedOut, true);
+      assert.equal(details.timeoutMs, 1_000);
+      assert.ok(details.waitedMs >= 1_000, `gave up after ${details.waitedMs}ms, short of its own deadline`);
+      assert.deepEqual(details.waitingOn, [id]);
+      assert.deepEqual(details.finished, []);
+      assert.match(waited.content[0]!.text!, /nothing finished within/);
+      assert.match(waited.content[0]!.text!, /Wait again/, "a timed-out wait names its own next step");
+
+      const killed = await call({ action: "kill", id }, ctx);
+      await until(() => !isProcessAlive((killed.details as JobState).pid));
+    });
+
+    it("returns at once when there is nothing of this session's to wait for", async () => {
+      const mine = fakeCtx("sess-1");
+      const theirs = fakeCtx("sess-2");
+      await harness.handlers.get("agent_start")!({}, mine);
+      const started = await call({ action: "start", command: "sleep 30" }, theirs);
+
+      // Another session's running job can never be announced here, so blocking on the deadline
+      // would buy a five-minute stall and no possible answer.
+      const waited = await call({ action: "wait", timeoutSeconds: 30 }, mine);
+      const details = waited.details as WaitDetails;
+      assert.equal(details.timedOut, false);
+      assert.ok(details.waitedMs < 1_000, `waited ${details.waitedMs}ms for a job it could not report`);
+      assert.match(waited.content[0]!.text!, /nothing to wait for/);
+
+      const killed = await call({ action: "kill", id: (started.details as { id: string }).id }, mine);
+      await until(() => !isProcessAlive((killed.details as JobState).pid));
+    });
+
+    it("fails loud on an unknown id rather than blocking on a job that does not exist", async () => {
+      const ctx = fakeCtx("sess-1");
+      await assert.rejects(call({ action: "wait", id: "nope" }, ctx), /no such job "nope"/);
+    });
+
+    it("bounds the timeout: default, floor, ceiling, and a refusal for a non-number", () => {
+      assert.equal(waitTimeoutMs(undefined), DEFAULT_WAIT_TIMEOUT_SEC * 1_000);
+      assert.equal(waitTimeoutMs(30), 30_000);
+      assert.equal(waitTimeoutMs(0), MIN_WAIT_TIMEOUT_SEC * 1_000, "a zero-second wait is a status call");
+      assert.equal(waitTimeoutMs(-5), MIN_WAIT_TIMEOUT_SEC * 1_000);
+      assert.equal(waitTimeoutMs(99_999), MAX_WAIT_TIMEOUT_SEC * 1_000, "a wait may not hold a call open forever");
+      for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
+        assert.throws(() => waitTimeoutMs(bad), /timeoutSeconds/);
+      }
+    });
   });
 
   /**

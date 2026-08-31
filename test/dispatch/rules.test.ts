@@ -813,10 +813,15 @@ describe("DSP-RESOLVE", () => {
 
   it("refuses rather than running a worktree agent in the user's checkout", async () => {
     resetWorktreeProvider();
+    resetWorktreePreflight();
+    // CTX.cwd is "/repo", which is no repository at all, so the children path cannot get a
+    // worktree either — and a refusal is the only remaining honest answer.
     const input: Record<string, unknown> = { tasks: [{ agent: "surgeon" }], agentType: "surgeon", prompt: "x" };
     const blocked = await run(rules(stateOf()), eventOf("subagent", input));
     assert.equal(blocked?.ruleId, "DSP-RESOLVE");
-    assert.match(blocked?.reason ?? "", /only accepts worktree: true together with agent: <name>/);
+    assert.match(blocked?.reason ?? "", /agent "surgeon" declares isolation: worktree/);
+    assert.match(blocked?.reason ?? "", /children that would run in your checkout/);
+    assert.equal(input.worktree, undefined);
   });
 
   it("refuses a call-time tier that does not exist, by name", async () => {
@@ -1077,6 +1082,143 @@ describe("DSP-RESOLVE: a workflowScript with no model", () => {
     assert.ok(
       defaultsAt < childAt,
       "the spread order flipped: the workflow default would now OVERRIDE a child's own model",
+    );
+  });
+});
+
+/**
+ * `isolation: worktree` is a property of an AGENT, so the guarantee cannot depend on how the lead
+ * spelled the dispatch. Until this, `def` was read off the top level of the tool call only: a
+ * `{agent, task}` call was isolated, and the same agent launched as a `workflowScript` child or a
+ * fanout entry ran in the lead's checkout, silently. These pin both shapes.
+ */
+describe("DSP-RESOLVE: isolation: worktree is honoured per child, whatever the call shape", () => {
+  const FEASIBLE = () => ({ ok: true, repoRoot: "/repo", commonDir: "/repo/.git", baseCommit: "c0ffee" }) as const;
+
+  /** CTX.cwd is "/repo", which is no repository — supply the answer so the test is about routing. */
+  async function withFeasibleRepo<T>(fn: () => Promise<T>): Promise<T> {
+    resetWorktreeProvider();
+    setWorktreePreflight(FEASIBLE);
+    try {
+      return await fn();
+    } finally {
+      resetWorktreePreflight();
+    }
+  }
+
+  it("isolates a workflowScript child that declares it", async () => {
+    await withFeasibleRepo(async () => {
+      const input: Record<string, unknown> = {
+        workflowScript: "await runs.all([{key: 'a', agent: 'surgeon', task: 'edit'}])",
+      };
+      assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+      assert.equal(input.worktree, true, "pi-subagents gives each workflow child its own worktree");
+    });
+  });
+
+  it("isolates a fanout entry that declares it, without touching the shared cwd", async () => {
+    await withFeasibleRepo(async () => {
+      const input: Record<string, unknown> = { tasks: [{ agent: "scout" }, { agent: "surgeon" }] };
+      assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+      assert.equal(input.worktree, true);
+      assert.equal(input.cwd, undefined, "the children keep their own cwds; nothing is pinned here");
+    });
+  });
+
+  it("leaves a workflow whose children all declare isolation: none alone", async () => {
+    await withFeasibleRepo(async () => {
+      const input: Record<string, unknown> = {
+        workflowScript: "await runs.all([{key: 'a', agent: 'scout', task: 'read'}])",
+      };
+      assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+      assert.equal(input.worktree, undefined, "isolation is honoured, not imposed");
+    });
+  });
+
+  it("refuses when the session cwd cannot host the children's worktrees", async () => {
+    resetWorktreeProvider();
+    resetWorktreePreflight();
+    const input: Record<string, unknown> = {
+      workflowScript: "await runs.all([{key: 'a', agent: 'surgeon', task: 'edit'}])",
+    };
+    const blocked = await run(rules(stateOf()), eventOf("subagent", input));
+    assert.equal(blocked?.ruleId, "DSP-RESOLVE");
+    assert.match(blocked?.reason ?? "", /agent "surgeon" declares isolation: worktree/);
+    assert.match(blocked?.reason ?? "", /not inside a git working tree/);
+    assert.equal(input.worktree, undefined);
+  });
+
+  it("names the child that forced it, and that every child of the call is now isolated", async () => {
+    await withFeasibleRepo(async () => {
+      resetSurfaced();
+      const { ctx, notices } = capturingCtx();
+      const input: Record<string, unknown> = { tasks: [{ agent: "scout" }, { agent: "surgeon" }] };
+      assert.equal(await run(rules(stateOf()), eventOf("subagent", input), ctx), undefined);
+      const line = notices.find((n) => n.includes("isolation: worktree")) ?? "";
+      assert.match(line, /"surgeon"/, "which agent's declaration this was");
+      assert.doesNotMatch(line, /"scout"/, "scout declares isolation: none and forced nothing");
+      assert.match(line, /Every child of this call is isolated/, "the cost of a per-call flag, said out loud");
+    });
+  });
+
+  it("overrides an explicit isolation: none on the call, loudly, and drops the conflicting key", async () => {
+    await withFeasibleRepo(async () => {
+      resetSurfaced();
+      const { ctx, notices } = capturingCtx();
+      const input: Record<string, unknown> = {
+        workflowScript: "await runs.all([{key: 'a', agent: 'surgeon', task: 'edit'}])",
+        isolation: "none",
+      };
+      assert.equal(await run(rules(stateOf()), eventOf("subagent", input), ctx), undefined);
+      assert.equal(input.worktree, true);
+      assert.equal(input.isolation, undefined, "isolation: none + worktree: true is rejected by the package");
+      const line = notices.find((n) => n.includes("isolation: worktree")) ?? "";
+      assert.match(line, /the agent file's declaration outranks it/);
+    });
+  });
+
+  it("creates nothing for action: validate, which only compiles the script", async () => {
+    await withFeasibleRepo(async () => {
+      const input: Record<string, unknown> = {
+        action: "validate",
+        workflowScript: "await runs.all([{key: 'a', agent: 'surgeon', task: 'edit'}])",
+      };
+      assert.equal(await run(rules(stateOf()), eventOf("subagent", input)), undefined);
+      assert.equal(input.worktree, undefined, "a compile launches no child and needs no worktree");
+    });
+  });
+
+  /**
+   * The same drift guard the model floor above carries, for the surface THIS path rests on: a
+   * per-call `worktree` flag that the package spreads onto every child, and a public boundary that
+   * normalises `isolation` into it and rejects the two disagreeing.
+   */
+  it("guards the pi-subagents surface the children path rests on", () => {
+    const pkg = (...parts: string[]) => readFileSync(join(REPO_ROOT, "node_modules", "pi-subagents", ...parts), "utf8");
+
+    const schemas = pkg("src", "extension", "schemas.ts");
+    assert.match(
+      schemas,
+      /worktree: Type\.Optional\(Type\.Boolean\(\{ description: "Managed child isolation\. true gives each workflow child a separate git worktree/,
+      "the per-call flag this path writes is gone or no longer per child — re-read schemas.ts:319",
+    );
+    assert.match(
+      schemas,
+      /isolation: Type\.Optional\(Type\.String\(\{ enum: \["none", "worktree"\]/,
+      "the public alias this path has to keep consistent — re-read schemas.ts:318",
+    );
+
+    const executor = pkg("src", "runs", "foreground", "subagent-executor.ts");
+    assert.match(
+      executor,
+      /const worktree = childParams\.worktree \?\? workflowDefaults\.worktree;/,
+      "a workflow-level worktree no longer defaults onto each child — re-read subagent-executor.ts:4220",
+    );
+
+    assert.match(
+      pkg("src", "extension", "public-execution.ts"),
+      /isolation '\$\{params\.isolation\}' conflicts with worktree/,
+      "the conflict that makes dropping a stale isolation: none necessary — re-read public-execution.ts:54",
     );
   });
 });

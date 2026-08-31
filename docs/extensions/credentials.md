@@ -25,7 +25,33 @@ It exists because **PI re-executes an `!command` credential on every request wit
 own**. An unwrapped CLI token call costs one OAuth round trip per LLM call. The wrapper puts a TTL
 cache (a `0600` file in a `0700` directory) in front of it, turning that into a file read.
 
-## (b) Provider error surfacing
+## (b) Prompt-cache retention
+
+`PI_CACHE_RETENTION=long` is an env var `pi-ai` reads as a fallback in every API module whenever
+the caller passes no explicit `cacheRetention` — and nothing in this repo ever does, so that
+variable alone decides the retention tier for every provider, on every call, if it is set at all.
+Two paid products ride on it: `prompt_cache_retention: "24h"` on an OpenAI-shaped route, and
+`cache_control: {type:"ephemeral", ttl:"1h"}` on an Anthropic-shaped one. Both are gated on a
+provider's `compat.supportsLongCacheRetention`, and that flag **defaults to true** wherever a
+provider's `compat` block says nothing about it — so setting the variable opts every unprobed
+route into a product nobody chose for it.
+
+`extensions/lib/cache-retention.ts` takes that decision away from the environment. `register()`
+reads `config/models.json` and honours `PI_CACHE_RETENTION=long` only when **every** configured
+provider declares an explicit `compat.supportsLongCacheRetention` boolean **and** at least one of
+them opts in. Any other state — a provider that says nothing, a `models.json` that cannot be
+read, or every provider pinning `false` — rewrites the variable to `short` before the first
+provider request and says why on the log sink. Silence is not consent: installing a new provider
+fragment without a retention decision does not quietly opt it in, it takes the switch away from
+routes that had already decided.
+
+The pin is a rewrite, not a deletion, so a bash tool, a hook, or a dispatched child reading
+`PI_CACHE_RETENTION` sees the effective value rather than a claim this module overrode. Opting a
+route in for real means adding `"compat": {"supportsLongCacheRetention": true}` to that provider
+in your own (gitignored) `config/models.json`, after confirming the gateway actually honours the
+field — not by editing a tracked template.
+
+## (c) Provider error surfacing
 
 This is what replaced the cancelled failover item. A failed provider call names the provider, the
 model, the error class and the message, keeps the cause chain, and **the turn aborts**:

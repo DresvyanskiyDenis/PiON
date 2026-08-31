@@ -17,7 +17,8 @@
       "facts": {
         "enabled": true,
         "maxEntries": 40,
-        "maxBytes": 8000
+        "maxBytes": 8000,
+        "warnRatio": 0.75
       }
     },
     "threshold": {

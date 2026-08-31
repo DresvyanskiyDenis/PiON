@@ -1,6 +1,6 @@
 # `jobs` — background work that outlives the session
 
-Registers the `job` tool: start, poll, read, list, kill, prune.
+Registers the `job` tool: start, wait, read, list, kill, prune.
 
 ## The gap it fills
 
@@ -73,6 +73,24 @@ not silently leave the wake switched on.
 
 `state.json`'s `finishedAt` is the process's real exit time, read from the `exit` file's mtime, not
 the moment something got round to looking.
+
+### `job(action="wait")` instead of polling `status`
+
+The push above exists so the model never has to poll — but polling was still what the tool told it
+to do: `job(action="status")` costs one full request per check, re-sending the whole transcript
+every time, and a job watched that way can cost dozens of requests to learn a single fact. `wait`
+blocks the tool call itself until a job finishes, the caller's `timeoutSeconds` (default 300,
+clamped to 1–3600) elapses, or the call is aborted, sleeping on the same interval the push watcher
+already runs on — so waiting out a ten-minute job costs one tool call, not forty-odd.
+
+A `wait` with no `id` is scoped to this session's own running jobs and returns at once when there
+are none — another session's job can never be announced here, so blocking on the deadline could not
+produce an answer. A `wait` naming an `id` may watch a job owned by another session, matching the
+cross-session authority `action="kill"` already has. Either way the result reports **every** job of
+this session that finished while the wait ran, not only the one it was asked about, and it reports
+rather than also pushing an announcement for them — the caller is already awake and reading the
+result. `action="status"` is still there for progress on a job you are not waiting for; the
+guidelines steer the model away from looping on it to detect completion.
 
 ## Looking through them yourself — `/jobs`
 

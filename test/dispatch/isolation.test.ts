@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PACKAGE_STATE_DIR,
+  applyChildrenIsolation,
   applyIsolation,
   preflightWorktree,
   registerWorktreeProvider,
@@ -148,6 +149,84 @@ describe("applyIsolation", () => {
     const outcome = await applyIsolation(input, "worktree", REQUEST);
     assert.equal(outcome.kind, "provider");
     assert.equal(input.cwd, "/worktrees/async");
+  });
+});
+
+/** `isolation: worktree` must be honoured whatever call shape carries the declaring child. */
+describe("applyChildrenIsolation", () => {
+  const CHILDREN = { agents: ["surgeon"], toolCallId: "call-1", cwd: "/repo" };
+
+  beforeEach(() => {
+    resetWorktreeProvider();
+    setWorktreePreflight(FEASIBLE);
+  });
+
+  it("asks pi-subagents for managed per-child isolation and names who declared it", () => {
+    const input: Record<string, unknown> = { workflowScript: "return runs.run('m', {agent: 'surgeon'})" };
+    const outcome = applyChildrenIsolation(input, { ...CHILDREN, agents: ["surgeon", "editor"] });
+    assert.deepEqual(outcome, { kind: "package", children: { agents: ["surgeon", "editor"] } });
+    assert.equal(input.worktree, true);
+  });
+
+  /**
+   * The provider is skipped here ON PURPOSE, and this is the assertion that says so. EXT-23 grants
+   * ONE directory per tool call and releases it on that call's tool_result; N children in one
+   * directory is not isolation, and N grants for one call would leak N-1 worktrees.
+   */
+  it("does not ask EXT-23 for a directory, because one directory cannot isolate N children", () => {
+    registerWorktreeProvider({
+      id: "ext-23",
+      create: () => {
+        throw new Error("the children path must not request a single-directory grant");
+      },
+    });
+    const input: Record<string, unknown> = { tasks: [{ agent: "surgeon" }, { agent: "surgeon" }] };
+    assert.equal(applyChildrenIsolation(input, CHILDREN).kind, "package");
+    assert.equal(input.worktree, true);
+    assert.equal(input.cwd, undefined, "the children keep their own cwds");
+  });
+
+  it("REFUSES when no worktree can be created from the session cwd, naming the agents", () => {
+    setWorktreePreflight(() => ({ ok: false, reason: "unborn HEAD" }));
+    const input: Record<string, unknown> = { workflowScript: "return runs.run('m', {agent: 'surgeon'})" };
+    const outcome = applyChildrenIsolation(input, CHILDREN);
+    assert.equal(outcome.kind, "refused");
+    assert.match(outcome.kind === "refused" ? outcome.reason : "", /agent "surgeon" declares isolation: worktree/);
+    assert.match(outcome.kind === "refused" ? outcome.reason : "", /unborn HEAD/);
+    assert.match(
+      outcome.kind === "refused" ? outcome.reason : "",
+      /children that would run in your checkout/,
+    );
+    assert.equal(input.worktree, undefined, "no request is made for a worktree that cannot exist");
+  });
+
+  /**
+   * `isolation` is the public alias, normalised into `worktree` before the executor sees either —
+   * and a call carrying both with different answers is rejected outright
+   * (`pi-subagents/src/extension/public-execution.ts:54`). Leaving the stale key next to the flag
+   * would turn an isolation fix into a hard tool error.
+   */
+  it("drops a conflicting isolation: none rather than shipping a call the package rejects", () => {
+    const input: Record<string, unknown> = { workflowScript: "runs.run('m', {agent: 'surgeon'})", isolation: "none" };
+    const outcome = applyChildrenIsolation(input, CHILDREN);
+    assert.deepEqual(outcome, { kind: "package", children: { agents: ["surgeon"], overrode: `isolation: "none"` } });
+    assert.equal(input.isolation, undefined);
+    assert.equal(input.worktree, true);
+  });
+
+  it("overrides worktree: false, and reports that it did", () => {
+    const input: Record<string, unknown> = { workflowScript: "runs.run('m', {agent: 'surgeon'})", worktree: false };
+    const outcome = applyChildrenIsolation(input, CHILDREN);
+    assert.deepEqual(outcome, { kind: "package", children: { agents: ["surgeon"], overrode: "worktree: false" } });
+    assert.equal(input.worktree, true);
+  });
+
+  it("leaves an isolation: worktree the call already asked for alone", () => {
+    const input: Record<string, unknown> = { workflowScript: "runs.run('m', {agent: 'surgeon'})", isolation: "worktree" };
+    const outcome = applyChildrenIsolation(input, CHILDREN);
+    assert.deepEqual(outcome, { kind: "package", children: { agents: ["surgeon"] } });
+    assert.equal(input.isolation, "worktree", "consistent with worktree: true; the package normalises it");
+    assert.equal(input.worktree, true);
   });
 });
 

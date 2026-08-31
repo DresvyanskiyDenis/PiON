@@ -126,6 +126,31 @@ step that gets skipped under time pressure — and time pressure is exactly the 
 a fact was expensive enough to be worth keeping. `SYSTEM.md` carries the doctrine that makes it
 fire, which is the load-bearing half: the mechanism without it is a tool nobody calls.
 
+### Stating the budget: `warnRatio`
+
+Once the file reaches `warnRatio` of **either** cap, the tool's reply carries one more line:
+
+```
+recorded fact 30 of 30 in this session
+- `2026-08-31T09:12:04Z` the drain runs under `runDetached` (source: bin/pi-digest-drain)
+/home/you/.local/state/pi-config/facts/2026-08-31T09-00-00_abc123.md
+30/40 entries, 6.1KB/8KB — nearing the cap.
+```
+
+Below the ratio the reply says nothing about the budget, which is the load-bearing half: the line
+has to mean "this is now worth your attention" rather than being noise on every call.
+
+The caps were previously visible only to `/compaction-status`, which an agent has to think to run.
+An invisible budget is enforced by the agent's caution instead of by its actual value — a session
+that never sees the number rations which facts are "worth" recording against a limit it has
+guessed, while the real budget sits unused.
+
+`0.75` (the default, in `config/compaction.json`) leaves a quarter of the budget between the first
+warning and the first eviction — room to finish what you are recording rather than stop mid-task.
+The value is clamped to `[0, 1]`; both ends stay usable, `0` states usage on every reply and `1`
+holds it back until a cap is actually reached. A non-numeric value falls back to the default rather
+than disabling the line.
+
 ## 4. Threshold reporting
 
 The declared threshold is a **flat 200 000 tokens on every model**. `session_start` puts it in
