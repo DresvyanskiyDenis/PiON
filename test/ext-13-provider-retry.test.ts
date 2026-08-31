@@ -156,7 +156,7 @@ describe("reading onProviderError.retry", () => {
 describe("the policy line in the failure block", () => {
   const base = buildEmptyCompletionFailure({
     provider: "litellm",
-    model: "gpt-5.6-luna",
+    model: "gpt-empty-fixture",
     status: 200,
     stopReason: "stop",
     usage: { input: 0, output: 0 },
@@ -340,7 +340,7 @@ function driveRetries(routing: unknown, startLevel: string, turns: Array<"empty"
       role: "assistant",
       content: [] as unknown[],
       provider: "litellm",
-      model: "gpt-5.6-luna",
+      model: "gpt-empty-fixture",
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       stopReason: "stop",
       rawStopReason: "stop",

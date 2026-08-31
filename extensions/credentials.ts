@@ -268,7 +268,8 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     const status = response?.status;
 
     if (message.stopReason !== "error") {
-      // Observed 2026-08-14 on `litellm/gpt-5.6-luna`: nine subagent runs whose last turn is
+      // Observed 2026-08-14 on one OpenAI-compatible gateway (a private model alias,
+      // named nowhere here): nine subagent runs whose last turn is
       // `content: []` / `stopReason: "stop"` / usage all zeros. Reported by `pi-subagents` as
       // "Subagent produced no output (possible model cold-start or empty response)" — a guessed
       // cause that named the model instead of the gateway. Say what was observed instead.
