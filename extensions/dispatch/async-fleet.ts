@@ -530,8 +530,9 @@ function formatDuration(ms: number): string {
   return ms >= 10_000 ? `${Math.round(ms / 1000)}s` : `${(ms / 1000).toFixed(1)}s`;
 }
 
-function line(report: AsyncRunReport): string {
+function line(report: AsyncRunReport, followedUp: ReadonlySet<string>): string {
   const { run, verdict } = report;
+  const followed = followedUp.has(run.runId) ? " ↻ automatic follow-up sent" : "";
   if (verdict.kind === "no-status") {
     return (
       `  ? ${run.agent ?? "subagent"} [${shortId(run.runId)}] NEVER STARTED — ${verdict.reason}. ` +
@@ -544,7 +545,7 @@ function line(report: AsyncRunReport): string {
   ];
   if (verdict.turns !== undefined) parts.push(`${verdict.turns} turn(s)`);
   if (verdict.durationMs !== undefined) parts.push(formatDuration(verdict.durationMs));
-  const head = `  ${parts.join(" · ")}`;
+  const head = `  ${parts.join(" · ")}${followed}`;
   const why = verdict.error !== undefined ? `\n      error: ${verdict.error}` : "";
   const where = verdict.outputFile !== undefined ? `\n      output: ${verdict.outputFile}` : "";
   return `${head}${why}${where}`;
@@ -553,20 +554,38 @@ function line(report: AsyncRunReport): string {
 /**
  * The message injected into the session. Written for the orchestrating model, so it says the one
  * thing the broken wake let it get wrong: these runs are over, stop describing them as running.
+ *
+ * `followedUp` names the runs `async-resume.ts` has just sent an automatic resume for on this same
+ * sweep. They are marked, and the closing instruction is qualified for them — telling the model to
+ * re-dispatch a run the harness is already resuming is two instructions that contradict each other,
+ * and the model can only obey one of them.
  */
-export function formatAnnouncement(reports: readonly AsyncRunReport[]): string | undefined {
+export function formatAnnouncement(
+  reports: readonly AsyncRunReport[],
+  followedUp: ReadonlySet<string> = new Set(),
+): string | undefined {
   const due = reports.filter((r) => r.verdict.kind !== "live");
   if (due.length === 0) return undefined;
   const anyBad = due.some((r) => r.verdict.kind === "no-status" || (r.verdict.kind === "terminal" && r.verdict.failed));
+  const followed = due.filter((r) => followedUp.has(r.run.runId));
   return [
     `Async subagent run(s) reached a terminal state (read from each run's own status.json):`,
-    ...due.map(line),
+    ...due.map((report) => line(report, followedUp)),
     ``,
     anyBad
       ? `These runs are NOT running and will deliver nothing further. Do not report them as ` +
         `active or awaiting a result. Read the artifact above, or re-dispatch — and say plainly ` +
         `that the first attempt failed.`
       : `These runs are finished. Read the artifact above rather than waiting for them.`,
+    ...(followed.length === 0
+      ? []
+      : [
+          ``,
+          `The ${followed.length === 1 ? "run marked ↻ came" : "runs marked ↻ came"} back empty and ` +
+            `${followed.length === 1 ? "has" : "have"} already been given one automatic follow-up resume. ` +
+            `Do not re-dispatch ${followed.length === 1 ? "it" : "them"}: the outcome of that follow-up ` +
+            `arrives as its own message.`,
+        ]),
   ].join("\n");
 }
 
