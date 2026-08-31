@@ -24,11 +24,34 @@
  * structurally cannot — growth *inside* a single run, where several provider requests are issued
  * between two post-run checks and the last of them is already doomed.
  *
- * Recovery is left to PI for the same reason. This module refuses the request and calls nothing:
- * the refused turn returns to `_handlePostAgentRun`, which runs `_checkCompaction` against a
- * context that is now demonstrably over the window, compacts, and continues the loop. Calling
- * `ctx.compact()` here as well would put a second compaction against the same context, which is
- * exactly the shape `loop-guard.ts` exists to shoot down.
+ * ## Recovery, and why the refusal alone is not one
+ *
+ * This module used to claim that recovery was PI's: the refused turn returns to
+ * `_handlePostAgentRun`, which runs `_checkCompaction` against a context that is demonstrably over
+ * the window, compacts, and continues the loop. The first half is true and the second half is not,
+ * and the shipped code says which: `_checkCompaction(assistantMessage, skipAbortedCheck = true)`
+ * opens with `if (skipAbortedCheck && assistantMessage.stopReason === "aborted") return false`
+ * (`core/agent-session.js:1510-1516`), and `_handlePostAgentRun` calls it with the default. A
+ * refusal aborts, so the message PI evaluates is `aborted`, so **no compaction runs and the `while`
+ * loop ends**. The session goes idle holding the same over-window context.
+ *
+ * Nothing restarts it. Compaction only reaches that context through the *other* call site —
+ * `prompt()`'s pre-run check, `_checkCompaction(lastAssistant, false)` (`:860-866`), the one that
+ * passes `skipAbortedCheck: false` on purpose "to catch aborted responses". That call site is
+ * reached by a new turn, and the only thing that started one was a person typing. Every refusal
+ * therefore cost the run an open-ended stretch of dead wall-clock, ended by a keystroke — on an
+ * unattended run, by nothing at all.
+ *
+ * So the recovery is a **self-resume**: refuse, abort, and then, once the run has settled, have the
+ * harness itself send the user message a person would have. `index.ts` does that from
+ * `agent_settled` — see its `registerPreflight` header for why that event and not this handler.
+ * The turn it starts runs `prompt()`, hence the pre-run compaction check, hence exactly the
+ * recovery this module always described, minus the wait.
+ *
+ * Calling `ctx.compact()` from the handler instead would put a second compaction against the same
+ * context — the shape `loop-guard.ts` exists to shoot down — and would still leave the session
+ * idle afterwards, because `AgentSession.compact()` aborts and summarises but starts no turn.
+ * The self-resume needs no second compaction: the turn it starts performs the first one.
  *
  * ## The estimate, and the honest bound on it
  *
@@ -71,6 +94,12 @@ export const OVER_WINDOW_TOLERANCE = 1.05;
  * refusing again would be an invisible loop — a session that never sends anything and never says
  * why. So the third one is let through, loudly, and the failure that follows is the provider's own
  * and lands in the normal classified-failure channel where it can be read.
+ *
+ * Until the self-resume this number was unreachable: the streak can only advance if a *second*
+ * request is attempted without human input, and a refusal ended the session's turn. It is now live
+ * machinery, and it is also what bounds the self-resume — at most {@link MAX_CONSECUTIVE_REFUSALS}
+ * of them per streak, because the verdict at the cap is `over-but-passed`, which sends rather than
+ * refuses and therefore resumes nothing.
  */
 export const MAX_CONSECUTIVE_REFUSALS = 2;
 
@@ -159,8 +188,28 @@ export function refusalLine(facts: PreflightFacts): string {
     `refused a request this harness estimates at ~${facts.estimatedTokens} tokens against ` +
     `${facts.model}'s declared ${facts.contextWindow}-token window (~${over}% over, estimate is ` +
     `chars/${CHARS_PER_TOKEN} on the assembled body). Nothing was sent: an over-window request to ` +
-    `this fleet comes back as a 200 with an empty body, not as an error. Compaction runs next and ` +
-    `the turn continues.`
+    `this fleet comes back as a 200 with an empty body, not as an error. This harness resumes the ` +
+    `session itself once the run settles; compaction runs on that turn's entry. No keystroke needed.`
+  );
+}
+
+/**
+ * The message the harness sends itself to restart the session after a refusal.
+ *
+ * It is a real user message, because only the `prompt()` path carries the pre-run compaction check
+ * that makes the resumed turn fit — see the module header. Two things it therefore has to do that a
+ * human's "continue" did by accident: say who sent it, so the model does not read it as the
+ * operator changing course mid-task, and say what happened, so the model knows the missing
+ * assistant turn is a harness abort and not its own output being lost.
+ */
+export function selfResumeLine(facts: PreflightFacts): string {
+  return (
+    `[pi-config] Automatic resume, not a human message. The previous request was refused by this ` +
+    `harness's context-window preflight (~${facts.estimatedTokens} estimated tokens against ` +
+    `${facts.model}'s declared ${facts.contextWindow}-token window) and never reached the ` +
+    `provider, so the turn it belonged to has no assistant reply. The context has been handed to ` +
+    `compaction on the way into this turn. Continue the work exactly where it stopped; do not ` +
+    `restart it and do not ask what to do next.`
   );
 }
 

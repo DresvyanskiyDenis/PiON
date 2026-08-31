@@ -155,6 +155,7 @@ import {
   type PreflightFacts,
   preflightVerdict,
   refusalLine,
+  selfResumeLine,
 } from "./preflight.ts";
 
 // Re-exported so `REQ-CTX-31`'s arithmetic keeps one public entry point for callers and tests.
@@ -553,6 +554,16 @@ const guards = new Map<string, LoopGuardState>();
  */
 const preflightRefusals = new Map<string, number>();
 
+/**
+ * A refusal waiting to be turned into a turn, per session.
+ *
+ * Written by the `before_provider_request` refusal, consumed by the `agent_settled` handler that
+ * sends the resume. One slot per session and not a queue: a refusal aborts the run, so a run
+ * produces at most one, and a stale entry that somehow survived its run must not resurrect a turn
+ * later — the consumer deletes before it sends.
+ */
+const preflightResumes = new Map<string, { readonly facts: PreflightFacts; readonly refusals: number }>();
+
 function sid(ctx: Pick<ExtensionContext, "sessionManager">): string {
   return ctx.sessionManager.getSessionId() ?? "unknown-session";
 }
@@ -570,6 +581,7 @@ function guardFor(session: string): LoopGuardState {
 export function __resetForTests(): void {
   guards.clear();
   preflightRefusals.clear();
+  preflightResumes.clear();
 }
 
 function announce(ctx: ExtensionContext | undefined, line: string, level: "info" | "warning" | "error" = "warning"): void {
@@ -1112,6 +1124,37 @@ async function restateFacts(pi: ExtensionAPI, ctx: ExtensionContext): Promise<vo
  * through `PROVIDER_FAILURE_MARKER`, never as a `provider_failure`. The provider did nothing here.
  * Filing a harness refusal in the channel an operator greps for provider failures is how a fleet
  * ends up debugging a gateway that was working.
+ *
+ * **The abort is half a recovery, so the other half is wired here too.** `./preflight.ts` has the
+ * shipped-code argument for why aborting leaves the session idle rather than compacting:
+ * `_handlePostAgentRun` evaluates compaction with `skipAbortedCheck` at its default `true`, and the
+ * message a refusal leaves behind is `aborted`. Only `prompt()` checks compaction on an aborted
+ * message, and only a new turn calls `prompt()`. So the refusal parks the facts and the
+ * `agent_settled` handler below turns them into that turn.
+ *
+ * Three runtime facts decide the shape of that, all read off `core/agent-session.js` 0.84.0:
+ *
+ * - **`agent_settled`, not the refusal handler.** `_emitAgentSettled()` sets
+ *   `_isAgentRunActive = false` *before* it emits, so a handler on that event is the first point
+ *   where the session is idle. `prompt()` throws `"Agent is already processing"` when it is not.
+ * - **`sendUserMessage`, not `sendMessage({ triggerTurn: true })`.** Both start a turn when idle,
+ *   but `sendCustomMessage` calls `_runAgentPrompt(msg)` directly while `sendUserMessage` goes
+ *   through `prompt()` — and the pre-run `_checkCompaction(lastAssistant, false)` lives in
+ *   `prompt()`. A custom message would restart the session into the same over-window context and
+ *   buy one more refusal instead of a compaction. The resume is a visible user message for that
+ *   reason, and {@link selfResumeLine} says whose it is in its first six words.
+ * - **`deliverAs: "nextTurn"` cannot do this at all.** It appends to `_pendingNextTurnMessages`,
+ *   which is drained by the *next* `prompt()` — i.e. by a human. It is the right idiom for the
+ *   pinned-block re-statement above, which wants to ride an existing turn, and the wrong one here,
+ *   where the whole problem is that no next turn exists.
+ *
+ * The recursion the resume could obviously cause — refuse, resume, refuse — is bounded by the
+ * refusal streak this same handler maintains: the resume is issued only on a `refuse` verdict, and
+ * the verdict at `MAX_CONSECUTIVE_REFUSALS` is `over-but-passed`, which sends and resumes nothing.
+ * Two self-resumes per streak, maximum. The subtler cycle — compaction that reduces just enough for
+ * one request to fit (clearing the streak) and then goes over again — is what `loop-guard.ts` is
+ * for: every resumed turn's compaction is an automatic pass, so a run of non-reducing ones trips
+ * `REQ-CTX-35` and takes the run down loudly instead of grinding.
  */
 function registerPreflight(pi: ExtensionAPI): void {
   pi.on("before_provider_request", (event: BeforeProviderRequestEvent, ctx: ExtensionContext) => {
@@ -1123,7 +1166,8 @@ function registerPreflight(pi: ExtensionAPI): void {
       const verdict = preflightVerdict({ estimatedTokens, contextWindow, refusalsSoFar });
       if (verdict === "send") {
         // The streak ends at the first request that fits — including the one that fits only
-        // because the compaction this module's refusal handed to PI has just run.
+        // because the self-resume this module queued started a turn, and that turn's `prompt()`
+        // compacted on the way in.
         if (refusalsSoFar > 0) preflightRefusals.delete(session);
         return;
       }
@@ -1138,6 +1182,9 @@ function registerPreflight(pi: ExtensionAPI): void {
 
       if (verdict === "over-but-passed") {
         preflightRefusals.delete(session);
+        // Whatever this streak parked is void: the request is going out, so the run continues and
+        // has no need of a resume. Leaving it would fire one turn after a real answer.
+        preflightResumes.delete(session);
         announce(ctx, passedAnywayLine(facts), "error");
         pi.appendEntry("context_preflight", { decision: "passed-anyway", ...facts, refusals: MAX_CONSECUTIVE_REFUSALS });
         return;
@@ -1149,11 +1196,43 @@ function registerPreflight(pi: ExtensionAPI): void {
       // decision that is not in the session record did not happen as far as any later reader is
       // concerned, and `appendEntry` is a synchronous append.
       pi.appendEntry("context_preflight", { decision: "refused", ...facts, refusals: refusalsSoFar + 1 });
+      // Parked before the abort, not after: `abort()` unwinds the run, and `agent_settled` can be
+      // emitted before this handler's frame would have resumed.
+      preflightResumes.set(session, { facts, refusals: refusalsSoFar + 1 });
       ctx.abort();
     } catch (err) {
       // Fail open, always. This handler stands between every request and its provider; a bug in it
       // must cost a preflight, never the session.
       announce(ctx, `preflight failed internally and was skipped: ${describeError(err)}`, "error");
+    }
+  });
+
+  // The other half of the recovery — see this function's header for why this event, this method,
+  // and why the loop it could start is bounded. Sessions that never refuse never reach the send.
+  pi.on("agent_settled", (_event, ctx: ExtensionContext) => {
+    try {
+      const session = sid(ctx);
+      const parked = preflightResumes.get(session);
+      if (parked === undefined) return;
+      // Consumed before the send, so a throw inside `sendUserMessage` costs one resume rather than
+      // arming the next settle with the same one.
+      preflightResumes.delete(session);
+      pi.appendEntry("context_preflight", {
+        decision: "self-resumed",
+        ...parked.facts,
+        refusals: parked.refusals,
+      });
+      pi.sendUserMessage(selfResumeLine(parked.facts));
+    } catch (err) {
+      // Fail open into the old behaviour: no resume is a session waiting for a human, which is
+      // exactly where this session was before the self-resume — bad, but not worse, and it says
+      // so. The park is already gone: it is deleted above, before the send that can throw.
+      announce(
+        ctx,
+        `could not resume the session after an over-window refusal (${describeError(err)}); it is ` +
+          `idle and needs a message to continue.`,
+        "error",
+      );
     }
   });
 }
@@ -1165,6 +1244,7 @@ export function register(pi: ExtensionAPI): void {
     try {
       guards.set(sid(ctx), createLoopGuardState());
       preflightRefusals.delete(sid(ctx));
+      preflightResumes.delete(sid(ctx));
       // Before the report, so what it reports is the number this session will actually use.
       applyUniversalThreshold(ctx);
       reportThreshold(ctx);
@@ -1250,6 +1330,8 @@ export function register(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", (_event, ctx: ExtensionContext) => {
     guards.delete(sid(ctx));
+    // A parked resume outlives nothing: the session it would have restarted is gone.
+    preflightResumes.delete(sid(ctx));
   });
 
   /**
