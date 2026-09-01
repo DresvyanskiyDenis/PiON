@@ -325,11 +325,36 @@ What you see when it matters:
 | A candidate failing | an announcement with the error class, plus a `compaction_route_hop` session entry |
 | A summary produced on candidate 2+ | an announcement naming the candidate and every one that failed first |
 | The route running out | a classified provider failure, a status cell, **and a session fact** |
+| A candidate's credential dying, or coming back | an announcement, a status cell, plus a `compaction_credential_preflight` entry — see [below](#credentials-are-checked-before-they-are-needed) |
 
 That last row is the one to read twice. A session entry and a toast both die with the context, and
 the context is about to be cut — which is why we are here at all. The facts file is re-stated after
 every compaction (§3), so recording the exhausted route there is what makes the next turn's model
 read *"compaction has no working path"* instead of silently trying again and dying the same way.
+
+### Credentials are checked before they are needed
+
+A lane that only has to work while the lead's provider is failing is a lane nobody exercises, and a
+credential resolved for the first time at compaction is a credential nobody has checked. So every
+candidate's credential is resolved at session start, and again on the first idle turn more than ten
+minutes after the last check — the same `getApiKeyAndHeaders` call the walk makes at the moment of
+use, only asked while the session still has the context to act on the answer. The idle re-check is
+the load-bearing one: the credential that ends a session is usually the one that was fine at start
+and expired an hour in.
+
+Only *changes* are reported — a candidate that just lost its credential, and one that just got it
+back — because a warning repeated every idle turn is a warning that gets muted. A change announces,
+sets `⚠ compaction credentials: N/M unusable` on the status line, and appends a
+`compaction_credential_preflight` session entry. Its own entry type, never a `provider_failure`: no
+provider was asked for a completion here, and a harness's own probe filed where operators grep for
+dead turns is how a fleet ends up debugging a gateway that was working all along.
+
+A credential that is refused or cannot be produced is **always** classified `auth` — never inferred
+from the text of the refusal. A credential helper exiting non-zero carries no HTTP status and no
+phrase the classifier recognises, so guessing from prose answers `network`, which is in
+[`retry.classes`](../configuration/routing.md#retry-the-two-classes-that-are-weather-not-a-verdict)
+by default: the dead token gets re-presented, and the
+report points at the wire instead of at the login command that would fix it.
 
 A `policy` refusal never hops: a content filter rejecting the transcript is a verdict about the
 data, not about the endpoint. Neither does a cancellation, which is not a verdict about anything and
