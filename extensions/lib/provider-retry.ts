@@ -94,6 +94,22 @@ export const DEFAULT_RETRY_CLASSES: readonly ProviderErrorClass[] = ["network", 
 export const DEFAULT_MAX_RETRY_ATTEMPTS = 1;
 
 /**
+ * How many times a maxed-out streak may be handed a fresh budget for a DIFFERENT class's failure,
+ * within the same session, before the pin becomes permanent for the rest of it.
+ *
+ * `retriesSpent` (`extensions/credentials.ts`) is one counter shared by both transient classes, not
+ * one per class. Once it pins at its budget the streak is terminal — see `shouldRetry` — and stays
+ * that way through a session switch or a turn that actually worked, which is right for the class
+ * that spent it. It is wrong for an unrelated class that failed for the first time an hour later:
+ * denying that failure any attempt at all because a different problem exhausted the counter earlier
+ * mistakes "this session has seen one bad streak" for "this session no longer gets to retry
+ * anything". `maxStreakRestarts` is the bounded answer — a handful of fresh starts across a
+ * session's lifetime, not an unlimited one, so two classes trading failures back and forth still
+ * cannot retry forever.
+ */
+export const DEFAULT_MAX_STREAK_RESTARTS = 2;
+
+/**
  * The reasoning-effort vocabulary `pi.setThinkingLevel` accepts, derived from `pi-ai`'s own type
  * rather than retyped beside it.
  *
@@ -153,6 +169,8 @@ export interface ProviderRetryPolicy {
   readonly maxAttempts: number;
   /** What an `empty-response` retry varies, if anything. Never applies to any other class. */
   readonly onEmpty: EmptyResponsePolicy;
+  /** See `DEFAULT_MAX_STREAK_RESTARTS`. `0` means a maxed-out streak never restarts for anything. */
+  readonly maxStreakRestarts: number;
   /** Where the policy was read from, for the notice. `<default>` when nothing declared one. */
   readonly source: string;
   /** Anything malformed in the declared block. Reported, never thrown, never silently applied. */
@@ -163,6 +181,7 @@ export const DEFAULT_PROVIDER_RETRY_POLICY: ProviderRetryPolicy = {
   classes: new Set(DEFAULT_RETRY_CLASSES),
   maxAttempts: DEFAULT_MAX_RETRY_ATTEMPTS,
   onEmpty: DEFAULT_EMPTY_RESPONSE_POLICY,
+  maxStreakRestarts: DEFAULT_MAX_STREAK_RESTARTS,
   source: "<default>",
   problems: [],
 };
@@ -224,10 +243,21 @@ export function parseProviderRetryPolicy(routing: RoutingFile): ProviderRetryPol
     }
   }
 
+  let maxStreakRestarts = DEFAULT_MAX_STREAK_RESTARTS;
+  if (retry.maxStreakRestarts !== undefined) {
+    const value = retry.maxStreakRestarts;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+      problems.push(`onProviderError.retry.maxStreakRestarts must be an integer >= 0; using ${DEFAULT_MAX_STREAK_RESTARTS}`);
+    } else {
+      maxStreakRestarts = value;
+    }
+  }
+
   return {
     classes,
     maxAttempts,
     onEmpty: parseEmptyResponsePolicy(retry.onEmpty, problems),
+    maxStreakRestarts,
     source: routing.source,
     problems,
   };
@@ -294,14 +324,32 @@ export function loadProviderRetryPolicy(override?: string): ProviderRetryPolicy 
  *
  * `retriesSoFar` counts retries already spent on the CURRENT failure streak, not on the session:
  * a turn that succeeds clears the budget, because the next transient failure is a new coin flip
- * and not the continuation of an old one.
+ * and not the continuation of an old one. It is deliberately NOT cleared just because the harness
+ * decided to abort — see `maxStreakRestarts` on `ProviderRetryPolicy` — so `retriesSoFar` arrives
+ * here already pinned at its budget for as long as the same class keeps failing, and `shouldRetry`
+ * keeps returning `false` for it without oscillating back to "yes" on the next identical failure.
+ *
+ * `pinnedClass`, when given, is the class that produced the CURRENT value of `retriesSoFar`. A
+ * pin left by a different class does not apply to `klass` — this class has spent nothing yet on
+ * its own account — so it gets a fresh look, bounded by `streakRestarts` against
+ * `policy.maxStreakRestarts` rather than left open-ended: two classes trading failures back and
+ * forth must not be able to retry forever just by alternating.
  */
 export function shouldRetry(
   policy: ProviderRetryPolicy,
   klass: ProviderErrorClass,
   retriesSoFar: number,
+  streakRestarts = 0,
+  pinnedClass?: ProviderErrorClass,
 ): boolean {
-  return policy.classes.has(klass) && retriesSoFar < retryBudget(policy, klass);
+  if (!policy.classes.has(klass)) return false;
+  const budget = retryBudget(policy, klass);
+  const crossedClass = pinnedClass !== undefined && pinnedClass !== klass && retriesSoFar > 0;
+  const effectiveSoFar = crossedClass ? 0 : retriesSoFar;
+  if (effectiveSoFar < budget) {
+    return !crossedClass || streakRestarts < policy.maxStreakRestarts;
+  }
+  return false;
 }
 
 /**

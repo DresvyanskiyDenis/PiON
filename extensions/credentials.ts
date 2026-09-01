@@ -71,6 +71,7 @@ import {
   buildEmptyCompletionFailure,
   buildProviderFailure,
   isEmptyCompletion,
+  type ProviderErrorClass,
   type ProviderFailure,
   surfaceProviderFailure,
 } from "./lib/provider-error.ts";
@@ -175,6 +176,20 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
    */
   let retriesSpent = 0;
   /**
+   * The class `retriesSpent` is counted against. `undefined` exactly when `retriesSpent` is `0`.
+   *
+   * `retriesSpent` is one counter shared by every transient class — see `shouldRetry` in
+   * `lib/provider-retry.ts` — so this is what lets a failure recognise whether it is the SAME
+   * streak that pinned the counter or a different one arriving while an old pin is still in effect.
+   */
+  let retriesSpentClass: ProviderErrorClass | undefined;
+  /**
+   * How many times THIS session has restarted a streak pinned by a different class — see
+   * `maxStreakRestarts` on `ProviderRetryPolicy`. Bounded, so two classes trading failures cannot
+   * retry forever just by alternating.
+   */
+  let streakRestarts = 0;
+  /**
    * The session the streak belongs to, so a switched or forked session starts with a full budget.
    *
    * Read off `ctx` in `message_end` rather than from a `session_start` subscription, on purpose:
@@ -239,25 +254,43 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
    */
   const report = (ctx: ExtensionContext, failure: ProviderFailure): void => {
     const policy = retryPolicy();
-    const willRetry = shouldRetry(policy, failure.klass, retriesSpent);
+    const budget = retryBudget(policy, failure.klass);
+    // A pin left by a DIFFERENT class's exhausted streak does not belong to this one. `shouldRetry`
+    // grants it a fresh look only through the bounded restart below — never an unbounded one.
+    const crossedClass =
+      retriesSpentClass !== undefined && retriesSpentClass !== failure.klass && retriesSpent > 0;
+    const willRetry = shouldRetry(policy, failure.klass, retriesSpent, streakRestarts, retriesSpentClass);
+    if (willRetry && crossedClass) {
+      // `shouldRetry` said yes only via the cross-class restart branch: this class starts its own
+      // count from zero, and the restart spends one of the session's bounded `maxStreakRestarts`.
+      streakRestarts += 1;
+      retriesSpent = 0;
+    }
     const attempt = retriesSpent + 1;
     // The retry disposition is attached only when this class is one the policy would retry. A
     // class that was never in play must keep the block's original `abort` line to the byte: an
     // `auth` failure rendered as "the transient retry budget is spent" would tell the operator
     // this harness tried a rejected credential twice, which it did not and must not.
-    const budget = retryBudget(policy, failure.klass);
     const inPlay = policy.classes.has(failure.klass) && (budget > 0 || retriesSpent > 0);
     const decided: ProviderFailure = {
       ...failure,
-      retry: inPlay ? { attempt, maxAttempts: budget, willRetry } : undefined,
+      retry: inPlay
+        ? { attempt, maxAttempts: budget, willRetry, streakRestarts, maxStreakRestarts: policy.maxStreakRestarts }
+        : undefined,
     };
     surfaceProviderFailure(ctx, decided, sinks);
     if (!willRetry) {
       restoreThinkingLevel();
-      retriesSpent = 0;
+      // `retriesSpent` and `retriesSpentClass` are deliberately left as they are — the streak is
+      // TERMINAL at an abort, not resolved by it. Resetting here used to be the bug: the very next
+      // failure of the same class looked like a brand-new streak with a full budget, and the
+      // harness would retry, abort, reset, retry again, without ever actually stopping. A session
+      // switch, a response that genuinely worked, or the bounded cross-class restart above are the
+      // only ways back to a fresh budget now.
       return;
     }
     retriesSpent = attempt;
+    retriesSpentClass = failure.klass;
     // The live level, not the tier's declared one: PI clamps to what the model supports, and a
     // re-issue that announced a move away from a level the model never ran at would be fiction.
     const currentLevel = pi.getThinkingLevel();
@@ -300,6 +333,8 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
       streakSession = session;
       restoreThinkingLevel();
       retriesSpent = 0;
+      retriesSpentClass = undefined;
+      streakRestarts = 0;
     }
 
     const message = event.message;
@@ -332,9 +367,13 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
       }
       // A turn that worked. The retry budget belongs to a streak of consecutive failures, so it
       // is spent only while one is running, and this is where a streak ends — which is also where
-      // a borrowed reasoning effort goes back, whether or not the recovery is what earned it.
+      // a borrowed reasoning effort goes back, whether or not the recovery is what earned it. Unlike
+      // an abort, a genuine recovery really does clear the slate: the next failure, of any class, is
+      // a new coin flip and gets a full budget without spending any of the bounded restarts above.
       restoreThinkingLevel();
       retriesSpent = 0;
+      retriesSpentClass = undefined;
+      streakRestarts = 0;
       return;
     }
 

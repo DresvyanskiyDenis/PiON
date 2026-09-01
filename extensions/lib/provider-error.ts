@@ -114,12 +114,22 @@ export interface ProviderFailure {
  * was the end of it" without correlating two blocks by hand.
  */
 export interface RetryDisposition {
-  /** 1-based: this failure was the Nth of `maxAttempts + 1` attempts at the same request. */
+  /** 1-based: this failure was the Nth of `maxAttempts + 1` attempts at the CURRENT streak. */
   readonly attempt: number;
   /** Retries after the first attempt — `routing.json` -> `onProviderError.retry.maxAttempts`. */
   readonly maxAttempts: number;
   /** True when the harness re-issued the request after this failure. */
   readonly willRetry: boolean;
+  /**
+   * How many of the session's bounded `maxStreakRestarts` this streak has already spent restarting
+   * after a DIFFERENT class's exhausted streak — see `shouldRetry` in `lib/provider-retry.ts`. `0`
+   * for the ordinary case: a first exhaustion that never needed a restart. `policyLine` changes its
+   * wording once this is nonzero, because `attempt`/`maxAttempts` alone would then understate how
+   * much of this session's overall retry budget the operator has actually spent.
+   */
+  readonly streakRestarts?: number;
+  /** `routing.json` -> `onProviderError.retry.maxStreakRestarts`, alongside `streakRestarts`. */
+  readonly maxStreakRestarts?: number;
 }
 
 export interface ClassifyInput {
@@ -611,6 +621,16 @@ function policyLine(retry: RetryDisposition | undefined): string {
     );
   }
   const spent = retry.attempt === 1 ? "1 attempt" : `${retry.attempt} attempts`;
+  // `attempt`/`maxAttempts` reset to a fresh count on every restart, so once one has actually
+  // happened they no longer say how much of the session's retry budget is gone — "1 attempt" reads
+  // as a single coin flip when it may be the Nth. Name the real cap instead of the reset one.
+  if ((retry.streakRestarts ?? 0) > 0) {
+    const restarts = retry.streakRestarts === 1 ? "1 restart" : `${retry.streakRestarts} restarts`;
+    return (
+      `abort after ${spent} — the transient retry budget is maxed out (used all ${restarts} this ` +
+      `session gets); ${noFailover} (routing.json onProviderError.policy, onProviderError.retry)`
+    );
+  }
   return (
     `abort after ${spent} — the transient retry budget (${retry.maxAttempts}) is spent and the class ` +
     `recurred; ${noFailover} (routing.json onProviderError.policy, onProviderError.retry)`
