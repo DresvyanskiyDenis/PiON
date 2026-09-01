@@ -77,6 +77,7 @@ export const DECLARED_MODULES = [
   // presentation — reads the level PI already tracks, changes nothing else
   "thinking-indicator",
   "loader-clock",
+  "degradation-colors",
   "write-diff",
   // diagnostics last, so it observes everything above
   "doctor",
