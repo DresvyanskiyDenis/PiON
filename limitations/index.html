@@ -936,6 +936,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#compatsupportspromptcachekey-cannot-be-patched-in-under-the-default-install-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compat.supportsPromptCacheKey cannot be patched in under the default install mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#measuring-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3380,6 +3391,8 @@
       
         
       
+        
+      
     
     
     
@@ -3692,6 +3705,34 @@
     
   
     thinking-indicator — the spinner tells you how hard it is thinking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extensions/loader-clock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    loader-clock — the loader says how long and what it is doing
   
 
     
@@ -4994,6 +5035,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#compatsupportspromptcachekey-cannot-be-patched-in-under-the-default-install-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        compat.supportsPromptCacheKey cannot be patched in under the default install mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#measuring-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5389,6 +5441,42 @@ On those routes no breakpoint is sent at all: the endpoint does automatic prefix
 greedily from the first byte, with no API surface. A full miss after a long idle is that automatic
 cache being evicted, and nothing in this repository or in your environment extends its TTL. The
 variable is still correct for a direct route that <em>does</em> declare the flag; leave it set.</p>
+<h3 id="compatsupportspromptcachekey-cannot-be-patched-in-under-the-default-install-mode"><code>compat.supportsPromptCacheKey</code> cannot be patched in under the default install mode<a class="headerlink" href="#compatsupportspromptcachekey-cannot-be-patched-in-under-the-default-install-mode" title="Permanent link">&para;</a></h3>
+<p><a href="../configuration/litellm/#prompt-cache-keys-through-a-proxy">Prompt cache keys through a proxy</a>
+documents that the shipped <code>pi-ai</code> runtime reads no such flag: answering "yes" in the LiteLLM
+interview writes <code>compat.supportsPromptCacheKey: true</code> to <code>config/models.json</code>, but it changes
+nothing on the wire until the runtime itself is patched (<code>patch-package</code>, three lines in
+<code>dist/api/openai-completions.js</code>).</p>
+<p>Which copy of the runtime serves a turn depends on the install mode, and only one of the two can be
+patched at all:</p>
+<table>
+<thead>
+<tr>
+<th>Install mode</th>
+<th>What runs your turns</th>
+<th>Can <code>patch-package</code> reach it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--mode npm</code></td>
+<td>the global package under <code>$(npm root -g)/@earendil-works/pi-coding-agent</code></td>
+<td>Yes — apply the patch there, not in this checkout</td>
+</tr>
+<tr>
+<td><code>--mode binary</code> (the default)</td>
+<td>an unpacked release archive with no package tree beside it</td>
+<td>No — there is nothing for <code>patch-package</code> to run against</td>
+</tr>
+</tbody>
+</table>
+<p><code>--mode binary</code> is the same compiled Bun executable described above ("The <code>pi</code> binary is a compiled
+Bun executable, not Node"), for the same underlying reason: it is a single artifact, not an
+installed <code>node_modules</code> tree. Under it, <code>compat.supportsPromptCacheKey: true</code> is not merely
+unpatched yet — it cannot be patched, ever, without switching install modes first.</p>
+<p><strong>Consequence:</strong> <code>bin/pi-check</code> rule <strong>PC-32</strong> warns (non-fatal — see <strong>PC-31</strong> for why this class of
+rule warns instead of failing) whenever <code>config/models.json</code> sets the flag, so the gap surfaces at
+install time rather than as a cache that silently never partitions.</p>
 <h3 id="measuring-it">Measuring it<a class="headerlink" href="#measuring-it" title="Permanent link">&para;</a></h3>
 <p><a href="../extensions/session-index/"><code>session-index</code></a> already records <code>tokens_cache_read</code> and
 <code>tokens_cache_write</code> per session, so prefix stability is observable without adding anything:</p>
