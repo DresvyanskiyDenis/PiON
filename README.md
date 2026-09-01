@@ -175,7 +175,7 @@ uv run --with-requirements requirements-docs.txt mkdocs serve
 ## Verifying an install
 
 ```bash
-~/pi-config/bin/pi-check --all      # 31 repository invariants
+~/pi-config/bin/pi-check --all      # 32 repository invariants
 ~/pi-config/bin/pi-gate             # four structural gates over the branch, warn-only
 ./scripts/postinstall-verify.sh     # the install itself
 /doctor                             # inside pi: which modules loaded, which are missing

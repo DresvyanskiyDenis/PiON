@@ -1301,3 +1301,93 @@ test("--json always carries the warning channel, even on a tree with nothing to 
   assert.ok(Array.isArray(json.warnings), "the key is unconditional, so a consumer never has to test for it");
   assert.equal(json.summary.warningCount, 0);
 });
+
+// ---------------------------------------------------------------------------------------
+// 12. PC-32 — compat.supportsPromptCacheKey warns; it is inert under --mode binary and needs
+// the runtime patched even under --mode npm. Same warning channel as PC-31, so exit code
+// stays 0 throughout.
+// ---------------------------------------------------------------------------------------
+
+/** Rewrites the fixture's models.json, merging `compat` into the named provider's block. */
+function withCompat(dir, providerId, compat) {
+  edit(dir, "config/models.json", (t) => {
+    const models = JSON.parse(t);
+    models.providers[providerId].compat = compat;
+    return JSON.stringify(models, null, 2) + "\n";
+  });
+}
+
+/** Runs PC-32 alone against `dir` and returns { exitCode, stdout, json }. */
+function runPc32(dir, extraArgs = ["--json"]) {
+  const result = spawnSync(process.execPath, [PI_CHECK, "PC-32", ...extraArgs, "--repo", dir], { encoding: "utf8" });
+  let json = null;
+  try {
+    json = JSON.parse(result.stdout);
+  } catch {
+    // text mode: the caller reads stdout
+  }
+  return { exitCode: result.status, stdout: result.stdout, json };
+}
+
+test("PC-32: compat.supportsPromptCacheKey: true warns, and warns without failing", () => {
+  const dir = freshRepoCopy();
+  try {
+    withCompat(dir, "acme", { supportsPromptCacheKey: true });
+    const { exitCode, json } = runPc32(dir);
+    assert.equal(json.summary.warningCount, 1);
+    assert.equal(json.summary.findingCount, 0);
+    assert.deepEqual(json.findings, [], "a warning must not reach findings — that array is what fails the build");
+    assert.equal(json.warnings[0].rule, "PC-32");
+    assert.equal(json.warnings[0].severity, "warn");
+    assert.equal(json.warnings[0].file, "config/models.json");
+    assert.match(json.warnings[0].message, /supportsPromptCacheKey/);
+    assert.match(json.warnings[0].message, /--mode binary/);
+    assert.equal(exitCode, 0, "a warning never sets a non-zero exit code");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-32: the warning is line-addressed to the flag that triggered it, not to the top of the file", () => {
+  const dir = freshRepoCopy();
+  try {
+    withCompat(dir, "acme", { supportsPromptCacheKey: true });
+    const { json } = runPc32(dir);
+    const lines = readFileSync(join(dir, "config", "models.json"), "utf8").split("\n");
+    assert.ok(json.warnings[0].line > 0);
+    assert.match(lines[json.warnings[0].line - 1], /"supportsPromptCacheKey"/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-32: supportsPromptCacheKey: false is silent — the derived-null case a default install ships", () => {
+  const dir = freshRepoCopy();
+  try {
+    withCompat(dir, "acme", { supportsPromptCacheKey: false });
+    const { json } = runPc32(dir);
+    assert.deepEqual(json.warnings, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-32: an unrelated compat flag is silent — only supportsPromptCacheKey is this rule's business", () => {
+  const dir = freshRepoCopy();
+  try {
+    withCompat(dir, "acme", { supportsReasoningEffort: true });
+    const { json } = runPc32(dir);
+    assert.deepEqual(json.warnings, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PC-32: a models.json with no compat block at all is silent (the clean fixture ships one)", () => {
+  const dir = freshRepoCopy();
+  try {
+    assert.deepEqual(runPc32(dir).json.warnings, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
