@@ -1802,10 +1802,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-seven-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-eight-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty-seven modules
+        One extension, thirty-eight modules
       
     </span>
   </a>
@@ -3017,6 +3017,8 @@
       
         
       
+        
+      
     
     
     
@@ -3357,6 +3359,34 @@
     
   
     loader-clock — the loader says how long and what it is doing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/degradation-colors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    degradation-colors — reserve amber/red exclusively for degradation
   
 
     
@@ -4338,10 +4368,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-extension-thirty-seven-modules" class="md-nav__link">
+  <a href="#one-extension-thirty-eight-modules" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One extension, thirty-seven modules
+        One extension, thirty-eight modules
       
     </span>
   </a>
@@ -4429,7 +4459,7 @@
 
 
 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<h2 id="one-extension-thirty-seven-modules">One extension, thirty-seven modules<a class="headerlink" href="#one-extension-thirty-seven-modules" title="Permanent link">&para;</a></h2>
+<h2 id="one-extension-thirty-eight-modules">One extension, thirty-eight modules<a class="headerlink" href="#one-extension-thirty-eight-modules" title="Permanent link">&para;</a></h2>
 <p>PI discovers extensions by scanning <code>extensions/*.ts</code> and <code>extensions/&lt;dir&gt;/index.ts</code>. This
 repository deliberately does <strong>not</strong> use that. <code>config/settings.json</code> names exactly one file:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"extensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"~/pi-config/extensions/index.ts"</span><span class="p">]</span>
@@ -4529,7 +4559,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 <pre class="mermaid"><code>flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),&lt;br/&gt;rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 37 modules + config + bin/"]
+    OURS["this repository — 38 modules + config + bin/"]
     PI --- PKG --- OURS</code></pre>
 <p>The rule this project follows is <strong>package-first</strong>: adopt a community package where one exists and
 survives review, and write custom code only for the remainder. Dependency count is not a

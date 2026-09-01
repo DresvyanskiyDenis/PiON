@@ -3123,6 +3123,8 @@
       
         
       
+        
+      
     
     
     
@@ -3463,6 +3465,34 @@
     
   
     loader-clock — the loader says how long and what it is doing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../extensions/degradation-colors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    degradation-colors — reserve amber/red exclusively for degradation
   
 
     
@@ -4893,7 +4923,7 @@ wait than see the abort.</p>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>extensions</code> names exactly one file, on purpose</p>
-<p><code>extensions/index.ts</code> is a composition root that imports and registers 37 modules in a fixed
+<p><code>extensions/index.ts</code> is a composition root that imports and registers 38 modules in a fixed
 order. Pointing PI at the <em>directory</em> instead would load each of them as a separate extension in
 <code>readdir</code> order, fail every one that has no default export, and let <code>readdir</code> decide the <code>tool_call</code>
 chaining order — which decides whether <code>guard</code> sees a call before <code>bash</code> rewrites it. Do not
