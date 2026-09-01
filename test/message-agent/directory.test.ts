@@ -238,6 +238,28 @@ describe("in-flight staging (EXT-32, gh#33)", () => {
     assert.equal(second.messages[0]?.id, first.messages[0]?.id, "redelivery must be the same envelope");
   });
 
+  it("leaves an excluded id staged, and sweeps everything else", async () => {
+    await registerAgent({ root, name: "mixed", sessionId: "s-m", cwd: "/w" });
+    await deliver({ root, target: "mixed", from: "a", fromSessionId: "s-a", message: "still queued" });
+    await deliver({ root, target: "mixed", from: "a", fromSessionId: "s-a", message: "orphaned" });
+
+    const drained = await drainInbox(root, "mixed");
+    const [inFlightMsg, orphanMsg] = drained.messages;
+    assert.ok(inFlightMsg && orphanMsg);
+
+    // `inFlightMsg` is genuinely queued behind a turn the caller is still waiting on; `orphanMsg` is
+    // not tracked by anyone. The exclude set is how the caller tells the two apart.
+    const recovered = await sweepDelivering(root, "mixed", new Set([inFlightMsg.id]));
+    assert.deepEqual(recovered, [orphanMsg.id]);
+    assert.deepEqual(await readdir(deliveringDir(root, "mixed")), [`${inFlightMsg.id}.json`]);
+
+    const redrained = await drainInbox(root, "mixed");
+    assert.deepEqual(
+      redrained.messages.map((m) => m.message),
+      ["orphaned"],
+    );
+  });
+
   it("clears the staged envelope once delivery is confirmed, and then has nothing to redeliver", async () => {
     await registerAgent({ root, name: "done", sessionId: "s-d", cwd: "/w" });
     await deliver({ root, target: "done", from: "a", fromSessionId: "s-a", message: "read" });

@@ -266,22 +266,53 @@ export function register(pi: ExtensionAPI): void {
    * while nothing is in flight, which is almost always.
    */
   async function settle(ctx: ExtensionContext): Promise<void> {
-    if (self === undefined || inFlight.size === 0) return;
-    const observed = new Set<string>();
-    for (const entry of ctx.sessionManager.getEntries()) {
-      if (entry.type !== "custom_message" || entry.customType !== INBOUND_CUSTOM_TYPE) continue;
-      const batch = (entry.details as { batch?: unknown } | undefined)?.batch;
-      if (typeof batch === "string" && inFlight.has(batch)) observed.add(batch);
+    if (self === undefined) return;
+    if (inFlight.size > 0) {
+      const observed = new Set<string>();
+      for (const entry of ctx.sessionManager.getEntries()) {
+        if (entry.type !== "custom_message" || entry.customType !== INBOUND_CUSTOM_TYPE) continue;
+        const batch = (entry.details as { batch?: unknown } | undefined)?.batch;
+        if (typeof batch === "string" && inFlight.has(batch)) observed.add(batch);
+      }
+      for (const batch of observed) {
+        const ids = inFlight.get(batch) ?? [];
+        inFlight.delete(batch);
+        await clearDelivered(agentsRoot(), self.name, ids);
+        logEvent(self.sessionId, "message", `message_agent.delivered:${self.name}`, true, undefined, {
+          batch,
+          count: ids.length,
+        });
+      }
     }
-    for (const batch of observed) {
-      const ids = inFlight.get(batch) ?? [];
-      inFlight.delete(batch);
-      await clearDelivered(agentsRoot(), self.name, ids);
-      logEvent(self.sessionId, "message", `message_agent.delivered:${self.name}`, true, undefined, {
-        batch,
-        count: ids.length,
-      });
-    }
+    await recoverStranded(ctx, self);
+  }
+
+  /**
+   * Puts back anything still staged in `.delivering/` that this process is not itself waiting on.
+   *
+   * `session_start`'s sweep only runs once, when the process — and this module's `inFlight` map —
+   * are brand new, so it only ever catches what a *previous* holder of the name left behind. A
+   * staged envelope this same process drained can be orphaned without a restart too: a `/clear` or a
+   * branch reset re-registers with a fresh `inFlight` map, and whatever was staged before that reset
+   * is now tracked by nobody, but still on disk, with no `session_start` coming to recover it.
+   * Running the same sweep on every settle cycle — excluding the ids this process still legitimately
+   * expects `settle()`'s scan above to observe — closes that gap without a restart, and without
+   * redelivering something that is genuinely still queued behind the current turn.
+   */
+  async function recoverStranded(ctx: ExtensionContext, agent: AgentRecord): Promise<void> {
+    const excluded = new Set<string>();
+    for (const ids of inFlight.values()) for (const id of ids) excluded.add(id);
+    const recovered = await sweepDelivering(agentsRoot(), agent.name, excluded);
+    if (recovered.length === 0) return;
+    logEvent(agent.sessionId, "message", `message_agent.recover:${agent.name}`, true, undefined, {
+      count: recovered.length,
+    });
+    emitNotice(
+      ctx,
+      `[pi-config] message-agent: ${recovered.length} message(s) were stranded in .delivering/ with ` +
+        `no session tracking them; they are back in the inbox and will be delivered again.`,
+      "warning",
+    );
   }
 
   /** Confirm what is in flight, then take what has arrived since. Every caller wants both. */
