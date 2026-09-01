@@ -17,7 +17,10 @@
  *      reporter that throws while reporting an error is worse than the error.
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { describeError } from "./once.ts";
+import { providerAbortLogPath } from "./paths.ts";
 
 /** The six classes fixed by `config/routing.json` -> `onProviderError.errorClasses`. */
 export type ProviderErrorClass =
@@ -695,6 +698,17 @@ export interface SurfaceSinks {
    * says nothing about a failure in the top-level session itself. This sink closes that half.
    */
   readonly appendEntry?: (customType: string, data: unknown) => void;
+  /**
+   * Persist a headless abort to `providerAbortLogPath()`. Defaults to appending one JSON line
+   * (timestamp, pid, provider, model, class, retry counters, message) to that file.
+   *
+   * A detached `-p`/`--mode json` run has no TUI and its stderr is frequently piped somewhere no
+   * one reads until well after the process exits — the non-zero exit code says a run failed, but
+   * by itself gives an operator nothing to grep for *why*, or across which provider/model pairs it
+   * keeps happening. This sink is the durable side of that: called on the exact same condition as
+   * `setExitCode` above, and only there, so it is exactly as noisy as the exit code it explains.
+   */
+  readonly recordHeadlessAbort?: (line: string) => void;
 }
 
 /**
@@ -762,5 +776,34 @@ export function surfaceProviderFailure(
     } catch {
       // Nothing left to do. An unsettable exit code must not become a thrown error.
     }
+    try {
+      const recordHeadlessAbort = sinks.recordHeadlessAbort ?? defaultRecordHeadlessAbort;
+      recordHeadlessAbort(headlessAbortLine(failure));
+    } catch {
+      // The log file itself is unwritable (e.g. a read-only state root). The exit code already
+      // carries the pass/fail signal; losing the "why" must not turn into a thrown error.
+    }
   }
+}
+
+/** One JSON line for `providerAbortLogPath()`: everything needed to grep an abort without the TUI. */
+function headlessAbortLine(failure: ProviderFailure): string {
+  return JSON.stringify({
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    provider: failure.provider,
+    model: failure.model,
+    class: failure.klass,
+    attempt: failure.retry?.attempt,
+    maxAttempts: failure.retry?.maxAttempts,
+    streakRestarts: failure.retry?.streakRestarts,
+    maxStreakRestarts: failure.retry?.maxStreakRestarts,
+    message: failure.message,
+  });
+}
+
+function defaultRecordHeadlessAbort(line: string): void {
+  const path = providerAbortLogPath();
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  appendFileSync(path, `${line}\n`, "utf8");
 }

@@ -277,6 +277,7 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
   "retry": {
     "classes": ["network", "empty-response"],
     "maxAttempts": 1,
+    "maxStreakRestarts": 2,
     "onEmpty": { "strategy": "vary", "thinkingLevel": "low", "maxExtraAttempts": 0 }
   }
 }
@@ -290,6 +291,7 @@ block to live in.
 |---|---|---|
 | `classes` | `["network", "empty-response"]` | Which classified failures get another attempt |
 | `maxAttempts` | `1` | Retries **after** the first attempt. `0` turns retrying off without deleting the block |
+| `maxStreakRestarts` | `2` | How many times one streak may be re-armed for a class other than the one that first spent its budget. See [below](#the-budget-is-per-class-restarts-are-bounded-per-streak) |
 | `onEmpty` | `{ "strategy": "identical", "maxExtraAttempts": 0 }` | What an `empty-response` retry is allowed to change. See [below](#onempty-what-the-retry-is-allowed-to-change) |
 
 Two of the six classes describe the weather and four describe a verdict, and only the first two are
@@ -321,6 +323,19 @@ The budget is per **failure streak**, not per session: a turn that succeeds clea
 next transient failure is a new coin flip and not the continuation of an old one. A malformed key
 here is reported and ignored rather than fatal — a typo in one integer must not become "no session
 talks to any provider". Read `extensions/lib/provider-retry.ts` for the whole argument.
+
+#### The budget is per class; restarts are bounded per streak
+
+`maxAttempts` is spent per **class**, not per streak: a streak that exhausted it on `network` and
+then hits `empty-response` is a different class, and gets its own fresh attempt. Without a further
+limit, two classes trading failures back and forth would each keep handing the other a "fresh"
+budget forever — the same failure loop `maxAttempts` exists to bound, just laundered through a class
+change instead of a retry count. `maxStreakRestarts` closes that gap: it counts how many times this
+streak has already been re-armed for a class other than the one that first spent it, and refuses the
+next one once the count reaches the cap, regardless of which class shows up. Once refused, the abort
+line says the restart budget is "maxed out" rather than quoting `maxAttempts` — past the first
+restart, `maxAttempts` alone would understate how much of the session's actual retry budget was
+spent.
 
 #### `onEmpty` — what the retry is allowed to change
 

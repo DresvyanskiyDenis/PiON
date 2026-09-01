@@ -74,7 +74,11 @@ recognised by the **shape** of a successful-looking turn: HTTP 200, zero content
 `stop`-family finish reason and zero usage. Left unreported it is not an error anywhere in the
 stack — the turn looks ordinary, the retry predicate skips it, and a headless run exits 0 with no
 output — so it is reported here and the headless exit code is forced non-zero, which is how a
-dispatcher hears about it at all. See
+dispatcher hears about it at all. The same headless run also has no TUI and its stderr is often
+unread until well after it exits, so an abort in that mode is additionally appended, as one JSON
+line (timestamp, pid, provider, model, class, retry counters, message), to a durable log at
+`providerAbortLogPath()` (`extensions/lib/paths.ts`) — a script that only checked the exit code
+still has somewhere to find out why. See
 [`onProviderError`](../configuration/routing.md#onprovidererror).
 
 ## One retry, to the same endpoint
@@ -96,7 +100,11 @@ transcript is where that question gets asked. PI's own auto-retry cannot cover t
 `stopReason === "error"`, and an `empty-response` arrives as an ordinary `stop`.
 
 The budget is per failure **streak**, cleared by the first turn that works and by a session switch,
-so a transient failure an hour after a recovered one starts from a full budget.
+so a transient failure an hour after a recovered one starts from a full budget. Because that budget
+is tracked per *class*, a streak that changes class mid-run gets a fresh one — `network` exhausting
+its attempt must not silently deny a later, unrelated `empty-response` its own. That fresh start is
+itself bounded, per session, by `maxStreakRestarts` (default 2): a streak that keeps trading between
+classes stops getting re-armed once the cap is spent, so a class ping-pong cannot retry forever.
 
 ## Field notes: an empty-200 investigation (2026-08-14)
 
