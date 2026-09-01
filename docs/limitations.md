@@ -304,6 +304,31 @@ greedily from the first byte, with no API surface. A full miss after a long idle
 cache being evicted, and nothing in this repository or in your environment extends its TTL. The
 variable is still correct for a direct route that *does* declare the flag; leave it set.
 
+### `compat.supportsPromptCacheKey` cannot be patched in under the default install mode
+
+[Prompt cache keys through a proxy](configuration/litellm.md#prompt-cache-keys-through-a-proxy)
+documents that the shipped `pi-ai` runtime reads no such flag: answering "yes" in the LiteLLM
+interview writes `compat.supportsPromptCacheKey: true` to `config/models.json`, but it changes
+nothing on the wire until the runtime itself is patched (`patch-package`, three lines in
+`dist/api/openai-completions.js`).
+
+Which copy of the runtime serves a turn depends on the install mode, and only one of the two can be
+patched at all:
+
+| Install mode | What runs your turns | Can `patch-package` reach it? |
+|---|---|---|
+| `--mode npm` | the global package under `$(npm root -g)/@earendil-works/pi-coding-agent` | Yes — apply the patch there, not in this checkout |
+| `--mode binary` (the default) | an unpacked release archive with no package tree beside it | No — there is nothing for `patch-package` to run against |
+
+`--mode binary` is the same compiled Bun executable described above ("The `pi` binary is a compiled
+Bun executable, not Node"), for the same underlying reason: it is a single artifact, not an
+installed `node_modules` tree. Under it, `compat.supportsPromptCacheKey: true` is not merely
+unpatched yet — it cannot be patched, ever, without switching install modes first.
+
+**Consequence:** `bin/pi-check` rule **PC-32** warns (non-fatal — see **PC-31** for why this class of
+rule warns instead of failing) whenever `config/models.json` sets the flag, so the gap surfaces at
+install time rather than as a cache that silently never partitions.
+
 ### Measuring it
 
 [`session-index`](extensions/session-index.md) already records `tokens_cache_read` and

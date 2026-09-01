@@ -9,7 +9,7 @@ pi-check --all
 ```
 
 `bin/pi-check` is a standalone Node script that reads the config tree and the agent files without
-starting PI. It runs 31 rules (30 without `--live`, which PC-19 needs to reach the npm registry); the ones you
+starting PI. It runs 32 rules (31 without `--live`, which PC-19 needs to reach the npm registry); the ones you
 will actually hit on a fresh clone:
 
 | Rule | Fails when |
