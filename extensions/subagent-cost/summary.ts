@@ -22,6 +22,7 @@
  * again at zero beside a parent total that did not.
  */
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { GLYPH } from "../lib/glyphs.ts";
 
 /** The two subagent tools whose results can carry run cost. */
 const COST_BEARING_TOOLS = new Set(["subagent", "subagent_wait"]);
@@ -193,7 +194,7 @@ export function renderSubagentCost(summary: SubagentCostSummary): string | undef
 
   const marks: string[] = [];
   if (pendingRuns > 0) marks.push(`~${pendingRuns}`);
-  if (deadChildren > 0) marks.push(`✗${deadChildren}`);
+  if (deadChildren > 0) marks.push(`${GLYPH.failed}${deadChildren}`);
   if (subscriptionChildren > 0) marks.push(`(sub ${subscriptionChildren})`);
 
   // Nothing has landed yet: say so, rather than showing a $0.00 that reads as "cheap".

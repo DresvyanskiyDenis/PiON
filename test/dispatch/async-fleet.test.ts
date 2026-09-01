@@ -292,6 +292,23 @@ describe("the status surface a failed async run reaches", () => {
   it("renders nothing when this session started no async run", () => {
     assert.equal(renderAsyncFleet(createAsyncFleet()), "");
   });
+
+  it("collapses runs that finished cleanly to a count, and leaves anything still live or failed spelled out", () => {
+    const fleet = createAsyncFleet();
+    const okDir1 = writeStatus("ok-1", { runId: "ok-1", state: "complete", startedAt: 1, endedAt: 2_000 });
+    const okDir2 = writeStatus("ok-2", { runId: "ok-2", state: "complete", startedAt: 1, endedAt: 2_000 });
+    const liveDir = writeStatus("live-1", { runId: "live-1", state: "running", startedAt: 1 });
+    noteAsyncSpawn(fleet, spawnResult("ok-1", okDir1, "researcher"));
+    noteAsyncSpawn(fleet, spawnResult("ok-2", okDir2, "researcher"));
+    noteAsyncSpawn(fleet, spawnResult(FAILED_RUN, writeStatus(FAILED_RUN, failedStatus(FAILED_RUN)), "data-engineer"));
+    noteAsyncSpawn(fleet, spawnResult("live-1", liveDir, "debugger"));
+    const rendered = renderAsyncFleet(fleet);
+    assert.match(rendered, /▾ async runs tracked by this session \(4\):  2 done ▸/);
+    assert.match(rendered, / {2}debugger \[live-1\]: running \(live\)/);
+    assert.match(rendered, / {2}data-engineer \[66971211\]: failed/);
+    assert.doesNotMatch(rendered, /researcher \[ok-1\]/, "a cleanly-done run collapses into the count, not a named line");
+    assert.doesNotMatch(rendered, /researcher \[ok-2\]/);
+  });
 });
 
 /**

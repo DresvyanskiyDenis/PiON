@@ -69,15 +69,22 @@
  * (`:1013-1015`). A manual `/compact` is exempt from that path by the `reason` guard. Either way it
  * is a window inside a turn, not a stuck state, and nothing in this module can shorten it.
  *
- * **No new colour.** The three states are distinguished by the same three glyphs the announcement
- * already uses (`✓` done, `✗` failed, `?` never started, `▸` live), which is a channel that
- * survives a screenshot, a colour-blind reader and a 256-colour terminal. Introducing a colour here
- * would mean a second site reaching for the live theme, for decoration, and the panel does not need
- * one to be readable.
+ * **No new colour.** Each run's state is distinguished by glyph alone — a channel that survives a
+ * screenshot, a colour-blind reader and a 256-colour terminal. Introducing a colour here would mean
+ * a second site reaching for the live theme, for decoration, and the panel does not need one to be
+ * readable.
+ *
+ * **`▸` stopped meaning "live" here.** It used to — this file and `async-fleet.ts`'s own
+ * announcement both marked a running row with `▸` — but `▸`/`▾` are reserved repo-wide for a
+ * collapsible container (`extensions/lib/glyphs.ts`), and a live run is not one. Live is
+ * `GLYPH.running` (`●`) now, the one meaning `●` is allowed to carry anywhere in this repo's own
+ * rendering. `?` (never started) became `GLYPH.pending` (`○`) for the same reason: a run with no
+ * status file yet has not started, which is exactly what `○` already means in the vocabulary.
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { type AsyncFleet, type AsyncRunReport, reconcile, retireSettledRuns, shortId } from "./async-fleet.ts";
+import { GLYPH } from "../lib/glyphs.ts";
 
 /**
  * The `setWidget` key. One key, so a repaint replaces rather than stacks.
@@ -199,16 +206,16 @@ export function renderFleetPanel(
     const { run, verdict } = report;
     if (verdict.kind === "live") {
       live += 1;
-      return `  ▸ ${run.agent ?? "subagent"} [${shortId(run.runId)}] ${verdict.state}`;
+      return `  ${GLYPH.running} ${run.agent ?? "subagent"} [${shortId(run.runId)}] ${verdict.state}`;
     }
     if (verdict.kind === "no-status") {
       bad += 1;
-      return `  ? ${run.agent ?? "subagent"} [${shortId(run.runId)}] NEVER STARTED`;
+      return `  ${GLYPH.pending} ${run.agent ?? "subagent"} [${shortId(run.runId)}] NEVER STARTED`;
     }
     if (verdict.failed) bad += 1;
     else done += 1;
     const label = verdict.agent ?? run.agent ?? "subagent";
-    return `  ${verdict.failed ? "✗" : "✓"} ${label} [${shortId(run.runId)}] ${verdict.state}`;
+    return `  ${verdict.failed ? GLYPH.failed : GLYPH.done} ${label} [${shortId(run.runId)}] ${verdict.state}`;
   });
   const counts = [
     live > 0 ? `${live} running` : undefined,

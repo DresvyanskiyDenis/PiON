@@ -112,7 +112,7 @@ describe("jobs history — row content", () => {
     const lines = renderRows(buildRows([job(), job({ id: "def456-0002" })], T0), 1, 100);
     assert.ok(lines[0]?.startsWith("  ID"));
     assert.ok(lines[1]?.startsWith("  abc123-0001"));
-    assert.ok(lines[2]?.startsWith("▸ def456-0002"));
+    assert.ok(lines[2]?.startsWith("› def456-0002"));
   });
 
   it("keeps every fixed column aligned across rows of different content", () => {
