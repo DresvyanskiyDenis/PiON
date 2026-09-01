@@ -49,6 +49,7 @@ import { Type } from "typebox";
 import type { ContextEvent, ExtensionAPI, ExtensionContext, ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, isBashToolResult, truncateTail } from "@earendil-works/pi-coding-agent";
 import { CARD_ENTRY, PREVIEW_LINES, registerCardRenderer, type ExternalisedCard } from "./card.ts";
+import { renderExpandResult } from "./expand-render.ts";
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { scratchDir } from "../lib/paths.ts";
@@ -149,6 +150,9 @@ export function register(pi: ExtensionAPI): void {
         details: { handle: params.handle, matched: out.length, sourcePath: meta.path },
       };
     },
+    // Without this, a call falls into PI's generic tool-result fallback (first 10 raw lines,
+    // collapsed) instead of the header + informative-line summary this renders.
+    renderResult: renderExpandResult,
   });
 }
 
