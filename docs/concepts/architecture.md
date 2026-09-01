@@ -1,6 +1,6 @@
 # Architecture
 
-## One extension, thirty-seven modules
+## One extension, thirty-eight modules
 
 PI discovers extensions by scanning `extensions/*.ts` and `extensions/<dir>/index.ts`. This
 repository deliberately does **not** use that. `config/settings.json` names exactly one file:
@@ -90,7 +90,7 @@ dual shape exists so a user who wants only one of them can point PI at it direct
 flowchart TB
     PI["PI 0.84.0 — agent loop, tools, TUI, providers"]
     PKG["community packages — pi-subagents, pi-web-access, pi-mcp-adapter (vendored),<br/>rpiv-todo, supi-bash-timeout, pi-statusline, pi-worktree, pi-lsp"]
-    OURS["this repository — 37 modules + config + bin/"]
+    OURS["this repository — 38 modules + config + bin/"]
     PI --- PKG --- OURS
 ```
 

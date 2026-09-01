@@ -192,6 +192,7 @@ nav:
           - extensions/auto-update.md
           - extensions/thinking-indicator.md
           - extensions/loader-clock.md
+          - extensions/degradation-colors.md
           - extensions/write-diff.md
           - extensions/doctor.md
   - Extending:
