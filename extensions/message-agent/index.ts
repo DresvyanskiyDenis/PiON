@@ -117,12 +117,19 @@ export function wakeOnIdle(env: NodeJS.ProcessEnv = process.env): boolean {
  * The address this session asks for.
  *
  * `PI_AGENT_NAME` when the operator set one — that is how a session becomes `reviewer` rather than a
- * hex string nobody will type. Otherwise the session id, which is unique by construction and stable
- * for the life of the session, which is all "addressable" requires.
+ * hex string nobody will type. Otherwise the session's own `--name` display name, when it has one —
+ * the operator already typed that name for the TUI's benefit, and re-typing `PI_AGENT_NAME` for the
+ * same string just to become addressable would be asking twice. Otherwise the session id, which is
+ * unique by construction and stable for the life of the session, which is all "addressable" requires.
  */
-export function preferredName(sessionId: string, env: NodeJS.ProcessEnv = process.env): string {
+export function preferredName(
+  sessionId: string,
+  env: NodeJS.ProcessEnv = process.env,
+  displayName?: string,
+): string {
   const explicit = env[NAME_ENV];
   if (explicit !== undefined && explicit.trim() !== "") return slugifyAgentName(explicit);
+  if (displayName !== undefined && displayName.trim() !== "") return slugifyAgentName(displayName);
   return slugifyAgentName(`agent-${sessionId.replace(/-/g, "").slice(0, 12)}`);
 }
 
@@ -318,7 +325,7 @@ export function register(pi: ExtensionAPI): void {
       // from destroying what this session is about to inherit.
       const result = await registerAgent({
         root,
-        name: preferredName(sessionId),
+        name: preferredName(sessionId, process.env, ctx.sessionManager.getSessionName()),
         sessionId,
         cwd: ctx.cwd,
         ...(sessionFile ? { sessionFile } : {}),

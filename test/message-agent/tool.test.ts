@@ -52,6 +52,8 @@ interface Session {
   /** This session's transcript. `sendMessage` does *not* write here — the turn loop does. */
   entries: FakeEntry[];
   notices: string[];
+  /** Sets what `ctx.sessionManager.getSessionName()` returns, i.e. this session's `--name`. */
+  setDisplayName: (name: string | undefined) => void;
 }
 
 interface ToolCallResult {
@@ -66,6 +68,7 @@ function fakeSession(sessionId: string): Session {
   const sent: SentMessage[] = [];
   const entries: FakeEntry[] = [];
   const notices: string[] = [];
+  let displayName: string | undefined;
   const pi = {
     on: (event: string, handler: Handler) => void handlers.set(event, handler),
     registerTool: (tool: ToolDefinition) => void tools.set(tool.name, tool),
@@ -95,13 +98,24 @@ function fakeSession(sessionId: string): Session {
       getSessionId: () => sessionId,
       getSessionFile: () => `/sessions/${sessionId}.jsonl`,
       getEntries: () => entries,
+      getSessionName: () => displayName,
     },
   } as unknown as ExtensionContext;
 
   registerMessageAgent(pi);
   const tool = tools.get("message_agent");
   assert.ok(tool, "message_agent must be registered");
-  return { pi, ctx, handlers, tool, commands, sent, entries, notices };
+  return {
+    pi,
+    ctx,
+    handlers,
+    tool,
+    commands,
+    sent,
+    entries,
+    notices,
+    setDisplayName: (name: string | undefined) => void (displayName = name),
+  };
 }
 
 /** The turn loop finally reads what was queued: every pending payload lands in the transcript. */
@@ -191,9 +205,15 @@ beforeEach(() => {
 });
 
 describe("message_agent knobs (EXT-32)", () => {
-  it("names a session after PI_AGENT_NAME, or after its session id", () => {
-    assert.equal(preferredName("s1", { [NAME_ENV]: "Reviewer" }), "reviewer");
+  it("names a session after PI_AGENT_NAME, then its --name display name, then its session id", () => {
+    // PI_AGENT_NAME wins even when a display name is also present.
+    assert.equal(preferredName("s1", { [NAME_ENV]: "Reviewer" }, "Scribe"), "reviewer");
+    // No PI_AGENT_NAME: the --name display name is used.
+    assert.equal(preferredName("s1", {}, "Scribe"), "scribe");
+    // Neither set: falls back to the session id.
     assert.equal(preferredName("019a-7c31-4d", {}), "agent-019a7c314d");
+    // A blank display name is treated as absent, same as a blank PI_AGENT_NAME.
+    assert.equal(preferredName("019a-7c31-4d", {}, "   "), "agent-019a7c314d");
   });
 
   it("reads the poll interval, and refuses a malformed one", () => {
@@ -221,6 +241,14 @@ describe("message_agent tool (EXT-32)", () => {
     );
     const who = await call(a, { action: "whoami" });
     assert.equal(who.details.name, "session-a");
+  });
+
+  it("registers under the --name display name when PI_AGENT_NAME is unset", async () => {
+    const a = fakeSession("s-name-fallback");
+    a.setDisplayName("Reviewer");
+    await a.handlers.get("session_start")?.({}, a.ctx);
+    const who = await call(a, { action: "whoami" });
+    assert.equal(who.details.name, "reviewer");
   });
 
   it("lists every reachable session, from either side", async () => {
