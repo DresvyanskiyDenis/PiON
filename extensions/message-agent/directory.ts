@@ -414,14 +414,24 @@ export async function drainInbox(root: string, name: string): Promise<DrainResul
 }
 
 /**
- * Puts every staged envelope back in the inbox, and says which ones. Run at `session_start`.
+ * Puts every staged envelope back in the inbox, except the ones named in `exclude`, and says which
+ * ones moved. Run at `session_start` and on every settle cycle.
  *
- * Anything still in `.delivering/` when a session starts was in flight when the previous holder of
- * this name stopped, and nobody ever observed it being read. Redelivering a message the model may
- * already have seen is a duplicate; leaving it staged is a message that vanished. `EXT-32` exists
- * because the second failure is the worse one, so this sweeps rather than reaps.
+ * Anything still in `.delivering/` and not in `exclude` was drained by *some* process that never
+ * confirmed reading it, and nobody is going to. Redelivering a message the model may already have
+ * seen is a duplicate; leaving it staged is a message that vanished. `EXT-32` exists because the
+ * second failure is the worse one, so this sweeps rather than reaps.
+ *
+ * `exclude` is how a live session tells this apart from its own genuinely in-flight batches: at
+ * `session_start` nothing is tracked yet, so everything staged is swept, exactly as before; mid-life,
+ * the caller passes the ids it is still waiting on `settle()` to observe, so a message actually
+ * queued behind the current turn is left alone rather than redelivered out from under it.
  */
-export async function sweepDelivering(root: string, name: string): Promise<readonly string[]> {
+export async function sweepDelivering(
+  root: string,
+  name: string,
+  exclude: ReadonlySet<string> = new Set(),
+): Promise<readonly string[]> {
   const staging = deliveringDir(root, name);
   const entries = await readdir(staging).catch((err: NodeJS.ErrnoException) => {
     if (err.code === "ENOENT") return [] as string[];
@@ -431,8 +441,10 @@ export async function sweepDelivering(root: string, name: string): Promise<reado
   const inbox = inboxDir(root, name);
   const recovered: string[] = [];
   for (const entry of entries.filter((e) => e.endsWith(".json")).sort()) {
+    const id = entry.slice(0, -".json".length);
+    if (exclude.has(id)) continue;
     await rename(join(staging, entry), join(inbox, entry));
-    recovered.push(entry.slice(0, -".json".length));
+    recovered.push(id);
   }
   return recovered;
 }

@@ -18,7 +18,9 @@ import {
 } from "../../extensions/message-agent/index.ts";
 import {
   agentsRoot,
+  deliver,
   deliveringDir,
+  drainInbox,
   listAgents,
 } from "../../extensions/message-agent/directory.ts";
 import { openIndexDb, resetIndexDbCache } from "../../extensions/session-index/db.ts";
@@ -461,6 +463,31 @@ describe("message_agent tool (EXT-32)", () => {
     await restarted.handlers.get("turn_end")?.({}, restarted.ctx);
     assert.equal(restarted.sent.length, 1);
     assert.deepEqual(await readdir(deliveringDir(agentsRoot(), "session-b")), []);
+  });
+
+  it("recovers an envelope stranded mid-turn, without waiting for a restart", async () => {
+    const b = fakeSession("s-b");
+    await start(b, "session-b");
+
+    // Something staged this envelope without going through `b`'s own `drain()` — the same on-disk
+    // state a `/clear` or a branch reset leaves behind mid-session, no process restart involved, so
+    // there is no `session_start` coming to run the usual recovery sweep. `b`'s `inFlight` map has
+    // never heard of it.
+    const root = agentsRoot();
+    await deliver({ root, target: "session-b", from: "session-a", fromSessionId: "s-a", message: "orphaned" });
+    await drainInbox(root, "session-b");
+    assert.equal(b.sent.length, 0, "staged on disk, but not yet handed to this session's turn loop");
+
+    // A normal settle cycle — the same `turn_end` beat every message already goes through — finds it
+    // stranded, puts it back in the inbox, and `tick()`'s own drain right after picks it straight
+    // back up: one cycle both recovers it and hands it to the turn loop.
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+    assert.equal(b.sent.length, 1);
+    assert.match(b.sent[0]?.text ?? "", /orphaned/);
+    assert.ok(
+      b.notices.some((line) => /stranded in \.delivering\//.test(line)),
+      `expected a stranded-envelope notice, got ${JSON.stringify(b.notices)}`,
+    );
   });
 
   it("exposes the directory as /peers", async () => {
