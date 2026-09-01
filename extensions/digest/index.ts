@@ -18,6 +18,8 @@
  *      so even without guards 1–2 it has nothing to spool.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
+import { posix as posixPath, win32 as win32Path } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runDetached } from "../lib/detach.ts";
 import { emitNotice } from "../lib/announce.ts";
@@ -70,7 +72,7 @@ async function enqueueAndSpawn(ctx: ExtensionContext, reason: string, cfg: Diges
     const sessionId = ctx.sessionManager.getSessionId();
     await enqueueDigestJob({ sessionId, sessionFile, cwd: ctx.cwd, reason });
 
-    const outcome = await runDetached([process.execPath, drainScriptPath()], {
+    const outcome = await runDetached([resolveNodeExecutable(), drainScriptPath()], {
       lockDir: digestLockDir(),
       version: String(DIGEST_VERSION),
       recursionEnv: RECURSION_ENV,
@@ -107,6 +109,73 @@ function report(ctx: ExtensionContext, line: string): void {
  */
 function drainScriptPath(): string {
   return fileURLToPath(new URL("../../bin/pi-digest-drain", import.meta.url));
+}
+
+/** Everything `resolveNodeExecutable()` reads, factored out so a test can fake all of it. */
+export interface NodeResolutionSources {
+  /** `process.execPath` as observed at call time. */
+  readonly execPath: string;
+  /** `process.env`, searched for `PI_DIGEST_NODE_BIN` (operator override) and `PATH`. */
+  readonly env: NodeJS.ProcessEnv;
+  /** `process.platform`, for the `.exe` suffix `PATH` search needs on Windows. */
+  readonly platform: NodeJS.Platform;
+  /** Injectable so a test can assert a `PATH` search without touching the real filesystem. */
+  readonly fileExists: (path: string) => boolean;
+}
+
+function defaultNodeResolutionSources(): NodeResolutionSources {
+  return { execPath: process.execPath, env: process.env, platform: process.platform, fileExists: existsSync };
+}
+
+/**
+ * True when `execPath` is itself a `node` (or `node.exe`) binary — the ordinary case: `npm test`,
+ * a dev checkout, or any run where PI is loaded by Node rather than compiled into it.
+ */
+export function looksLikeNode(execPath: string): boolean {
+  // `win32Path` is used unconditionally, not just on Windows: it accepts both `/` and `\` as
+  // separators, so it parses a plain POSIX path exactly as well as `posixPath` would while also
+  // handling a Windows one correctly — one parser instead of a platform branch for a helper that
+  // only ever looks at the basename.
+  const name = win32Path.basename(execPath, win32Path.extname(execPath)).toLowerCase();
+  return name === "node";
+}
+
+/**
+ * The interpreter to hand `bin/pi-digest-drain` (a plain Node script) to when spawning it.
+ *
+ * `process.execPath` is right in every case except one: REQ-PRV-61's standalone binary mode,
+ * where it is the `pi` executable itself, not `node`. Handed a script path as its first
+ * argument, `pi` reads it as an initial prompt instead of a program to run — the drain worker
+ * never executes, and the failure is invisible, because `pi` "succeeds" at answering a question
+ * nobody asked. `looksLikeNode` is what tells the two cases apart.
+ *
+ * Resolution order:
+ *   1. `PI_DIGEST_NODE_BIN` — an explicit operator override, trusted as-is (no existence check;
+ *      an operator who sets this knows their own layout better than a `PATH` scan does).
+ *   2. `execPath` itself, when it already looks like `node` — the common case, unchanged.
+ *   3. A `node`/`node.exe` found by searching `PATH` — the binary-mode case this fixes.
+ *   4. The bare string `"node"` — `runDetached`'s `spawn()` still performs its own `PATH` search
+ *      at execution time, and if that also fails the existing `child.on("error", ...)` ->
+ *      `onError` path already reports it without taking the host session down.
+ */
+export function resolveNodeExecutable(sources: NodeResolutionSources = defaultNodeResolutionSources()): string {
+  const override = sources.env.PI_DIGEST_NODE_BIN;
+  if (override) return override;
+
+  if (looksLikeNode(sources.execPath)) return sources.execPath;
+
+  // Unlike `looksLikeNode`, joining a `PATH` entry needs the RIGHT separator, not either one — so
+  // this half does pick `win32Path`/`posixPath` by `sources.platform`, rather than always win32.
+  const pathImpl = sources.platform === "win32" ? win32Path : posixPath;
+  const candidateName = sources.platform === "win32" ? "node.exe" : "node";
+  const searchPath = sources.env.PATH ?? sources.env.Path ?? "";
+  for (const dir of searchPath.split(pathImpl.delimiter)) {
+    if (!dir) continue;
+    const candidate = pathImpl.join(dir, candidateName);
+    if (sources.fileExists(candidate)) return candidate;
+  }
+
+  return "node";
 }
 
 function errorSignature(err: unknown): string {
