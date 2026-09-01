@@ -211,7 +211,7 @@ resolves to `null` removes the key it sits in (`config/providers/README.md` §3 
 default install's `models.json` is unchanged from before the question existed, and an answers file
 written before it existed still resolves.
 
-!!! danger "The flag is not in `pi-ai` 0.84.0. Answering yes changes nothing on its own."
+!!! danger "The flag is not in `pi-ai` 0.84.4. Answering yes changes nothing on its own."
 
     `supportsPromptCacheKey` is a **patch**, not a feature. The shipped runtime has no such
     condition and ignores the key, so a yes with an unpatched runtime is a declaration in your config

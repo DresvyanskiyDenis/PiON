@@ -36,6 +36,8 @@
     "thinkingText": "dark4",
 
     "selectedBg": "light3",
+    "searchMatchBg": "light3",
+    "searchMatchText": "dark1",
     "scrollbarThumb": "light4",
     "userMessageBg": "light0_soft",
     "userMessageText": "dark1",

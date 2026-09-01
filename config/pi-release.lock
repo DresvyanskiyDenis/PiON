@@ -1,20 +1,20 @@
 {
-  "version": "0.84.0",
+  "version": "0.84.4",
   "npm": {
     "package": "@earendil-works/pi-coding-agent",
-    "spec": "@earendil-works/pi-coding-agent@0.84.0"
+    "spec": "@earendil-works/pi-coding-agent@0.84.4"
   },
   "binaries": {
-    "darwin-arm64": { "asset": "pi-darwin-arm64.tar.gz", "sha256": "2eb639474976e3a08c560a197be5077a427a4120fddfd5cecf89ff87bd043934" },
-    "darwin-x64":   { "asset": "pi-darwin-x64.tar.gz",   "sha256": "7e8a94080302b5efef3c7500d8d88b1e8b6d87852a506d81075a5fe250a0d973" },
-    "linux-x64":    { "asset": "pi-linux-x64.tar.gz",    "sha256": "061e4fd191aaf5733b709aec30fce0693b7575a913e942990c0de9f31fc5c4db" },
-    "linux-arm64":  { "asset": "pi-linux-arm64.tar.gz",  "sha256": "67e331ab3e191e45a2197c1127a7b44e98fe04d93d4654d7cba769019cf1b694" }
+    "darwin-arm64": { "asset": "pi-darwin-arm64.tar.gz", "sha256": "c68e3ac4d05b4e282aaab2e6c76f161d3e9e68f19a22e38913cbfaadb6c800f0" },
+    "darwin-x64":   { "asset": "pi-darwin-x64.tar.gz",   "sha256": "7a042d6413065421387001a4986190a1a03186c95a695f4dee0bdc76e60de8f7" },
+    "linux-x64":    { "asset": "pi-linux-x64.tar.gz",    "sha256": "c2f3c3e6a1850bd87654cc3ca8811013272397c3d042a4e2a64c43ee1b423972" },
+    "linux-arm64":  { "asset": "pi-linux-arm64.tar.gz",  "sha256": "135580f6b942151646e67b8b866d987d28ce3cff5a497030775ddd29659f943d" }
   },
-  "releaseBase": "https://github.com/earendil-works/pi/releases/download/v0.84.0",
+  "releaseBase": "https://github.com/earendil-works/pi/releases/download/v0.84.4",
   "offlineModelData": "UNVERIFIED",
-  "pinnedOn": "2026-08-06",
-  "digestsClosedOn": "2026-08-07",
-  "reviewDue": "2026-11-06",
-  "_note": "All four sha256 values come from the release's own SHA256SUMS asset, which upstream publishes alongside the tarballs. The evidence behind them is NOT uniform, and that is the point of this note: darwin-arm64 was verified against a downloaded artifact (shasum -a 256 ~/.cache/pi-install/pi-darwin-arm64.tar.gz, recomputed 2026-08-07, byte-identical to SHA256SUMS). The other three were transcribed from that same SHA256SUMS and have never been recomputed from a tarball — they are correct if and only if that asset is. If you install on one of those three platforms, verify your own digest before trusting it: download the tarball and compare `shasum -a 256` (or `sha256sum`) against the value here.",
-  "_observedLatest": "npm reports 0.84.1 as latest as of 2026-08-07 (this lock pins 0.84.0). Diffed 0.84.0 vs 0.84.1 on the Copilot code path while resolving VP-14: no behavioral difference found. The pin is deliberate until `reviewDue` (2026-11-06) — do not bump it without cause before then."
+  "pinnedOn": "2026-09-01",
+  "digestsClosedOn": "2026-09-01",
+  "reviewDue": "2026-12-01",
+  "_note": "All four sha256 values come from the release's own SHA256SUMS asset, which upstream publishes alongside the tarballs. The evidence behind them is NOT uniform, and that is the point of this note: darwin-arm64 was verified against a downloaded artifact (shasum -a 256 of pi-darwin-arm64.tar.gz for v0.84.4, computed 2026-09-01, byte-identical to SHA256SUMS). The other three were transcribed from that same SHA256SUMS and have never been recomputed from a tarball — they are correct if and only if that asset is. If you install on one of those three platforms, verify your own digest before trusting it: download the tarball and compare `shasum -a 256` (or `sha256sum`) against the value here.",
+  "_observedLatest": "0.84.4 is upstream's latest release and npm's latest dist-tag as of 2026-09-01, and is what this lock pins. Bumped from 0.84.0 (pinned 2026-08-06) deliberately; the pin is again deliberate until `reviewDue` (2026-12-01) — do not bump it without cause before then."
 }

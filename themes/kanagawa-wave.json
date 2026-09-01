@@ -40,6 +40,8 @@
     "thinkingText": "springViolet1",
 
     "selectedBg": "waveBlue1",
+    "searchMatchBg": "waveBlue1",
+    "searchMatchText": "fujiWhite",
     "scrollbarThumb": "sumiInk6",
     "userMessageBg": "sumiInk1",
     "userMessageText": "fujiWhite",

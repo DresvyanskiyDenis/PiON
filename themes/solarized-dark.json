@@ -32,6 +32,8 @@
     "thinkingText": "base00",
 
     "selectedBg": "base02",
+    "searchMatchBg": "base02",
+    "searchMatchText": "base1",
     "scrollbarThumb": "base02",
     "userMessageBg": "base02",
     "userMessageText": "base1",

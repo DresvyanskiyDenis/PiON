@@ -19,7 +19,7 @@
 //    a written `false` would be a line in `config/models.json` that nothing reads and that reads as
 //    a knob somebody turned off. Absent is the only honest spelling of "not asked for".
 //
-// 2. THE PREMISE, IN EVERY INSTALLED COPY OF pi-ai. The flag is not part of pi-ai 0.84.0; it exists
+// 2. THE PREMISE, IN EVERY INSTALLED COPY OF pi-ai. The flag is not part of pi-ai 0.84.4; it exists
 //    only in a patched runtime (docs/configuration/litellm.md). Two things can quietly falsify the
 //    documentation: upstream could add the gate itself, at which point the patch and half that page
 //    should be deleted — or a patch could be applied to ONE copy of pi-ai and not the other. npm

@@ -137,7 +137,10 @@ two levels share a colour.
 unpainted — it silently inherits another one. `thinkingMax` falls back to `thinkingXhigh`, which is
 why upstream's export renders the top reasoning level identically to the one below it.
 
-All 53 tokens are set explicitly in both files.
+All 55 tokens are set explicitly in both files. `searchMatchBg` and `searchMatchText` arrived with
+PI 0.84.4, are optional in the same way, and fall back to `selectedBg` and `text`; all thirteen files
+set them to exactly those two colours, so a match paints as it always did and the choice is visible
+rather than inherited.
 
 ### Text colours were "whatever the terminal does"
 
@@ -157,7 +160,7 @@ file.
 | Diff colours were backgrounds | Tokyo Night only | It is a defect in upstream's PI export. Nothing else ships one, so nothing else could inherit it — but the *rule* it taught (`toolDiffAdded`/`Removed` are foregrounds) is what every other file was mapped under, and the diff floor is tested for all thirteen. |
 | The tool panel said nothing about the tool | all thirteen | `toolPendingBg` / `toolSuccessBg` / `toolErrorBg` is PI's only per-state signal. Every palette had to yield three panels a glance can tell apart, and most of them do not publish three surfaces. See the next section. |
 | The thinking ramp did not ramp | all thirteen | Six tokens that read as a progression is a PI concept; no upstream palette has an opinion about it. Every file places both quiet levels below every active one. |
-| Two tokens were unset | all thirteen | `thinkingMax` and `scrollbarThumb` are optional in the schema and silently inherit when omitted. All 53 are set explicitly in all thirteen files. |
+| Two tokens were unset | all thirteen | `thinkingMax` and `scrollbarThumb` are optional in the schema and silently inherit when omitted. All 55 are set explicitly in all thirteen files. |
 | Text colours were "whatever the terminal does" | all thirteen | An empty string hands the theme's readability to the terminal profile. No file ships one; the schema-and-hex check refuses them. |
 
 ---
@@ -165,7 +168,7 @@ file.
 ## How the other eleven were mapped
 
 Each file is `vars` — that project's palette, under **its own names** (`sumiInk3`, `nord0`,
-`base03`, `highlightMed`) — and `colors`, the 53 tokens pointing at those names. The token-to-role
+`base03`, `highlightMed`) — and `colors`, the 55 tokens pointing at those names. The token-to-role
 mapping is `tokyo-night.json`'s, copied entry for entry: `accent` takes the palette's primary blue,
 `syntaxKeyword` its purple, `mdHr` and `bashMode` its orange, and so on. Reading two files
 side by side should show the same shape with a different palette underneath, and that is the point
@@ -235,7 +238,7 @@ resolves every `vars` reference, and then measures WCAG contrast:
 `syntaxComment` is deliberately exempt. A comment is meant to recede, and in most of these
 palettes the comment colour is one of the two or three hues the theme is recognised by.
 
-It also checks the shape of the set: every `themes/*.json` sets all 53 tokens, resolves every var
+It also checks the shape of the set: every `themes/*.json` sets all 55 tokens, resolves every var
 to a `#rrggbb`, leaves no var unused, carries a name no other file carries, and has a lowercase
 hyphenated basename. Adding a file is all it takes to be measured — there is no list to join.
 
@@ -309,7 +312,7 @@ and both shipped files reference it, so an editor with JSON schema support will 
 validate the token names as you type.
 
 `vars` is a plain alias table: any colour value that names a key in `vars` resolves to it, anything
-else is taken literally. Use it — 53 tokens drawn from a palette of two dozen means most hexes
+else is taken literally. Use it — 55 tokens drawn from a palette of two dozen means most hexes
 would otherwise appear four or five times, and a palette you cannot see is a palette you cannot
 adjust.
 

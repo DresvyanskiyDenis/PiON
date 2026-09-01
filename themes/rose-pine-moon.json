@@ -34,6 +34,8 @@
     "thinkingText": "subtle",
 
     "selectedBg": "highlightMed",
+    "searchMatchBg": "highlightMed",
+    "searchMatchText": "text",
     "scrollbarThumb": "highlightHigh",
     "userMessageBg": "surface",
     "userMessageText": "text",
