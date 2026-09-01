@@ -24,7 +24,7 @@ They have different edit costs, and mixing them makes both worse.
 
 | | Documentation site (`docs/`) | This wiki (`wiki/`) |
 |---|---|---|
-| **Holds** | Structured reference: architecture, every configuration key, all 36 modules, the safety model, exit codes | Recipes, FAQ, troubleshooting, cheat sheets, release notes |
+| **Holds** | Structured reference: architecture, every configuration key, all 37 modules, the safety model, exit codes | Recipes, FAQ, troubleshooting, cheat sheets, release notes |
 | **Changes** | With the code, in the same pull request | Whenever someone learns something |
 | **Reviewed** | Yes — a broken link fails CI | No |
 | **Lives in** | The main repository, `docs/` | A *separate* git repository, `PiON.wiki.git` |

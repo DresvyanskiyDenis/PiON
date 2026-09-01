@@ -181,7 +181,7 @@ These five arrays are how PI finds everything this repository adds.
 ```
 
 !!! warning "`extensions` names exactly one file, on purpose"
-    `extensions/index.ts` is a composition root that imports and registers 36 modules in a fixed
+    `extensions/index.ts` is a composition root that imports and registers 37 modules in a fixed
     order. Pointing PI at the *directory* instead would load each of them as a separate extension in
     `readdir` order, fail every one that has no default export, and let `readdir` decide the `tool_call`
     chaining order — which decides whether `guard` sees a call before `bash` rewrites it. Do not
@@ -235,14 +235,22 @@ for them elsewhere.
 | `treeFilterMode` | `"default"` | |
 | `collapseChangelog` | `true` | |
 | `autocompleteMaxVisible` | `8` | |
-| `steeringMode` | `"one-at-a-time"` | How queued steering messages are delivered |
+| `steeringMode` | `"all"` | How queued steering messages are delivered — see below, the one exception in this table |
 | `followUpMode` | `"one-at-a-time"` | |
 | `terminal.showImages` | `true` | |
 | `terminal.imageWidthCells` | `60` | |
+| `terminal.showTerminalProgress` | `true` | |
 | `images.autoResize` | `true` | |
 | `images.blockImages` | `false` | `true` refuses images entirely |
 | `markdown.codeBlockIndent` | `"  "` | |
 | `markdown.mermaid` | `"streaming"` | |
+
+`steeringMode` is the one key here whose value is a deliberate trade, not a cosmetic. A message
+typed while the model is streaming is queued; `"all"` hands over the whole queue at the next
+opportunity, so two or three corrections typed in a row reach the model together instead of it
+acting on the first while the rest wait a turn or more. The cost is delivery determinism — `"all"`
+reorders steering messages relative to tool results. `followUpMode` stays `"one-at-a-time"` and
+keeps that guarantee for follow-ups, which is why the two keys ship different values.
 
 ---
 

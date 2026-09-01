@@ -191,6 +191,7 @@ nav:
           - extensions/auto-title.md
           - extensions/auto-update.md
           - extensions/thinking-indicator.md
+          - extensions/loader-clock.md
           - extensions/write-diff.md
           - extensions/doctor.md
   - Extending:

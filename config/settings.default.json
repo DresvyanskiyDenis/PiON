@@ -39,7 +39,7 @@
       "maxRetryDelayMs": 60000
     }
   },
-  "steeringMode": "one-at-a-time",
+  "steeringMode": "all",
   "followUpMode": "one-at-a-time",
   "transport": "auto",
   "httpIdleTimeoutMs": 300000,
@@ -49,7 +49,8 @@
   },
   "terminal": {
     "showImages": true,
-    "imageWidthCells": 60
+    "imageWidthCells": 60,
+    "showTerminalProgress": true
   },
   "images": {
     "autoResize": true,
