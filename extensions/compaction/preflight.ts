@@ -66,6 +66,19 @@
  *     harness's contexts are mostly the latter. 3.5 splits them. The residual error is roughly
  *     ±15%, in both directions, and that is why the refusal needs the tolerance below rather than
  *     firing at exactly `contextWindow`.
+ *   - **An image block is never walked as text.** `pi-ai`'s wire format puts an image's base64
+ *     payload at `content[i].source.data` (`anthropic-messages.js`) or inside a `data:` URL at
+ *     `content[i].image_url.url` (`openai-completions.js`). Charging that string at
+ *     chars/{@link CHARS_PER_TOKEN} like prose was measured at a 6.8x error on a real incident: a
+ *     single 1.6-megapixel PNG's base64 text is over a million characters, ~300k phantom "tokens"
+ *     for a block the provider bills nowhere near that — Anthropic's own vision docs cap a single
+ *     image at roughly 1600 tokens regardless of how large the base64 blob encoding it gets. See
+ *     {@link IMAGE_TOKEN_ESTIMATE}.
+ *   - **The preflight's own injected resume text is excluded, once identified.** {@link
+ *     SELF_RESUME_MARKER} opens every message {@link selfResumeLine} sends; once a refusal
+ *     resumes the session, that exact text re-enters every subsequent request's history and would
+ *     otherwise be re-counted by every estimate after it — a guard whose own noise inflates the
+ *     number it is measuring.
  *
  * {@link OVER_WINDOW_TOLERANCE} is the margin that converts "probably over" into "over by more
  * than this estimator can be wrong about". At 1.05 on a 200 000 window the bar is 210 000
@@ -76,6 +89,22 @@
 
 /** Characters per token. See the module header for why 3.5 and not 4. */
 export const CHARS_PER_TOKEN = 3.5;
+
+/**
+ * Flat per-image token charge, used instead of walking an image block's base64 payload as text
+ * (see the module header's "estimate" section). Not derived from this harness's own measurement
+ * of any one image: it is Anthropic's documented cap on what a single image costs regardless of
+ * resolution, used here as a stated, conservative stand-in for "a provider's actual image
+ * accounting", which this module has no way to reproduce without decoding the image.
+ */
+export const IMAGE_TOKEN_ESTIMATE = 1600;
+
+/**
+ * Opens every message {@link selfResumeLine} builds. `estimatePromptTokens` excludes any string
+ * that starts with it, so the preflight's own injected recovery text — which re-enters every
+ * request after the turn it resumes — does not inflate the next estimate.
+ */
+export const SELF_RESUME_MARKER = "[pi-config] Automatic resume, not a human message.";
 
 /**
  * How far past the declared window an ESTIMATE has to be before it is treated as a fact.
@@ -132,9 +161,11 @@ export interface PreflightInput {
  */
 export function estimatePromptTokens(payload: unknown): number {
   let chars = 0;
+  let images = 0;
   const seen = new Set<object>();
   const walk = (node: unknown): void => {
     if (typeof node === "string") {
+      if (node.startsWith(SELF_RESUME_MARKER)) return; // the preflight's own injected text
       chars += node.length;
       return;
     }
@@ -145,10 +176,37 @@ export function estimatePromptTokens(payload: unknown): number {
       for (const item of node) walk(item);
       return;
     }
-    for (const value of Object.values(node as Record<string, unknown>)) walk(value);
+    const obj = node as Record<string, unknown>;
+    if (looksLikeImageBlock(obj)) {
+      // Do NOT recurse into it: the base64 payload is exactly the string that made this walk
+      // 6.8x too high on a real incident. Charge the flat estimate instead of its serialised length.
+      images += 1;
+      return;
+    }
+    for (const value of Object.values(obj)) walk(value);
   };
   walk(payload);
-  return Math.round(chars / CHARS_PER_TOKEN);
+  return Math.round(chars / CHARS_PER_TOKEN) + images * IMAGE_TOKEN_ESTIMATE;
+}
+
+/**
+ * Structural match for the two wire shapes `pi-ai` sends an image in — Anthropic's
+ * `{type: "image", source: {data}}` and OpenAI's `{type: "image_url", image_url: {url}}`
+ * (`node_modules/@earendil-works/pi-ai/dist/api/{anthropic-messages,openai-completions}.js`,
+ * verified against 0.84.4). Checked structurally, not just by `type`, so an unfamiliar future
+ * shape that merely happens to reuse the tag name still falls through to the ordinary text walk
+ * rather than silently swallowing a block that was not actually an image.
+ */
+function looksLikeImageBlock(node: Record<string, unknown>): boolean {
+  if (node.type === "image") {
+    const source = node.source;
+    return typeof source === "object" && source !== null && typeof (source as Record<string, unknown>).data === "string";
+  }
+  if (node.type === "image_url") {
+    const imageUrl = node.image_url;
+    return typeof imageUrl === "object" && imageUrl !== null && typeof (imageUrl as Record<string, unknown>).url === "string";
+  }
+  return false;
 }
 
 /** The bar this request has to clear, or `undefined` when there is no declared window. */
@@ -204,7 +262,7 @@ export function refusalLine(facts: PreflightFacts): string {
  */
 export function selfResumeLine(facts: PreflightFacts): string {
   return (
-    `[pi-config] Automatic resume, not a human message. The previous request was refused by this ` +
+    `${SELF_RESUME_MARKER} The previous request was refused by this ` +
     `harness's context-window preflight (~${facts.estimatedTokens} estimated tokens against ` +
     `${facts.model}'s declared ${facts.contextWindow}-token window) and never reached the ` +
     `provider, so the turn it belonged to has no assistant reply. The context has been handed to ` +

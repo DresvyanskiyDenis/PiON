@@ -1391,8 +1391,16 @@ function registerPreflight(pi: ExtensionAPI): void {
       };
 
       if (verdict === "over-but-passed") {
-        preflightRefusals.delete(session);
-        // Whatever this streak parked is void: the request is going out, so the run continues and
+        // Do NOT delete the refusal counter here: this branch IS the stand-down preflight.ts's
+        // header promises, and `delete` rearmed it every single time — the next
+        // `before_provider_request` read `refusalsSoFar = 0`, so the module refused twice more
+        // before passing again, forever, on a session that was never going to fit. Leaving the
+        // counter at `MAX_CONSECUTIVE_REFUSALS` makes `preflightVerdict` return "over-but-passed"
+        // immediately on every following request in the streak — silent from here on, exactly as
+        // documented — until the streak actually clears: the "send" branch above deletes it the
+        // moment a request fits, and `session_start` clears it for a new session.
+        //
+        // Whatever this streak parked IS void: the request is going out, so the run continues and
         // has no need of a resume. Leaving it would fire one turn after a real answer.
         preflightResumes.delete(session);
         announce(ctx, passedAnywayLine(facts), "error");

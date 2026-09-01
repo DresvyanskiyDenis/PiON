@@ -18,12 +18,14 @@ import { __resetForTests, register } from "../../extensions/compaction/index.ts"
 import {
   CHARS_PER_TOKEN,
   estimatePromptTokens,
+  IMAGE_TOKEN_ESTIMATE,
   MAX_CONSECUTIVE_REFUSALS,
   OVER_WINDOW_TOLERANCE,
   overWindowBar,
   passedAnywayLine,
   preflightVerdict,
   refusalLine,
+  SELF_RESUME_MARKER,
   selfResumeLine,
 } from "../../extensions/compaction/preflight.ts";
 
@@ -49,6 +51,52 @@ describe("estimatePromptTokens", () => {
     for (const payload of [undefined, null, 42, true, [], {}, [[["a"]]]]) {
       assert.equal(typeof estimatePromptTokens(payload), "number");
     }
+  });
+
+  // A 1045558-character base64 PNG estimated at ~757474 tokens against a request the provider
+  // actually billed at 113874 — a 6.8x error entirely attributable to charging the image's base64
+  // payload at chars/CHARS_PER_TOKEN like prose.
+  it("charges an Anthropic-shaped image block at the flat estimate, not its base64 length", () => {
+    const megabyteOfBase64 = "A".repeat(1_045_558);
+    const payload = {
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: megabyteOfBase64 } }],
+        },
+      ],
+    };
+    // The image block is skipped entirely (not even its own "type"/"source" text is walked); only
+    // the sibling "role": "user" text outside the block still counts.
+    assert.equal(estimatePromptTokens(payload), Math.round("user".length / CHARS_PER_TOKEN) + IMAGE_TOKEN_ESTIMATE);
+  });
+
+  it("charges an OpenAI-shaped image_url block at the flat estimate, not its data-URL length", () => {
+    const dataUrl = `data:image/png;base64,${"A".repeat(1_045_558)}`;
+    const payload = { messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: dataUrl } }] }] };
+    assert.equal(estimatePromptTokens(payload), Math.round("user".length / CHARS_PER_TOKEN) + IMAGE_TOKEN_ESTIMATE);
+  });
+
+  it("counts every image block in a payload, each at the flat estimate", () => {
+    // Three distinct objects, not the same reference three times: the walk's cycle guard dedupes
+    // by object identity, so reusing one reference would silently undercount to 1.
+    const image = () => ({ type: "image", source: { type: "base64", media_type: "image/png", data: "x".repeat(9999) } });
+    const payload = { messages: [{ content: [image(), image(), image()] }] };
+    assert.equal(estimatePromptTokens(payload), 3 * IMAGE_TOKEN_ESTIMATE);
+  });
+
+  it('does not mistake an unrelated object that merely has type: "image" for a real block', () => {
+    // Structural check, not just the tag: a future or unfamiliar shape reusing the name must fall
+    // through to the ordinary text walk rather than silently swallowing real content.
+    const payload = { type: "image", caption: "a photo, not pi-ai's wire shape" };
+    assert.equal(estimatePromptTokens(payload), Math.round(("image".length + "a photo, not pi-ai's wire shape".length) / CHARS_PER_TOKEN));
+  });
+
+  it("excludes the preflight's own self-resume message from the count", () => {
+    const resumeText = `${SELF_RESUME_MARKER} Continue the work exactly where it stopped.`;
+    const payload = { messages: [{ role: "user", content: resumeText }] };
+    // The resume text starts with the marker and contributes 0 chars; only "role": "user" counts.
+    assert.equal(estimatePromptTokens(payload), Math.round("user".length / CHARS_PER_TOKEN));
   });
 });
 
@@ -198,6 +246,26 @@ describe("before_provider_request", () => {
     assert.equal(h.aborts.length, 2, "the third is sent");
     assert.equal(h.entries.at(-1)?.data.decision, "passed-anyway");
     assert.equal(h.notices.at(-1)?.level, "error");
+  });
+
+  it("stays stood down: passed-anyway does not rearm the counter", () => {
+    // The bug: the `passed-anyway` branch used to `delete` the refusal counter, so the very next
+    // over-window request read a fresh streak and paid the full two-refusal toll again — forever,
+    // on a session that was never going to fit. The counter must stay latched at the cap until a
+    // request actually fits or the session restarts.
+    const h = harness();
+    h.request(300_000);
+    h.request(300_000);
+    assert.equal(h.aborts.length, 2);
+    h.request(300_000); // 3rd — stands down
+    assert.equal(h.aborts.length, 2);
+    assert.equal(h.entries.at(-1)?.data.decision, "passed-anyway");
+    h.request(300_000); // 4th — must stay stood down, not refuse again
+    assert.equal(h.aborts.length, 2, "no new abort: the streak must not reset");
+    assert.equal(h.entries.at(-1)?.data.decision, "passed-anyway");
+    h.request(300_000); // 5th — same
+    assert.equal(h.aborts.length, 2, "no new abort: the streak must not reset");
+    assert.equal(h.entries.at(-1)?.data.decision, "passed-anyway");
   });
 
   it("clears the streak on the first request that fits", () => {
