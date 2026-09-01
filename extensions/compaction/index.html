@@ -3295,6 +3295,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="6. The compaction route">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#credentials-are-checked-before-they-are-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Credentials are checked before they are needed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4644,6 +4661,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="6. The compaction route">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#credentials-are-checked-before-they-are-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Credentials are checked before they are needed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4983,12 +5017,36 @@ produces a summary.</p>
 <td>The route running out</td>
 <td>a classified provider failure, a status cell, <strong>and a session fact</strong></td>
 </tr>
+<tr>
+<td>A candidate's credential dying, or coming back</td>
+<td>an announcement, a status cell, plus a <code>compaction_credential_preflight</code> entry — see <a href="#credentials-are-checked-before-they-are-needed">below</a></td>
+</tr>
 </tbody>
 </table>
 <p>That last row is the one to read twice. A session entry and a toast both die with the context, and
 the context is about to be cut — which is why we are here at all. The facts file is re-stated after
 every compaction (§3), so recording the exhausted route there is what makes the next turn's model
 read <em>"compaction has no working path"</em> instead of silently trying again and dying the same way.</p>
+<h3 id="credentials-are-checked-before-they-are-needed">Credentials are checked before they are needed<a class="headerlink" href="#credentials-are-checked-before-they-are-needed" title="Permanent link">&para;</a></h3>
+<p>A lane that only has to work while the lead's provider is failing is a lane nobody exercises, and a
+credential resolved for the first time at compaction is a credential nobody has checked. So every
+candidate's credential is resolved at session start, and again on the first idle turn more than ten
+minutes after the last check — the same <code>getApiKeyAndHeaders</code> call the walk makes at the moment of
+use, only asked while the session still has the context to act on the answer. The idle re-check is
+the load-bearing one: the credential that ends a session is usually the one that was fine at start
+and expired an hour in.</p>
+<p>Only <em>changes</em> are reported — a candidate that just lost its credential, and one that just got it
+back — because a warning repeated every idle turn is a warning that gets muted. A change announces,
+sets <code>⚠ compaction credentials: N/M unusable</code> on the status line, and appends a
+<code>compaction_credential_preflight</code> session entry. Its own entry type, never a <code>provider_failure</code>: no
+provider was asked for a completion here, and a harness's own probe filed where operators grep for
+dead turns is how a fleet ends up debugging a gateway that was working all along.</p>
+<p>A credential that is refused or cannot be produced is <strong>always</strong> classified <code>auth</code> — never inferred
+from the text of the refusal. A credential helper exiting non-zero carries no HTTP status and no
+phrase the classifier recognises, so guessing from prose answers <code>network</code>, which is in
+<a href="../../configuration/routing/#retry-the-two-classes-that-are-weather-not-a-verdict"><code>retry.classes</code></a>
+by default: the dead token gets re-presented, and the
+report points at the wire instead of at the login command that would fix it.</p>
 <p>A <code>policy</code> refusal never hops: a content filter rejecting the transcript is a verdict about the
 data, not about the endpoint. Neither does a cancellation, which is not a verdict about anything and
 must not turn one interrupt into three provider calls.</p>
