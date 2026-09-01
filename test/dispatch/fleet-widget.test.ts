@@ -102,7 +102,7 @@ describe("renderFleetPanel", () => {
   it("reads each run's own status file rather than remembering a state", () => {
     const dir = runDir(RUN, { runId: RUN, state: "running", mode: "single" });
     const fleet = fleetWith([RUN, dir, "data-engineer"]);
-    assert.match(renderFleetPanel(fleet)!.join("\n"), /▸ data-engineer \[66971211\] running/);
+    assert.match(renderFleetPanel(fleet)!.join("\n"), /● data-engineer \[66971211\] running/);
 
     writeFileSync(join(dir, "status.json"), JSON.stringify({ runId: RUN, state: "complete", mode: "single" }));
     const after = renderFleetPanel(fleet)!.join("\n");
@@ -119,7 +119,7 @@ describe("renderFleetPanel", () => {
     assert.match(lines[0]!, /2 needs attention/);
     assert.match(lines[0]!, /1 done/);
     assert.match(lines.join("\n"), /✗ debugger \[9c1d77aa\] failed/);
-    assert.match(lines.join("\n"), /\? researcher \[aaaaaaaa\] NEVER STARTED/);
+    assert.match(lines.join("\n"), /○ researcher \[aaaaaaaa\] NEVER STARTED/);
   });
 
   it("distinguishes the outcomes without colour, so a screenshot still reads", () => {

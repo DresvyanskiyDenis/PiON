@@ -216,6 +216,11 @@ function cell(text: string, width: number): string {
  *
  * `width` bounds only the free-form command column. The caller still truncates each line to the
  * real terminal width, because this module cannot measure a wide character.
+ *
+ * The marker is `›`, not `▸`. `▸`/`▾` are reserved repo-wide for a collapsible container
+ * (`extensions/lib/glyphs.ts`) — "this row is the cursor" is a different fact from "this
+ * container is collapsed", and the one-glyph-one-meaning law means it needs its own character
+ * even though nothing else in this file's own vocabulary collides with either.
  */
 export function renderRows(rows: readonly HistoryRow[], selected: number, width: number): string[] {
   const all = [HEADINGS, ...rows];
@@ -241,7 +246,7 @@ export function renderRows(rows: readonly HistoryRow[], selected: number, width:
         cell(row.title, titleWidth),
       ].join(GAP)
     ).trimEnd();
-  return [line(HEADINGS, "  "), ...rows.map((row, i) => line(row, i === selected ? "▸ " : "  "))];
+  return [line(HEADINGS, "  "), ...rows.map((row, i) => line(row, i === selected ? "› " : "  "))];
 }
 
 /** Selection stays inside `[0, total)`; an empty list selects nothing and reports `0`. */
