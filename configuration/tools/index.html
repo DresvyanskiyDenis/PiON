@@ -4857,13 +4857,16 @@ repository has no opinion about them.</p>
 <hr />
 <h2 id="pi-statuslinejson"><code>pi-statusline.json</code><a class="headerlink" href="#pi-statuslinejson" title="Permanent link">&para;</a></h2>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"segments"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"provider"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w"> </span><span class="s2">"thinking"</span><span class="p">,</span><span class="w"> </span><span class="s2">"cwd"</span><span class="p">,</span><span class="w"> </span><span class="s2">"branch"</span><span class="p">,</span><span class="w"> </span><span class="s2">"context"</span><span class="p">,</span><span class="w"> </span><span class="s2">"cost"</span><span class="p">],</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"segments"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"context"</span><span class="p">,</span><span class="w"> </span><span class="s2">"cost"</span><span class="p">,</span><span class="w"> </span><span class="s2">"cwd"</span><span class="p">,</span><span class="w"> </span><span class="s2">"branch"</span><span class="p">],</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"extensionStatusIcons"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"quota"</span><span class="p">:</span><span class="w"> </span><span class="s2">"📊"</span><span class="w"> </span><span class="p">}</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">}</span>
 </span></code></pre></div>
-<p><code>segments</code> is an ordered list; drop the ones you do not want. <code>context</code> is the one worth keeping —
-it is the occupancy readout, and it is how you notice a context problem before it becomes a
-compaction problem.</p>
+<p><code>segments</code> is an ordered list; drop the ones you do not want. The shipped list is deliberately just
+the segments that actually change from one frame to the next — <code>provider</code>/<code>model</code>/<code>thinking</code> are
+session-invariant, so redrawing them into the per-frame powerline every turn spent transcript space
+on a value that never moved; they are still visible at session start and via <code>/status</code>. <code>context</code>
+is the one worth keeping regardless — it is the occupancy readout, and it is how you notice a
+context problem before it becomes a compaction problem.</p>
 <p><code>extensionStatusIcons</code> maps an extension id to the glyph it uses when it has something to say.</p>
 <hr />
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
