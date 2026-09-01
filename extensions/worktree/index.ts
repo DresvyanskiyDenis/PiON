@@ -10,11 +10,13 @@
  * re-implement it. What no package covers:
  *
  *   1. **Detection** at `session_start` — `git rev-parse --git-common-dir`; not `.git` means the
- *      session is already inside a linked worktree (REQ-CTX-60). Published three ways: the
- *      statusline (`ctx.ui.setStatus`), the shared extension bus (`pi.events`), and a
- *      module-level getter (`getWorktreeInfo()`) that `EXT-02`'s rules context and `EXT-26`'s
- *      session index import directly — the same integration shape `../dispatch/isolation.ts`
- *      already uses for `EXT-05`.
+ *      session is already inside a linked worktree (REQ-CTX-60). Published three ways: an
+ *      extension status (`ctx.ui.setStatus`) — the linked-worktree indicator only, since
+ *      `config/pi-statusline.json`'s own `"branch"` segment already shows the branch name and its
+ *      dirty markers, and restating them here duplicated that row — the shared extension bus
+ *      (`pi.events`), and a module-level getter (`getWorktreeInfo()`) that `EXT-02`'s rules
+ *      context and `EXT-26`'s session index import directly — the same integration shape
+ *      `../dispatch/isolation.ts` already uses for `EXT-05`.
  *   2. **A `WorktreeProvider`** for `EXT-05`'s `isolation: worktree`
  *      (`extensions/dispatch/isolation.ts`, which documents "EXT-23 calls this at session_start"
  *      and expects the id `"ext-23"` — both honoured here verbatim). Reuses the session's own
@@ -132,12 +134,19 @@ export function register(pi: ExtensionAPI): void {
 
 function publishStatus(ctx: ExtensionContext, info: WorktreeInfo): void {
   try {
-    if (!info.isRepo) {
+    if (!info.isRepo || !info.isWorktree) {
+      // `config/pi-statusline.json`'s configured "branch" segment already reads the branch
+      // straight from git and renders it with its own dirty/ahead/behind markers. Repeating the
+      // branch name and a second, differently-computed dirty count here duplicated that row
+      // exactly. The primary checkout has nothing left to say once that's dropped, so it
+      // publishes no status at all.
       ctx.ui.setStatus("worktree", undefined);
       return;
     }
-    const dirtySuffix = info.dirty > 0 ? `*${info.dirty}` : "";
-    ctx.ui.setStatus("worktree", `${info.isWorktree ? "⑂ " : ""}${info.branch}${dirtySuffix}`);
+    // The one fact the statusline's branch segment cannot know: this session is on a *linked*
+    // worktree, not the primary checkout (REQ-CTX-60). That is still worth a glance — it is not
+    // the branch name, so it is not the duplicate.
+    ctx.ui.setStatus("worktree", "⑂ worktree");
   } catch {
     // ctx.ui.* is a no-op in -p and --mode json; a throw here must not
     // take session_start down for every other module.

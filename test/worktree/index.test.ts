@@ -135,7 +135,7 @@ describe("worktree/index.ts — detection and publication", () => {
     }
   });
 
-  it("publishes branch + status in the primary checkout, no ⑂ prefix", async () => {
+  it("publishes no status in the primary checkout — the statusline's own branch segment already covers it", async () => {
     const h = makeHarness(repo);
     register(h.pi);
     await h.fire("session_start", SESSION_START);
@@ -143,7 +143,24 @@ describe("worktree/index.ts — detection and publication", () => {
     assert.equal(info?.isRepo, true);
     assert.equal(info?.isWorktree, false);
     assert.equal(info?.branch, "main");
-    assert.equal(h.statuses.get("worktree"), "main");
+    assert.equal(h.statuses.get("worktree"), undefined);
+  });
+
+  it("publishes only the linked-worktree indicator inside a worktree — no branch, no dirty count", async () => {
+    const wtPath = join(tmpdir(), `ext23-status-wt-${process.pid}`);
+    await execFileAsync("git", ["-C", repo, "worktree", "add", "-b", "ext23-status-check", wtPath, "HEAD"]);
+    try {
+      const h = makeHarness(wtPath);
+      register(h.pi);
+      await h.fire("session_start", SESSION_START);
+      const info = getWorktreeInfo();
+      assert.equal(info?.isWorktree, true);
+      // Neither the branch name nor a dirty count: both are the statusline's own "branch"
+      // segment's job now, and duplicating them here was the bug this fixes.
+      assert.equal(h.statuses.get("worktree"), "⑂ worktree");
+    } finally {
+      await execFileAsync("git", ["-C", repo, "worktree", "remove", "--force", wtPath]).catch(() => {});
+    }
   });
 
   it("emits worktree:info on the shared bus", async () => {
