@@ -22,6 +22,11 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(HERE);
 const REAL_PI = join(REPO_ROOT, "node_modules", ".bin", "pi");
+
+/** The pinned pi version, read from the devDependency rather than hardcoded: this suite asserts
+ * that api-probe names the resolved package version, and that version moves with the pin. */
+const PINNED_PI_VERSION = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"))
+  .devDependencies["@earendil-works/pi-coding-agent"];
 /** The tracked template every generated `config/settings.json` is built from. */
 const SETTINGS_TEMPLATE = join(REPO_ROOT, "config", "settings.default.json");
 
@@ -210,7 +215,7 @@ test("--pi binary whose --version disagrees with the installed npm package: exit
     const { exitCode, stderr } = run(["--pi", fakePi]);
     assert.equal(exitCode, 2);
     assert.match(stderr, /9\.9\.9/);
-    assert.match(stderr, /0\.84\.0/);
+    assert.ok(stderr.includes(PINNED_PI_VERSION), `stderr names the pinned version ${PINNED_PI_VERSION}: ${stderr}`);
     assert.match(stderr, /version mismatch/);
   } finally {
     rmSync(dir, { recursive: true, force: true });

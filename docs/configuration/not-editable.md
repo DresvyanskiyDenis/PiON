@@ -18,7 +18,7 @@ existed at probe time.
 {
   "probeVersion": 1,
   "generatedAt": "2026-08-07T…",
-  "pi": { "packageVersion": "0.84.0", "binaryVersion": "0.84.0", … },
+  "pi": { "packageVersion": "0.84.4", "binaryVersion": "0.84.4", … },
   "events": ["after_provider_response", "agent_end", "agent_settled", …]
 }
 ```

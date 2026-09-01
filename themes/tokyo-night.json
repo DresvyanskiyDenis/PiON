@@ -40,6 +40,8 @@
     "thinkingText": "dark5",
 
     "selectedBg": "bgVisual",
+    "searchMatchBg": "bgVisual",
+    "searchMatchText": "fg",
     "scrollbarThumb": "fgGutter",
     "userMessageBg": "bgDark",
     "userMessageText": "fg",

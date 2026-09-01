@@ -1,11 +1,11 @@
 {
   "probeVersion": 1,
-  "generatedAt": "2026-08-07T08:26:18.165Z",
+  "generatedAt": "2026-09-01T11:57:36.332Z",
   "pi": {
     "package": "@earendil-works/pi-coding-agent",
-    "packageVersion": "0.84.0",
+    "packageVersion": "0.84.4",
     "binaryPath": "~/bin/pi",
-    "binaryVersion": "0.84.0",
+    "binaryVersion": "0.84.4",
     "sourceFiles": {
       "extensionApi": "dist/core/extensions/types.d.ts",
       "settings": "dist/core/settings-manager.d.ts"
@@ -32,6 +32,7 @@
     "session_before_switch",
     "session_before_tree",
     "session_compact",
+    "session_compact_failed",
     "session_info_changed",
     "session_shutdown",
     "session_start",
@@ -44,6 +45,8 @@
     "tool_result",
     "turn_end",
     "turn_start",
+    "ui_prompt_end",
+    "ui_prompt_start",
     "user_bash"
   ],
   "apiMethods": [
@@ -87,13 +90,13 @@
     "enableAnalytics",
     "enableInstallTelemetry",
     "enableSkillCommands",
-    "enabledModels",
     "extensions",
     "externalEditor",
     "followUpMode",
     "hideThinkingBlock",
     "httpIdleTimeoutMs",
     "images",
+    "lastChangelogVersion",
     "markdown",
     "packages",
     "prompts",
@@ -102,6 +105,7 @@
     "showCacheMissNotices",
     "skills",
     "steeringMode",
+    "subagents",
     "terminal",
     "theme",
     "themes",
@@ -111,5 +115,8 @@
     "tuiMode",
     "warnings",
     "websocketConnectTimeoutMs"
+  ],
+  "settingsKeysNotDeclaredByPi": [
+    "subagents"
   ]
 }

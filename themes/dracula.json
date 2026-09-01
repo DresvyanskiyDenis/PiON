@@ -32,6 +32,8 @@
     "thinkingText": "comment",
 
     "selectedBg": "selection",
+    "searchMatchBg": "selection",
+    "searchMatchText": "foreground",
     "scrollbarThumb": "selection",
     "userMessageBg": "bgDark",
     "userMessageText": "foreground",

@@ -38,6 +38,8 @@
     "thinkingText": "overlay2",
 
     "selectedBg": "surface1",
+    "searchMatchBg": "surface1",
+    "searchMatchText": "text",
     "scrollbarThumb": "surface2",
     "userMessageBg": "mantle",
     "userMessageText": "text",

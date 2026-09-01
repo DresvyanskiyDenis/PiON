@@ -33,6 +33,8 @@
     "thinkingText": "nord9",
 
     "selectedBg": "nord3",
+    "searchMatchBg": "nord3",
+    "searchMatchText": "nord6",
     "scrollbarThumb": "nord2",
     "userMessageBg": "nord1",
     "userMessageText": "nord6",

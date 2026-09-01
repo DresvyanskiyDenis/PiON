@@ -10,7 +10,7 @@ actually failed.
 This repository is the layer that adds those: **one composed PI extension (36 modules in a fixed load
 order) plus a configuration tree symlinked into `~/.pi/agent/`.**
 
-Built and measured against **PI 0.84.0 on macOS (arm64), Node ≥ 22.19.0**. Most of it is
+Built and measured against **PI 0.84.4 on macOS (arm64), Node ≥ 22.19.0**. Most of it is
 platform-neutral TypeScript; the installer and a handful of shell helpers assume a POSIX shell and
 are exercised on macOS.
 
@@ -200,7 +200,7 @@ cannot see is written down beside what it can, in
 
 - **Node ≥ 22.19.0** — the extensions are TypeScript executed by Node's strip-only type loader, so
   there is no build step and no emitted JavaScript.
-- **PI 0.84.0** — the installer can install it for you (`--mode binary` or `--mode npm`).
+- **PI 0.84.4** — the installer can install it for you (`--mode binary` or `--mode npm`).
 - A POSIX shell. `jq` and `sqlite3` for some helpers; the installer checks and tells you.
 - At least one model provider you have credentials for. Which one is your choice: the installer
   offers the providers in `config/providers/` and sets the defaults from whichever you select.
