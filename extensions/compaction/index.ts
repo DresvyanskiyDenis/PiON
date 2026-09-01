@@ -82,6 +82,7 @@ import type {
   ExtensionContext,
   SessionBeforeCompactEvent,
   SessionEntry,
+  TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import { compact, estimateTokens } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -157,6 +158,7 @@ import {
   refusalLine,
   selfResumeLine,
 } from "./preflight.ts";
+import { formatCtxGaugeStatus, type GaugePreflightEstimate } from "./gauge.ts";
 
 // Re-exported so `REQ-CTX-31`'s arithmetic keeps one public entry point for callers and tests.
 export { thresholdReport, type ThresholdReport };
@@ -307,6 +309,9 @@ const cfg = loaded.config;
 
 /** Ours alone. Every extension that writes a status cell owns its own key. */
 const ROUTE_STATUS_KEY = "compaction";
+
+/** The `ctx` threshold gauge's own extension-status cell, next to `ROUTE_STATUS_KEY`. */
+const GAUGE_STATUS_KEY = "ctx-gauge";
 
 interface LoadedRoute {
   readonly settings: CompactionRouteSettings;
@@ -1050,6 +1055,30 @@ function clearRouteStatus(ctx: ExtensionContext): void {
   }
 }
 
+/**
+ * The `ctx` gauge, published through the same side channel as `setRouteStatus`/`quota`'s meter —
+ * `formatCtxGaugeStatus` is pure and untested-by-side-effect on its own (see `gauge.test.ts`); this
+ * is only the wiring: read the live usage, read whatever preflight estimate is currently parked for
+ * `session` (see `preflightResumes`'s own header — it holds exactly one deferred request's facts,
+ * if any), and set the cell. `getContextUsage()` returning `undefined` (no model selected yet)
+ * clears the cell instead of rendering a bar for a window that does not exist.
+ */
+function refreshGaugeStatus(ctx: ExtensionContext, session: string): void {
+  try {
+    const usage = ctx.getContextUsage();
+    if (usage === undefined) {
+      ctx.ui.setStatus(GAUGE_STATUS_KEY, undefined);
+      return;
+    }
+    const parked = preflightResumes.get(session);
+    const preflight: GaugePreflightEstimate | undefined =
+      parked === undefined ? undefined : { estimatedTokens: parked.facts.estimatedTokens };
+    ctx.ui.setStatus(GAUGE_STATUS_KEY, formatCtxGaugeStatus(usage, preflight));
+  } catch {
+    // Presentation only. See setRouteStatus's own comment: no UI, or a closed one.
+  }
+}
+
 function announceRouteExhausted(ctx: ExtensionContext, tried: readonly string[], ranOut: boolean): void {
   const why = ranOut
     ? "every candidate on the compaction route failed"
@@ -1403,6 +1432,8 @@ function registerPreflight(pi: ExtensionAPI): void {
         // Whatever this streak parked IS void: the request is going out, so the run continues and
         // has no need of a resume. Leaving it would fire one turn after a real answer.
         preflightResumes.delete(session);
+        // The gauge's preflight marker tracks the same park — drop it with it.
+        refreshGaugeStatus(ctx, session);
         announce(ctx, passedAnywayLine(facts), "error");
         pi.appendEntry("context_preflight", { decision: "passed-anyway", ...facts, refusals: MAX_CONSECUTIVE_REFUSALS });
         return;
@@ -1417,6 +1448,9 @@ function registerPreflight(pi: ExtensionAPI): void {
       // Parked before the abort, not after: `abort()` unwinds the run, and `agent_settled` can be
       // emitted before this handler's frame would have resumed.
       preflightResumes.set(session, { facts, refusals: refusalsSoFar + 1 });
+      // Show the number that just drove this refusal next to the gauge, not only in the
+      // announcement — the whole point is that nothing on screen showed it before.
+      refreshGaugeStatus(ctx, session);
       ctx.abort();
     } catch (err) {
       // Fail open, always. This handler stands between every request and its provider; a bug in it
@@ -1435,6 +1469,8 @@ function registerPreflight(pi: ExtensionAPI): void {
       // Consumed before the send, so a throw inside `sendUserMessage` costs one resume rather than
       // arming the next settle with the same one.
       preflightResumes.delete(session);
+      // The deferred request is no longer deferred — drop its estimate from the gauge.
+      refreshGaugeStatus(ctx, session);
       pi.appendEntry("context_preflight", {
         decision: "self-resumed",
         ...parked.facts,
@@ -1468,6 +1504,8 @@ export function register(pi: ExtensionAPI): void {
       applyUniversalThreshold(ctx);
       reportThreshold(ctx);
       announceRoute(ctx);
+      // The gauge starts visible from turn 1, same as `quota`'s own forced session-start refresh.
+      refreshGaugeStatus(ctx, sid(ctx));
       // Detached on purpose: resolving a credential can mean an OAuth helper, a keyring or a
       // subprocess, and `emit()` awaits every handler — a session start must not be able to hang on
       // one. Nothing here is ordered against the announcement it produces, and
@@ -1486,6 +1524,12 @@ export function register(pi: ExtensionAPI): void {
   // stay independent of each other's failures.
   pi.on("agent_settled", (_event, ctx: ExtensionContext) => {
     void preflightRouteCredentials(pi, ctx, "idle");
+  });
+
+  // The gauge's steady-state cadence — same event `quota/index.ts` refreshes its own status on, so
+  // `ctx` moves at least once per turn even when no preflight event fired.
+  pi.on("turn_end", (_event: TurnEndEvent, ctx: ExtensionContext) => {
+    refreshGaugeStatus(ctx, sid(ctx));
   });
 
   pi.on(
