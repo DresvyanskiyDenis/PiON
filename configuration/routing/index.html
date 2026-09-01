@@ -4905,9 +4905,10 @@ does. Neither is printed as a cause; both are printed as what they are, an obser
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"retry"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">"classes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">],</span>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">"maxAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">"onEmpty"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"strategy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vary"</span><span class="p">,</span><span class="w"> </span><span class="nt">"thinkingLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"low"</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxExtraAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">}</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">"maxStreakRestarts"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nt">"onEmpty"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"strategy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vary"</span><span class="p">,</span><span class="w"> </span><span class="nt">"thinkingLevel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"low"</span><span class="p">,</span><span class="w"> </span><span class="nt">"maxExtraAttempts"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>The <code>classes</code> and <code>maxAttempts</code> values above are exactly the built-in defaults, so an absent block
 behaves identically. They are spelled out anyway because <code>onEmpty</code> is <strong>not</strong> a default and needs a
@@ -4930,6 +4931,11 @@ block to live in.</p>
 <td><code>maxAttempts</code></td>
 <td><code>1</code></td>
 <td>Retries <strong>after</strong> the first attempt. <code>0</code> turns retrying off without deleting the block</td>
+</tr>
+<tr>
+<td><code>maxStreakRestarts</code></td>
+<td><code>2</code></td>
+<td>How many times one streak may be re-armed for a class other than the one that first spent its budget. See <a href="#the-budget-is-per-class-restarts-are-bounded-per-streak">below</a></td>
 </tr>
 <tr>
 <td><code>onEmpty</code></td>
@@ -4966,6 +4972,17 @@ explanation.</p>
 next transient failure is a new coin flip and not the continuation of an old one. A malformed key
 here is reported and ignored rather than fatal — a typo in one integer must not become "no session
 talks to any provider". Read <code>extensions/lib/provider-retry.ts</code> for the whole argument.</p>
+<h4 id="the-budget-is-per-class-restarts-are-bounded-per-streak">The budget is per class; restarts are bounded per streak<a class="headerlink" href="#the-budget-is-per-class-restarts-are-bounded-per-streak" title="Permanent link">&para;</a></h4>
+<p><code>maxAttempts</code> is spent per <strong>class</strong>, not per streak: a streak that exhausted it on <code>network</code> and
+then hits <code>empty-response</code> is a different class, and gets its own fresh attempt. Without a further
+limit, two classes trading failures back and forth would each keep handing the other a "fresh"
+budget forever — the same failure loop <code>maxAttempts</code> exists to bound, just laundered through a class
+change instead of a retry count. <code>maxStreakRestarts</code> closes that gap: it counts how many times this
+streak has already been re-armed for a class other than the one that first spent it, and refuses the
+next one once the count reaches the cap, regardless of which class shows up. Once refused, the abort
+line says the restart budget is "maxed out" rather than quoting <code>maxAttempts</code> — past the first
+restart, <code>maxAttempts</code> alone would understate how much of the session's actual retry budget was
+spent.</p>
 <h4 id="onempty-what-the-retry-is-allowed-to-change"><code>onEmpty</code> — what the retry is allowed to change<a class="headerlink" href="#onempty-what-the-retry-is-allowed-to-change" title="Permanent link">&para;</a></h4>
 <div class="admonition note">
 <p class="admonition-title">Amends the section above for one class</p>
