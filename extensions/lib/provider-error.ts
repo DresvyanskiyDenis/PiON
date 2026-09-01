@@ -17,7 +17,10 @@
  *      reporter that throws while reporting an error is worse than the error.
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import { describeError } from "./once.ts";
+import { providerAbortLogPath } from "./paths.ts";
 
 /** The six classes fixed by `config/routing.json` -> `onProviderError.errorClasses`. */
 export type ProviderErrorClass =
@@ -114,12 +117,22 @@ export interface ProviderFailure {
  * was the end of it" without correlating two blocks by hand.
  */
 export interface RetryDisposition {
-  /** 1-based: this failure was the Nth of `maxAttempts + 1` attempts at the same request. */
+  /** 1-based: this failure was the Nth of `maxAttempts + 1` attempts at the CURRENT streak. */
   readonly attempt: number;
   /** Retries after the first attempt — `routing.json` -> `onProviderError.retry.maxAttempts`. */
   readonly maxAttempts: number;
   /** True when the harness re-issued the request after this failure. */
   readonly willRetry: boolean;
+  /**
+   * How many of the session's bounded `maxStreakRestarts` this streak has already spent restarting
+   * after a DIFFERENT class's exhausted streak — see `shouldRetry` in `lib/provider-retry.ts`. `0`
+   * for the ordinary case: a first exhaustion that never needed a restart. `policyLine` changes its
+   * wording once this is nonzero, because `attempt`/`maxAttempts` alone would then understate how
+   * much of this session's overall retry budget the operator has actually spent.
+   */
+  readonly streakRestarts?: number;
+  /** `routing.json` -> `onProviderError.retry.maxStreakRestarts`, alongside `streakRestarts`. */
+  readonly maxStreakRestarts?: number;
 }
 
 export interface ClassifyInput {
@@ -611,6 +624,16 @@ function policyLine(retry: RetryDisposition | undefined): string {
     );
   }
   const spent = retry.attempt === 1 ? "1 attempt" : `${retry.attempt} attempts`;
+  // `attempt`/`maxAttempts` reset to a fresh count on every restart, so once one has actually
+  // happened they no longer say how much of the session's retry budget is gone — "1 attempt" reads
+  // as a single coin flip when it may be the Nth. Name the real cap instead of the reset one.
+  if ((retry.streakRestarts ?? 0) > 0) {
+    const restarts = retry.streakRestarts === 1 ? "1 restart" : `${retry.streakRestarts} restarts`;
+    return (
+      `abort after ${spent} — the transient retry budget is maxed out (used all ${restarts} this ` +
+      `session gets); ${noFailover} (routing.json onProviderError.policy, onProviderError.retry)`
+    );
+  }
   return (
     `abort after ${spent} — the transient retry budget (${retry.maxAttempts}) is spent and the class ` +
     `recurred; ${noFailover} (routing.json onProviderError.policy, onProviderError.retry)`
@@ -675,6 +698,17 @@ export interface SurfaceSinks {
    * says nothing about a failure in the top-level session itself. This sink closes that half.
    */
   readonly appendEntry?: (customType: string, data: unknown) => void;
+  /**
+   * Persist a headless abort to `providerAbortLogPath()`. Defaults to appending one JSON line
+   * (timestamp, pid, provider, model, class, retry counters, message) to that file.
+   *
+   * A detached `-p`/`--mode json` run has no TUI and its stderr is frequently piped somewhere no
+   * one reads until well after the process exits — the non-zero exit code says a run failed, but
+   * by itself gives an operator nothing to grep for *why*, or across which provider/model pairs it
+   * keeps happening. This sink is the durable side of that: called on the exact same condition as
+   * `setExitCode` above, and only there, so it is exactly as noisy as the exit code it explains.
+   */
+  readonly recordHeadlessAbort?: (line: string) => void;
 }
 
 /**
@@ -742,5 +776,34 @@ export function surfaceProviderFailure(
     } catch {
       // Nothing left to do. An unsettable exit code must not become a thrown error.
     }
+    try {
+      const recordHeadlessAbort = sinks.recordHeadlessAbort ?? defaultRecordHeadlessAbort;
+      recordHeadlessAbort(headlessAbortLine(failure));
+    } catch {
+      // The log file itself is unwritable (e.g. a read-only state root). The exit code already
+      // carries the pass/fail signal; losing the "why" must not turn into a thrown error.
+    }
   }
+}
+
+/** One JSON line for `providerAbortLogPath()`: everything needed to grep an abort without the TUI. */
+function headlessAbortLine(failure: ProviderFailure): string {
+  return JSON.stringify({
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    provider: failure.provider,
+    model: failure.model,
+    class: failure.klass,
+    attempt: failure.retry?.attempt,
+    maxAttempts: failure.retry?.maxAttempts,
+    streakRestarts: failure.retry?.streakRestarts,
+    maxStreakRestarts: failure.retry?.maxStreakRestarts,
+    message: failure.message,
+  });
+}
+
+function defaultRecordHeadlessAbort(line: string): void {
+  const path = providerAbortLogPath();
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  appendFileSync(path, `${line}\n`, "utf8");
 }

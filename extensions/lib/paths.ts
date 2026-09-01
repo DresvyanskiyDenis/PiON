@@ -33,6 +33,16 @@ export function lockDir(name: string): string {
   return join(stateRoot(), "locks", name);
 }
 
+/**
+ * Where a headless run (`ctx.hasUI === false`) records a provider abort it cannot otherwise put in
+ * front of anyone. A detached `-p`/`--mode json` process has no TUI to notify and its stderr often
+ * goes nowhere an operator will look until much later — the exit code says *that* it failed, this
+ * file is the only durable record of *why*.
+ */
+export function providerAbortLogPath(): string {
+  return join(stateRoot(), "provider-abort.log");
+}
+
 export function repoRoot(): string {
   return process.env.PI_CONFIG_REPO ?? join(homedir(), "pi-config");
 }

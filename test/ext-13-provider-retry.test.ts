@@ -35,6 +35,7 @@ import { buildEmptyCompletionFailure, formatProviderFailure, type ProviderFailur
 import {
   DEFAULT_EMPTY_RESPONSE_POLICY,
   DEFAULT_MAX_RETRY_ATTEMPTS,
+  DEFAULT_MAX_STREAK_RESTARTS,
   DEFAULT_RETRY_CLASSES,
   loadProviderRetryPolicy,
   parseProviderRetryPolicy,
@@ -89,6 +90,32 @@ describe("the policy that ships", () => {
     assert.equal(shouldRetry(policy, "empty-response", 1), false);
     assert.equal(shouldRetry(policy, "empty-response", 7), false);
   });
+
+  it("caps how many times a spent streak may be re-armed by a different class", () => {
+    // A streak's budget is per-class (`retriesSoFar` resets to 0 the moment the class changes), so
+    // switching classes always looks like a fresh budget to `retryBudget` alone. `maxStreakRestarts`
+    // is the second, session-wide gate on top of that: it counts how many times THIS streak has
+    // already been handed a fresh budget for a class other than the one that first spent it, and
+    // shuts the door once that count reaches the cap — independent of which class shows up next.
+    const policy = parseProviderRetryPolicy(file(undefined));
+
+    // Same class throughout: never a restart, budget behaves exactly as the single-class test above.
+    assert.equal(shouldRetry(policy, "network", 0, 0, undefined), true);
+
+    // The class changes with attempts already spent against a different pin: this is the 1st
+    // restart. Under the default cap (2), it is still granted.
+    assert.equal(shouldRetry(policy, "empty-response", 1, 1, "network"), true);
+
+    // A 3rd cross-class switch, with `streakRestarts` already AT the default cap (2), is refused —
+    // this is the exact gate the original bug was missing, and it fires even though the new class's
+    // own per-class budget has not been touched yet.
+    assert.equal(shouldRetry(policy, "network", 1, 2, "empty-response"), false, "streakRestarts (2) has reached maxStreakRestarts (2)");
+
+    // The cap only gates a CROSSING: with 0 attempts spent so far against the new class, there is no
+    // crossing to gate (`retriesSoFar > 0` is false), so the per-class budget alone decides — even
+    // with `streakRestarts` already at the cap.
+    assert.equal(shouldRetry(policy, "network", 0, 2, "empty-response"), true, "no attempts spent yet on the new class — nothing to cross");
+  });
 });
 
 describe("reading onProviderError.retry", () => {
@@ -139,6 +166,16 @@ describe("reading onProviderError.retry", () => {
     }
   });
 
+  it("honours a configured maxStreakRestarts, and falls back with a problem on a bad value", () => {
+    const policy = parseProviderRetryPolicy(withRetry({ maxStreakRestarts: 5 }));
+    assert.equal(policy.maxStreakRestarts, 5);
+    assert.deepEqual(policy.problems, []);
+
+    const bad = parseProviderRetryPolicy(withRetry({ maxStreakRestarts: -1 }));
+    assert.equal(bad.maxStreakRestarts, DEFAULT_MAX_STREAK_RESTARTS);
+    assert.match(bad.problems[0] ?? "", /onProviderError\.retry\.maxStreakRestarts must be an integer >= 0/);
+  });
+
   it("keeps the defaults when routing.json cannot be read, and reports why", () => {
     const policy = parseProviderRetryPolicy(file(undefined, "routing.json not found"));
     assert.equal(policy.maxAttempts, DEFAULT_MAX_RETRY_ATTEMPTS);
@@ -185,6 +222,21 @@ describe("the policy line in the failure block", () => {
     const line = policyLine({ ...base, retry: { attempt: 2, maxAttempts: 1, willRetry: false } });
     assert.match(line, /abort after 2 attempts/);
     assert.match(line, /budget \(1\) is spent and the class recurred/);
+    assert.match(line, /no failover, no substitution/);
+  });
+
+  it("says the streak's restarts are maxed out, not that a phantom budget is spent, once any were granted", () => {
+    // Once this streak has already been re-armed for another class at least once, the class
+    // recurring a second time is not "the same budget spent twice" — it is "every fresh start this
+    // session allows has been used". The old wording implied a budget that, by this point, does not
+    // exist any more; this line has to say what actually happened instead.
+    const line = policyLine({
+      ...base,
+      retry: { attempt: 2, maxAttempts: 1, willRetry: false, streakRestarts: 2, maxStreakRestarts: 2 },
+    });
+    assert.match(line, /abort after 2 attempts/);
+    assert.match(line, /maxed out \(used all 2 restarts this session gets\)/);
+    assert.doesNotMatch(line, /budget \(1\) is spent/);
     assert.match(line, /no failover, no substitution/);
   });
 });

@@ -5,9 +5,12 @@
 // that turns a provider failure into one of the classes the routing table fixes.
 import { shippedConfig } from "./lib/repo-config.ts";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
+import { providerAbortLogPath } from "../extensions/lib/paths.ts";
 import {
   buildEmptyCompletionFailure,
   buildProviderFailure,
@@ -573,6 +576,81 @@ describe("surfaceProviderFailure", () => {
         },
       ),
     );
+  });
+
+  it("records a headless abort as one JSON line, with the class and retry counters", () => {
+    // The exit code says the run failed; a detached `-p`/`--mode json` process's stderr is
+    // frequently unread until well after it exits. This is the durable "why".
+    const lines: string[] = [];
+    const failure = buildProviderFailure({ provider: "databricks", model: "sonnet", status: 401, message: "no" });
+    surfaceProviderFailure(
+      { hasUI: false, ui: { notify: () => {} } } as unknown as Parameters<typeof surfaceProviderFailure>[0],
+      failure,
+      { log: () => {}, setExitCode: () => {}, recordHeadlessAbort: (line) => lines.push(line) },
+    );
+    assert.equal(lines.length, 1);
+    const record = JSON.parse(lines[0] ?? "{}");
+    assert.equal(record.provider, "databricks");
+    assert.equal(record.model, "sonnet");
+    assert.equal(record.class, "auth");
+    assert.equal(record.message, "no");
+    assert.equal(typeof record.pid, "number");
+    assert.match(record.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("does not record anything when the attempt is about to be retried", () => {
+    const lines: string[] = [];
+    surfaceProviderFailure(
+      { hasUI: false, ui: { notify: () => {} } } as unknown as Parameters<typeof surfaceProviderFailure>[0],
+      { ...buildProviderFailure({ provider: "local", model: "qwen", message: "x" }), retry: { attempt: 1, maxAttempts: 1, willRetry: true } },
+      { log: () => {}, recordHeadlessAbort: (line) => lines.push(line) },
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("is skipped in interactive mode, same as the exit code", () => {
+    const lines: string[] = [];
+    surfaceProviderFailure(
+      { hasUI: true, ui: { notify: () => {} } } as unknown as Parameters<typeof surfaceProviderFailure>[0],
+      buildProviderFailure({ provider: "local", model: "qwen", message: "x" }),
+      { log: () => {}, recordHeadlessAbort: (line) => lines.push(line) },
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("survives a recordHeadlessAbort sink that throws — an unwritable log must not eat the error report", () => {
+    assert.doesNotThrow(() =>
+      surfaceProviderFailure(
+        { hasUI: false, ui: { notify: () => {} } } as unknown as Parameters<typeof surfaceProviderFailure>[0],
+        buildProviderFailure({ provider: "local", model: "qwen", message: "x" }),
+        {
+          log: () => {},
+          setExitCode: () => {},
+          recordHeadlessAbort: () => {
+            throw new Error("state root is read-only");
+          },
+        },
+      ),
+    );
+  });
+
+  it("defaults to appending to providerAbortLogPath() when no sink is given", () => {
+    const previousXdg = process.env.XDG_STATE_HOME;
+    const sandbox = mkdtempSync(join(tmpdir(), "ext13-abort-log-"));
+    process.env.XDG_STATE_HOME = sandbox;
+    try {
+      surfaceProviderFailure(
+        { hasUI: false, ui: { notify: () => {} } } as unknown as Parameters<typeof surfaceProviderFailure>[0],
+        buildProviderFailure({ provider: "local", model: "qwen", message: "default-sink-probe" }),
+        { log: () => {}, setExitCode: () => {} },
+      );
+      const record = JSON.parse(readFileSync(providerAbortLogPath(), "utf8").trim());
+      assert.equal(record.message, "default-sink-probe");
+      assert.equal(record.provider, "local");
+    } finally {
+      if (previousXdg === undefined) delete process.env.XDG_STATE_HOME;
+      else process.env.XDG_STATE_HOME = previousXdg;
+    }
   });
 });
 

@@ -591,4 +591,38 @@ describe("onProviderError.retry — the wiring", () => {
 
     assert.equal(pi.sent.length, 2);
   });
+
+  /** A `network`-classified failure — no status, an errno `classifyProviderError` maps to `network`. */
+  const networkFailure = () => assistantFailure({ errorMessage: "ECONNRESET: connection reset" });
+
+  it("re-arms a spent streak once for a different class, but only up to maxStreakRestarts", () => {
+    // The bug this guards against: `retriesSpent` is one counter shared by every transient class, so
+    // once `network` exhausted it, an unrelated `empty-response` a moment later inherited a budget of
+    // zero it had never spent. The fix re-arms the streak for a class change, but only a bounded
+    // number of times (`maxStreakRestarts`, default 2) per streak — trading two classes back and
+    // forth is not proof the endpoint has recovered, and this is the gate that stops it looping.
+    const pi = fakePi();
+    register(pi as any);
+    const ctx = fakeCtx();
+
+    const blocks = run(
+      pi,
+      ctx,
+      { end: networkFailure() }, // 1: fresh streak, own budget — retried
+      { end: networkFailure() }, // 2: same class, budget spent — aborts
+      { end: emptyCompletion() }, // 3: class change, 1st restart — retried
+      { end: emptyCompletion() }, // 4: same class, budget spent — aborts
+      { end: networkFailure() }, // 5: class change, 2nd restart — retried
+      { end: networkFailure() }, // 6: same class, budget spent — aborts
+      { end: emptyCompletion() }, // 7: class change, restarts exhausted — aborts, no retry granted
+    );
+
+    assert.equal(pi.sent.length, 3, "exactly the three retries the restarts pay for");
+    assert.deepEqual(
+      pi.entries.map((e) => e.customType),
+      ["provider_retry", "provider_failure", "provider_retry", "provider_failure", "provider_retry", "provider_failure", "provider_failure"],
+    );
+    assert.doesNotMatch(blocks[6]!, /retry \d of/, "the 7th failure gets no attempt at all");
+    assert.match(blocks[6]!, /maxed out \(used all 2 restarts this session gets\)/);
+  });
 });
