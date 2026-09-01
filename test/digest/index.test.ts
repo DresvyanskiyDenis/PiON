@@ -5,14 +5,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { id, register } from "../../extensions/digest/index.ts";
+import { id, looksLikeNode, register, resolveNodeExecutable, type NodeResolutionSources } from "../../extensions/digest/index.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 
 // ---------------------------------------------------------------------------
 // harness — same shape as test/session-context.test.ts's fakePi/fakeCtx
 // ---------------------------------------------------------------------------
 
-const ENV_KEYS = ["PI_DIGEST_WORKER", "PI_SUBAGENT_NAME", "PI_DIGEST_CONFIG", "XDG_STATE_HOME", "PI_ROUTING_JSON"] as const;
+const ENV_KEYS = [
+  "PI_DIGEST_WORKER",
+  "PI_SUBAGENT_NAME",
+  "PI_DIGEST_CONFIG",
+  "XDG_STATE_HOME",
+  "PI_ROUTING_JSON",
+  "PI_DIGEST_NODE_BIN",
+] as const;
 
 let sandbox: string;
 let savedEnv: Record<string, string | undefined>;
@@ -263,6 +270,95 @@ describe("digest — session_before_compact must never cancel or override compac
     const { ctx: realCtx } = fakeCtx({ sessionId: "s-real", sessionFile, entryCount: 3 }, sandbox);
     const r2 = await handler({ type: "session_before_compact", reason: "manual" }, realCtx);
     assert.equal(r2, undefined, "must never return {cancel} or {compaction} — that is not this extension's job");
+  });
+});
+
+describe("digest — looksLikeNode", () => {
+  it("recognises node and node.exe, case-insensitively, regardless of directory", () => {
+    assert.equal(looksLikeNode("/usr/bin/node"), true);
+    assert.equal(looksLikeNode("C:\\Program Files\\nodejs\\node.exe"), true);
+    assert.equal(looksLikeNode("/usr/local/bin/NODE"), true);
+  });
+
+  it("rejects the standalone pi binary — the exact REQ-PRV-61 failure mode", () => {
+    assert.equal(looksLikeNode("/usr/local/bin/pi"), false);
+    assert.equal(looksLikeNode("/opt/pi/pi.exe"), false);
+    // A name that merely contains "node" (an unrelated tool, a directory) must not pass either.
+    assert.equal(looksLikeNode("/usr/bin/nodemon"), false);
+  });
+});
+
+describe("digest — resolveNodeExecutable (REQ-PRV-61: process.execPath is `pi` in binary mode)", () => {
+  function sources(overrides: Partial<NodeResolutionSources> = {}): NodeResolutionSources {
+    return {
+      execPath: "/usr/bin/node",
+      env: {},
+      platform: "linux",
+      fileExists: () => false,
+      ...overrides,
+    };
+  }
+
+  it("uses execPath unchanged when it already looks like node — the ordinary dev/npm case", () => {
+    assert.equal(resolveNodeExecutable(sources({ execPath: "/usr/bin/node" })), "/usr/bin/node");
+  });
+
+  it("an explicit PI_DIGEST_NODE_BIN override wins even when execPath already looks like node", () => {
+    assert.equal(
+      resolveNodeExecutable(sources({ execPath: "/usr/bin/node", env: { PI_DIGEST_NODE_BIN: "/custom/node" } })),
+      "/custom/node",
+    );
+  });
+
+  it("binary mode: execPath is the pi binary, PATH has a real node — finds it", () => {
+    const found = "/opt/homebrew/bin/node";
+    const result = resolveNodeExecutable(
+      sources({
+        execPath: "/usr/local/bin/pi",
+        env: { PATH: "/usr/bin:/opt/homebrew/bin" },
+        fileExists: (p) => p === found,
+      }),
+    );
+    assert.equal(result, found);
+  });
+
+  it("binary mode: searches PATH left to right and stops at the first match", () => {
+    const result = resolveNodeExecutable(
+      sources({
+        execPath: "/usr/local/bin/pi",
+        env: { PATH: "/first/bin:/second/bin" },
+        fileExists: (p) => p === "/first/bin/node" || p === "/second/bin/node",
+      }),
+    );
+    assert.equal(result, "/first/bin/node");
+  });
+
+  it("binary mode on Windows: searches PATH for node.exe, not node", () => {
+    const result = resolveNodeExecutable(
+      sources({
+        execPath: "C:\\Program Files\\pi\\pi.exe",
+        platform: "win32",
+        env: { PATH: "C:\\nodejs" },
+        fileExists: (p) => p === "C:\\nodejs\\node.exe",
+      }),
+    );
+    assert.equal(result, "C:\\nodejs\\node.exe");
+  });
+
+  it("binary mode, node nowhere on PATH: falls back to the bare 'node' — spawn() still searches PATH itself, and an unresolvable node is already reported through runDetached's onError", () => {
+    const result = resolveNodeExecutable(
+      sources({ execPath: "/usr/local/bin/pi", env: { PATH: "/usr/bin:/bin" }, fileExists: () => false }),
+    );
+    assert.equal(result, "node");
+  });
+
+  it("binary mode, no PATH at all: still falls back to 'node' rather than throwing", () => {
+    assert.doesNotThrow(() => resolveNodeExecutable(sources({ execPath: "/usr/local/bin/pi", env: {} })));
+  });
+
+  it("the default sources honour the real PI_DIGEST_NODE_BIN override", () => {
+    process.env.PI_DIGEST_NODE_BIN = "/env-configured/node";
+    assert.equal(resolveNodeExecutable(), "/env-configured/node");
   });
 });
 
