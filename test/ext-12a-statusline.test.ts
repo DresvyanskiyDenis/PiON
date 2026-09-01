@@ -29,13 +29,16 @@ const VALID_SEGMENT_NAMES = [
   "turn",
 ] as const;
 
-// Exactly the six items EXT-12a owns: provider/model, thinking level, cwd + branch + dirty count,
-// context percentage, session cost. Dirty count is not a segment of its own — it renders inside
-// `branch`
+// The per-frame powerline is narrowed to the segments that actually MOVE turn to turn: context
+// percentage, session cost, cwd, and branch + dirty count. Dirty count is not a segment of its
+// own — it renders inside `branch`
 // (node_modules/@narumitw/pi-statusline/src/render.ts:131-136 pulls `runtime.gitStatus` into the
-// same case), which is what closes VP-13 and voids the old EXT-12 -> EXT-23 dependency. The quota
-// segment (EXT-12b) is deliberately absent from this list — not this item's job.
-const EXPECTED_SEGMENTS = ["provider", "model", "thinking", "cwd", "branch", "context", "cost"];
+// same case), which is what closes VP-13 and voids the old EXT-12 -> EXT-23 dependency.
+// Session-invariant provider/model/thinking moved out of the per-frame powerline; they are still
+// available at session start and via `/status` (that layout is upstream `@earendil-works/pi-tui`,
+// out of this repo's scope). The quota segment (EXT-12b) is deliberately absent from this list —
+// not this item's job.
+const EXPECTED_SEGMENTS = ["context", "cost", "cwd", "branch"];
 
 function loadConfig(): Record<string, unknown> {
   const raw = readFileSync(CONFIG_PATH, "utf8");
@@ -77,7 +80,7 @@ describe("config/pi-statusline.json", () => {
     assert.equal(new Set(segments).size, segments.length);
   });
 
-  it("matches exactly the six segments EXT-12a owns, in order", () => {
+  it("matches exactly the four moving segments left in the per-frame powerline, in order", () => {
     const doc = loadConfig();
     assert.deepEqual(doc.segments, EXPECTED_SEGMENTS);
   });

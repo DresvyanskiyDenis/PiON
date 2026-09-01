@@ -1,5 +1,5 @@
 {
-  "segments": ["provider", "model", "thinking", "cwd", "branch", "context", "cost"],
+  "segments": ["context", "cost", "cwd", "branch"],
   "extensionStatusIcons": {
     "quota": "📊",
     "subagent-cost": "👥",

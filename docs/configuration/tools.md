@@ -281,14 +281,17 @@ repository has no opinion about them.
 
 ```json
 {
-  "segments": ["provider", "model", "thinking", "cwd", "branch", "context", "cost"],
+  "segments": ["context", "cost", "cwd", "branch"],
   "extensionStatusIcons": { "quota": "📊" }
 }
 ```
 
-`segments` is an ordered list; drop the ones you do not want. `context` is the one worth keeping —
-it is the occupancy readout, and it is how you notice a context problem before it becomes a
-compaction problem.
+`segments` is an ordered list; drop the ones you do not want. The shipped list is deliberately just
+the segments that actually change from one frame to the next — `provider`/`model`/`thinking` are
+session-invariant, so redrawing them into the per-frame powerline every turn spent transcript space
+on a value that never moved; they are still visible at session start and via `/status`. `context`
+is the one worth keeping regardless — it is the occupancy readout, and it is how you notice a
+context problem before it becomes a compaction problem.
 
 `extensionStatusIcons` maps an extension id to the glyph it uses when it has something to say.
 
