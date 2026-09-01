@@ -564,6 +564,22 @@ const preflightRefusals = new Map<string, number>();
  */
 const preflightResumes = new Map<string, { readonly facts: PreflightFacts; readonly refusals: number }>();
 
+/**
+ * What the credential preflight last found, per session: which route candidates had no usable
+ * credential, when the check ran, and whether one is running right now.
+ *
+ * `dead` is what makes the check a report rather than a nag — a candidate is announced when it
+ * *changes* state, not on every pass. `running` locks nothing shared: it only keeps two idle
+ * re-checks from resolving the same credentials at once, which against an OAuth helper means two
+ * token refreshes racing each other.
+ */
+interface CredentialPreflightState {
+  dead: Set<string>;
+  checkedAt: number;
+  running: boolean;
+}
+const credentialPreflights = new Map<string, CredentialPreflightState>();
+
 function sid(ctx: Pick<ExtensionContext, "sessionManager">): string {
   return ctx.sessionManager.getSessionId() ?? "unknown-session";
 }
@@ -582,6 +598,7 @@ export function __resetForTests(): void {
   guards.clear();
   preflightRefusals.clear();
   preflightResumes.clear();
+  credentialPreflights.clear();
 }
 
 function announce(ctx: ExtensionContext | undefined, line: string, level: "info" | "warning" | "error" = "warning"): void {
@@ -766,12 +783,40 @@ function compactionCandidates(ctx: ExtensionContext): readonly RouteCandidate[] 
 
 type AttemptOutcome = RouteAttemptOutcome<CompactionResult> & { readonly failure?: ProviderFailure };
 
-/** One candidate: find it, credential it, call it. Never throws; every exit is a classified outcome. */
-async function attemptCandidate(
-  event: SessionBeforeCompactEvent,
+/** `ResolvedRequestAuth` as the registry hands it back, read off the method so no second import can drift from it. */
+type ResolvedAuth = Awaited<ReturnType<ExtensionContext["modelRegistry"]["getApiKeyAndHeaders"]>>;
+
+/** Its `ok: true` arm — the `apiKey`/`headers`/`baseUrl` triple `compact()` can be called with. */
+type UsableAuth = Extract<ResolvedAuth, { ok: true }>;
+
+/** Everything a candidate needs before it can be called, or the one classified reason it cannot be. */
+export type PreparedCandidate =
+  | { readonly ok: true; readonly model: SessionModel; readonly auth: UsableAuth }
+  | { readonly ok: false; readonly failure: ProviderFailure };
+
+/**
+ * Find the candidate, probe its transport, resolve its credential — the whole "can this be called"
+ * question in one place. Never throws; every exit is a classified {@link ProviderFailure}.
+ *
+ * **A refused credential is `auth` by construction.** Both credential exits below used to build
+ * their failure with `buildProviderFailure`, which on this path has no HTTP status and no provider
+ * prose to read, so `classifyProviderError` fell through to its last resort and answered `network`
+ * — for a token the registry had just said was rejected. Two things follow from that class, and
+ * both were observed: the retry policy's default classes are `["network", "empty-response"]`
+ * (`lib/provider-retry.ts`), so a dead credential sits in the retry-eligible bucket and gets
+ * re-presented; and the report points the operator at the wire instead of at the login command that
+ * would actually fix it. {@link harnessFailure} exists for exactly this case — the class this
+ * module KNOWS, rather than one guessed from text — and a registry refusing to produce a credential
+ * is `auth`, always.
+ *
+ * `when` names the caller in the message, because the same refusal reads differently at the moment
+ * of use and at the preflight below.
+ */
+export async function prepareCandidate(
   ctx: ExtensionContext,
   candidate: RouteCandidate,
-): Promise<AttemptOutcome> {
+  when: string,
+): Promise<PreparedCandidate> {
   const { target } = candidate;
   let model = candidate.model;
   if (model === undefined) {
@@ -818,30 +863,35 @@ async function attemptCandidate(
     );
   }
 
-  let auth;
+  let auth: ResolvedAuth;
   try {
     auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
   } catch (err) {
     return {
       ok: false,
-      failure: buildProviderFailure({
-        provider: target.provider,
-        model: target.modelId,
-        message: `credential resolution threw while preparing a compaction summary: ${describeError(err)}`,
-        cause: err,
-      }),
+      failure: harnessFailure(target, "auth", `credential resolution threw while preparing ${when}: ${describeError(err)}`, err),
     };
   }
   if (!auth.ok) {
     return {
       ok: false,
-      failure: buildProviderFailure({
-        provider: target.provider,
-        model: target.modelId,
-        message: `cannot resolve credentials for a compaction summary: ${auth.error}`,
-      }),
+      failure: harnessFailure(target, "auth", `cannot resolve credentials for ${when}: ${auth.error}`),
     };
   }
+
+  return { ok: true, model, auth };
+}
+
+/** One candidate: prepare it, then call it. Never throws; every exit is a classified outcome. */
+async function attemptCandidate(
+  event: SessionBeforeCompactEvent,
+  ctx: ExtensionContext,
+  candidate: RouteCandidate,
+): Promise<AttemptOutcome> {
+  const { target } = candidate;
+  const prepared = await prepareCandidate(ctx, candidate, "a compaction summary");
+  if (!prepared.ok) return { ok: false, failure: prepared.failure };
+  const { model, auth } = prepared;
 
   const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
   const instructions = mergeInstructions(event.customInstructions);
@@ -1041,6 +1091,166 @@ async function recordRouteExhaustedFact(
     );
   } catch (err) {
     announce(ctx, `could not record the exhausted compaction route as a fact: ${describeError(err)}`, "warning");
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Credential preflight — the route's credentials, resolved before the route is needed
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * How long a credential verdict is trusted before an idle turn re-checks it.
+ *
+ * The case this exists for is not a credential that was dead at session start — it is one that dies
+ * **during** a long session and is then discovered by the last hop of the route, at compaction, with
+ * a context too full to do anything about it. A session-start check alone would have said "fine" and
+ * then been wrong for the rest of the session, so the check repeats. Ten minutes is short against a
+ * session's length and long enough that a busy hour costs a handful of resolutions rather than one
+ * per turn.
+ */
+const CREDENTIAL_RECHECK_MS = 10 * 60_000;
+
+/** One candidate's verdict: the target as the operator reads it, plus why it cannot be called. */
+export interface CredentialVerdict {
+  readonly spec: string;
+  /** Absent means the credential resolved. */
+  readonly failure?: ProviderFailure;
+}
+
+export interface CredentialPreflightReport {
+  /** Specs with no usable credential, after this pass. */
+  readonly dead: readonly string[];
+  readonly lines: readonly { readonly text: string; readonly level: "info" | "warning" | "error" }[];
+  /** True when this pass learned something the last one did not. */
+  readonly changed: boolean;
+}
+
+/**
+ * Turn a pass's verdicts into what to say, given what was already said.
+ *
+ * A check that speaks on every pass is a check an operator mutes, and a muted check is worth less
+ * than no check at all. So only transitions are announced: a candidate that just lost its
+ * credential, and one that just got it back.
+ */
+export function credentialPreflightReport(
+  verdicts: readonly CredentialVerdict[],
+  previouslyDead: readonly string[],
+): CredentialPreflightReport {
+  const was = new Set(previouslyDead);
+  const dead = verdicts.filter((verdict) => verdict.failure !== undefined).map((verdict) => verdict.spec);
+  const lines: { text: string; level: "info" | "warning" | "error" }[] = [];
+
+  for (const verdict of verdicts) {
+    if (verdict.failure !== undefined) {
+      if (was.has(verdict.spec)) continue;
+      lines.push({
+        level: "warning",
+        text:
+          `compaction route candidate ${verdict.spec} has no usable credential ` +
+          `[${verdict.failure.klass}]: ${verdict.failure.message} — fix it now, while this session ` +
+          `still has the context to act in: at compaction time this candidate is a lane that has to ` +
+          `work while the lead's own provider does not.`,
+      });
+    } else if (was.has(verdict.spec)) {
+      lines.push({ level: "info", text: `compaction route candidate ${verdict.spec} has a usable credential again` });
+    }
+  }
+
+  const changed = dead.length !== was.size || dead.some((spec) => !was.has(spec));
+  return { dead, lines, changed };
+}
+
+/**
+ * Resolve every route candidate's credential *before* the route is walked.
+ *
+ * The route's whole point is to have a lane that works while the lead's provider does not, and a
+ * credential resolved only at the moment of use is a lane nobody has checked. This is the same
+ * `getApiKeyAndHeaders` call {@link prepareCandidate} makes at use time; the only thing that changes
+ * is when it is asked, which is also why it is cheap enough to repeat.
+ *
+ * Never throws and never rejects: it is called detached from `session_start` (so a slow credential
+ * helper cannot delay or hang a session start) and from `agent_settled`, where the run is over and
+ * a few hundred milliseconds cost nothing.
+ */
+async function preflightRouteCredentials(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  trigger: "session_start" | "idle",
+): Promise<void> {
+  try {
+    // The route is walked by `summariseWithContract` alone; with the contract off, nothing in this
+    // module ever asks these candidates for a credential, so checking them is noise.
+    if (!cfg.instructions.enabled) return;
+    const session = sid(ctx);
+    let state = credentialPreflights.get(session);
+    if (state === undefined) {
+      state = { dead: new Set<string>(), checkedAt: 0, running: false };
+      credentialPreflights.set(session, state);
+    }
+    if (state.running) return;
+    if (trigger === "idle" && Date.now() - state.checkedAt < CREDENTIAL_RECHECK_MS) return;
+    const candidates = compactionCandidates(ctx);
+    // No candidate at all is a route problem, and `announceRoute` has already said so at a volume
+    // this function cannot improve on.
+    if (candidates.length === 0) return;
+
+    state.running = true;
+    try {
+      const verdicts: CredentialVerdict[] = [];
+      for (const candidate of candidates) {
+        const prepared = await prepareCandidate(ctx, candidate, "the compaction credential preflight");
+        verdicts.push({
+          spec: describeTarget(candidate.target),
+          ...(prepared.ok ? {} : { failure: prepared.failure }),
+        });
+      }
+      const report = credentialPreflightReport(verdicts, [...state.dead]);
+      state.dead = new Set(report.dead);
+      state.checkedAt = Date.now();
+      for (const line of report.lines) announce(ctx, line.text, line.level);
+      if (!report.changed) return;
+      recordCredentialPreflight(pi, trigger, verdicts);
+      if (report.dead.length === 0) clearRouteStatus(ctx);
+      else setRouteStatus(ctx, `⚠ compaction credentials: ${report.dead.length}/${verdicts.length} unusable`);
+    } finally {
+      state.running = false;
+    }
+  } catch (err) {
+    // A preflight's own bug must cost the preflight, never the session — the same posture as the
+    // loop guard and the over-window preflight.
+    surfaceOnce(ctx, `compaction:credential-preflight:${describeError(err).slice(0, 120)}`, () =>
+      announce(ctx, `the credential preflight failed internally and was skipped: ${describeError(err)}`, "error"),
+    );
+  }
+}
+
+/**
+ * The persisted half. Written only when the verdict set changed, for the same reason nothing is
+ * announced twice: an entry per idle turn would bury the one pass that carried news.
+ *
+ * Its own entry type, never `provider_failure` — no provider was asked for a completion here, and a
+ * harness's own probe filed where operators grep for dead turns is how a fleet ends up debugging a
+ * gateway that was working all along. Same argument as {@link recordHop} and the `context_preflight`
+ * entry.
+ */
+function recordCredentialPreflight(
+  pi: ExtensionAPI,
+  trigger: "session_start" | "idle",
+  verdicts: readonly CredentialVerdict[],
+): void {
+  try {
+    pi.appendEntry("compaction_credential_preflight", {
+      trigger,
+      candidates: verdicts.map((verdict) => ({
+        spec: verdict.spec,
+        ok: verdict.failure === undefined,
+        errorClass: verdict.failure?.klass,
+        message: verdict.failure?.message,
+      })),
+    });
+  } catch {
+    // The announcement above already carried the fact. A failed session write must not turn a
+    // reported credential into an unreported crash.
   }
 }
 
@@ -1245,13 +1455,29 @@ export function register(pi: ExtensionAPI): void {
       guards.set(sid(ctx), createLoopGuardState());
       preflightRefusals.delete(sid(ctx));
       preflightResumes.delete(sid(ctx));
+      credentialPreflights.delete(sid(ctx));
       // Before the report, so what it reports is the number this session will actually use.
       applyUniversalThreshold(ctx);
       reportThreshold(ctx);
       announceRoute(ctx);
+      // Detached on purpose: resolving a credential can mean an OAuth helper, a keyring or a
+      // subprocess, and `emit()` awaits every handler — a session start must not be able to hang on
+      // one. Nothing here is ordered against the announcement it produces, and
+      // `preflightRouteCredentials` never rejects.
+      void preflightRouteCredentials(pi, ctx, "session_start");
     } catch (err) {
       announce(ctx, `session_start failed internally and was skipped: ${describeError(err)}`, "error");
     }
+  });
+
+  // The re-check that catches the credential which was alive at session start and died an hour into
+  // the session. `agent_settled` is this harness's idle edge — the run is over, so a credential
+  // resolution here competes with no turn — and `CREDENTIAL_RECHECK_MS` keeps a busy session from
+  // making one per turn. A second handler on the event `registerPreflight` already uses, rather than
+  // a call inside it: `ExtensionRunner.emit` walks every handler registered for a type, so the two
+  // stay independent of each other's failures.
+  pi.on("agent_settled", (_event, ctx: ExtensionContext) => {
+    void preflightRouteCredentials(pi, ctx, "idle");
   });
 
   pi.on(
