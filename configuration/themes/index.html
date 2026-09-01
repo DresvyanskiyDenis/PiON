@@ -4814,7 +4814,10 @@ two levels share a colour.</p>
 <p><code>thinkingMax</code> and <code>scrollbarThumb</code> are optional in the schema, and an omitted token does not go
 unpainted — it silently inherits another one. <code>thinkingMax</code> falls back to <code>thinkingXhigh</code>, which is
 why upstream's export renders the top reasoning level identically to the one below it.</p>
-<p>All 53 tokens are set explicitly in both files.</p>
+<p>All 55 tokens are set explicitly in both files. <code>searchMatchBg</code> and <code>searchMatchText</code> arrived with
+PI 0.84.4, are optional in the same way, and fall back to <code>selectedBg</code> and <code>text</code>; all thirteen files
+set them to exactly those two colours, so a match paints as it always did and the choice is visible
+rather than inherited.</p>
 <h3 id="text-colours-were-whatever-the-terminal-does">Text colours were "whatever the terminal does"<a class="headerlink" href="#text-colours-were-whatever-the-terminal-does" title="Permanent link">&para;</a></h3>
 <p><code>text</code>, <code>toolTitle</code> and the message-text tokens were empty strings, which PI reads as <em>use the
 terminal's default foreground</em>. That makes the theme's readability a property of your terminal
@@ -4851,7 +4854,7 @@ file.</p>
 <tr>
 <td>Two tokens were unset</td>
 <td>all thirteen</td>
-<td><code>thinkingMax</code> and <code>scrollbarThumb</code> are optional in the schema and silently inherit when omitted. All 53 are set explicitly in all thirteen files.</td>
+<td><code>thinkingMax</code> and <code>scrollbarThumb</code> are optional in the schema and silently inherit when omitted. All 55 are set explicitly in all thirteen files.</td>
 </tr>
 <tr>
 <td>Text colours were "whatever the terminal does"</td>
@@ -4863,7 +4866,7 @@ file.</p>
 <hr />
 <h2 id="how-the-other-eleven-were-mapped">How the other eleven were mapped<a class="headerlink" href="#how-the-other-eleven-were-mapped" title="Permanent link">&para;</a></h2>
 <p>Each file is <code>vars</code> — that project's palette, under <strong>its own names</strong> (<code>sumiInk3</code>, <code>nord0</code>,
-<code>base03</code>, <code>highlightMed</code>) — and <code>colors</code>, the 53 tokens pointing at those names. The token-to-role
+<code>base03</code>, <code>highlightMed</code>) — and <code>colors</code>, the 55 tokens pointing at those names. The token-to-role
 mapping is <code>tokyo-night.json</code>'s, copied entry for entry: <code>accent</code> takes the palette's primary blue,
 <code>syntaxKeyword</code> its purple, <code>mdHr</code> and <code>bashMode</code> its orange, and so on. Reading two files
 side by side should show the same shape with a different palette underneath, and that is the point
@@ -4988,7 +4991,7 @@ resolves every <code>vars</code> reference, and then measures WCAG contrast:</p>
 </ul>
 <p><code>syntaxComment</code> is deliberately exempt. A comment is meant to recede, and in most of these
 palettes the comment colour is one of the two or three hues the theme is recognised by.</p>
-<p>It also checks the shape of the set: every <code>themes/*.json</code> sets all 53 tokens, resolves every var
+<p>It also checks the shape of the set: every <code>themes/*.json</code> sets all 55 tokens, resolves every var
 to a <code>#rrggbb</code>, leaves no var unused, carries a name no other file carries, and has a lowercase
 hyphenated basename. Adding a file is all it takes to be measured — there is no list to join.</p>
 <h3 id="the-eleven-colours-that-ship-below-the-floor">The eleven colours that ship below the floor<a class="headerlink" href="#the-eleven-colours-that-ship-below-the-floor" title="Permanent link">&para;</a></h3>
@@ -5114,7 +5117,7 @@ at <code>node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/the
 and both shipped files reference it, so an editor with JSON schema support will complete and
 validate the token names as you type.</p>
 <p><code>vars</code> is a plain alias table: any colour value that names a key in <code>vars</code> resolves to it, anything
-else is taken literally. Use it — 53 tokens drawn from a palette of two dozen means most hexes
+else is taken literally. Use it — 55 tokens drawn from a palette of two dozen means most hexes
 would otherwise appear four or five times, and a palette you cannot see is a palette you cannot
 adjust.</p>
 <p>Colour values are <code>#rrggbb</code>, a <code>0</code>–<code>255</code> 256-colour index, or <code>""</code> for the terminal default.

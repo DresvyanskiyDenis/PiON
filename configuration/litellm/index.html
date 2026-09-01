@@ -4847,7 +4847,7 @@ resolves to <code>null</code> removes the key it sits in (<code>config/providers
 default install's <code>models.json</code> is unchanged from before the question existed, and an answers file
 written before it existed still resolves.</p>
 <div class="admonition danger">
-<p class="admonition-title">The flag is not in <code>pi-ai</code> 0.84.0. Answering yes changes nothing on its own.</p>
+<p class="admonition-title">The flag is not in <code>pi-ai</code> 0.84.4. Answering yes changes nothing on its own.</p>
 <p><code>supportsPromptCacheKey</code> is a <strong>patch</strong>, not a feature. The shipped runtime has no such
 condition and ignores the key, so a yes with an unpatched runtime is a declaration in your config
 and no change on the wire — the same silent nothing the flag exists to fix. This repository ships

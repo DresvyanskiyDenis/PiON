@@ -2,366 +2,366 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/DENYLIST/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/PACKAGES/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/limitations/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/skills-portability/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/adr/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/adr/0001-no-provider-failover/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/adr/0002-fail-open-guard-fail-closed-hooks/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/adr/0003-vendor-the-mcp-adapter/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/adr/0004-egress-classes-are-declarative/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/adr/0005-unbounded-fan-out-on-runs-all/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/concepts/architecture/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/concepts/context-windows/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/concepts/providers-and-tiers/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/concepts/safety-model/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/deepseek/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/dispatch/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/environment/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/github-copilot/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/guard/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/lead-model/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/litellm/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/mcp/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/models/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/not-editable/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/ollama-cloud/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/openai-compatible/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/openai/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/paths-and-trust/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/qwen/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/routing/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/sessions/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/settings/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/themes/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/configuration/tools/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extending/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extending/hooks/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extending/mcp-servers/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extending/providers/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extending/skills/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extending/subagents/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/ask-user/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/auto-title/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/auto-update/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/bash/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/big-results/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/compaction/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/context-imports/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/context-report/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/cost-gate/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/credentials/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/digest/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/dispatch/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/doctor/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/guard/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/hooks/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/input-transform/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/jobs/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/message-agent/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/path-defaults/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/path-rules/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/quota/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/session-context/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/session-index/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/skill-mask/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/skills-env/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/skills-lint/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/subagent-cost/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/tasks/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/teammates/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/thinking-indicator/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/tool-masks/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/trust/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/web/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/worktree/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/extensions/write-diff/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/getting-started/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/getting-started/config-layout/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/getting-started/first-run/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/getting-started/install/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/getting-started/prerequisites/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/getting-started/update/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/operations/cli/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/operations/structural-gates/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/operations/troubleshooting/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/operations/verification/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/reference/exit-codes/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/reference/identifiers/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
     <url>
          <loc>https://dresvyanskiydenis.github.io/PiON/reference/third-party/</loc>
-         <lastmod>2026-08-31</lastmod>
+         <lastmod>2026-09-01</lastmod>
     </url>
 </urlset>
