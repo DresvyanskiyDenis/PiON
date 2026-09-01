@@ -53,6 +53,8 @@
  */
 import { readFileSync } from "node:fs";
 import { join, sep } from "node:path";
+import { collapseCompleted } from "../lib/collapse.ts";
+import { GLYPH } from "../lib/glyphs.ts";
 import { reorderFailureText } from "./failure-slot.ts";
 
 /**
@@ -535,13 +537,13 @@ function line(report: AsyncRunReport, followedUp: ReadonlySet<string>): string {
   const followed = followedUp.has(run.runId) ? " ↻ automatic follow-up sent" : "";
   if (verdict.kind === "no-status") {
     return (
-      `  ? ${run.agent ?? "subagent"} [${shortId(run.runId)}] NEVER STARTED — ${verdict.reason}. ` +
+      `  ${GLYPH.pending} ${run.agent ?? "subagent"} [${shortId(run.runId)}] NEVER STARTED — ${verdict.reason}. ` +
       `Expected at ${verdict.statusFile}`
     );
   }
   if (verdict.kind === "live") return "";
   const parts = [
-    `${verdict.failed ? "✗" : "✓"} ${verdict.agent ?? run.agent ?? "subagent"} [${shortId(run.runId)}] ${verdict.state}`,
+    `${verdict.failed ? GLYPH.failed : GLYPH.done} ${verdict.agent ?? run.agent ?? "subagent"} [${shortId(run.runId)}] ${verdict.state}`,
   ];
   if (verdict.turns !== undefined) parts.push(`${verdict.turns} turn(s)`);
   if (verdict.durationMs !== undefined) parts.push(formatDuration(verdict.durationMs));
@@ -598,18 +600,27 @@ export function formatAnnouncement(
  * `SETTLED_TTL_MS` (`retireSettledRuns`). The durable list of past runs is `/subagents-fleet`,
  * which re-derives it from the run directories on disk — the pointer `index.ts` already prints
  * under this section.
+ *
+ * A run that finished cleanly (terminal, not failed) collapses behind the header's own count via
+ * `collapseCompleted` — this section had no cap at all before, and a session with a long dispatch
+ * history could print a wall of "complete" lines a human has no reason to read one by one. A run
+ * still `live`, or one that is `no-status`/failed and therefore needs a look, is never collapsed:
+ * those are exactly the rows this section exists to surface.
  */
 export function renderAsyncFleet(fleet: AsyncFleet): string {
   if (fleet.tracked.size === 0) return "";
   const reports = reconcile(fleet);
-  const rows = reports.map((report) => {
+  const isCleanlyDone = (report: AsyncRunReport): boolean =>
+    report.verdict.kind === "terminal" && !report.verdict.failed;
+  const render = (report: AsyncRunReport): string => {
     const { run, verdict } = report;
     const named = verdict.kind === "terminal" ? verdict.agent : undefined;
     const label = `${named ?? run.agent ?? "subagent"} [${shortId(run.runId)}]`;
-    if (verdict.kind === "live") return `  ${label}: ${verdict.state} (live)`;
-    if (verdict.kind === "no-status") return `  ${label}: NEVER STARTED — ${verdict.reason}`;
+    if (verdict.kind === "live") return `${label}: ${verdict.state} (live)`;
+    if (verdict.kind === "no-status") return `${label}: NEVER STARTED — ${verdict.reason}`;
     const why = verdict.error !== undefined ? ` — ${verdict.error}` : "";
-    return `  ${label}: ${verdict.state}${why}`;
-  });
-  return ["", `async runs tracked by this session (${fleet.tracked.size}):`, ...rows].join("\n");
+    return `${label}: ${verdict.state}${why}`;
+  };
+  const header = `async runs tracked by this session (${fleet.tracked.size}):`;
+  return ["", ...collapseCompleted(reports, isCleanlyDone, render, header)].join("\n");
 }
