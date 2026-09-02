@@ -24,6 +24,9 @@
     "threshold": {
       "absoluteTokens": 200000,
       "toleranceRatio": 0.2
+    },
+    "peerCompact": {
+      "minIntervalMs": 300000
     }
   }
 }

@@ -14,6 +14,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   copyFileSync,
   mkdtempSync,
   readdirSync,
@@ -173,6 +174,29 @@ test("writeAbsoluteTokens changes exactly one line of the shipped config and kee
       128000,
     );
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("writeAbsoluteTokens keeps a group-writable mode even under a stricter umask", () => {
+  // Regression: writeFileSync's own `mode` option only governs a *newly created* file's
+  // permissions, and per open(2) those are ANDed against the process umask — so writing the tmp
+  // file with `{ mode: 0o664 }` silently narrowed it to 0o600 under a 0o077 umask, even though the
+  // shipped file itself is 0o664. A umask this strict is exactly what a locked-down CI sandbox
+  // uses, which is where this first surfaced. writeAbsoluteTokens must chmod explicitly rather
+  // than lean on writeFileSync's umask-subject mode option.
+  const dir = scratch();
+  const previousUmask = process.umask(0o077);
+  try {
+    const path = join(dir, "compaction.json");
+    copyFileSync(CONFIG_PATH, path);
+    chmodSync(path, 0o664);
+
+    writeAbsoluteTokens(path, 128000);
+
+    assert.equal(statSync(path).mode & 0o777, 0o664);
+  } finally {
+    process.umask(previousUmask);
     rmSync(dir, { recursive: true, force: true });
   }
 });

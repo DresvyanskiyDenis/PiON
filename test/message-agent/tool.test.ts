@@ -23,6 +23,10 @@ import {
   drainInbox,
   listAgents,
 } from "../../extensions/message-agent/directory.ts";
+import {
+  __resetControlHandlersForTests,
+  registerControlHandler,
+} from "../../extensions/message-agent/control.ts";
 import { openIndexDb, resetIndexDbCache } from "../../extensions/session-index/db.ts";
 import { resetSurfaced } from "../../extensions/lib/once.ts";
 
@@ -195,6 +199,7 @@ after(async () => {
 });
 beforeEach(() => {
   __resetForTests();
+  __resetControlHandlersForTests();
   resetSurfaced();
   delete process.env[POLL_INTERVAL_ENV];
   delete process.env[WAKE_ENV];
@@ -498,5 +503,83 @@ describe("message_agent tool (EXT-32)", () => {
       ui: { notify: (line: string) => void notices.push(line) },
     } as never);
     assert.match(notices[0] ?? "", /session-a/);
+  });
+});
+
+describe("message_agent control lane (EXT-32)", () => {
+  // A control envelope is routed to its handler by `drain()`'s own split, never appended to the
+  // recipient's turn loop — the opposite of an ordinary message, which is exactly the property
+  // `peer.test.ts` cannot exercise on its own since it calls `createPeerCompactHandler` directly
+  // rather than going through `register()`/`drain()`.
+  it("routes a registered control kind to its handler instead of the chat turn", async () => {
+    const seen: unknown[] = [];
+    registerControlHandler("ping", (envelope) => {
+      seen.push(envelope);
+      return { outcome: "ok" };
+    });
+    const a = fakeSession("s-a");
+    const b = fakeSession("s-b");
+    await start(a, "session-a");
+    await start(b, "session-b");
+
+    await call(a, { target: "session-b", kind: "ping", instructions: "are you there?" });
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+
+    assert.equal(seen.length, 1);
+    assert.equal((seen[0] as { instructions?: string }).instructions, "are you there?");
+    assert.equal((seen[0] as { from?: string }).from, "session-a");
+    assert.deepEqual(b.sent, [], "a control envelope must never reach the recipient's chat turn");
+    assert.deepEqual(okEvents("s-b"), ["message_agent.control.ok:session-b"]);
+  });
+
+  it("clears an unhandled control kind rather than leaving it stuck or waking the turn", async () => {
+    const a = fakeSession("s-a");
+    const b = fakeSession("s-b");
+    await start(a, "session-a");
+    await start(b, "session-b");
+
+    await call(a, { target: "session-b", kind: "unknown-kind", instructions: "noop" });
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+
+    assert.deepEqual(b.sent, []);
+    assert.deepEqual(await readdir(deliveringDir(agentsRoot(), "session-b")), []);
+    assert.deepEqual(okEvents("s-b"), []);
+    assert.ok(
+      b.notices.some((line) => /no handler registered for control kind "unknown-kind"/.test(line)),
+      `expected an unhandled-kind notice, got ${JSON.stringify(b.notices)}`,
+    );
+  });
+
+  it("recovers a deferred control envelope back into the inbox instead of dropping it", async () => {
+    registerControlHandler("compact", () => ({ outcome: "deferred", detail: "mid-turn" }));
+    const a = fakeSession("s-a");
+    const b = fakeSession("s-b");
+    await start(a, "session-a");
+    await start(b, "session-b");
+
+    await call(a, { target: "session-b", kind: "compact" });
+    await b.handlers.get("turn_end")?.({}, b.ctx);
+
+    assert.deepEqual(b.sent, []);
+    const { messages } = await drainInbox(agentsRoot(), "session-b");
+    assert.equal(messages.length, 1, "a deferred envelope must land back in the inbox, not vanish");
+    assert.equal(messages[0]?.kind, "compact");
+  });
+
+  it("sends a control envelope through the tool with no \"message\" field required", async () => {
+    const a = fakeSession("s-a");
+    const b = fakeSession("s-b");
+    await start(a, "session-a");
+    await start(b, "session-b");
+
+    const receipt = await call(a, { target: "session-b", kind: "compact", instructions: "please compact" });
+    assert.match(receipt.content[0]?.text ?? "", /control envelope/);
+    assert.equal(receipt.details.kind, "compact");
+  });
+
+  it("still requires \"message\" when kind is the default \"message\"", async () => {
+    const a = fakeSession("s-a");
+    await start(a, "session-a");
+    await assert.rejects(() => call(a, { target: "session-a" }), /needs a "message"/);
   });
 });
