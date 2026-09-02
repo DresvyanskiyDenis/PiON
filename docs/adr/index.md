@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Five decisions shape most of what is surprising about this repository. They are recorded here so a
+Six decisions shape most of what is surprising about this repository. They are recorded here so a
 reader who disagrees can see the argument rather than guess at it, and so a contributor who wants to
 reverse one knows what they are arguing against.
 
@@ -11,6 +11,7 @@ reverse one knows what they are arguing against.
 | [0003](0003-vendor-the-mcp-adapter.md) | The MCP adapter is vendored in-tree and patched, rather than patched at install time | Accepted |
 | [0004](0004-egress-classes-are-declarative.md) | Egress classes are a declarative control and are never described as a network boundary | Accepted, amended 2026-08-13 (the dispatch-time containment check was withdrawn) |
 | [0005](0005-unbounded-fan-out-on-runs-all.md) | A wide `runs.all` fan-out is not width-capped; the gap is documented rather than enforced | Accepted, amended 2026-08-26 (evidence re-verified at `pi-subagents` 0.57.0) |
+| [0006](0006-tui-animation-measures-state.md) | TUI animation is scoped to motion that encodes real state; interpolation (easing, sliding, fades, progress bars) is out | Accepted |
 
 These were recorded when the repository was published; the decisions themselves are older, and each
 ADR says what evidence it rests on. Where a date could be tied to something in the tree — a lock
