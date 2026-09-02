@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/adr/0006-tui-animation-measures-state/">
+        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/adr/0007-zero-token-empty-response-gets-one-working-path-hop/">
       
       
-        <link rel="prev" href="../0005-unbounded-fan-out-on-runs-all/">
+        <link rel="prev" href="../0006-tui-animation-measures-state/">
       
       
-        <link rel="next" href="../0007-zero-token-empty-response-gets-one-working-path-hop/">
+        <link rel="next" href="../../reference/exit-codes/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>ADR 0006: TUI animation is scoped to what measures state; interpolation is out - PiON</title>
+        <title>ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#adr-0006-tui-animation-is-scoped-to-what-measures-state-interpolation-is-out" class="md-skip">
+        <a href="#adr-0007-a-zero-token-empty-response-gets-one-hop-to-a-working-path-every-other-failure-still-just-aborts" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+              ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts
             
           </span>
         </div>
@@ -4018,6 +4018,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../0006-tui-animation-measures-state/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -4037,7 +4065,7 @@
   <span class="md-ellipsis">
     
   
-    ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+    ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts
   
 
     
@@ -4055,7 +4083,7 @@
   <span class="md-ellipsis">
     
   
-    ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+    ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts
   
 
     
@@ -4150,34 +4178,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../0007-zero-token-empty-response-gets-one-working-path-hop/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -4510,7 +4510,7 @@
 
 
   
-    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/adr/0006-tui-animation-measures-state.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/adr/0007-zero-token-empty-response-gets-one-working-path-hop.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4518,71 +4518,106 @@
   
 
 
-<h1 id="adr-0006-tui-animation-is-scoped-to-what-measures-state-interpolation-is-out">ADR 0006: TUI animation is scoped to what measures state; interpolation is out<a class="headerlink" href="#adr-0006-tui-animation-is-scoped-to-what-measures-state-interpolation-is-out" title="Permanent link">&para;</a></h1>
+<h1 id="adr-0007-a-zero-token-empty-response-gets-one-hop-to-a-working-path-every-other-failure-still-just-aborts">ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts<a class="headerlink" href="#adr-0007-a-zero-token-empty-response-gets-one-hop-to-a-working-path-every-other-failure-still-just-aborts" title="Permanent link">&para;</a></h1>
 <ul>
 <li><strong>Status:</strong> Accepted</li>
 <li><strong>Date:</strong> 2026-09-02</li>
 </ul>
 <h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
-<p>PI writes the transcript into terminal scrollback, and that is a different medium from a GUI frame
-buffer. Anything animated outside a fixed bottom region corrupts the scroll history the moment the
-user scrolls — the repainted frames are gone, only the last one is left behind in a transcript that
-is supposed to be a record. Redraw is line-based, so motion over SSH/mosh/tmux tears and flickers
-rather than smoothly compositing; the artifacts are worst on the slowest channels, which is exactly
-where an operator spends the longest watching a long agent run. The two mediums fail differently on a
-dropped frame: a dropped frame in a browser is invisible, absorbed by the next paint; a dropped frame
-in a terminal is a visibly mangled line that stays mangled until the next full repaint.</p>
-<p>Without a standing rule, each renderer answers "should this animate?" for itself, and a review has no
-firmer ground to stand on than taste. Perceived responsiveness in a TUI comes from <strong>stable layout
-and progressive disclosure</strong> — content appearing as it becomes true — not from motion standing in for
-it. That is the distinction this decision makes precise.</p>
+<p><a href="../0001-no-provider-failover/">ADR 0001</a> already settled the general case: a provider error aborts
+the turn, with no failover and no substitution. That decision is sound for the failures it was
+written against — auth, quota, a model that silently returns something else, a policy block — because
+in every one of those cases the provider gave back a <em>reason</em>, and retrying that reason against a
+different backend is a decision an operator should make, not one the harness should make for them.</p>
+<p>An empty-response is different in one specific shape: when the completion carries no text, no tool
+calls, nothing usable, <em>and</em> the request's own token accounting shows zero prompt tokens and zero
+completion tokens consumed, nothing about the failure is provider-specific. Nothing was read, nothing
+was generated, and there is no partial work or partial spend this hop could put at risk by trying
+another deployment before giving up. That is a narrower and more mechanical claim than "the provider
+had a bad turn" — it is closer to "the request never actually landed." A non-zero-token empty response
+(some tokens billed, nothing usable came back) keeps every existing behavior: it is still governed by
+<code>onProviderError.retry</code>'s existing vary-and-retry policy, and it still aborts with no failover once
+that budget is spent, exactly as ADR 0001 describes.</p>
+<p>Treating the zero-token case identically to every other empty-response, or identically to auth/quota/
+policy, forces a choice between two costs: either the retry budget silently absorbs a request that
+never actually reached a model, or the operator eats a full turn abort for a failure that was, by its
+own token accounting, a no-op. Both costs are avoidable without touching ADR 0001's actual claim,
+because the zero-token signal is detectable at the harness's own error-classification boundary before
+any retry decision is made.</p>
 <h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
-<p><strong>Animate only motion that encodes real state, never motion that interpolates between two states for
-its own sake.</strong></p>
-<p>Worth animating:</p>
+<p><strong>A provider failure classified as <code>empty-response</code> with <code>usage.input === 0</code> and <code>usage.output ===
+0</code> gets exactly one hop to a configured fallback tier, instead of the normal same-provider/model
+retry — and that one hop is spent for the rest of the streak.</strong> Every other error class, and every
+non-zero-token empty-response, is unaffected: ADR 0001's abort-with-no-failover posture holds for all
+of them, unchanged.</p>
+<p>Mechanism:</p>
 <ul>
-<li>A loader tied to real state: elapsed seconds plus the current phase (<code>thinking</code>, <code>tool: read</code>,
-  <code>streaming</code>, …) — motion that <em>encodes information</em> about what the harness is doing right now.</li>
-<li>Streaming assistant text — it animates for free as tokens arrive; there is no interpolation to add,
-  the model's own pace is the frame rate.</li>
-<li>At most a one-frame highlight on a block's collapse or expand. A height change that just snaps
-  looks like a glitch; anything more than one frame is decoration on top of a state change that
-  already read as instant.</li>
+<li>The fallback is named by <code>onProviderError.workingRoute.zeroTokenFallback</code> in <code>routing.json</code>
+  (<code>config/routing.default.json:51-53</code> in this tree) — either a tier name (resolved the same way
+  <code>compaction.route</code> already resolves tiers) or a literal <code>provider/id</code>.</li>
+<li>The harness ships this repository's own <code>confidential</code> tier as the default. <code>confidential</code> already
+  has standing as a fallback destination: <code>compaction.route</code> (<code>config/routing.default.json:57</code>) routes
+  compaction to <code>["light", "confidential"]</code> for the same reason — it is the tier reserved for traffic
+  that should not simply retry against whatever public endpoint just failed. This repository ships
+  <code>confidential</code> <strong>unbound</strong> by default (<code>tiersUnbound</code>, <code>config/routing.default.json:17-19</code>) because
+  no egress-<code>confidential</code> provider is installed out of the box; naming an unbound tier here is a
+  deliberate, visible failure rather than a silent one — see Consequences.</li>
+<li>The hop takes the request to a genuinely different deployment (different provider, or same provider
+  with a different model) than the one that just returned zero tokens. If the resolved fallback
+  <em>is</em> the same deployment, or resolves to a model absent from this session's registry, or has no
+  credential configured, the hop declines and the turn aborts exactly as it would have without this
+  decision — the zero-token case degrades to ADR 0001's baseline, it never degrades further.</li>
+<li>One hop per streak: if the fallback also comes back as a zero-token empty-response, the second
+  failure aborts. This is not a second retry budget layered on top of <code>onProviderError.retry</code> — it is
+  a single, one-shot detour that either recovers the streak or gets out of the way.</li>
+<li>The hop is announced to the user (the same notice channel every other provider-error surface uses)
+  and recorded as a <code>provider_error_route_hop</code> transcript entry, mirroring the existing
+  <code>compaction_route_hop</code> entry compaction already writes when it fails over between route targets —
+  so a reviewer reading a transcript can see when and why the harness changed which deployment was
+  handling a request without being told by the model.</li>
 </ul>
-<p>Not worth animating: easing curves, sliding panels, fades, and progress bars — anything that
-<em>interpolates</em> between two states rather than measuring one. A progress bar in particular implies a
-duration estimate this harness does not have, and does not get from the component shipped either (see
-Consequences).</p>
+<p>A new pi-check rule, <strong>PC-33</strong>, warns (never fails the build) when
+<code>onProviderError.workingRoute.zeroTokenFallback</code> cannot resolve to a usable target: an empty string
+disables the hop and is not warned about, but an unresolvable tier name, an unbound tier, or a
+malformed <code>provider/id</code> literal is — on the same reasoning PC-02 and PC-20 already apply to <code>tiers</code>
+and <code>path-defaults.json</code>'s <code>tier</code> field. It is a warning and not a finding because an unresolvable
+fallback is a legal configuration: the hop simply declines and the turn aborts, which is the same safe
+default this decision falls back to at runtime regardless of what pi-check says about it.</p>
 <h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
 <p><strong>Positive</strong></p>
 <ul>
-<li>A contributor proposing a sliding panel or a progress bar has a written rule to read rather than a
-  fresh argument to relitigate on every PR.</li>
-<li>The distinction is mechanical enough to apply without a design review: does this motion encode a
-  value that changed, or does it just get from A to B more smoothly? If the second, it does not ship.</li>
+<li>A request that consumed nothing and produced nothing gets one more chance before the turn is lost,
+  without weakening ADR 0001's guarantee for every failure that actually reached a model.</li>
+<li>The hop is visible: a notice at the time it happens, and a transcript entry after the fact. Nothing
+  about this decision lets the harness quietly change providers without telling anyone.</li>
+<li>The one-hop-per-streak limit means a fallback that is itself broken cannot turn one failure into an
+  unbounded chain of them; the worst case is exactly one detour, then the same abort ADR 0001 already
+  specifies.</li>
 </ul>
 <p><strong>Negative</strong></p>
 <ul>
-<li>A loader that only measures elapsed time and phase reads as plainer than an equivalent GUI
-  affordance with a real progress bar — this decision accepts that trade rather than building one.</li>
-<li>Some contributors will read "no easing" as "no polish" rather than as "no motion this medium
-  cannot render without corrupting its own history."</li>
+<li>This repository's shipped default (<code>confidential</code>) is <strong>unbound out of the box</strong> — PC-33 will
+  correctly warn on a fresh checkout, and the hop will decline every time until an operator runs
+  <code>scripts/install.sh</code> and binds an egress-<code>confidential</code> provider (for example, a self-hosted or
+  in-boundary endpoint). This is a deliberate trade: shipping a <em>different</em> default that resolves
+  cleanly out of the box would mean shipping a public tier as the "get away from a failing public
+  endpoint" destination, which defeats the point of having a hop at all. An operator who wants the
+  hop live from install day one has one config line to add.</li>
+<li>The zero-token signal is a proxy, not a certainty. It is possible in principle for a provider to
+  report <code>usage.input === 0, usage.output === 0</code> on a response that is genuinely provider-specific
+  rather than a no-op — this decision accepts that as a rare misclassification, bounded by the
+  one-hop limit, rather than trying to distinguish it further.</li>
 </ul>
 <p><strong>Neutral, noted but not built</strong></p>
 <ul>
-<li>The upstream TUI component library this repository depends on (<code>@earendil-works/pi-tui</code>, pinned
-  transitively at <code>0.80.10</code> in <code>node_modules</code>) ships <code>box</code>, <code>loader</code>, <code>cancellable-loader</code>, <code>text</code>,
-  <code>truncated-text</code>, <code>markdown</code>, <code>spacer</code>, <code>select-list</code>, <code>settings-list</code>, <code>image</code>, <code>editor</code>, <code>input</code>
-  and <code>autocomplete</code> — no gauge, progress-bar, table, or sparkline component — and already lags the
-  agent package this repository pins directly (<code>@earendil-works/pi-coding-agent</code> at <code>0.84.4</code>,
-  <code>package.json:21</code>).</li>
-<li>In a binary-mode install, this repository's own source patches do not apply — a binary install runs
-  the upstream package unpatched, regardless of what is checked into this tree. A richer,
-  state-driven loader animation beyond what <code>pi-tui</code> already ships is therefore either an upstream
-  feature request against <code>pi-tui</code>, or a prototype confined to npm-mode installs with that gap
-  documented the same way any other binary-mode limitation would be. Neither is built by this
-  decision; it only sets the bar a future proposal has to clear — state-driven, not interpolated —
-  before that work starts.</li>
+<li><code>headlessAbortLine</code> (<code>extensions/lib/provider-error.ts</code>) is deliberately left unextended: a
+  hop-only failure surfaces through its own <code>HopDisposition</code> formatting rather than through the
+  retry-attempt line every other failure uses, and this decision does not unify the two beyond what
+  <code>policyLine</code>'s existing priority check (hop over retry, when both could apply) already gives it.</li>
+<li><code>RetryDisposition</code> gained no new field for this decision. The "hop already spent" and "streak-restart
+  cap already reached" cases are represented as <code>HopDisposition.declinedReason</code> strings rather than as
+  a new boolean on <code>RetryDisposition</code>, keeping this decision's shape additive and self-contained rather
+  than widening a type every other error class already reads.</li>
 </ul>
 <h2 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h2>
 <table>
@@ -4594,35 +4629,40 @@ Consequences).</p>
 </thead>
 <tbody>
 <tr>
-<td>Leave it to per-PR review, no written rule</td>
-<td>This is the status quo the decision replaces. It relitigates the same argument each time a progress bar or a sliding panel is proposed, and "no, that will tear over SSH" is not obviously true until someone has watched it happen.</td>
+<td>Fold the zero-token case into the existing <code>empty-response</code> retry budget (retry same provider/model, vary thinking level, as today)</td>
+<td>This is the status quo the decision replaces. A request that consumed zero tokens is not the same failure <code>onProviderError.retry</code>'s vary-and-retry was designed for — it never reached a model, so retrying against the same deployment answers a question ("was that a fluke?") the token accounting has already answered ("nothing happened").</td>
 </tr>
 <tr>
-<td>Allow limited easing on state changes that are visually large (e.g. a panel replacing another)</td>
-<td>Easing is exactly the kind of motion that tears on a line-based redraw and leaves an unrecoverable artifact in scrollback the moment a user scrolls mid-animation. The size of the visual change does not change the medium's failure mode.</td>
+<td>Treat a zero-token empty-response as just another <code>empty-response</code> and let it abort with no failover, per ADR 0001</td>
+<td>Correct for every failure that actually reached a model. Applying it to a request that provably consumed and produced nothing throws away a free signal: there is no partial work or partial spend this hop puts at risk by trying once more elsewhere.</td>
 </tr>
 <tr>
-<td>Build a real progress bar once a duration estimate exists</td>
-<td>Reasonable, and explicitly not blocked by this decision — the "Reopen this if" section below names the condition. Building the affordance ahead of having anything honest to drive it would ship a bar that lies about progress, which is worse than no bar.</td>
+<td>Allow the fallback tier to also retry (i.e., give the hop its own multi-attempt budget)</td>
+<td>Turns one detour into a second failover chain layered on top of <code>onProviderError.retry</code>'s existing budget, softening ADR 0001's "no failover" guarantee for a case this decision was supposed to keep narrow. One hop, once, keeps the blast radius equal to exactly one extra attempt.</td>
+</tr>
+<tr>
+<td>Ship a bound default (e.g., point <code>zeroTokenFallback</code> at <code>light</code>, which is bound to <code>github-copilot</code> out of the box)</td>
+<td>Would resolve cleanly with zero setup, but a "working-path hop" whose fallback is the <em>same</em> public provider egress class as everything else it is meant to route away from does not do the job the decision is named for. Consistent with <code>compaction.route</code>'s own choice of <code>confidential</code> as its second hop, not <code>light</code>.</td>
 </tr>
 </tbody>
 </table>
 <h2 id="reopen-this-if">Reopen this if<a class="headerlink" href="#reopen-this-if" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>pi-tui</code> ships a gauge, progress-bar, table, or sparkline component upstream — then evaluate
-  whether a <em>state-driven</em> use of it (not an interpolated one) fits inside this policy, rather than
-  treating its arrival as license to add interpolation.</li>
-<li>A durable, honest duration or completion estimate becomes available somewhere in this harness (for
-  example, a preflight token estimate maturing into a full-turn estimate) — a progress bar driven by a
-  real number is a different proposal from one driven by a guess, and this ADR does not forbid it.</li>
-<li>Binary-mode installs gain a supported way to apply this repository's own patches on top of the
-  vendored package — that removes the constraint that currently confines any richer loader work to
-  npm-mode prototypes.</li>
+<li>A provider is observed reporting <code>usage.input === 0, usage.output === 0</code> on a response that is
+  reliably NOT a no-op (a real completion the token accounting simply mis-reports) — that would mean
+  the zero-token signal is not the proxy this decision assumes it is, and the classification needs a
+  second signal alongside token counts.</li>
+<li>An operator workflow emerges where the one-hop-per-streak limit is routinely too tight (the fallback
+  itself is flaky enough that one hop rarely lands) — that is evidence for a small, explicit multi-hop
+  budget, not for silently widening this one.</li>
+<li><code>confidential</code> stops being the right shipped default — for example, if a future install path binds a
+  different tier by default before <code>scripts/install.sh</code> runs, or if <code>compaction.route</code>'s own choice of
+  fallback changes for reasons this ADR should track.</li>
 </ul>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../concepts/architecture/">Concepts: architecture</a> — where the TUI's rendering constraints are
-  documented alongside the rest of the harness</li>
+<li><a href="../0001-no-provider-failover/">ADR 0001</a> — the general rule this decision narrows one specific,
+  provably-zero-cost case out of, without touching the rule itself.</li>
 </ul>
 
 

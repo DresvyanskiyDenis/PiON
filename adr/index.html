@@ -3815,6 +3815,8 @@
       
         
       
+        
+      
     
     
     
@@ -4027,6 +4029,34 @@
     
   
     ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="0007-zero-token-empty-response-gets-one-working-path-hop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts
   
 
     
@@ -4321,7 +4351,7 @@
 
 
 <h1 id="architecture-decisions">Architecture decisions<a class="headerlink" href="#architecture-decisions" title="Permanent link">&para;</a></h1>
-<p>Six decisions shape most of what is surprising about this repository. They are recorded here so a
+<p>Seven decisions shape most of what is surprising about this repository. They are recorded here so a
 reader who disagrees can see the argument rather than guess at it, and so a contributor who wants to
 reverse one knows what they are arguing against.</p>
 <table>
@@ -4361,6 +4391,11 @@ reverse one knows what they are arguing against.</p>
 <tr>
 <td><a href="0006-tui-animation-measures-state/">0006</a></td>
 <td>TUI animation is scoped to motion that encodes real state; interpolation (easing, sliding, fades, progress bars) is out</td>
+<td>Accepted</td>
+</tr>
+<tr>
+<td><a href="0007-zero-token-empty-response-gets-one-working-path-hop/">0007</a></td>
+<td>A zero-token empty-response gets one hop to a configured fallback tier; every other failure still just aborts</td>
 <td>Accepted</td>
 </tr>
 </tbody>

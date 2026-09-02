@@ -3931,6 +3931,8 @@
       
         
       
+        
+      
     
     
     
@@ -4140,6 +4142,34 @@
     
   
     ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0007-zero-token-empty-response-gets-one-working-path-hop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0007: A zero-token empty-response gets one hop to a working path; every other failure still just aborts
   
 
     
@@ -4494,7 +4524,7 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pi-check<span class="w"> </span>--all
 </span></code></pre></div>
 <p><code>bin/pi-check</code> is a standalone Node script that reads the config tree and the agent files without
-starting PI. It runs 32 rules (31 without <code>--live</code>, which PC-19 needs to reach the npm registry); the ones you
+starting PI. It runs 33 rules (32 without <code>--live</code>, which PC-19 needs to reach the npm registry); the ones you
 will actually hit on a fresh clone:</p>
 <table>
 <thead>
