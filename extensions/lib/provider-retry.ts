@@ -54,7 +54,8 @@
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 
 import type { ProviderErrorClass } from "./provider-error.ts";
-import { readRoutingFile, type RoutingFile } from "./routing-file.ts";
+export { shouldRouteZeroTokenEmpty } from "./provider-error.ts";
+import { readRoutingFile, tierModel, unboundTier, type RoutingFile } from "./routing-file.ts";
 
 /** Every class `classifyProviderError` and `buildEmptyCompletionFailure` can produce. */
 const KNOWN_CLASSES: readonly ProviderErrorClass[] = [
@@ -112,6 +113,165 @@ export const DEFAULT_MAX_RETRY_ATTEMPTS = 1;
  * cannot retry forever.
  */
 export const DEFAULT_MAX_STREAK_RESTARTS = 2;
+
+/**
+ * `onProviderError.workingRoute` — the one exception to "no substitution on the working path".
+ *
+ * A zero-token `empty-response` — `buildEmptyCompletionFailure`'s `zeroTokenEmpty`, i.e.
+ * `usage.input === 0 AND usage.output === 0` — consumed no prompt tokens and produced no
+ * completion tokens: there is no partial work whose provenance a hop could corrupt, which is the
+ * argument the `onProviderError.retry`/no-substitution rule rests on for everything else. That is
+ * the one class where a route is provably safe AND a same-deployment retry
+ * (`onProviderError.retry`) is provably useless, because the class correlates with the ROUTE (an
+ * OpenAI-compatible gateway's internal load balancer picks the backing deployment on a resend, not
+ * this repo's config).
+ *
+ * NOT `onProviderError.retry` again: retry re-issues to the SAME provider and model. This hops to
+ * a DIFFERENT one, exactly once — mirroring `compaction.route`'s own vocabulary (bare word = tier
+ * name, `provider/id` = a literal) but with a SINGLE target rather than an ordered list, so "no
+ * chain on the working path" is true by construction rather than by convention. `credentials.ts`'s
+ * `handleZeroTokenEmpty` also bounds the hop to one per streak with its own state
+ * (`hoppedThisStreak`), decoupled from `retry.maxAttempts` on purpose: a promise this narrow must
+ * not become two hops just because an operator raised the SAME-deployment retry budget.
+ */
+export interface WorkingRoutePolicy {
+  /** Tier name or `provider/id` to hop to on a zero-token empty-response. `""` disables the hop. */
+  readonly zeroTokenFallback: string;
+  readonly source: string;
+  readonly problems: readonly string[];
+}
+
+/**
+ * `confidential`, not `light` or `strong` — both of those are `github-copilot`, the SAME provider
+ * `errorClasses`' shipped `strong`/`light` tiers already share, so hopping between them does not
+ * reach a genuinely different deployment. `confidential` is `routing.default.json`'s own answer to
+ * "escape the shared, public-egress surface" — `compaction.route`'s shipped default
+ * (`["light", "confidential"]`) already leans on it for exactly this reasoning. It ships unbound
+ * (`tiersUnbound.confidential`) by default, which makes the hop decline gracefully rather than
+ * fire, until an operator binds it — the same privacy-by-default posture the tier itself declares.
+ */
+export const DEFAULT_WORKING_ROUTE_POLICY: WorkingRoutePolicy = {
+  zeroTokenFallback: "confidential",
+  source: "<default>",
+  problems: [],
+};
+
+/**
+ * Parse `onProviderError.workingRoute` out of an already-read `routing.json`. Absent block is the
+ * default above, not "no hop" — same convention `parseProviderRetryPolicy` follows for `retry`.
+ */
+export function parseWorkingRoutePolicy(routing: RoutingFile): WorkingRoutePolicy {
+  if (routing.raw === undefined) {
+    return {
+      ...DEFAULT_WORKING_ROUTE_POLICY,
+      source: routing.source,
+      problems: routing.problem !== undefined ? [`${routing.problem}; using the built-in working-route default`] : [],
+    };
+  }
+  const block = plainObject(routing.raw.onProviderError);
+  const workingRoute = block === undefined ? undefined : plainObject(block.workingRoute);
+  if (workingRoute === undefined) {
+    return { ...DEFAULT_WORKING_ROUTE_POLICY, source: routing.source };
+  }
+
+  const problems: string[] = [];
+  let zeroTokenFallback = DEFAULT_WORKING_ROUTE_POLICY.zeroTokenFallback;
+  if (workingRoute.zeroTokenFallback !== undefined) {
+    if (typeof workingRoute.zeroTokenFallback !== "string") {
+      problems.push(
+        `onProviderError.workingRoute.zeroTokenFallback must be a string (tier name or provider/id); ` +
+          `using "${DEFAULT_WORKING_ROUTE_POLICY.zeroTokenFallback}"`,
+      );
+    } else {
+      // An explicit "" is a legitimate statement — "no hop, keep the pre-existing behaviour" — the
+      // same convention `compaction.route`'s empty array uses, so it is kept, not replaced.
+      zeroTokenFallback = workingRoute.zeroTokenFallback.trim();
+    }
+  }
+
+  return { zeroTokenFallback, source: routing.source, problems };
+}
+
+/** Read `config/routing.json` and parse the working-route policy out of it. */
+export function loadWorkingRoutePolicy(override?: string): WorkingRoutePolicy {
+  return parseWorkingRoutePolicy(readRoutingFile(override));
+}
+
+/** One resolved hop candidate — everything `credentials.ts` needs to ask the registry for a model. */
+export interface WorkingRouteTarget {
+  /** What `routing.json` actually wrote, kept for every notice so a reader can grep the file. */
+  readonly spec: string;
+  /** Set when `spec` named a tier rather than a literal model. */
+  readonly tier?: string;
+  readonly provider: string;
+  /** Bare id — what `modelRegistry.find` is keyed by. */
+  readonly modelId: string;
+}
+
+/**
+ * Resolves `policy.zeroTokenFallback` into a `provider/modelId` pair — the same vocabulary
+ * `compaction/route.ts`'s `resolveOne` reads (bare word = tier, `provider/id` = literal), kept as
+ * a small parallel implementation rather than imported: that module resolves an ORDERED LIST and
+ * also splits a thinking-level suffix, neither of which this single-candidate hop needs, and
+ * `lib/` importing `dispatch/thinking.ts` (`compaction/route.ts`'s dependency for that suffix)
+ * would cross the layering `routing-file.ts` documents at its own top — `lib/` imports no
+ * extension back.
+ *
+ * Deliberately does NOT reuse `resolveOne`'s silent-skip behaviour for an unbound tier: a
+ * multi-candidate route can drop one candidate and fall through to the next, but this hop has
+ * exactly one candidate, so an `unboundTier` result must be surfaced as its own, distinct reason
+ * (this install knows the name and has chosen not to bind it) rather than folded into "not
+ * declared at all" (a typo-shaped error `resolveOne` would report the same way).
+ *
+ * Returns a `problem` instead of throwing: a misconfigured hop target is refused with a reason an
+ * operator can read in the abort's `policy` line, never a crash.
+ */
+export function resolveWorkingRouteTarget(
+  routing: RoutingFile,
+  policy: WorkingRoutePolicy,
+): { readonly target: WorkingRouteTarget } | { readonly problem: string } {
+  const spec = policy.zeroTokenFallback;
+  if (spec === "") {
+    return { problem: "onProviderError.workingRoute.zeroTokenFallback is empty — the working-path hop is disabled" };
+  }
+  const literal = spec.includes("/");
+  if (!literal) {
+    const unbound = unboundTier(routing, spec);
+    if (unbound !== undefined) {
+      return {
+        problem:
+          `onProviderError.workingRoute.zeroTokenFallback "${spec}" names a tier this install leaves ` +
+          `deliberately unbound (${unbound}) — the working-path hop has no usable target`,
+      };
+    }
+  }
+  const declared = literal ? spec : tierModel(routing, spec);
+  if (declared === undefined) {
+    return {
+      problem:
+        `onProviderError.workingRoute.zeroTokenFallback "${spec}" contains no "/" and was read as a ` +
+        `TIER NAME, which ${routing.source} does not declare (or declares without a provider-qualified ` +
+        `model) — the working-path hop has no usable target`,
+    };
+  }
+  const slash = declared.indexOf("/");
+  const provider = declared.slice(0, slash);
+  const modelId = declared.slice(slash + 1);
+  if (provider.length === 0 || modelId.length === 0) {
+    return {
+      problem:
+        `onProviderError.workingRoute.zeroTokenFallback "${spec}" resolves to "${declared}", which is ` +
+        `not of the form provider/id — the working-path hop has no usable target`,
+    };
+  }
+  return { target: { spec, ...(literal ? {} : { tier: spec }), provider, modelId } };
+}
+
+/** `light -> litellm/gpt-5.6-luna` — the identity every hop notice and entry carries. */
+export function describeWorkingRouteTarget(target: WorkingRouteTarget): string {
+  const via = target.tier !== undefined ? `tier "${target.tier}" -> ` : "";
+  return `${via}${target.provider}/${target.modelId}`;
+}
 
 /**
  * The reasoning-effort vocabulary `pi.setThinkingLevel` accepts, derived from `pi-ai`'s own type

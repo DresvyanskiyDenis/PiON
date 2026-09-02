@@ -71,17 +71,22 @@ import {
   buildEmptyCompletionFailure,
   buildProviderFailure,
   isEmptyCompletion,
+  shouldRouteZeroTokenEmpty,
   type ProviderErrorClass,
   type ProviderFailure,
   surfaceProviderFailure,
 } from "./lib/provider-error.ts";
 import {
+  describeWorkingRouteTarget,
   loadProviderRetryPolicy,
+  parseWorkingRoutePolicy,
   planRetryVariation,
   type ProviderRetryPolicy,
+  resolveWorkingRouteTarget,
   retryBudget,
   shouldRetry,
 } from "./lib/provider-retry.ts";
+import { readRoutingFile } from "./lib/routing-file.ts";
 
 export const id = "credentials";
 
@@ -226,6 +231,38 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     pi.setThinkingLevel(level);
   };
 
+  /** `ctx.model`, narrowed. Avoids importing `Model<any>` from the package — mirrors `compaction/index.ts`'s `SessionModel`. */
+  type SessionModel = NonNullable<ExtensionContext["model"]>;
+  /**
+   * True for exactly one zero-token `empty-response` per streak: `handleZeroTokenEmpty` sets it
+   * the moment a hop is taken, so the NEXT zero-token failure in the same streak aborts instead of
+   * hopping again. Deliberately its own flag rather than reusing `retriesSpent`: the hop's "exactly
+   * one, no chain" promise must hold regardless of how `onProviderError.retry.maxAttempts` is
+   * tuned, since that budget governs a different mechanism (same-deployment retry) entirely.
+   * Lifecycle mirrors `retriesSpent` otherwise — cleared by a turn that worked and by a session
+   * switch, NOT by an abort: an abort is not the streak succeeding, and `streakRestarts` is what
+   * bounds how many fresh streaks a session gets.
+   */
+  let hoppedThisStreak = false;
+  /** `describeWorkingRouteTarget` of the hop this streak already spent — the abort wording's evidence. */
+  let hopTargetDescription: string | undefined;
+  /**
+   * The model that was live before `handleZeroTokenEmpty` hopped away from it — borrowed the same
+   * way `borrowedThinkingLevel` borrows the reasoning effort, and given back by `restoreModel` at
+   * the same points `restoreThinkingLevel` runs. Without this, a hop that succeeded would leave
+   * the session permanently on the fallback model, silently, for every turn after — the working
+   * model equivalent of the failure `restoreThinkingLevel`'s own doc comment describes.
+   */
+  let borrowedModel: SessionModel | undefined;
+
+  /** Give the borrowed model back. Same call sites, same reasoning, as `restoreThinkingLevel`. */
+  const restoreModel = (): void => {
+    if (borrowedModel === undefined) return;
+    const model = borrowedModel;
+    borrowedModel = undefined;
+    void pi.setModel(model);
+  };
+
   pi.on("before_provider_request", () => {
     observed = undefined;
   });
@@ -281,6 +318,7 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     surfaceProviderFailure(ctx, decided, sinks);
     if (!willRetry) {
       restoreThinkingLevel();
+      restoreModel();
       // `retriesSpent` and `retriesSpentClass` are deliberately left as they are — the streak is
       // TERMINAL at an abort, not resolved by it. Resetting here used to be the bug: the very next
       // failure of the same class looked like a brand-new streak with a full budget, and the
@@ -324,7 +362,115 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     );
   };
 
-  pi.on("message_end", (event: MessageEndEvent, ctx: ExtensionContext) => {
+  /**
+   * The working-path hop for a zero-token `empty-response` (`shouldRouteZeroTokenEmpty(failure)`),
+   * handled entirely separately from `report()` above.
+   *
+   * A hop changes PROVIDER AND MODEL, which `report()`'s wording ("re-issued against the same
+   * provider and model", "no failover, no substitution, no retry against another provider") would
+   * make a false statement of — so this class never reaches `report()` at all. Bounded to exactly
+   * one hop per streak by `hoppedThisStreak`, deliberately NOT by `onProviderError.retry.
+   * maxAttempts` (see that field's doc comment in `lib/provider-retry.ts`).
+   *
+   * A hop that succeeds is announced on its own channel and persisted as its own entry type,
+   * mirroring `compaction/index.ts`'s `recordHop`/`compaction_route_hop` — never through
+   * `surfaceProviderFailure`, which is reserved for the TERMINAL outcome (the hop already spent,
+   * or no usable candidate at all).
+   */
+  const handleZeroTokenEmpty = async (ctx: ExtensionContext, failure: ProviderFailure): Promise<void> => {
+    if (hoppedThisStreak) {
+      // The one hop for this streak is already spent, and it failed again too. Abort here, not a
+      // second hop — "no chain on the working path" is a promise this branch keeps by construction.
+      surfaceProviderFailure(ctx, { ...failure, hop: { exhausted: true, target: hopTargetDescription } }, sinks);
+      restoreThinkingLevel();
+      restoreModel();
+      return;
+    }
+
+    const declined = (reason: string): void => {
+      surfaceProviderFailure(ctx, { ...failure, hop: { exhausted: false, declinedReason: reason } }, sinks);
+    };
+
+    const policy = retryPolicy();
+    const startingNewStreak = retriesSpent === 0;
+    if (startingNewStreak && streakRestarts >= policy.maxStreakRestarts) {
+      // Same cap `report()` enforces before granting a same-deployment retry a fresh streak: a
+      // session that has already re-armed `maxStreakRestarts` times gets no further attempt of ANY
+      // kind, hop included.
+      declined(`the session's streak-restart cap (${policy.maxStreakRestarts}) is already reached`);
+      return;
+    }
+
+    const routing = readRoutingFile();
+    const routePolicy = parseWorkingRoutePolicy(routing);
+    const resolved = resolveWorkingRouteTarget(routing, routePolicy);
+    if ("problem" in resolved) {
+      declined(resolved.problem);
+      return;
+    }
+    const { target } = resolved;
+    if (target.provider === failure.provider && target.modelId === failure.model) {
+      // Configuring the hop's own target as the deployment that just failed is possible (an
+      // operator edit, or a tier that happens to resolve to the same provider/id) and would make
+      // the hop a same-deployment retry wearing a different name — refuse it explicitly rather
+      // than silently doing the thing this mechanism exists to stop doing.
+      declined(`the configured fallback ${describeWorkingRouteTarget(target)} is the SAME deployment that just failed`);
+      return;
+    }
+    const model = ctx.modelRegistry.find(target.provider, target.modelId) as SessionModel | undefined;
+    if (model === undefined) {
+      declined(`${describeWorkingRouteTarget(target)} is not in this session's model registry (check config/models.json)`);
+      return;
+    }
+    const previous = ctx.model;
+    const switched = await pi.setModel(model);
+    if (!switched) {
+      declined(`no credential is available for ${describeWorkingRouteTarget(target)}`);
+      return;
+    }
+
+    hoppedThisStreak = true;
+    hopTargetDescription = describeWorkingRouteTarget(target);
+    if (startingNewStreak) streakRestarts += 1;
+    if (previous !== undefined) borrowedModel ??= previous;
+
+    emitNotice(
+      ctx,
+      `[pi-config] zero-token empty-response (${failure.provider}/${failure.model}, usage 0 prompt / 0 ` +
+        `completion) — routing this ONE retry to ${hopTargetDescription} instead of the endpoint that ` +
+        `just failed (routing.json onProviderError.workingRoute)`,
+      "warning",
+    );
+    pi.appendEntry("provider_error_route_hop", {
+      fromProvider: failure.provider,
+      fromModel: failure.model,
+      toProvider: target.provider,
+      toModel: target.modelId,
+      errorClass: failure.klass,
+      message: failure.message,
+    });
+
+    pi.sendMessage(
+      {
+        customType: "provider-retry",
+        content: [
+          {
+            type: "text",
+            text:
+              `The previous request returned an empty completion that produced no answer and consumed ` +
+              `no tokens (0 prompt / 0 completion) — ${failure.provider}/${failure.model}. Because nothing ` +
+              `was consumed or produced, there is no partial work for this hop to put at risk: routing ` +
+              `this ONE retry to ${hopTargetDescription} instead of the endpoint that just failed ` +
+              `(routing.json onProviderError.workingRoute). Redo the work.`,
+          },
+        ],
+        display: true,
+      },
+      { deliverAs: "followUp", triggerTurn: true },
+    );
+  };
+
+  pi.on("message_end", async (event: MessageEndEvent, ctx: ExtensionContext) => {
     const response = observed;
     observed = undefined;
 
@@ -332,9 +478,12 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
     if (session !== streakSession) {
       streakSession = session;
       restoreThinkingLevel();
+      restoreModel();
       retriesSpent = 0;
       retriesSpentClass = undefined;
       streakRestarts = 0;
+      hoppedThisStreak = false;
+      hopTargetDescription = undefined;
     }
 
     const message = event.message;
@@ -349,31 +498,37 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
       // "Subagent produced no output (possible model cold-start or empty response)" — a guessed
       // cause that named the model instead of the gateway. Say what was observed instead.
       if (isEmptyCompletion(message)) {
-        report(
-          ctx,
-          buildEmptyCompletionFailure({
-            provider: message.provider ?? "(unknown provider)",
-            model: message.model ?? "(unknown model)",
-            ...(status !== undefined ? { status } : {}),
-            stopReason: message.stopReason,
-            ...(message.rawStopReason !== undefined ? { rawStopReason: message.rawStopReason } : {}),
-            ...(message.responseId !== undefined ? { responseId: message.responseId } : {}),
-            ...(ctx.thinkingLevel !== undefined ? { thinkingLevel: ctx.thinkingLevel } : {}),
-            ...(response?.headers !== undefined ? { headers: response.headers } : {}),
-            usage: message.usage,
-          }),
-        );
+        const failure = buildEmptyCompletionFailure({
+          provider: message.provider ?? "(unknown provider)",
+          model: message.model ?? "(unknown model)",
+          ...(status !== undefined ? { status } : {}),
+          stopReason: message.stopReason,
+          ...(message.rawStopReason !== undefined ? { rawStopReason: message.rawStopReason } : {}),
+          ...(message.responseId !== undefined ? { responseId: message.responseId } : {}),
+          ...(ctx.thinkingLevel !== undefined ? { thinkingLevel: ctx.thinkingLevel } : {}),
+          ...(response?.headers !== undefined ? { headers: response.headers } : {}),
+          usage: message.usage,
+        });
+        if (shouldRouteZeroTokenEmpty(failure)) {
+          await handleZeroTokenEmpty(ctx, failure);
+        } else {
+          report(ctx, failure);
+        }
         return;
       }
       // A turn that worked. The retry budget belongs to a streak of consecutive failures, so it
       // is spent only while one is running, and this is where a streak ends — which is also where
-      // a borrowed reasoning effort goes back, whether or not the recovery is what earned it. Unlike
-      // an abort, a genuine recovery really does clear the slate: the next failure, of any class, is
-      // a new coin flip and gets a full budget without spending any of the bounded restarts above.
+      // a borrowed reasoning effort (and a borrowed model) goes back, whether or not the recovery
+      // is what earned it. Unlike an abort, a genuine recovery really does clear the slate: the
+      // next failure, of any class, is a new coin flip and gets a full budget without spending any
+      // of the bounded restarts above.
       restoreThinkingLevel();
+      restoreModel();
       retriesSpent = 0;
       retriesSpentClass = undefined;
       streakRestarts = 0;
+      hoppedThisStreak = false;
+      hopTargetDescription = undefined;
       return;
     }
 

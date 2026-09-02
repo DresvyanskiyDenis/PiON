@@ -110,6 +110,46 @@ export interface ProviderFailure {
    * line and nothing else: the same marker, the same fields, the same evidence.
    */
   readonly retry?: RetryDisposition;
+  /**
+   * True when this `empty-response` consumed zero prompt tokens AND produced zero completion
+   * tokens — `buildEmptyCompletionFailure`'s `inTokens === 0 && outTokens === 0`, the same counts
+   * the block already prints. `undefined` for every other class, and for an `empty-response` built
+   * by anything other than `buildEmptyCompletionFailure`.
+   *
+   * This is the observable signal the working-path hop (`hop` below) acts on, not an invented one:
+   * 0/0 does not distinguish "no usage chunk arrived" from "the provider genuinely reported zero"
+   * (see the caveat in the rendered message), but it does not need to — either way nothing was sent
+   * and nothing came back, so there is no partial work whose provenance a hop could put at risk.
+   */
+  readonly zeroTokenEmpty?: boolean;
+  /**
+   * What the harness decided to do about a zero-token `empty-response` — `credentials.ts`'s
+   * `handleZeroTokenEmpty`. Mutually exclusive with `retry`: this class never goes through
+   * `report()`'s same-provider retry, so a `ProviderFailure` carries at most one of the two.
+   *
+   * Absent means this was not a zero-token `empty-response` at all. Present only when the hop
+   * ended in abort — a hop that SUCCEEDED is never surfaced through this module (mirrors
+   * `compaction/index.ts`'s `recordHop`: a routing decision is announced on its own channel, not
+   * reported as the turn's verdict).
+   */
+  readonly hop?: HopDisposition;
+}
+
+/**
+ * What `handleZeroTokenEmpty` decided about the one working-path hop this streak gets, rendered
+ * into the `policy` line when the streak ends in abort.
+ *
+ * Never reused from `RetryDisposition`: that type's wording ("re-issued against the same provider
+ * and model", "no failover, no substitution, no retry against another provider") is exactly false
+ * for a hop, which by definition targets a DIFFERENT provider and model.
+ */
+export interface HopDisposition {
+  /** True when the one hop for this streak was already spent and the hop target failed again. */
+  readonly exhausted: boolean;
+  /** `provider/id` this streak hopped to. Present exactly when `exhausted` is true. */
+  readonly target?: string;
+  /** Why no hop was attempted at all. Present exactly when `exhausted` is false. */
+  readonly declinedReason?: string;
 }
 
 /**
@@ -533,7 +573,17 @@ export function buildEmptyCompletionFailure(input: EmptyCompletionInput): Provid
     ...(input.status !== undefined ? { status: input.status } : {}),
     ...(gatewayHeaders !== undefined ? { gatewayHeaders } : {}),
     midStream: false,
+    zeroTokenEmpty: inTokens === 0 && outTokens === 0,
   };
+}
+
+/**
+ * Whether `failure` qualifies for the working-path hop: an `empty-response` that consumed no
+ * prompt tokens and produced no completion tokens. Every other class, and a non-zero-token
+ * `empty-response` (which MAY carry partial provenance), keep `report()`'s existing behaviour.
+ */
+export function shouldRouteZeroTokenEmpty(failure: ProviderFailure): boolean {
+  return failure.klass === "empty-response" && failure.zeroTokenEmpty === true;
 }
 
 /**
@@ -602,7 +652,7 @@ export function formatProviderFailure(f: ProviderFailure): string {
   for (const line of formatDiagnostics(f.diagnostics)) {
     lines.push(line);
   }
-  lines.push(`  policy   : ${policyLine(f.retry)}`);
+  lines.push(`  policy   : ${policyLine(f)}`);
   return lines.join("\n");
 }
 
@@ -621,8 +671,14 @@ export function formatProviderFailure(f: ProviderFailure): string {
  *     how many attempts were spent, so "one empty 200" and "two empty 200s in a row" are
  *     distinguishable in the transcript, and it repeats that no other provider was tried, because
  *     the word "retry" in a failover-free harness is exactly the word that invites that reading.
+ *
+ * A fourth form — the working-path hop — is checked first and is the one case where "no other
+ * provider was tried" would be a lie: `hop` is set only by `credentials.ts`'s
+ * `handleZeroTokenEmpty`, and only on the abort, never on the hop that succeeded.
  */
-function policyLine(retry: RetryDisposition | undefined): string {
+function policyLine(f: Pick<ProviderFailure, "retry" | "hop">): string {
+  if (f.hop !== undefined) return hopPolicyLine(f.hop);
+  const retry = f.retry;
   const noFailover = "no failover, no substitution, no retry against another provider";
   if (retry === undefined) {
     return `abort — ${noFailover} (routing.json onProviderError.policy)`;
@@ -647,6 +703,30 @@ function policyLine(retry: RetryDisposition | undefined): string {
   return (
     `abort after ${spent} — the transient retry budget (${retry.maxAttempts}) is spent and the class ` +
     `recurred; ${noFailover} (routing.json onProviderError.policy, onProviderError.retry)`
+  );
+}
+
+/**
+ * The `policy` line for a zero-token `empty-response` — always an abort, since a hop that
+ * succeeded is never surfaced through this module in the first place.
+ *
+ *   - **exhausted** — the one hop for this streak was already spent, and the target it hopped to
+ *     failed too. No second hop: "no chain on the working path" is a promise this line keeps.
+ *   - **declined** — no hop was available at all (unconfigured, unresolvable, the same deployment
+ *     that just failed, no credential, or the session's streak-restart cap was already reached),
+ *     so this failure aborts exactly as it would have without the working-path hop.
+ */
+function hopPolicyLine(hop: HopDisposition): string {
+  if (hop.exhausted) {
+    return (
+      `abort — the one working-path hop for this streak is already spent (routed to ${hop.target}, ` +
+      `which failed again); no second hop, no failover into a third provider ` +
+      `(routing.json onProviderError.workingRoute)`
+    );
+  }
+  return (
+    `abort — zero-token empty-response qualifies for the working-path hop but ${hop.declinedReason}; ` +
+    `no failover, no substitution otherwise (routing.json onProviderError.workingRoute)`
   );
 }
 
