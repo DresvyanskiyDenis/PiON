@@ -215,7 +215,7 @@ provider has no row here.
   "policy": "abort",
   "substituteProvider": false,
   "report": ["provider", "model", "errorClass", "message", "causeChain"],
-  "errorClasses": ["auth", "quota", "network", "model-not-found", "policy", "empty-response"]
+  "errorClasses": ["auth", "quota", "network", "model-not-found", "policy", "cancellation", "empty-response"]
 }
 ```
 
@@ -237,7 +237,7 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
 [pi-config] provider call failed:
   provider    : <name>
   model       : <id>
-  error class : auth | quota | network | model-not-found | policy | empty-response
+  error class : auth | quota | network | model-not-found | policy | cancellation | empty-response
   message     : <upstream text>
   caused by   : <cause chain>
 ```
@@ -246,7 +246,7 @@ What you get instead is a good error, rendered by `extensions/lib/provider-error
 `policy` and `substituteProvider` are the two you should not change.
 
 !!! note "`empty-response` is a shape, not a message"
-    The other five are decided by reading the provider's error text. `empty-response` is not: it is
+    The other six are decided by reading the provider's error text. `empty-response` is not: it is
     an HTTP **200** with a well-formed body that carried no completion — zero content parts, a
     `stop`-family finish reason, and usage of zero prompt and zero completion tokens. Nothing in the
     stack sees that as a failure on its own; PI materialises it as an ordinary assistant turn, the
@@ -294,7 +294,7 @@ block to live in.
 | `maxStreakRestarts` | `2` | How many times one streak may be re-armed for a class other than the one that first spent its budget. See [below](#the-budget-is-per-class-restarts-are-bounded-per-streak) |
 | `onEmpty` | `{ "strategy": "identical", "maxExtraAttempts": 0 }` | What an `empty-response` retry is allowed to change. See [below](#onempty-what-the-retry-is-allowed-to-change) |
 
-Two of the six classes describe the weather and four describe a verdict, and only the first two are
+Two of the seven classes describe the weather and five describe a verdict, and only the first two are
 worth re-sending:
 
 - **`network`** — DNS, TLS, proxy, timeout, 5xx. The request never got an answer from the model, so
@@ -302,10 +302,13 @@ worth re-sending:
 - **`empty-response`** — a well-formed `200` whose body carried no completion. Nothing about the
   request caused it and nothing about it will be different next time.
 
-`auth`, `quota`, `model-not-found` and `policy` are answers. Retrying `auth` re-presents a
-credential that was just rejected; `quota` spends the next second of a budget that is already
-spent; `model-not-found` asks again for an id the endpoint does not serve; and retrying `policy`
-re-submits, on a loop, text a tenant filter just refused — which is how an account gets flagged.
+`auth`, `quota`, `model-not-found`, `policy` and `cancellation` are answers. Retrying `auth`
+re-presents a credential that was just rejected; `quota` spends the next second of a budget that is
+already spent; `model-not-found` asks again for an id the endpoint does not serve; retrying `policy`
+re-submits, on a loop, text a tenant filter just refused — which is how an account gets flagged; and
+`cancellation` is the most deliberate verdict of the five — the operator's own cancel is not a
+transient fault, it is terminal intent, and re-issuing the same call after it is retrying a decision,
+not a weather event.
 
 !!! danger "One retry, then abort — and the retry goes to the same provider and the same model"
     This is **not** failover, and it does not soften

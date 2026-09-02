@@ -1,8 +1,8 @@
 // EXT-13 — `onProviderError.retry`: which classified failures get one more attempt, WHAT IS
 // DIFFERENT ABOUT IT, and how the decision is rendered.
 //
-// The rule this file pins down is narrow on purpose. Two of the six classes — `network` and
-// `empty-response` — are provider artifacts: nothing about the request caused them. The other four
+// The rule this file pins down is narrow on purpose. Two of the seven classes — `network` and
+// `empty-response` — are provider artifacts: nothing about the request caused them. The other five
 // are verdicts about the request, and re-sending it unchanged asks the same question of the same
 // endpoint. The retry goes to the SAME provider and the SAME model; this is not failover arriving
 // under a new key, and several assertions below exist only to keep it from becoming that.

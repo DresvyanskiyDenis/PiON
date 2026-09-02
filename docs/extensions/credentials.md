@@ -69,7 +69,7 @@ No substitution, no retry into a *different* provider, no silent degradation —
 [one retry, to the same endpoint](#one-retry-to-the-same-endpoint) for the one thing that is
 retried. Classification and rendering live in `extensions/lib/provider-error.ts`.
 
-Five of the six classes are read off the provider's error text. The sixth, `empty-response`, is
+Six of the seven classes are read off the provider's error text. The seventh, `empty-response`, is
 recognised by the **shape** of a successful-looking turn: HTTP 200, zero content parts, a
 `stop`-family finish reason and zero usage. Left unreported it is not an error anywhere in the
 stack — the turn looks ordinary, the retry predicate skips it, and a headless run exits 0 with no

@@ -36,6 +36,7 @@
       "network",
       "model-not-found",
       "policy",
+      "cancellation",
       "empty-response"
     ],
     "retry": {
