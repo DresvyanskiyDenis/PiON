@@ -22,13 +22,14 @@ import { dirname } from "node:path";
 import { describeError } from "./once.ts";
 import { providerAbortLogPath } from "./paths.ts";
 
-/** The six classes fixed by `config/routing.json` -> `onProviderError.errorClasses`. */
+/** The seven classes fixed by `config/routing.json` -> `onProviderError.errorClasses`. */
 export type ProviderErrorClass =
   | "auth" // 401/403, expired or missing credential
   | "quota" // 429/402 with a quota, rate-limit or billing signal
   | "network" // DNS, TLS, proxy, timeout — anything that never reached the model
   | "model-not-found" // the id is not served by this provider (the Databricks endpoint trap, V-30)
   | "policy" // the provider refused on tenant policy (the V-12 outcome-D shape)
+  | "cancellation" // user cancelled the call before it finished (never retry, never resume)
   | "empty-response"; // a well-formed 200 whose body carried no completion at all
 
 /**
@@ -197,6 +198,14 @@ const QUOTA_PATTERNS: readonly RegExp[] = [
   /\busage limit\b/i,
 ];
 
+const CANCELLATION_PATTERNS: readonly RegExp[] = [
+  /\bAbortError\b/,
+  /\bcancell(ed|ation)\b/i,
+  /\buser cancel(led|s)\b/i,
+  /\boperator cancel(led|s)\b/i,
+  /\binterrupt(ed)?\b/i,
+];
+
 const NETWORK_PATTERNS: readonly RegExp[] = [
   /\bECONNREFUSED\b/,
   /\bECONNRESET\b/,
@@ -214,7 +223,6 @@ const NETWORK_PATTERNS: readonly RegExp[] = [
   /\bTLS\b/,
   /\bproxy\b/i,
   /\btimed? ?out\b/i,
-  /\bAbortError\b/,
   /\bterminated\b/i,
 ];
 
@@ -279,14 +287,15 @@ export function recoverStatus(input: ClassifyInput): number | undefined {
 }
 
 /**
- * Map a failure onto one of the five classes.
+ * Map a failure onto one of the seven classes.
  *
  * Order is load-bearing and each step is justified:
  *   1. policy — status is unreliable for this class (see POLICY_PATTERNS).
  *   2. model-not-found — a 404, or an explicit "no such model/endpoint" at any status.
  *   3. auth — 401/403 are unambiguous once policy has been excluded.
  *   4. quota — 402/429, or an explicit quota/billing signal at any status.
- *   5. network — 5xx, 408, or a transport-shaped error with no status at all.
+ *   5. cancellation — `AbortError`, or an explicit "cancelled"/"interrupted" signal.
+ *   6. network — 5xx, 408, or a transport-shaped error with no status at all.
  *
  * The status feeding those steps comes from `recoverStatus`, so a status that only ever existed
  * inside the error text steers the class exactly as one read off the wire would.
@@ -311,6 +320,7 @@ export function classifyProviderError(input: ClassifyInput): ProviderErrorClass 
   if (status === 402 || status === 429) return "quota";
   if (matchesAny(text, AUTH_PATTERNS)) return "auth";
   if (matchesAny(text, QUOTA_PATTERNS)) return "quota";
+  if (matchesAny(text, CANCELLATION_PATTERNS)) return "cancellation";
   if (status !== undefined && status >= 500) return "network";
   if (status === 408) return "network";
   if (matchesAny(text, NETWORK_PATTERNS)) return "network";
@@ -601,8 +611,8 @@ export function formatProviderFailure(f: ProviderFailure): string {
  *
  * Three forms, and the wording of each is load-bearing:
  *
- *   - **no retry in play** — the line this block has always carried, unchanged to the byte. Four
- *     of the six classes are verdicts about the request and end here, and so does every class
+ *   - **no retry in play** — the line this block has always carried, unchanged to the byte. Five
+ *     of the seven classes are verdicts about the request and end here, and so does every class
  *     when an operator sets `maxAttempts: 0`.
  *   - **retrying** — says which attempt this was and that the next one goes to the SAME provider
  *     and model. A reader who sees this line has not lost their turn, and the block above it is

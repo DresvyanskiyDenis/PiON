@@ -21,7 +21,7 @@
  * message, keeps the cause chain, and the turn aborts. No substitution, no retry into a different
  * provider, no silent degradation. Classification and rendering are in `lib/provider-error.ts`.
  *
- * Since 2026-08-30 two of the six classes get ONE more attempt before that abort — `network` and
+ * Since 2026-08-30 two of the seven classes get ONE more attempt before that abort — `network` and
  * `empty-response`, at the same provider and the same model, per `routing.json` ->
  * `onProviderError.retry` (`lib/provider-retry.ts` carries the argument). That is not failover
  * arriving by the back door: nothing here has ever re-issued a request anywhere else, and nothing

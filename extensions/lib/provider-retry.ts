@@ -63,6 +63,7 @@ const KNOWN_CLASSES: readonly ProviderErrorClass[] = [
   "network",
   "model-not-found",
   "policy",
+  "cancellation",
   "empty-response",
 ];
 
@@ -74,10 +75,13 @@ const KNOWN_CLASSES: readonly ProviderErrorClass[] = [
  *   - `empty-response` — a well-formed 200 whose body carried no completion. Observed on
  *     `github-copilot` and on `litellm` on the same day, both times on a request that was fine.
  *
- * The other four are verdicts, not weather. Retrying `auth` re-presents a credential that was just
+ * The other five are verdicts, not weather. Retrying `auth` re-presents a credential that was just
  * rejected; retrying `quota` spends the next second of a budget that is already spent; retrying
  * `model-not-found` asks for an id the endpoint does not serve; retrying `policy` re-submits text
- * a tenant filter just refused, and doing that on a loop is how an account gets flagged.
+ * a tenant filter just refused, and doing that on a loop is how an account gets flagged; retrying
+ * `cancellation` re-issues a call the operator deliberately stopped — the most terminal verdict of
+ * the five, since it is the one place the "verdict, not weather" argument is about intent rather
+ * than an endpoint's answer.
  */
 export const DEFAULT_RETRY_CLASSES: readonly ProviderErrorClass[] = ["network", "empty-response"];
 

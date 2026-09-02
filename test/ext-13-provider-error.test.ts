@@ -107,6 +107,33 @@ describe("classifyProviderError", () => {
       input: { message: "unable to verify the first certificate" },
       expected: "network",
     },
+
+    // --- cancellation -----------------------------------------------------------------------
+    {
+      name: "AbortError — a user cancelled the call",
+      input: { message: "AbortError: The operation was aborted by the user" },
+      expected: "cancellation",
+    },
+    {
+      name: "explicit 'cancelled' signal",
+      input: { message: "The request was cancelled by the operator" },
+      expected: "cancellation",
+    },
+    {
+      name: "explicit 'user cancelled' signal",
+      input: { message: "User cancelled the request" },
+      expected: "cancellation",
+    },
+    {
+      name: "interrupt signal",
+      input: { message: "Request interrupted by the user" },
+      expected: "cancellation",
+    },
+    {
+      name: "a timeout is still network, not cancellation",
+      input: { message: "Request timed out after 30000ms" },
+      expected: "network",
+    },
     {
       name: "PI diagnostics carry the code when the message does not",
       input: {
@@ -681,10 +708,11 @@ describe("the shipped routing table — the no-substitution contract this module
     ]);
   });
 
-  it("declares the six classes this module can produce, and no others", () => {
+  it("declares the seven classes this module can produce, and no others", () => {
     const declared = [...(routing.onProviderError?.errorClasses ?? [])].sort();
     assert.deepEqual(declared, [
       "auth",
+      "cancellation",
       "empty-response",
       "model-not-found",
       "network",

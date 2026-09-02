@@ -561,6 +561,25 @@ describe("onProviderError.retry — the wiring", () => {
     assert.deepEqual(pi.entries.map((e) => e.customType), ["provider_failure"]);
   });
 
+  it("never retries a user cancellation — the operator's own Esc is terminal intent", () => {
+    // An AbortError classifies as `cancellation` (`lib/provider-error.ts`), a class `routing.json`
+    // deliberately leaves out of `retry.classes`: the operator's own cancel is not a transient
+    // fault to retry through, so no follow-up is injected and the turn ends here.
+    const pi = fakePi();
+    register(pi as any);
+    const ctx = fakeCtx();
+
+    const [block] = run(pi, ctx, {
+      end: assistantFailure({ errorMessage: "AbortError: The operation was aborted" }),
+    });
+
+    assert.match(block!, /class {4}: cancellation/);
+    assert.match(block!, /policy {3}: abort — no failover/, "the pre-retry line, unchanged");
+    assert.doesNotMatch(block!, /retry \d of/);
+    assert.deepEqual(pi.sent, [], "no follow-up is injected");
+    assert.deepEqual(pi.entries.map((e) => e.customType), ["provider_failure"]);
+  });
+
   it("restores the budget after a turn that worked", () => {
     // The budget belongs to a streak of consecutive failures, not to the session: a transient
     // failure an hour after a recovered one is a new coin flip.
