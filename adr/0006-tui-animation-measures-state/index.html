@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/extensions/dispatch/">
+        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/adr/0006-tui-animation-measures-state/">
       
       
-        <link rel="prev" href="../big-results/">
+        <link rel="prev" href="../0005-unbounded-fan-out-on-runs-all/">
       
       
-        <link rel="next" href="../teammates/">
+        <link rel="next" href="../../reference/exit-codes/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>dispatch — tiers, depth, concurrency, isolation - PiON</title>
+        <title>ADR 0006: TUI animation is scoped to what measures state; interpolation is out - PiON</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dispatch-tiers-depth-concurrency-isolation" class="md-skip">
+        <a href="#adr-0006-tui-animation-is-scoped-to-what-measures-state-interpolation-is-out" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              dispatch — tiers, depth, concurrency, isolation
+              ADR 0006: TUI animation is scoped to what measures state; interpolation is out
             
           </span>
         </div>
@@ -321,13 +321,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../extensions/" class="md-tabs__link">
           
   
   
@@ -389,11 +387,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../adr/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -1853,8 +1853,6 @@
       
   
   
-    
-  
   
   
     
@@ -1878,23 +1876,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../extensions/" class="md-nav__link ">
               
   
   
@@ -1912,13 +1907,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1956,20 +1951,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
         
           
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
             
   
   
@@ -2005,7 +1997,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guard/" class="md-nav__link">
+      <a href="../../extensions/guard/" class="md-nav__link">
         
   
   
@@ -2033,7 +2025,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../trust/" class="md-nav__link">
+      <a href="../../extensions/trust/" class="md-nav__link">
         
   
   
@@ -2061,7 +2053,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../session-context/" class="md-nav__link">
+      <a href="../../extensions/session-context/" class="md-nav__link">
         
   
   
@@ -2089,7 +2081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../credentials/" class="md-nav__link">
+      <a href="../../extensions/credentials/" class="md-nav__link">
         
   
   
@@ -2117,7 +2109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cost-gate/" class="md-nav__link">
+      <a href="../../extensions/cost-gate/" class="md-nav__link">
         
   
   
@@ -2173,20 +2165,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
         
           
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
             
   
   
@@ -2222,7 +2211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../path-defaults/" class="md-nav__link">
+      <a href="../../extensions/path-defaults/" class="md-nav__link">
         
   
   
@@ -2250,7 +2239,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tool-masks/" class="md-nav__link">
+      <a href="../../extensions/tool-masks/" class="md-nav__link">
         
   
   
@@ -2278,7 +2267,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../path-rules/" class="md-nav__link">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
         
   
   
@@ -2306,7 +2295,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../skills-env/" class="md-nav__link">
+      <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
   
@@ -2334,7 +2323,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../skill-mask/" class="md-nav__link">
+      <a href="../../extensions/skill-mask/" class="md-nav__link">
         
   
   
@@ -2362,7 +2351,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../skills-lint/" class="md-nav__link">
+      <a href="../../extensions/skills-lint/" class="md-nav__link">
         
   
   
@@ -2418,20 +2407,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
         
           
-          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
             
   
   
@@ -2467,7 +2453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ask-user/" class="md-nav__link">
+      <a href="../../extensions/ask-user/" class="md-nav__link">
         
   
   
@@ -2495,7 +2481,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../web/" class="md-nav__link">
+      <a href="../../extensions/web/" class="md-nav__link">
         
   
   
@@ -2523,7 +2509,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../bash/" class="md-nav__link">
+      <a href="../../extensions/bash/" class="md-nav__link">
         
   
   
@@ -2551,7 +2537,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hooks/" class="md-nav__link">
+      <a href="../../extensions/hooks/" class="md-nav__link">
         
   
   
@@ -2579,7 +2565,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../input-transform/" class="md-nav__link">
+      <a href="../../extensions/input-transform/" class="md-nav__link">
         
   
   
@@ -2607,7 +2593,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../big-results/" class="md-nav__link">
+      <a href="../../extensions/big-results/" class="md-nav__link">
         
   
   
@@ -2640,10 +2626,8 @@
                 
   
   
-    
   
   
-  
     
     
       
@@ -2664,21 +2648,18 @@
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
             
   
   
@@ -2696,7 +2677,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2711,37 +2692,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    dispatch — tiers, depth, concurrency, isolation
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../extensions/dispatch/" class="md-nav__link">
         
   
   
@@ -2757,208 +2711,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-parts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The parts
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-two-non-negotiable-acceptance-criteria" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The two non-negotiable acceptance criteria
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-catalogue-is-a-dispatch-surface-not-decoration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The catalogue is a dispatch surface, not decoration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reasoning-effort-is-disclosed-never-assumed" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reasoning effort is disclosed, never assumed
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#async-runs-announce-their-own-terminal-state" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Async runs announce their own terminal state
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#an-async-child-that-came-back-empty-gets-one-follow-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        An async child that came back empty gets one follow-up
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-fleet-is-on-screen-not-behind-a-command" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The fleet is on screen, not behind a command
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The fleet is on screen, not behind a command">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#what-the-fleet-forgets-and-when" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the fleet forgets, and when
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-a-detached-child-leaves-in-the-session-file" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What a detached child leaves in the session file
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#load-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Load order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-a-tool_call-handler-and-not-a-tool" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why a tool_call handler and not a tool
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-workflow-floor-and-the-package-internal-it-rests-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The workflow floor, and the package internal it rests on
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-a-resolution-leaves-behind" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What a resolution leaves behind
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#a-blocking-wait-does-not-wake-on-heartbeats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A blocking wait does not wake on heartbeats
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-the-semaphore-cannot-reach" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where the semaphore cannot reach
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2971,7 +2723,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../teammates/" class="md-nav__link">
+      <a href="../../extensions/teammates/" class="md-nav__link">
         
   
   
@@ -2999,7 +2751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../message-agent/" class="md-nav__link">
+      <a href="../../extensions/message-agent/" class="md-nav__link">
         
   
   
@@ -3027,7 +2779,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../worktree/" class="md-nav__link">
+      <a href="../../extensions/worktree/" class="md-nav__link">
         
   
   
@@ -3055,7 +2807,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../jobs/" class="md-nav__link">
+      <a href="../../extensions/jobs/" class="md-nav__link">
         
   
   
@@ -3083,7 +2835,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tasks/" class="md-nav__link">
+      <a href="../../extensions/tasks/" class="md-nav__link">
         
   
   
@@ -3155,20 +2907,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
         
           
-          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
             
   
   
@@ -3204,7 +2953,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quota/" class="md-nav__link">
+      <a href="../../extensions/quota/" class="md-nav__link">
         
   
   
@@ -3232,7 +2981,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../subagent-cost/" class="md-nav__link">
+      <a href="../../extensions/subagent-cost/" class="md-nav__link">
         
   
   
@@ -3260,7 +3009,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../digest/" class="md-nav__link">
+      <a href="../../extensions/digest/" class="md-nav__link">
         
   
   
@@ -3288,7 +3037,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../compaction/" class="md-nav__link">
+      <a href="../../extensions/compaction/" class="md-nav__link">
         
   
   
@@ -3316,7 +3065,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../context-report/" class="md-nav__link">
+      <a href="../../extensions/context-report/" class="md-nav__link">
         
   
   
@@ -3344,7 +3093,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../context-imports/" class="md-nav__link">
+      <a href="../../extensions/context-imports/" class="md-nav__link">
         
   
   
@@ -3372,7 +3121,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../session-index/" class="md-nav__link">
+      <a href="../../extensions/session-index/" class="md-nav__link">
         
   
   
@@ -3400,7 +3149,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auto-title/" class="md-nav__link">
+      <a href="../../extensions/auto-title/" class="md-nav__link">
         
   
   
@@ -3428,7 +3177,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auto-update/" class="md-nav__link">
+      <a href="../../extensions/auto-update/" class="md-nav__link">
         
   
   
@@ -3456,7 +3205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../thinking-indicator/" class="md-nav__link">
+      <a href="../../extensions/thinking-indicator/" class="md-nav__link">
         
   
   
@@ -3484,7 +3233,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../loader-clock/" class="md-nav__link">
+      <a href="../../extensions/loader-clock/" class="md-nav__link">
         
   
   
@@ -3512,7 +3261,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../degradation-colors/" class="md-nav__link">
+      <a href="../../extensions/degradation-colors/" class="md-nav__link">
         
   
   
@@ -3540,7 +3289,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../write-diff/" class="md-nav__link">
+      <a href="../../extensions/write-diff/" class="md-nav__link">
         
   
   
@@ -3568,7 +3317,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../doctor/" class="md-nav__link">
+      <a href="../../extensions/doctor/" class="md-nav__link">
         
   
   
@@ -4043,6 +3792,8 @@
       
   
   
+    
+  
   
   
     
@@ -4068,20 +3819,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../adr/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -4099,13 +3853,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
@@ -4125,7 +3879,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0001-no-provider-failover/" class="md-nav__link">
+      <a href="../0001-no-provider-failover/" class="md-nav__link">
         
   
   
@@ -4153,7 +3907,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0002-fail-open-guard-fail-closed-hooks/" class="md-nav__link">
+      <a href="../0002-fail-open-guard-fail-closed-hooks/" class="md-nav__link">
         
   
   
@@ -4181,7 +3935,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0003-vendor-the-mcp-adapter/" class="md-nav__link">
+      <a href="../0003-vendor-the-mcp-adapter/" class="md-nav__link">
         
   
   
@@ -4209,7 +3963,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0004-egress-classes-are-declarative/" class="md-nav__link">
+      <a href="../0004-egress-classes-are-declarative/" class="md-nav__link">
         
   
   
@@ -4237,7 +3991,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adr/0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
+      <a href="../0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
         
   
   
@@ -4262,10 +4016,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../adr/0006-tui-animation-measures-state/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0006: TUI animation is scoped to what measures state; interpolation is out
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -4281,6 +4062,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reopen-this-if" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reopen this if
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -4531,10 +4398,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-parts" class="md-nav__link">
+  <a href="#context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The parts
+        Context
       
     </span>
   </a>
@@ -4542,10 +4409,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-two-non-negotiable-acceptance-criteria" class="md-nav__link">
+  <a href="#decision" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The two non-negotiable acceptance criteria
+        Decision
       
     </span>
   </a>
@@ -4553,10 +4420,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-catalogue-is-a-dispatch-surface-not-decoration" class="md-nav__link">
+  <a href="#consequences" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The catalogue is a dispatch surface, not decoration
+        Consequences
       
     </span>
   </a>
@@ -4564,10 +4431,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reasoning-effort-is-disclosed-never-assumed" class="md-nav__link">
+  <a href="#alternatives-considered" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reasoning effort is disclosed, never assumed
+        Alternatives considered
       
     </span>
   </a>
@@ -4575,126 +4442,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#async-runs-announce-their-own-terminal-state" class="md-nav__link">
+  <a href="#reopen-this-if" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Async runs announce their own terminal state
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#an-async-child-that-came-back-empty-gets-one-follow-up" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        An async child that came back empty gets one follow-up
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-fleet-is-on-screen-not-behind-a-command" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The fleet is on screen, not behind a command
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The fleet is on screen, not behind a command">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#what-the-fleet-forgets-and-when" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the fleet forgets, and when
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-a-detached-child-leaves-in-the-session-file" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What a detached child leaves in the session file
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#load-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Load order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-a-tool_call-handler-and-not-a-tool" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why a tool_call handler and not a tool
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-workflow-floor-and-the-package-internal-it-rests-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The workflow floor, and the package internal it rests on
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-a-resolution-leaves-behind" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What a resolution leaves behind
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#a-blocking-wait-does-not-wake-on-heartbeats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A blocking wait does not wake on heartbeats
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-the-semaphore-cannot-reach" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Where the semaphore cannot reach
+        Reopen this if
       
     </span>
   </a>
@@ -4729,7 +4480,7 @@
 
 
   
-    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/extensions/dispatch.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/adr/0006-tui-animation-measures-state.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4737,396 +4488,112 @@
   
 
 
-<h1 id="dispatch-tiers-depth-concurrency-isolation"><code>dispatch</code> — tiers, depth, concurrency, isolation<a class="headerlink" href="#dispatch-tiers-depth-concurrency-isolation" title="Permanent link">&para;</a></h1>
-<p><strong>There is no dispatcher in this module.</strong> The adopted sub-agents package is the dispatcher: agent
-discovery, the Markdown+frontmatter format, per-agent models and tool sets, structured delegation,
-per-agent permissions, worktrees, the async fleet.</p>
-<p>What ships here is the remainder. Configured by
-<a href="../../configuration/dispatch/"><code>config/dispatch.json</code></a> and
-<a href="../../configuration/routing/"><code>config/routing.json</code></a>.</p>
-<p>Registers <code>/agents</code>.</p>
-<h2 id="the-parts">The parts<a class="headerlink" href="#the-parts" title="Permanent link">&para;</a></h2>
+<h1 id="adr-0006-tui-animation-is-scoped-to-what-measures-state-interpolation-is-out">ADR 0006: TUI animation is scoped to what measures state; interpolation is out<a class="headerlink" href="#adr-0006-tui-animation-is-scoped-to-what-measures-state-interpolation-is-out" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Accepted</li>
+<li><strong>Date:</strong> 2026-09-02</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>PI writes the transcript into terminal scrollback, and that is a different medium from a GUI frame
+buffer. Anything animated outside a fixed bottom region corrupts the scroll history the moment the
+user scrolls — the repainted frames are gone, only the last one is left behind in a transcript that
+is supposed to be a record. Redraw is line-based, so motion over SSH/mosh/tmux tears and flickers
+rather than smoothly compositing; the artifacts are worst on the slowest channels, which is exactly
+where an operator spends the longest watching a long agent run. The two mediums fail differently on a
+dropped frame: a dropped frame in a browser is invisible, absorbed by the next paint; a dropped frame
+in a terminal is a visibly mangled line that stays mangled until the next full repaint.</p>
+<p>Without a standing rule, each renderer answers "should this animate?" for itself, and a review has no
+firmer ground to stand on than taste. Perceived responsiveness in a TUI comes from <strong>stable layout
+and progressive disclosure</strong> — content appearing as it becomes true — not from motion standing in for
+it. That is the distinction this decision makes precise.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p><strong>Animate only motion that encodes real state, never motion that interpolates between two states for
+its own sake.</strong></p>
+<p>Worth animating:</p>
+<ul>
+<li>A loader tied to real state: elapsed seconds plus the current phase (<code>thinking</code>, <code>tool: read</code>,
+  <code>streaming</code>, …) — motion that <em>encodes information</em> about what the harness is doing right now.</li>
+<li>Streaming assistant text — it animates for free as tokens arrive; there is no interpolation to add,
+  the model's own pace is the frame rate.</li>
+<li>At most a one-frame highlight on a block's collapse or expand. A height change that just snaps
+  looks like a glitch; anything more than one frame is decoration on top of a state change that
+  already read as instant.</li>
+</ul>
+<p>Not worth animating: easing curves, sliding panels, fades, and progress bars — anything that
+<em>interpolates</em> between two states rather than measuring one. A progress bar in particular implies a
+duration estimate this harness does not have, and does not get from the component shipped either (see
+Consequences).</p>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<p><strong>Positive</strong></p>
+<ul>
+<li>A contributor proposing a sliding panel or a progress bar has a written rule to read rather than a
+  fresh argument to relitigate on every PR.</li>
+<li>The distinction is mechanical enough to apply without a design review: does this motion encode a
+  value that changed, or does it just get from A to B more smoothly? If the second, it does not ship.</li>
+</ul>
+<p><strong>Negative</strong></p>
+<ul>
+<li>A loader that only measures elapsed time and phase reads as plainer than an equivalent GUI
+  affordance with a real progress bar — this decision accepts that trade rather than building one.</li>
+<li>Some contributors will read "no easing" as "no polish" rather than as "no motion this medium
+  cannot render without corrupting its own history."</li>
+</ul>
+<p><strong>Neutral, noted but not built</strong></p>
+<ul>
+<li>The upstream TUI component library this repository depends on (<code>@earendil-works/pi-tui</code>, pinned
+  transitively at <code>0.80.10</code> in <code>node_modules</code>) ships <code>box</code>, <code>loader</code>, <code>cancellable-loader</code>, <code>text</code>,
+  <code>truncated-text</code>, <code>markdown</code>, <code>spacer</code>, <code>select-list</code>, <code>settings-list</code>, <code>image</code>, <code>editor</code>, <code>input</code>
+  and <code>autocomplete</code> — no gauge, progress-bar, table, or sparkline component — and already lags the
+  agent package this repository pins directly (<code>@earendil-works/pi-coding-agent</code> at <code>0.84.4</code>,
+  <code>package.json:21</code>).</li>
+<li>In a binary-mode install, this repository's own source patches do not apply — a binary install runs
+  the upstream package unpatched, regardless of what is checked into this tree. A richer,
+  state-driven loader animation beyond what <code>pi-tui</code> already ships is therefore either an upstream
+  feature request against <code>pi-tui</code>, or a prototype confined to npm-mode installs with that gap
+  documented the same way any other binary-mode limitation would be. Neither is built by this
+  decision; it only sets the bar a future proposal has to clear — state-driven, not interpolated —
+  before that work starts.</li>
+</ul>
+<h2 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Part</th>
-<th>What it does</th>
+<th>Option</th>
+<th>Why not</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>depth.ts</code></td>
-<td>A depth limit that fails <strong>loudly at dispatch</strong>, on our number</td>
+<td>Leave it to per-PR review, no written rule</td>
+<td>This is the status quo the decision replaces. It relitigates the same argument each time a progress bar or a sliding panel is proposed, and "no, that will tear over SSH" is not obviously true until someone has watched it happen.</td>
 </tr>
 <tr>
-<td><code>semaphore.ts</code> + <code>concurrency.ts</code></td>
-<td>Per-provider concurrency from <code>routing.json</code>, <strong>queueing rather than erroring</strong></td>
+<td>Allow limited easing on state changes that are visually large (e.g. a panel replacing another)</td>
+<td>Easing is exactly the kind of motion that tears on a line-based redraw and leaves an unrecoverable artifact in scrollback the moment a user scrolls mid-animation. The size of the visual change does not change the medium's failure mode.</td>
 </tr>
 <tr>
-<td><code>isolation.ts</code></td>
-<td>Honours <code>isolation: worktree</code>; the worktree itself comes from <a href="../worktree/"><code>worktree</code></a></td>
-</tr>
-<tr>
-<td><code>tiers.ts</code></td>
-<td>Tier name → <code>provider/id</code>, from <code>routing.json</code>, the single source of truth</td>
-</tr>
-<tr>
-<td><code>catalogue.ts</code></td>
-<td>The model registry as a dispatch surface</td>
-</tr>
-<tr>
-<td><code>thinking.ts</code></td>
-<td>The reasoning-effort suffix: what was asked, what the model serves, what will actually run</td>
-</tr>
-<tr>
-<td><code>async-fleet.ts</code></td>
-<td>Re-reads the state a background run wrote for itself, and announces the ones that ended</td>
-</tr>
-<tr>
-<td><code>async-resume.ts</code></td>
-<td>Gives an async run that came back <strong>empty</strong> one automatic <code>resume</code>, once, ever</td>
+<td>Build a real progress bar once a duration estimate exists</td>
+<td>Reasonable, and explicitly not blocked by this decision — the "Reopen this if" section below names the condition. Building the affordance ahead of having anything honest to drive it would ship a bar that lies about progress, which is worse than no bar.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="the-two-non-negotiable-acceptance-criteria">The two non-negotiable acceptance criteria<a class="headerlink" href="#the-two-non-negotiable-acceptance-criteria" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>A typo in an agent file is a <code>session_start</code> error</strong>, not a surprise forty minutes into a long
-   run. When a tier once named a model id that did not exist in the provider's catalogue, eight
-   agent definitions refused to dispatch at session start, each naming itself and the tier. That is
-   the design working.</li>
-<li><strong>Naming a concrete <code>provider/id</code> is not a way around the existence check.</strong> A tier is resolved
-   and verified at <code>session_start</code>; a raw id typed at the call is verified at the call, against the
-   same registry, and refused with the closest real ids. Neither path can reach a model nothing
-   serves.</li>
-</ol>
-<div class="admonition note">
-<p class="admonition-title">There used to be a third one, and it was withdrawn on 2026-08-13</p>
-<p>Until then this list also read <em>"a confidential session cannot dispatch onto a public
-provider"</em>, and the module enforced it: the resolved provider's egress class had to be no
-looser than the session's, at load time and at call time.</p>
-<p>It was removed because it refused far more than it protected. Most providers are classed looser
-than a confidential session, so most agents became undispatchable and switching provider
-mid-session was impossible — while nothing about the actual network changed either way, since
-the class is a word in a config file and no socket is inspected. The classes stayed; the refusal
-went. They are printed wherever a model or an agent is listed, and refuse nothing.
-<a href="../../adr/0004-egress-classes-are-declarative/">ADR 0004</a>.</p>
-</div>
-<h2 id="the-catalogue-is-a-dispatch-surface-not-decoration">The catalogue is a dispatch surface, not decoration<a class="headerlink" href="#the-catalogue-is-a-dispatch-surface-not-decoration" title="Permanent link">&para;</a></h2>
-<p>A model cannot choose an id it does not know exists. So:</p>
+<h2 id="reopen-this-if">Reopen this if<a class="headerlink" href="#reopen-this-if" title="Permanent link">&para;</a></h2>
 <ul>
-<li>a call-time <code>provider/id</code> is checked for existence, and a bad one is refused <strong>with the closest
-  real ids</strong>;</li>
-<li>the selectable set is injected into the system prompt at <code>before_agent_start</code> as a <strong>Sub-agent
-  model selection</strong> block, so the orchestrating model can spend deliberately — a mechanical sweep on
-  a small model, a hard decision on a large one — instead of guessing an id.</li>
+<li><code>pi-tui</code> ships a gauge, progress-bar, table, or sparkline component upstream — then evaluate
+  whether a <em>state-driven</em> use of it (not an interpolated one) fits inside this policy, rather than
+  treating its arrival as license to add interpolation.</li>
+<li>A durable, honest duration or completion estimate becomes available somewhere in this harness (for
+  example, a preflight token estimate maturing into a full-turn estimate) — a progress bar driven by a
+  real number is a different proposal from one driven by a guess, and this ADR does not forbid it.</li>
+<li>Binary-mode installs gain a supported way to apply this repository's own patches on top of the
+  vendored package — that removes the constraint that currently confines any richer loader work to
+  npm-mode prototypes.</li>
 </ul>
-<p>The list is <strong>annotated, not filtered</strong>: every id the registry knows is shown, each with its
-provider's egress class — or <code>unlabelled</code>, when <code>routing.json</code> gives that provider no class. Since
-nothing refuses a dispatch on account of a class, hiding models by class would only shorten the menu
-while leaving them selectable by hand. Each tier line carries the same annotation plus the reasoning
-effort it resolves to, so the cost of a choice is visible at the point of choosing.</p>
-<p>Until 2026-08-13 the list was filtered by the session's own class and what had been removed was
-counted on one line. The filter went with the containment rule it implemented.</p>
-<h2 id="reasoning-effort-is-disclosed-never-assumed">Reasoning effort is disclosed, never assumed<a class="headerlink" href="#reasoning-effort-is-disclosed-never-assumed" title="Permanent link">&para;</a></h2>
-<p>A reasoning effort rides inside the model string as a suffix (<code>provider/id:max</code>), and that suffix is
-a <strong>request</strong>: PI clamps it against the model's declared vocabulary before the wire. Nothing warned
-about that, so a run commissioned at <code>max</code> could ship at <code>high</code> and record <code>max</code> in its own metadata
-— visibly wrong only to someone who went looking.</p>
-<p>Now every dispatch that would be clamped says so, naming the requested level, the effective one,
-what the model does serve, and which other configured providers serve what was asked — each with its
-egress class, because moving between classes is the operator's decision and not a routing
-optimisation. It is a hint: <strong>nothing is rerouted</strong>. The model string is rewritten to the effective
-level before the package sees it, so the run metadata and the announcement agree with the wire.</p>
-<p>The menu prints the same thing rather than the request alone — <code>effort high (asked max; &lt;provider&gt;
-does not serve it — serves low|medium|high)</code> — and <code>/agents</code> lists any tier in that state under
-<code>reasoning effort CLAMPED:</code>. A model whose vocabulary the registry does not know produces no
-disclosure and no rewrite: "cannot say" must not render as "no clamp will happen". Whether a clamp
-warns or refuses is
-<a href="../../configuration/dispatch/#onthinkingclamp"><code>onThinkingClamp</code></a>.</p>
-<h2 id="async-runs-announce-their-own-terminal-state">Async runs announce their own terminal state<a class="headerlink" href="#async-runs-announce-their-own-terminal-state" title="Permanent link">&para;</a></h2>
-<p><code>pi-subagents</code> acknowledges an async dispatch with a promise to wake you when it finishes. When that
-delivery path fails, nothing enters the transcript at all — and the acknowledgement is then the only
-in-context evidence the orchestrator has, so it keeps reporting a run that died seconds ago as live.
-Measured: every async result file of one session still on disk, undeleted, <code>"state": "failed"</code>, and
-zero notifications in the transcript.</p>
-<p>This module does not add a second lifecycle. The authoritative state is already on disk in the run's
-own <code>status.json</code>, written by the package's runner; the only thing missing was that nobody read it
-unless the model thought to ask. So each async spawn's directory is remembered, re-read at
-<code>turn_end</code>, and each run that has reached a terminal state and has not been reported yet produces one
-message. <code>paused</code> is deliberately <strong>not</strong> terminal — announcing it would spend the run's single
-announcement and hide the real ending.</p>
-<p>Duplication was chosen over silence: if the package's own notification does arrive, you may hear
-about a finished run twice. Being told twice is a nuisance; not being told is a wrong answer. The
-upstream delivery failure is routed around, not repaired.</p>
-<p>That trade does <strong>not</strong> extend to your own reads. A run you waited on, polled, or read the artifact
-of is marked consumed and never announced — the announcement is for the run nobody told you about.
-Measured 2026-08-26: one run was waited on, polled, read and its todo closed, and the announcement
-arrived two minutes later saying "read the artifact above". That is not a doubled report, it is a
-stale instruction to reconcile against work already done. Consumption requires the run's own
-<code>status.json</code> to be terminal at the moment you looked: polling a run that is still running says
-nothing about how it ends, so it does not spend the announcement, and neither does reading a run
-that never wrote a <code>status.json</code> — "never started" still gets said.</p>
-<p>The block is built once at <code>session_start</code> and is byte-identical for the rest of the session, so it
-does not churn the prompt-cache prefix. <code>/agents</code> prints the same text <strong>verbatim</strong> — if the human
-and the model are reading different lists, the one nobody can see is the one that is wrong.</p>
-<h2 id="an-async-child-that-came-back-empty-gets-one-follow-up">An async child that came back empty gets one follow-up<a class="headerlink" href="#an-async-child-that-came-back-empty-gets-one-follow-up" title="Permanent link">&para;</a></h2>
-<p>Reporting a failure is not recovering from it, and one failure is worth recovering from
-automatically: the run that ended carrying the runner's own words —
-<code>Subagent produced no output (possible model cold-start or empty response).</code> — a cold start or a
-dropped first token, where the work was never attempted and re-dispatching by hand costs a full
-prompt again.</p>
-<p><a href="../../configuration/settings/#subagentswatchdog"><code>config/settings.default.json</code></a> has asked for that
-recovery since the block was written, under <code>subagents.watchdog.asyncCompletion</code>. The pinned
-<code>pi-subagents</code> parses the key and reads it in no runtime, so the request went nowhere.
-<code>async-resume.ts</code> is the consumer on this side: when the <code>turn_end</code> sweep reconciles a terminal run
-whose error carries that sentence, one <code>resume</code> goes out over the package's in-process RPC
-(<code>subagents:rpc:v1:request</code>) with a message telling the child to produce its result, partial if need
-be, rather than to try again in the abstract. Nothing upstream changed — the canary in
-<a href="../../operations/verification/"><code>test/dispatch/watchdog-settings.test.ts</code></a> still asserts that the
-package itself consumes the setting nowhere, and the day that fails, this module is what should be
-re-read.</p>
-<p><strong>Gated on both flags, and only those.</strong> <code>watchdog.enabled</code> AND <code>asyncCompletion.enabled</code>, both
-literally <code>true</code>, read from the agent settings file the package itself reads. The AND is the
-package's own composition rule, and both flags ship OFF upstream, so anything looser would turn this
-on for a tree that never asked for it. <code>asyncCompletion.autoFollowBlockers</code> is read, reported, and
-deliberately does not gate anything here: a <em>blocked</em> child — one that came back with a question or
-a stated obstacle — is a different recovery with a different message and a different budget, and it
-belongs to the watchdog's own follow-up cycle.</p>
-<p><strong>One attempt, enforced against a file.</strong> The failure being recovered from is "the child said
-nothing". A resume that also says nothing is the same failure, and answering it the same way is a
-loop that spends a model call per iteration for as long as the session lives. So the budget is one
-per run, recorded in <code>~/.local/state/pi-config/dispatch/async-resume.jsonl</code> <strong>before</strong> the request is
-emitted — a crash between the write and the send costs one lost follow-up, a crash the other way
-round would cost an unbounded number of them — and a ledger that cannot be written means no request
-at all. The run a successful resume starts is stamped as spent before it is adopted into the fleet,
-so its ending is announced like any other run's while it can never earn a follow-up of its own. That
-is what stops a chain of empty children from walking the budget forward one run at a time.</p>
-<p>The outcome — resumed, refused, or no reply inside 30s — arrives as one message, and the terminal
-announcement marks the run it already answered for with <code>↻</code> and withdraws the re-dispatch
-instruction for it. Telling the model to re-dispatch a run the harness is already resuming is two
-instructions that contradict each other, and it can only obey one.</p>
-<h2 id="the-fleet-is-on-screen-not-behind-a-command">The fleet is on screen, not behind a command<a class="headerlink" href="#the-fleet-is-on-screen-not-behind-a-command" title="Permanent link">&para;</a></h2>
-<p>The announcement above is written for the model. It fires once per run, and only after the run is
-over — so it is not the surface that answers <em>"is anything still running?"</em>.</p>
-<p>In the TUI, a panel above the editor carries that: every async run this session is still tracking,
-with the state its own <code>status.json</code> reports right now, present exactly while at least one run is
-tracked and gone the moment none is.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>async subagents — 1 running · 1 done · 1 needs attention
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ▸ data-engineer [66971211] running
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  ✓ code-reviewer [6e77fc27] complete
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ? researcher   [a4c167dd] NEVER STARTED
-</span></code></pre></div>
-<p>Four glyphs, no colour: <code>▸</code> live, <code>✓</code> finished, <code>✗</code> failed, <code>?</code> never started. The distinction is
-shape rather than hue, so it survives a screenshot, a colour-blind reader and a terminal that has
-quantised the palette. <code>NEVER STARTED</code> is the case only this module can report — a run the package
-handed back an id for and then never recorded a start for, which a fleet view built on the
-package's own run list cannot show, because the run never registered.</p>
-<p><code>/agents</code> prints the same verdicts outside the TUI. It carries the dispatch registry as well — what
-<em>can</em> be dispatched, on what model — which is a catalogue, not live state, and would be wrong as a
-permanent panel. The panel makes the common case free; it does not take a diagnostic away.</p>
-<div class="admonition note">
-<p class="admonition-title">Why it polls, and what that costs</p>
-<p>The state lives on disk and changes with no event reaching the process: a run completes while
-the model is mid-stream, or while you are typing. Repainting only at the end of a turn would
-produce a panel that is confidently wrong for exactly as long as you are looking at it;
-repainting on a per-token event would re-read every status file per token.</p>
-<p>So there is one interval — one <code>readFileSync</code> per tracked run per second — and it exists only
-while a run is tracked. It is <code>unref()</code>d, so it can never hold the process open; it stops itself
-on the first tick that finds nothing to show; and it is torn down at session shutdown. That
-middle bound was unreachable until the fleet learned to retire what it had reported — with
-nothing ever removed, a session was never empty again after its first async run — which is why
-the tick runs the retirement sweep itself: the poll is the only thing still ticking once a
-session goes idle, so it is the only place that can retire the last settled run. The tests
-wrap <code>setInterval</code>/<code>clearInterval</code> and require zero timers created outside the TUI, zero while
-the fleet is empty, exactly one across repeated refreshes, and zero still open afterwards.</p>
-<p>Outside the TUI nothing is painted and no timer is started. The guard is the run mode, not
-<code>hasUI</code> — <code>hasUI</code> is true in RPC mode too, where there is no editor for a widget to sit above.</p>
-</div>
-<div class="admonition note">
-<p class="admonition-title">It is a display, not a control, and <code>/compact</code> does not change that</p>
-<p>Reported as "after <code>/compact</code> the panel is still displayed but the down arrow no longer selects
-the async runs", with a prescribed fix of repainting the panel from a <code>session_compact</code> handler.
-Both halves are wrong, and no code change was warranted.</p>
-<p>The panel has never been selectable, before or after any compaction. It is published as a
-<code>string[]</code>, which the host wraps in a <code>Container</code> of <code>Text</code> components — there is no
-<code>handleInput</code> on that, and <code>ExtensionWidgetOptions</code> carries <code>placement</code> and nothing else.
-Widgets are never given focus either; <code>setFocus</code> is applied to overlays and selectors only. A
-repaint cannot make a <code>Text</code> container take a keypress, and this panel already repaints every
-second.</p>
-<p>Compaction does not disturb widgets at all. <code>/compact</code> only compacts the session; the host's
-widget and terminal-input registries are cleared solely on session replacement and on <code>/reload</code>,
-which are also the only events that make a captured <code>ExtensionContext</code> go stale — which is why
-the pinned context this poll paints from survives a compaction.</p>
-<p>Selection lives in the <code>pi-subagents</code> fleet view, the <code>belowEditor</code> line reading "↓/← to
-inspect": it registers a component <em>factory</em> and owns a terminal-input subscription, and it
-stays enabled. One thing there does go quiet around a compaction, and it is upstream policy
-rather than anything this module can shorten: an <strong>automatic</strong> pass suspends the package's
-widgets, clearing the fleet view and making its key handler decline the key until the agent
-settles. A manual <code>/compact</code> is exempt by the same guard, and either way it is a window inside a
-turn, not a stuck state.</p>
-</div>
-<div class="admonition warning">
-<p class="admonition-title">Why this is the <em>only</em> widget above the editor</p>
-<p><code>config/subagent.default.json</code> sets <code>asyncWidget: false</code>, which turns off the <code>pi-subagents</code>
-package's own above-editor block for active background runs. That is a bug fix, not a
-preference for our own rendering.</p>
-<p>Two <code>aboveEditor</code> widgets do not stack in a stable order. The host keeps same-placement widgets
-in a <code>Map</code> and renders them in insertion order, but <code>setWidget</code> <strong>deletes the key and
-re-inserts it on every update</strong> — content-only changes included. Re-insertion moves a key to
-the tail, so the rendered order is <em>least-recently-painted first</em>: whichever block painted most
-recently sinks to the bottom. With two painters on unsynchronised timers that is not a
-tie-break, it is a flip, and at a sub-second repaint rate the two blocks visibly swap places
-several times a second. Nothing in PI's extension or TUI documentation specifies ordering among
-same-placement widgets — only <code>placement</code> itself — so it is an emergent property of the
-implementation rather than a contract. <strong>If you add a second <code>aboveEditor</code> widget, this is what
-you are joining.</strong></p>
-<p>Being the sole painter is the only fix for that; height-locking one of two blocks does nothing
-about their order. It is also why this panel gates its own repaints on a text diff of what it
-last painted: an unchanged tick that called <code>setWidget</code> anyway would re-order the widget for
-free.</p>
-<p>The panel is a fixed block in its own right, too. It truncates every line by <strong>display width</strong>
-rather than <code>String.length</code> — a CJK glyph is one UTF-16 unit and two columns, a combining mark
-one unit and zero — because a line that overruns the terminal wraps, and a wrapped line costs a
-row exactly as an extra line would. And it honours the host's own <code>MAX_WIDGET_LINES</code> of 10:
-past that the host truncates the array <em>and appends a line of its own</em>, so the panel degrades
-deliberately instead, and says how many runs it is not showing rather than dropping them
-silently.</p>
-<p>What this does not turn off: FleetView keeps its default <code>belowEditor</code> placement, so the Fleet
-inspector (<code>Ctrl+Alt+F</code>), <code>/subagents-fleet</code>, completion notifications and lifecycle events are
-all untouched.</p>
-</div>
-<h3 id="what-the-fleet-forgets-and-when">What the fleet forgets, and when<a class="headerlink" href="#what-the-fleet-forgets-and-when" title="Permanent link">&para;</a></h3>
-<p>Both surfaces list what the fleet is still <em>tracking</em>, which is not the same as everything it ever
-started. A run is retired from the fleet two minutes after it settles:</p>
-<ul>
-<li>a run that reached a terminal state, or never wrote a <code>status.json</code> at all, is retired once it has
-  been <strong>reported</strong> — announced to the model, or read by the model itself — and two minutes have
-  passed since the first sweep that saw both. The ledger gate is what stops a run being dropped
-  before its ending is in the session;</li>
-<li>a <code>paused</code> run whose runner has <strong>provably exited</strong> is retired on the two minutes alone. The proof
-  is the runner's own <code>&lt;asyncDir&gt;/process-terminal.json</code> in state <code>observed</code>; the other three states
-  it may carry (<code>pending</code>, <code>unknown</code>, <code>not-started</code>), and an absent or unparseable file, all mean
-  "cannot say" and keep the run. Such a run is never announced — <code>paused</code> is not terminal, because
-  it really can be resumed — so requiring the ledger for it would be requiring something that can
-  never happen.</li>
-</ul>
-<p>The pid in <code>status.json</code> is deliberately <strong>not</strong> consulted. A pid freed hours ago is very likely
-reissued, so <code>process.kill(pid, 0)</code> reports a dead runner as alive — the exact failure being fixed,
-made permanent; <code>kill</code> across uids throws <code>EPERM</code>, which also reads as alive; and the field is
-optional, so a condition resting on it cannot fire at all for a run whose status file never carried
-one.</p>
-<p>Retiring removes the run from the panel and from <code>/agents</code> and does nothing else: the run directory,
-its <code>status.json</code>, its session file and its resumability are untouched, and <code>/subagents-fleet</code> still
-lists it, because that view re-derives runs from disk. That is the cost, stated plainly — <code>/agents</code>
-no longer lists a run that ended more than two minutes ago, and it says <em>tracked by this session</em>
-rather than <em>started by</em> because of it.</p>
-<p>Without this the fleet only ever grew. Every finished run stayed in it for the life of the session,
-so the poll above re-read fifty dead status files a second for an hour; the panel filled with
-history and pushed the running children behind "… and N more"; and — measured on one real session —
-106 paused runs whose runners had exited sat on the panel as running children, the oldest 276
-minutes old.</p>
-<h2 id="what-a-detached-child-leaves-in-the-session-file">What a detached child leaves in the session file<a class="headerlink" href="#what-a-detached-child-leaves-in-the-session-file" title="Permanent link">&para;</a></h2>
-<p>A run that was detached or interrupted is still <em>running</em> when its result is handed back, and the
-package's own compaction of a finished result bails out on exactly that condition. So those runs —
-and only those — hand the parent the child's live message array inside the tool result's <code>details</code>.</p>
-<p>That costs nothing at the model: <code>details</code> is documented as not sent to the LLM, and the provider
-layer serialises the tool call id, the content and the error flag and reads nothing else. It is
-written verbatim into the session file, though, and <code>bin/pi-digest-drain</code> summarises that file <strong>by
-byte count</strong> — the last <code>maxTranscriptBytes</code> of it. A child transcript landing there pushes an equal
-number of bytes of real conversation out of the window the summariser is shown, and nothing in the
-resulting <a href="../digest/">digest</a> says anything is missing.</p>
-<p>So the <code>tool_result</code> handler drops that array, and <strong>only while the child still says where its full
-record lives</strong> — its <code>transcriptPath</code> or its <code>sessionFile</code>. When neither survives, the array in hand
-is the only copy of what that child did, and a run that died without writing a transcript is exactly
-the run somebody will want to read; it is kept, and the result is passed on untouched. Nothing else
-is ever removed: the bounded <code>progress</code> snapshot, the final output, the error, the tool-call
-summaries and the async run's own <code>asyncId</code>/<code>asyncDir</code> all ride through as they arrived.</p>
-<h2 id="load-order">Load order<a class="headerlink" href="#load-order" title="Permanent link">&para;</a></h2>
-<p><a href="../guard/"><code>guard</code></a> <strong>must</strong> load before this module. PI iterates <code>tool_call</code> handlers in load order
-and returns on the first block; a blocked dispatch must never have had its arguments rewritten
-first.</p>
-<p>This module in turn must load before <a href="../teammates/"><code>teammates</code></a>, <a href="../worktree/"><code>worktree</code></a> and
-<a href="../jobs/"><code>jobs</code></a>, which register providers and vetoes into registries it owns.</p>
-<h2 id="why-a-tool_call-handler-and-not-a-tool">Why a <code>tool_call</code> handler and not a tool<a class="headerlink" href="#why-a-tool_call-handler-and-not-a-tool" title="Permanent link">&para;</a></h2>
-<p>The dispatch tool belongs to the package. Everything this module does to a dispatch — resolve a
-tier, lower a fan-out width, point a child at a worktree, refuse a call — is a mutation of or a veto
-on a call the package's tool receives. Registering a competing tool would give the model two ways to
-do the same thing, one of them unguarded.</p>
-<h2 id="the-workflow-floor-and-the-package-internal-it-rests-on">The workflow floor, and the package internal it rests on<a class="headerlink" href="#the-workflow-floor-and-the-package-internal-it-rests-on" title="Permanent link">&para;</a></h2>
-<p>A <code>workflowScript</code> call launches children <em>inside</em> the package, past the point where this module
-turns a tier word into a <code>provider/model</code>. A child that names no model therefore arrives at PI's own
-substring matcher carrying its agent file's tier word, and that matcher will resolve a word like
-<code>light</code> onto whatever provider id happens to contain it — routing by accident, onto a provider
-<code>models.json</code> never declared, surfacing as a credentials error rather than as the substitution it
-is.</p>
-<p>So when a <code>workflowScript</code> names no <code>model</code>, the resolved
-<a href="../../configuration/dispatch/#defaulttier-and-defaultegress"><code>defaultTier</code></a> is written onto the call
-as a <strong>floor</strong>: <code>pi-subagents</code> keeps a top-level <code>model</code> in its workflow child defaults and spreads
-it <em>underneath</em> each child's own parameters, so children that name no model inherit it and children
-that name one are untouched. The pin is announced when it happens, in wording that says it is a
-floor and what overrides it.</p>
-<p>This is the one rule in the module that depends on a package <strong>internal</strong> rather than on a
-documented argument (<code>pi-subagents</code> 0.41.0, <code>src/runs/foreground/subagent-executor.ts</code>, the
-<code>workflowChildDefaults</code> destructure and the child-params spread). <code>test/dispatch/rules.test.ts</code>
-asserts that source's shape directly, so an upgrade that drops <code>model</code> from the defaults, or flips
-the spread order, fails the suite instead of quietly changing what a fan-out runs on. Re-check it
-whenever the package is upgraded.</p>
-<h2 id="what-a-resolution-leaves-behind">What a resolution leaves behind<a class="headerlink" href="#what-a-resolution-leaves-behind" title="Permanent link">&para;</a></h2>
-<p><code>/agents</code> describes what <strong>can</strong> be dispatched. It cannot answer <em>what did this delegation actually
-run on, and why</em> — so every resolution is written to the <a href="../session-index/">session index</a> as one
-row, under kind <code>dispatch</code> and name <code>dispatch.resolve:&lt;agent&gt;</code>. That is the same
-<code>&lt;domain&gt;.&lt;action&gt;:&lt;subject&gt;</code> shape <a href="../teammates/">teammates</a> writes into the same bucket, so
-<code>/index</code> and <code>bin/pi-log events</code> read one stream rather than two incompatible ones.</p>
-<p>The payload carries identifiers only: the <code>subagent</code> tool the call came in on, the agent named, the
-resolved provider, and the model record — where the spec came from (<code>from</code>), what it resolved to
-(<code>to</code>), the tier if it came from one, and <code>defaultedScope</code> when the value was the
-<a href="../../configuration/dispatch/#defaulttier-and-defaultegress"><code>defaultTier</code></a> rather than something
-asked for. The clamped concurrency and the isolation appear too, when either was applied.</p>
-<p>Two properties are deliberate, and a consumer of <code>/index</code> has to know both:</p>
-<ul>
-<li><strong>The row is written on resolution, not on rewrite.</strong> "The call already named exactly the model we
-  resolved to" is still a resolution worth recording; keying the row off the rewrite would silently
-  under-report a real share of delegations.</li>
-<li><strong>A refused call writes no <code>dispatch.resolve</code> row.</strong> The block is already carried by the guarded
-  handler's own audit entry, and a call that resolved no model has nothing to say about what it ran
-  on. Reading only this kind therefore counts delegations that proceeded — the refusals are in the
-  other place.</li>
-</ul>
-<p>Logging cannot fail a dispatch. The write swallows its own failures by contract, and the session-id
-lookup that precedes it is wrapped, so an unwritable index degrades the event log and leaves the
-verdict and the arguments exactly as they were.</p>
-<h2 id="a-blocking-wait-does-not-wake-on-heartbeats">A blocking wait does not wake on heartbeats<a class="headerlink" href="#a-blocking-wait-does-not-wake-on-heartbeats" title="Permanent link">&para;</a></h2>
-<p><code>subagent_wait</code> is the one tool in <code>dispatch</code>'s rule set that dispatches nothing: it blocks. The
-<code>DSP-WAIT</code> rule fires on it, writes <code>stopOnAttention: false</code> onto a blocking call that did not name
-the flag, and never blocks or refuses.</p>
-<p>The reason is that <code>pi-subagents</code> resolves the flag as
-<code>params.stopOnAttention ?? deps.stopOnAttention !== false</code>, so an omitted parameter means <strong>true</strong>
-and the wait ends on <em>any</em> <code>needs_attention</code> run. Two of the three producers of that state are
-heuristics rather than questions: idle beyond 60 s (scaled ×2/×5/×10 for medium/high/xhigh thinking)
-and one tool call open for 240 s or more. A child thinking hard, or four minutes into one <code>bash</code>, is
-not asking the lead anything, and each of those wakes costs the lead a full re-read of its context
-at cache-miss price.</p>
-<p>Nothing is lost by lowering it. The genuine ask, a pending <code>contact_supervisor</code>/intercom request, is
-checked <em>independently</em> of the flag (<code>isDone()</code> reads <code>stopOnAttention || hasSupervisorTool(run)</code>),
-and terminal states and the timeout are separate branches of the same predicate.</p>
-<p>It is a call rewrite and not a key because the package exposes no key: the wait tool's own config
-resolves to <code>{ enabled }</code> and nothing else, and <code>subagents.watchdog</code> is a strict parser that rejects
-unknown fields. The only injector of the dep is the package's internal auto-drain, which passes
-<code>false</code> — upstream agrees with the value, it just does not expose it. Patching <code>node_modules</code> is not
-the alternative; <code>PC-21</code> keeps the vendored tree unmodified and the installed tree is what runs.</p>
-<ul>
-<li>An explicit <code>stopOnAttention</code> on the call always wins, in either direction.</li>
-<li>A <code>nonBlocking: true</code> subscription is left alone: it returns before the flag is read.</li>
-<li><code>waitStopOnAttention: true</code> in <code>dispatch.json</code> restores the package default by writing nothing.</li>
-<li>The first rewritten wait of a session announces the changed semantics once, because the package's
-  own tool description still advertises the opposite.</li>
-</ul>
-<h2 id="where-the-semaphore-cannot-reach">Where the semaphore cannot reach<a class="headerlink" href="#where-the-semaphore-cannot-reach" title="Permanent link">&para;</a></h2>
-<p>Documented honestly in <code>extensions/dispatch/concurrency.ts</code>: there is no extension-visible hook
-inside PI's own <code>Promise.all</code> phase, so parallelism PI initiates internally is outside its scope.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<p><a href="../../configuration/dispatch/"><code>dispatch.json</code></a> · <a href="../../configuration/routing/"><code>routing.json</code></a> ·
-<a href="../../extending/subagents/">Adding a sub-agent</a> · <a href="../teammates/">teammates</a></p>
+<ul>
+<li><a href="../../concepts/architecture/">Concepts: architecture</a> — where the TUI's rendering constraints are
+  documented alongside the rest of the harness</li>
+</ul>
 
 
 

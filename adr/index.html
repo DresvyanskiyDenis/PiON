@@ -3813,6 +3813,8 @@
       
         
       
+        
+      
     
     
     
@@ -3997,6 +3999,34 @@
     
   
     ADR 0005: A wide runs.all fan-out is not width-capped, and that is accepted
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="0006-tui-animation-measures-state/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0006: TUI animation is scoped to what measures state; interpolation is out
   
 
     
@@ -4291,7 +4321,7 @@
 
 
 <h1 id="architecture-decisions">Architecture decisions<a class="headerlink" href="#architecture-decisions" title="Permanent link">&para;</a></h1>
-<p>Five decisions shape most of what is surprising about this repository. They are recorded here so a
+<p>Six decisions shape most of what is surprising about this repository. They are recorded here so a
 reader who disagrees can see the argument rather than guess at it, and so a contributor who wants to
 reverse one knows what they are arguing against.</p>
 <table>
@@ -4327,6 +4357,11 @@ reverse one knows what they are arguing against.</p>
 <td><a href="0005-unbounded-fan-out-on-runs-all/">0005</a></td>
 <td>A wide <code>runs.all</code> fan-out is not width-capped; the gap is documented rather than enforced</td>
 <td>Accepted, amended 2026-08-26 (evidence re-verified at <code>pi-subagents</code> 0.57.0)</td>
+</tr>
+<tr>
+<td><a href="0006-tui-animation-measures-state/">0006</a></td>
+<td>TUI animation is scoped to motion that encodes real state; interpolation (easing, sliding, fades, progress bars) is out</td>
+<td>Accepted</td>
 </tr>
 </tbody>
 </table>
