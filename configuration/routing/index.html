@@ -4941,7 +4941,7 @@ provider has no row here.</p>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"policy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abort"</span><span class="p">,</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"substituteProvider"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">"report"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"provider"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model"</span><span class="p">,</span><span class="w"> </span><span class="s2">"errorClass"</span><span class="p">,</span><span class="w"> </span><span class="s2">"message"</span><span class="p">,</span><span class="w"> </span><span class="s2">"causeChain"</span><span class="p">],</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"errorClasses"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"auth"</span><span class="p">,</span><span class="w"> </span><span class="s2">"quota"</span><span class="p">,</span><span class="w"> </span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model-not-found"</span><span class="p">,</span><span class="w"> </span><span class="s2">"policy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">]</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"errorClasses"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"auth"</span><span class="p">,</span><span class="w"> </span><span class="s2">"quota"</span><span class="p">,</span><span class="w"> </span><span class="s2">"network"</span><span class="p">,</span><span class="w"> </span><span class="s2">"model-not-found"</span><span class="p">,</span><span class="w"> </span><span class="s2">"policy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"cancellation"</span><span class="p">,</span><span class="w"> </span><span class="s2">"empty-response"</span><span class="p">]</span>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <div class="admonition danger">
@@ -4960,7 +4960,7 @@ it.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[pi-config] provider call failed:
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  provider    : &lt;name&gt;
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  model       : &lt;id&gt;
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  error class : auth | quota | network | model-not-found | policy | empty-response
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  error class : auth | quota | network | model-not-found | policy | cancellation | empty-response
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  message     : &lt;upstream text&gt;
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  caused by   : &lt;cause chain&gt;
 </span></code></pre></div>
@@ -4968,7 +4968,7 @@ it.</p>
 <code>policy</code> and <code>substituteProvider</code> are the two you should not change.</p>
 <div class="admonition note">
 <p class="admonition-title"><code>empty-response</code> is a shape, not a message</p>
-<p>The other five are decided by reading the provider's error text. <code>empty-response</code> is not: it is
+<p>The other six are decided by reading the provider's error text. <code>empty-response</code> is not: it is
 an HTTP <strong>200</strong> with a well-formed body that carried no completion — zero content parts, a
 <code>stop</code>-family finish reason, and usage of zero prompt and zero completion tokens. Nothing in the
 stack sees that as a failure on its own; PI materialises it as an ordinary assistant turn, the
@@ -5034,7 +5034,7 @@ block to live in.</p>
 </tr>
 </tbody>
 </table>
-<p>Two of the six classes describe the weather and four describe a verdict, and only the first two are
+<p>Two of the seven classes describe the weather and five describe a verdict, and only the first two are
 worth re-sending:</p>
 <ul>
 <li><strong><code>network</code></strong> — DNS, TLS, proxy, timeout, 5xx. The request never got an answer from the model, so
@@ -5042,10 +5042,13 @@ worth re-sending:</p>
 <li><strong><code>empty-response</code></strong> — a well-formed <code>200</code> whose body carried no completion. Nothing about the
   request caused it and nothing about it will be different next time.</li>
 </ul>
-<p><code>auth</code>, <code>quota</code>, <code>model-not-found</code> and <code>policy</code> are answers. Retrying <code>auth</code> re-presents a
-credential that was just rejected; <code>quota</code> spends the next second of a budget that is already
-spent; <code>model-not-found</code> asks again for an id the endpoint does not serve; and retrying <code>policy</code>
-re-submits, on a loop, text a tenant filter just refused — which is how an account gets flagged.</p>
+<p><code>auth</code>, <code>quota</code>, <code>model-not-found</code>, <code>policy</code> and <code>cancellation</code> are answers. Retrying <code>auth</code>
+re-presents a credential that was just rejected; <code>quota</code> spends the next second of a budget that is
+already spent; <code>model-not-found</code> asks again for an id the endpoint does not serve; retrying <code>policy</code>
+re-submits, on a loop, text a tenant filter just refused — which is how an account gets flagged; and
+<code>cancellation</code> is the most deliberate verdict of the five — the operator's own cancel is not a
+transient fault, it is terminal intent, and re-issuing the same call after it is retrying a decision,
+not a weather event.</p>
 <div class="admonition danger">
 <p class="admonition-title">One retry, then abort — and the retry goes to the same provider and the same model</p>
 <p>This is <strong>not</strong> failover, and it does not soften
