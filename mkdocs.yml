@@ -215,6 +215,7 @@ nav:
       - adr/0003-vendor-the-mcp-adapter.md
       - adr/0004-egress-classes-are-declarative.md
       - adr/0005-unbounded-fan-out-on-runs-all.md
+      - adr/0006-tui-animation-measures-state.md
   - Reference:
       - reference/exit-codes.md
       - reference/identifiers.md
