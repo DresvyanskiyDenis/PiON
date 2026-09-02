@@ -217,6 +217,7 @@ nav:
       - adr/0005-unbounded-fan-out-on-runs-all.md
       - adr/0006-tui-animation-measures-state.md
       - adr/0007-zero-token-empty-response-gets-one-working-path-hop.md
+      - adr/0008-peer-compact-is-a-control-lane-not-a-chat-message.md
   - Reference:
       - reference/exit-codes.md
       - reference/identifiers.md

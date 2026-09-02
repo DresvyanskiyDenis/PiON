@@ -64,6 +64,7 @@
  * no entry.
  */
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -97,7 +98,10 @@ import {
   type ProviderFailure,
 } from "../lib/provider-error.ts";
 import { readRoutingFile } from "../lib/routing-file.ts";
+import { registerControlHandler } from "../message-agent/control.ts";
+import { logEvent } from "../session-index/index.ts";
 import { mergeInstructions } from "./instructions.ts";
+import { createPeerCompactHandler, resetPeerCompactStateForSession } from "./peer.ts";
 import {
   DEFAULT_COMPACTION_ROUTE,
   describeTarget,
@@ -197,6 +201,14 @@ interface CompactionConfig {
    * per-model trigger against. `absoluteTokens: 0` disables the check.
    */
   readonly threshold: { readonly absoluteTokens: number; readonly toleranceRatio: number };
+  /**
+   * `EXT-32`'s `"compact"` control kind (`./peer.ts`). A peer that just watched this session cross
+   * the amber threshold can ask it to compact, but nothing stops two peers — or a peer and the
+   * watchdog cron — from asking twice in the same minute. `minIntervalMs` is a wall-clock floor
+   * under the request rate, not a per-sender one: it protects the session's own progress from being
+   * interrupted repeatedly, regardless of who is doing the asking.
+   */
+  readonly peerCompact: { readonly minIntervalMs: number };
 }
 
 const DEFAULT_CONFIG: CompactionConfig = {
@@ -209,6 +221,7 @@ const DEFAULT_CONFIG: CompactionConfig = {
     facts: { ...DEFAULT_FACTS_LIMITS, enabled: true, warnRatio: DEFAULT_FACTS_WARN_RATIO },
   },
   threshold: { absoluteTokens: 0, toleranceRatio: 0.2 },
+  peerCompact: { minIntervalMs: 5 * 60_000 },
 };
 
 /** Candidate locations for `config/compaction.json`, first existing wins. Mirrors `tasks/index.ts`. */
@@ -241,6 +254,7 @@ export function parseConfig(raw: unknown): CompactionConfig {
   const pin = (root.pinned ?? {}) as Record<string, unknown>;
   const facts = (pin.facts ?? {}) as Record<string, unknown>;
   const thr = (root.threshold ?? {}) as Record<string, unknown>;
+  const peer = (root.peerCompact ?? {}) as Record<string, unknown>;
   return {
     loopGuard: {
       maxNonReducingPasses: Math.max(
@@ -276,6 +290,9 @@ export function parseConfig(raw: unknown): CompactionConfig {
     threshold: {
       absoluteTokens: Math.trunc(num(thr.absoluteTokens, DEFAULT_CONFIG.threshold.absoluteTokens)),
       toleranceRatio: num(thr.toleranceRatio, DEFAULT_CONFIG.threshold.toleranceRatio),
+    },
+    peerCompact: {
+      minIntervalMs: Math.max(0, Math.trunc(num(peer.minIntervalMs, DEFAULT_CONFIG.peerCompact.minIntervalMs))),
     },
   };
 }
@@ -506,6 +523,12 @@ export function replaceAbsoluteTokensText(text: string, absoluteTokens: number):
  * a half-written config; the mode is carried across because `config/compaction.json` is a tracked
  * file and a permission change would show up as a spurious diff on a command whose whole job is to
  * change a single integer.
+ *
+ * The mode is applied with `chmodSync`, not `writeFileSync`'s own `mode` option: that option only
+ * governs the permissions a *newly created* file gets, and per `open(2)` those are ANDed against the
+ * process umask before landing on disk — so a shipped file at `0o664` reopens as `0o600` under a
+ * `0077` umask even though `{ mode: 0o664 }` was passed explicitly. `chmodSync` sets the bits
+ * outright, which is what "keep the file's mode" actually means here.
  */
 export function writeAbsoluteTokens(path: string, absoluteTokens: number): void {
   const text = readFileSync(path, "utf8");
@@ -514,7 +537,8 @@ export function writeAbsoluteTokens(path: string, absoluteTokens: number): void 
     `${JSON.stringify(withAbsoluteTokens(JSON.parse(text), absoluteTokens), null, 2)}\n`;
   const mode = statSync(path).mode & 0o777;
   const tmp = `${path}.autocompact.${process.pid}`;
-  writeFileSync(tmp, patched, { mode });
+  writeFileSync(tmp, patched);
+  chmodSync(tmp, mode);
   renameSync(tmp, path);
 }
 
@@ -1074,6 +1098,15 @@ function refreshGaugeStatus(ctx: ExtensionContext, session: string): void {
     const preflight: GaugePreflightEstimate | undefined =
       parked === undefined ? undefined : { estimatedTokens: parked.facts.estimatedTokens };
     ctx.ui.setStatus(GAUGE_STATUS_KEY, formatCtxGaugeStatus(usage, preflight));
+    // `bin/pi-compact-watchdog` (`./watchdog.ts`) reads this back out of the session index rather
+    // than the live process — a cron has no `ExtensionContext` to call `getContextUsage()` on. The
+    // sessions table's own `tokens_input` is cumulative across the session's lifetime, not the
+    // current live percentage, so the watchdog needs its own point-in-time signal; this is it.
+    logEvent(session, "context", "usage", true, undefined, {
+      percent: usage.percent,
+      tokens: usage.tokens,
+      contextWindow: usage.contextWindow,
+    });
   } catch {
     // Presentation only. See setRouteStatus's own comment: no UI, or a closed one.
   }
@@ -1493,6 +1526,9 @@ function registerPreflight(pi: ExtensionAPI): void {
 
 export function register(pi: ExtensionAPI): void {
   registerPreflight(pi);
+  // EXT-32's control lane: a peer's "compact" envelope reaches this session's own /compact through
+  // here, never through pi.sendMessage(). See ./peer.ts for the guards.
+  registerControlHandler("compact", createPeerCompactHandler(cfg.peerCompact.minIntervalMs));
 
   pi.on("session_start", (_event, ctx: ExtensionContext) => {
     try {
@@ -1604,12 +1640,17 @@ export function register(pi: ExtensionAPI): void {
   pi.on("session_compact", async (_event, ctx: ExtensionContext) => {
     await restatePinnedSources(pi, ctx);
     await restateFacts(pi, ctx);
+    // A marker `bin/pi-compact-watchdog` (`./watchdog.ts`) reads back out of the session index: a
+    // compaction that just ran is a compaction the watchdog must not immediately re-trigger on the
+    // stale high-percent gauge event still sitting a few rows behind this one.
+    logEvent(sid(ctx), "compaction", "compacted", true, undefined, {});
   });
 
   pi.on("session_shutdown", (_event, ctx: ExtensionContext) => {
     guards.delete(sid(ctx));
     // A parked resume outlives nothing: the session it would have restarted is gone.
     preflightResumes.delete(sid(ctx));
+    resetPeerCompactStateForSession(sid(ctx));
   });
 
   /**

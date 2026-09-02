@@ -40,6 +40,20 @@ import { stateRoot } from "../lib/paths.ts";
 export const AGENT_SCHEMA = 1;
 
 /**
+ * Bumped separately from `AGENT_SCHEMA`: an envelope and an `agent.json` registration evolve on
+ * different clocks — `kind`/`instructions` is a message-shape change, not a registration-shape one,
+ * and coupling the two would force every registration reader to learn about envelope fields it never
+ * touches.
+ *
+ * `drainInbox()` reads this as a floor, not an equality: a *newer* schema than this build knows about
+ * is still accepted as long as the fields this build understands (`id`, `message`) are present and
+ * well-typed, so a session running an older build never chokes on an envelope a newer peer sent it —
+ * it just does not see the new fields. Only a schema *older* than 1, or a shape too broken to stage,
+ * is rejected.
+ */
+export const ENVELOPE_SCHEMA = 2;
+
+/**
  * The addressing rule. Same shape as `EXT-25`'s teammate handles — a name the model can hold in its
  * head and retype — and deliberately a separate constant: a teammate handle is scoped to one lead's
  * registry, an agent name is machine-wide, so the two are free to diverge without either silently
@@ -68,6 +82,15 @@ export interface Envelope {
   readonly fromSessionId: string;
   readonly at: number;
   readonly message: string;
+  /**
+   * `"message"` when absent — the ordinary chat envelope every build before this one ever wrote.
+   * Anything else is a control envelope: it is never handed to `pi.sendMessage()`, only to a handler
+   * registered for that kind (`control.ts`). An unrecognised kind is tolerated, not an error — see
+   * `drainInbox()`.
+   */
+  readonly kind?: string;
+  /** Free-text sent alongside a control envelope, e.g. what a `"compact"` sender wants kept. */
+  readonly instructions?: string;
 }
 
 /** A directory entry that exists but cannot be read as schema `AGENT_SCHEMA`. */
@@ -325,6 +348,9 @@ export interface DeliverRequest {
   readonly from: string;
   readonly fromSessionId: string;
   readonly message: string;
+  /** Omitted means "message" — see `Envelope.kind`. */
+  readonly kind?: string;
+  readonly instructions?: string;
   readonly now?: number;
 }
 
@@ -338,12 +364,14 @@ export interface DeliverRequest {
 export async function deliver(req: DeliverRequest): Promise<Envelope> {
   const at = req.now ?? Date.now();
   const envelope: Envelope = {
-    schema: AGENT_SCHEMA,
+    schema: ENVELOPE_SCHEMA,
     id: newMessageId(at),
     from: req.from,
     fromSessionId: req.fromSessionId,
     at,
     message: req.message,
+    ...(req.kind !== undefined ? { kind: req.kind } : {}),
+    ...(req.instructions !== undefined ? { instructions: req.instructions } : {}),
   };
   const dir = inboxDir(req.root, req.target);
   await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -396,7 +424,15 @@ export async function drainInbox(root: string, name: string): Promise<DrainResul
     const path = join(dir, entry);
     try {
       const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<Envelope>;
-      if (parsed.schema !== AGENT_SCHEMA || typeof parsed.id !== "string" || typeof parsed.message !== "string") {
+      // A floor, not an equality: a *newer* schema than ENVELOPE_SCHEMA is still staged as long as
+      // the fields this build understands are well-typed, so a build lagging behind a peer's never
+      // chokes on an envelope that just carries fields it does not yet know about.
+      if (
+        typeof parsed.schema !== "number" ||
+        parsed.schema < AGENT_SCHEMA ||
+        typeof parsed.id !== "string" ||
+        typeof parsed.message !== "string"
+      ) {
         throw new MessageAgentError(
           `envelope ${entry} is schema ${String(parsed.schema)} with ${typeof parsed.id} id and ` +
             `${typeof parsed.message} message`,
@@ -459,6 +495,27 @@ export async function clearDelivered(root: string, name: string, ids: readonly s
   const staging = deliveringDir(root, name);
   for (const id of ids) {
     await rm(join(staging, `${id}.json`), { force: true });
+  }
+}
+
+/**
+ * Puts specific staged envelopes back in the inbox for the next drain to retry.
+ *
+ * `sweepDelivering` recovers everything *not* excluded — the coarse, whole-batch sweep run at
+ * `session_start`. `recoverStaged` is the fine-grained twin a control handler needs: one deferred or
+ * failed envelope must go back to the inbox without disturbing every other envelope still
+ * legitimately staged behind an in-flight batch. A missing entry is ignored, same as `clearDelivered`
+ * — a staged file that is already gone is not a bug to raise here.
+ */
+export async function recoverStaged(root: string, name: string, ids: readonly string[]): Promise<void> {
+  const staging = deliveringDir(root, name);
+  const inbox = inboxDir(root, name);
+  for (const id of ids) {
+    await rename(join(staging, `${id}.json`), join(inbox, `${id}.json`)).catch((err: NodeJS.ErrnoException) => {
+      if (err.code !== "ENOENT") {
+        throw new MessageAgentError(`recovering staged envelope ${id} failed: ${describeError(err)}`, { cause: err });
+      }
+    });
   }
 }
 

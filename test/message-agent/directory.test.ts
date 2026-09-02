@@ -11,11 +11,13 @@ import {
   deliver,
   deliveringDir,
   drainInbox,
+  ENVELOPE_SCHEMA,
   ensureAgentsRoot,
   inboxDir,
   listAgents,
   MessageAgentError,
   readRecord,
+  recoverStaged,
   registerAgent,
   renderDirectory,
   requireAgent,
@@ -297,5 +299,97 @@ describe("in-flight staging (EXT-32, gh#33)", () => {
     assert.deepEqual(messages, []);
     assert.match(problems[0]?.reason ?? "", /undefined id/);
     assert.deepEqual(await readdir(deliveringDir(root, "idless")), []);
+  });
+});
+
+describe("EXT-32's control lane: kind, instructions, and the schema floor", () => {
+  it("an ordinary send carries no kind at all, not kind: \"message\"", async () => {
+    await registerAgent({ root, name: "plain", sessionId: "s-p", cwd: "/w" });
+    const envelope = await deliver({ root, target: "plain", from: "a", fromSessionId: "s-a", message: "hi" });
+    assert.equal(envelope.schema, ENVELOPE_SCHEMA);
+    assert.equal("kind" in envelope, false);
+    assert.equal("instructions" in envelope, false);
+  });
+
+  it("a control send carries kind and instructions through drainInbox unchanged", async () => {
+    await registerAgent({ root, name: "controlled", sessionId: "s-c", cwd: "/w" });
+    await deliver({
+      root,
+      target: "controlled",
+      from: "a",
+      fromSessionId: "s-a",
+      message: "",
+      kind: "compact",
+      instructions: "keep it brief",
+    });
+
+    const { messages } = await drainInbox(root, "controlled");
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.kind, "compact");
+    assert.equal(messages[0]?.instructions, "keep it brief");
+  });
+
+  it("drainInbox accepts a schema newer than this build's own, as a floor not an equality", async () => {
+    await registerAgent({ root, name: "futuristic", sessionId: "s-f", cwd: "/w" });
+    await writeFile(
+      join(inboxDir(root, "futuristic"), "0000-future.json"),
+      JSON.stringify({
+        schema: ENVELOPE_SCHEMA + 5,
+        id: "future-1",
+        from: "a",
+        fromSessionId: "s-a",
+        at: 1,
+        message: "from a build that knows fields this one does not",
+        somethingThisBuildHasNeverHeardOf: true,
+      }),
+    );
+
+    const { messages, problems } = await drainInbox(root, "futuristic");
+    assert.deepEqual(problems, []);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.id, "future-1");
+  });
+
+  it("drainInbox still refuses a schema older than AGENT_SCHEMA", async () => {
+    await registerAgent({ root, name: "ancient", sessionId: "s-anc", cwd: "/w" });
+    await writeFile(
+      join(inboxDir(root, "ancient"), "0000-old.json"),
+      JSON.stringify({ schema: 0, id: "old-1", from: "a", fromSessionId: "s-a", at: 1, message: "too old" }),
+    );
+
+    const { messages, problems } = await drainInbox(root, "ancient");
+    assert.deepEqual(messages, []);
+    assert.equal(problems.length, 1);
+    assert.match(problems[0]?.reason ?? "", /schema 0/);
+  });
+
+  it("recoverStaged puts one staged envelope back in the inbox, leaving the rest staged", async () => {
+    // Which of the two lands first in `messages` is a race `newMessageId()`'s sort does not settle
+    // when both calls land in the same millisecond (the same ordering flake `directory.test.ts`'s
+    // "leaves an excluded id staged" test is already known to hit) — found by `.message` instead of
+    // by position, since this test is about per-id targeting, not delivery order.
+    await registerAgent({ root, name: "mixed2", sessionId: "s-m2", cwd: "/w" });
+    await deliver({ root, target: "mixed2", from: "a", fromSessionId: "s-a", message: "keep staged" });
+    await deliver({ root, target: "mixed2", from: "a", fromSessionId: "s-a", message: "recover me" });
+
+    const { messages } = await drainInbox(root, "mixed2");
+    const stayStaged = messages.find((m) => m.message === "keep staged");
+    const toRecover = messages.find((m) => m.message === "recover me");
+    assert.ok(stayStaged && toRecover);
+
+    await recoverStaged(root, "mixed2", [toRecover.id]);
+    assert.deepEqual(await readdir(deliveringDir(root, "mixed2")), [`${stayStaged.id}.json`]);
+
+    const redrained = await drainInbox(root, "mixed2");
+    assert.deepEqual(
+      redrained.messages.map((m) => m.message),
+      ["recover me"],
+    );
+  });
+
+  it("recoverStaged on an id that is not staged is a no-op, like clearDelivered", async () => {
+    await registerAgent({ root, name: "gone", sessionId: "s-g", cwd: "/w" });
+    await recoverStaged(root, "gone", ["never-existed"]);
+    assert.deepEqual((await drainInbox(root, "gone")).messages, []);
   });
 });

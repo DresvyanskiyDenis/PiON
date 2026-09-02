@@ -44,6 +44,7 @@ import type {
 import { emitNotice } from "../lib/announce.ts";
 import { describeError, surfaceOnce } from "../lib/once.ts";
 import { logEvent } from "../session-index/index.ts";
+import { controlHandler, toControlEnvelope } from "./control.ts";
 import {
   agentsRoot,
   clearDelivered,
@@ -52,6 +53,7 @@ import {
   ensureAgentsRoot,
   listAgents,
   MessageAgentError,
+  recoverStaged,
   registerAgent,
   renderDirectory,
   requireAgent,
@@ -205,11 +207,73 @@ export function register(pi: ExtensionAPI): void {
    * runs it as a prompt of its own, which is what makes an idle session wake rather than wait for
    * its operator to type.
    */
+  /**
+   * Routes every non-`"message"` envelope in a drained batch to its registered control handler,
+   * never to `pi.sendMessage()` — that is the one guarantee this function exists to keep.
+   *
+   * An envelope whose `kind` has no registered handler (this build never loaded the extension that
+   * claims it, or a peer is running ahead of us and sent a `kind` we have never heard of) is
+   * tolerated exactly like an unparseable envelope always was: reported once, staged copy cleared,
+   * never retried, never turned into a turn. A handler that throws gets the same treatment as one
+   * that returns `"deferred"` — the envelope goes back to the inbox rather than being lost, since an
+   * exception here says nothing about whether the underlying request was ever acted on.
+   */
+  async function dispatchControl(ctx: ExtensionContext, envelopes: readonly Envelope[]): Promise<number> {
+    if (self === undefined) return 0;
+    const control = { pi, selfName: self.name, selfSessionId: self.sessionId };
+    let handled = 0;
+    for (const envelope of envelopes) {
+      const kind = envelope.kind ?? "message";
+      const handler = controlHandler(kind);
+      if (handler === undefined) {
+        report(
+          ctx,
+          `message-agent:control:${kind}`,
+          `[pi-config] message-agent: no handler registered for control kind "${kind}"; envelope ` +
+            `${envelope.id} from "${envelope.from}" was dropped.`,
+        );
+        await clearDelivered(agentsRoot(), self.name, [envelope.id]);
+        logEvent(self.sessionId, "message", `message_agent.control.unhandled:${self.name}`, false, undefined, {
+          id: envelope.id,
+          kind,
+          from: envelope.from,
+        });
+        continue;
+      }
+      try {
+        const result = await handler(toControlEnvelope(envelope), ctx, control);
+        if (result.outcome === "deferred") {
+          await recoverStaged(agentsRoot(), self.name, [envelope.id]);
+        } else {
+          await clearDelivered(agentsRoot(), self.name, [envelope.id]);
+          handled += 1;
+        }
+        logEvent(
+          self.sessionId,
+          "message",
+          `message_agent.control.${result.outcome}:${self.name}`,
+          result.outcome !== "refused",
+          undefined,
+          { id: envelope.id, kind, from: envelope.from },
+        );
+      } catch (err) {
+        report(
+          ctx,
+          `message-agent:control:${kind}:error`,
+          `[pi-config] message-agent: control handler for "${kind}" threw on envelope ${envelope.id}: ` +
+            `${describeError(err)}`,
+        );
+        await recoverStaged(agentsRoot(), self.name, [envelope.id]);
+      }
+    }
+    return handled;
+  }
+
   async function drain(ctx: ExtensionContext): Promise<number> {
     if (self === undefined || draining) return 0;
     draining = true;
     try {
-      const { messages, problems } = await drainInbox(agentsRoot(), self.name);
+      const { messages: drained, problems } = await drainInbox(agentsRoot(), self.name);
       for (const problem of problems) {
         report(
           ctx,
@@ -217,7 +281,16 @@ export function register(pi: ExtensionAPI): void {
           `[pi-config] message-agent: unreadable envelope ${problem.name} kept as .bad: ${problem.reason}`,
         );
       }
-      if (messages.length === 0) return 0;
+      if (drained.length === 0) return 0;
+
+      // A control envelope is routed and cleared here, before anything below ever sees it — it must
+      // never reach `pi.sendMessage()`, which is the ordinary-message path this split keeps
+      // untouched for `kind === "message"` (and the historic envelopes that predate `kind`).
+      const messages = drained.filter((m) => (m.kind ?? "message") === "message");
+      const control = drained.filter((m) => (m.kind ?? "message") !== "message");
+      let delivered = control.length > 0 ? await dispatchControl(ctx, control) : 0;
+      if (messages.length === 0) return delivered;
+
       const batch = randomUUID();
       const ids = messages.map((m) => m.id);
       inFlight.set(batch, ids);
@@ -242,7 +315,8 @@ export function register(pi: ExtensionAPI): void {
             ? { deliverAs: "nextTurn" as const }
             : undefined,
       );
-      return messages.length;
+      delivered += messages.length;
+      return delivered;
     } finally {
       draining = false;
     }
@@ -478,6 +552,18 @@ export function register(pi: ExtensionAPI): void {
         Type.String({ description: "the name of the session to message; required for send" }),
       ),
       message: Type.Optional(Type.String({ description: "what to say; required for send" })),
+      kind: Type.Optional(
+        Type.String({
+          description:
+            'the kind of envelope to send; omit for an ordinary chat message. "compact" asks the ' +
+            "target to run its own /compact instead of waking a turn — see instructions.",
+        }),
+      ),
+      instructions: Type.Optional(
+        Type.String({
+          description: 'extra guidance for a non-"message" kind, e.g. what a "compact" should keep in mind.',
+        }),
+      ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       const root = await ensureAgentsRoot();
@@ -513,9 +599,14 @@ export function register(pi: ExtensionAPI): void {
         case "send": {
           const me = requireSelf();
           const target = params.target;
+          const kind = params.kind ?? "message";
           const message = params.message;
           if (!target) throw new MessageAgentError(`message_agent: action="send" needs a "target".`);
-          if (!message) throw new MessageAgentError(`message_agent: action="send" needs a "message".`);
+          // A control envelope (e.g. "compact") carries its payload in `instructions`, not
+          // `message` — `message` stays required for the ordinary chat path only.
+          if (kind === "message" && !message) {
+            throw new MessageAgentError(`message_agent: action="send" needs a "message".`);
+          }
           if (target === me.name) {
             throw new MessageAgentError(
               `message_agent: "${target}" is this session. Talk to yourself in your own reasoning, ` +
@@ -529,23 +620,30 @@ export function register(pi: ExtensionAPI): void {
             target: record.name,
             from: me.name,
             fromSessionId: me.sessionId,
-            message,
+            message: message ?? "",
+            ...(kind !== "message" ? { kind } : {}),
+            ...(params.instructions !== undefined ? { instructions: params.instructions } : {}),
           });
           logEvent(me.sessionId, "message", `message_agent.send:${record.name}`, true, undefined, {
             id: envelope.id,
-            chars: message.length,
+            kind,
+            chars: message?.length ?? 0,
           });
           return {
             content: [
               {
                 type: "text" as const,
                 text:
-                  `delivered to "${record.name}" (session ${record.sessionId}, pid ${record.pid}) as ` +
-                  `${envelope.id}. It will be woken with it; nothing is returned here — a reply, if it ` +
-                  `sends one, arrives as an incoming message addressed to "${me.name}".`,
+                  kind === "message"
+                    ? `delivered to "${record.name}" (session ${record.sessionId}, pid ${record.pid}) as ` +
+                      `${envelope.id}. It will be woken with it; nothing is returned here — a reply, if it ` +
+                      `sends one, arrives as an incoming message addressed to "${me.name}".`
+                    : `sent a "${kind}" control envelope to "${record.name}" (session ${record.sessionId}, ` +
+                      `pid ${record.pid}) as ${envelope.id}. It is handled directly, not as a chat turn; ` +
+                      `a reply, if the handler sends one, arrives as an incoming message.`,
               },
             ],
-            details: { id: envelope.id, target: record.name, targetSession: record.sessionId, from: me.name },
+            details: { id: envelope.id, target: record.name, targetSession: record.sessionId, from: me.name, kind },
           };
         }
       }

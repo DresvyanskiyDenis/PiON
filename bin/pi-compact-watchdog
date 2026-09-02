@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+// bin/pi-compact-watchdog — REQ-CTX-35's cron-friendly context watchdog.
+//
+// A plain Node script, NOT a PI extension: no `ExtensionAPI`, no PI runtime import, and no
+// TypeScript-only syntax (`import type`, type annotations, `as` casts) — same convention as
+// bin/pi-digest-drain, whose own header explains why: this runs under plain `node`, with no loader
+// and no reliance on `--experimental-strip-types`, so anything beyond `.ts`-suffixed import paths
+// has to already be valid JavaScript. Meant to be run from cron, on a schedule of the operator's
+// choosing; nothing in this tree spawns it automatically.
+//
+// What it does, each run: read every currently-live agent (extensions/message-agent/directory.ts —
+// the same directory `message_agent` addresses peers through), look up that session's most recent
+// `"context"`/`"usage"` event in the session index (extensions/compaction/index.ts's
+// `refreshGaugeStatus` logs one on every `session_start` and `turn_end`), and ask
+// `./watchdog.ts`'s `shouldTriggerCompact` whether it is over threshold, live, and not already
+// covered by a compact. A session it says yes to gets a `"compact"` control envelope
+// (extensions/message-agent/control.ts's EXT-32 lane) — the same kind a peer sends by hand through
+// `message_agent(kind="compact")`, handled by extensions/compaction/peer.ts's guards exactly the
+// same way. This script decides *who to ask*; it never runs a compact itself.
+//
+// REQ-PRV-91: only counts and percentages ever leave the session index here, never message
+// content — the same discipline `logEvent` enforces on the write side.
+//
+// Silent when idle: nothing is printed when no session is over threshold, so a cron mailer stays
+// quiet on the common case. A fatal error (index unreadable, an unexpected bug) is
+// `[pi-config] pi-compact-watchdog: fatal: …` on stderr with a non-zero exit, matching
+// bin/pi-digest-drain's own contract.
+import { agentsRoot, deliver, listAgents } from "../extensions/message-agent/directory.ts";
+import { describeError } from "../extensions/lib/once.ts";
+import { defaultIndexDbPath, openIndexDb } from "../extensions/session-index/db.ts";
+import { readThreshold, shouldTriggerCompact } from "../extensions/compaction/watchdog.ts";
+
+const WATCHDOG_SENDER = "compact-watchdog";
+
+async function main() {
+  const threshold = readThreshold(process.argv.slice(2));
+  const now = Date.now();
+
+  const { agents } = await listAgents(agentsRoot());
+  if (agents.length === 0) return { checked: 0, triggered: 0 };
+
+  const db = openIndexDb(defaultIndexDbPath());
+  let triggered = 0;
+  try {
+    for (const agent of agents) {
+      const signal = latestSignal(db, agent.sessionId);
+      if (signal === null) continue;
+      if (!shouldTriggerCompact(signal, now, threshold)) continue;
+
+      await deliver({
+        root: agentsRoot(),
+        target: agent.name,
+        from: WATCHDOG_SENDER,
+        fromSessionId: WATCHDOG_SENDER,
+        message: "",
+        kind: "compact",
+        instructions: `context watchdog: usage at ${signal.percent}% (threshold ${threshold}%)`,
+      });
+      triggered += 1;
+    }
+  } finally {
+    db.close();
+  }
+  return { checked: agents.length, triggered };
+}
+
+/**
+ * `null` when this session has never logged a usage sample — nothing to judge, so it is treated
+ * exactly like "not over threshold" by the caller.
+ */
+function latestSignal(db, sessionId) {
+  const usage = db
+    .prepare(
+      `SELECT ts, payload FROM events WHERE session_id = ? AND kind = 'context' AND name = 'usage'
+       ORDER BY ts DESC LIMIT 1`,
+    )
+    .get(sessionId);
+  if (usage === undefined) return null;
+
+  const compacted = db
+    .prepare(
+      `SELECT ts FROM events WHERE session_id = ? AND kind = 'compaction' AND name = 'compacted'
+       ORDER BY ts DESC LIMIT 1`,
+    )
+    .get(sessionId);
+
+  let percent = null;
+  try {
+    const payload = JSON.parse(usage.payload ?? "null");
+    percent = typeof payload?.percent === "number" ? payload.percent : null;
+  } catch {
+    percent = null;
+  }
+
+  return {
+    sessionId,
+    at: usage.ts,
+    percent,
+    lastCompactedAt: compacted === undefined ? null : compacted.ts,
+  };
+}
+
+main()
+  .then((summary) => {
+    if (summary.triggered === 0) return; // silent when idle
+    process.stdout.write(`${JSON.stringify(summary)}\n`);
+  })
+  .catch((err) => {
+    process.stderr.write(`[pi-config] pi-compact-watchdog: fatal: ${describeError(err)}\n`);
+    process.exitCode = 1;
+  });
