@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 
 import { agentsRoot, drainInbox } from "../../extensions/message-agent/directory.ts";
+import type { Envelope } from "../../extensions/message-agent/directory.ts";
 import {
   __resetPeerCompactStateForTests,
   createPeerCompactHandler,
@@ -64,20 +65,36 @@ function fakeCtx({
   };
 }
 
+async function reads(target: string) {
+  const { messages } = await drainInbox(agentsRoot(), target);
+  return messages;
+}
+
 /**
  * `onComplete`/`onError`'s own reply is `void replyToSender(...)` — fire-and-forget, deliberately:
  * a real `ctx.compact()` calls these whenever compaction actually finishes, long after
  * `dispatchControl` has moved on, so nothing in production ever awaits them either. A test that
  * calls the fake synchronously still has to let that detached write actually reach disk before
- * reading it back.
+ * reading it back — a fixed sleep guesses how long that takes and is wrong under load (GH#25: a
+ * `settle()` short enough to keep the suite fast landed before the write under parallel load, same
+ * class of race as `directory.test.ts`'s gh#33 staging tests). Polling for the expected count
+ * instead returns the instant the write actually lands, and only spends up to `timeoutMs` in the
+ * one case that matters: a write that genuinely never arrives, which is exactly when the caller's
+ * own assertion should see the real, incomplete state and fail on it.
+ *
+ * `reads()` (`drainInbox`) is a dequeue, not a peek: every call moves whatever it finds out of the
+ * inbox into `.delivering/`, so a poll that only looked at the latest call's count would silently
+ * lose an envelope a prior, too-early poll had already drained — accumulating across calls is what
+ * makes repeated polling of a destructive read safe.
  */
-async function settle(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 20));
-}
-
-async function reads(target: string) {
-  const { messages } = await drainInbox(agentsRoot(), target);
-  return messages;
+async function waitForReplies(target: string, expectedCount: number, timeoutMs = 2_000) {
+  const collected: Envelope[] = [];
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    collected.push(...(await reads(target)));
+    if (collected.length >= expectedCount || Date.now() > deadline) return collected;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 describe("createPeerCompactHandler", () => {
@@ -104,9 +121,8 @@ describe("createPeerCompactHandler", () => {
       control("sess-ok") as never,
     );
     assert.deepEqual(result, { outcome: "ok" });
-    await settle();
 
-    const replies = await reads("sender-ok");
+    const replies = await waitForReplies("sender-ok", 1);
     assert.equal(replies.length, 1);
     assert.match(replies[0]!.message, /^ok: compacted/);
     assert.match(replies[0]!.message, /~110k tokens/);
@@ -137,7 +153,9 @@ describe("createPeerCompactHandler", () => {
       control("sess-ratelimit") as never,
     );
     assert.equal(first.outcome, "ok");
-    await settle();
+    // No settle needed here: the rate limit itself is set synchronously (`lastPeerCompactAt.set(...)`
+    // runs before `ctx.compact()` is even called), so the second call's own outcome does not depend
+    // on the first reply having reached disk yet.
 
     const second = await handler(
       envelope("sender-ratelimit", { id: "env-2" }),
@@ -146,9 +164,14 @@ describe("createPeerCompactHandler", () => {
     );
     assert.equal(second.outcome, "refused");
 
-    const replies = await reads("sender-ratelimit");
+    // The first reply ("ok") is fire-and-forget; the second ("refused") is awaited synchronously
+    // inside the handler before it returns. Which one's write actually lands on disk first is not
+    // guaranteed by that — the first's write was merely *started* earlier, not finished — so this
+    // matches on content, not position.
+    const replies = await waitForReplies("sender-ratelimit", 2);
     assert.equal(replies.length, 2);
-    assert.match(replies[1]!.message, /^refused: this session compacted for a peer/);
+    assert.ok(replies.some((r) => /^ok: compacted/.test(r.message)));
+    assert.ok(replies.some((r) => /^refused: this session compacted for a peer/.test(r.message)));
   });
 
   it("resetPeerCompactStateForSession lifts the rate limit for that session", async () => {
