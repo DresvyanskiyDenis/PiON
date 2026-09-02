@@ -47,6 +47,9 @@
         "thinkingLevel": "low",
         "maxExtraAttempts": 0
       }
+    },
+    "workingRoute": {
+      "zeroTokenFallback": "confidential"
     }
   },
 

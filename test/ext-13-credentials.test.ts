@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 
 import { id, register } from "../extensions/credentials.ts";
 
@@ -169,13 +169,24 @@ function emptyCompletion(overrides: Record<string, unknown> = {}) {
       content: [] as unknown[],
       provider: "litellm",
       model: "gpt-5.6-luna",
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      // Non-zero prompt tokens on purpose: usage 0/0 is now the *hop* signal
+      // (`handleZeroTokenEmpty`), a separate mechanism from the identical/vary retry this fixture
+      // exercises everywhere below. `zeroTokenCompletion()` below is the 0/0 fixture.
+      usage: { input: 5, output: 0, cacheRead: 0, cacheWrite: 0 },
       stopReason: "stop",
       rawStopReason: "stop",
       responseId: "chatcmpl-2e6c1517-8984-4434-9673-a0fb231c5e3f",
       ...overrides,
     },
   };
+}
+
+/**
+ * The zero-token shape: an empty 200 that consumed no prompt tokens and produced no completion
+ * tokens — `handleZeroTokenEmpty`'s hop, not `report()`'s same-deployment retry.
+ */
+function zeroTokenCompletion(overrides: Record<string, unknown> = {}) {
+  return emptyCompletion({ usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, ...overrides });
 }
 
 /* ------------------------------------------------------------------------------------------- */
@@ -643,5 +654,202 @@ describe("onProviderError.retry — the wiring", () => {
     );
     assert.doesNotMatch(blocks[6]!, /retry \d of/, "the 7th failure gets no attempt at all");
     assert.match(blocks[6]!, /maxed out \(used all 2 restarts this session gets\)/);
+  });
+});
+
+describe("the working-path hop for a zero-token empty-response", () => {
+  /**
+   * `register()` binds the handler onto whatever object it is given, and `getThinkingLevel`/
+   * `setThinkingLevel` read/write `this.thinkingLevel` — so this fake is used directly, not
+   * spread onto a second object, to keep `this` and the handler map pointing at the same place.
+   */
+  function fakeApi(setModel?: (model: any) => Promise<boolean>) {
+    const api = fakePi() as FakePi & { setModel: (model: any) => Promise<boolean>; setModelCalls: any[] };
+    api.setModelCalls = [];
+    api.setModel = async (model: any) => {
+      api.setModelCalls.push(model);
+      return setModel ? setModel(model) : true;
+    };
+    return api;
+  }
+
+  const CONFIDENTIAL = { provider: "databricks", modelId: "databricks-claude-sonnet-4-5" };
+
+  function fakeCtxWithRegistry(model: any = { provider: "litellm", modelId: "gpt-5.6-luna" }) {
+    return {
+      ...fakeCtx(),
+      model,
+      modelRegistry: {
+        find: (provider: string, modelId: string) =>
+          provider === CONFIDENTIAL.provider && modelId === CONFIDENTIAL.modelId
+            ? { provider: CONFIDENTIAL.provider, modelId: CONFIDENTIAL.modelId }
+            : undefined,
+      },
+    };
+  }
+
+  /** Invokes `message_end` directly and awaits it — `pi.emit` does not await async handlers. */
+  async function driveEnd(pi: ReturnType<typeof fakeApi>, payload: any, ctx: any): Promise<void> {
+    for (const handler of pi.handlers.get("message_end") ?? []) await handler(payload, ctx);
+  }
+
+  /** `captureStderr`, but for a handler that must be awaited before the capture is read back. */
+  async function captureStderrAsync(fn: () => Promise<void>): Promise<string> {
+    const original = process.stderr.write.bind(process.stderr);
+    let captured = "";
+    (process.stderr as any).write = (chunk: any) => {
+      captured += String(chunk);
+      return true;
+    };
+    try {
+      await fn();
+    } finally {
+      (process.stderr as any).write = original;
+    }
+    return captured;
+  }
+
+  // `confidential` ships unbound in routing.default.json (no public-provider default), so these
+  // tests pin it to a concrete target for the duration of the block — the same seam
+  // `PI_ROUTING_CONFIG` gives `test/ext-13-provider-retry.test.ts`'s policy-loading tests.
+  let previousRoutingConfig: string | undefined;
+  before(() => {
+    previousRoutingConfig = process.env.PI_ROUTING_CONFIG;
+    const dir = mkdtempSync(join(tmpdir(), "ext13-workingroute-"));
+    const path = join(dir, "routing.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        tiers: { confidential: { model: "databricks/databricks-claude-sonnet-4-5", thinkingLevel: "high" } },
+        onProviderError: { workingRoute: { zeroTokenFallback: "confidential" } },
+      }),
+      "utf8",
+    );
+    process.env.PI_ROUTING_CONFIG = path;
+  });
+  after(() => {
+    if (previousRoutingConfig === undefined) delete process.env.PI_ROUTING_CONFIG;
+    else process.env.PI_ROUTING_CONFIG = previousRoutingConfig;
+  });
+
+  it("hops once: switches the model, announces, persists a provider_error_route_hop entry, and re-issues to the new target", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = fakeCtxWithRegistry();
+
+    await driveEnd(pi, zeroTokenCompletion(), ctx);
+
+    assert.deepEqual(pi.setModelCalls, [{ provider: CONFIDENTIAL.provider, modelId: CONFIDENTIAL.modelId }]);
+    assert.equal(pi.entries.length, 1);
+    assert.equal(pi.entries[0]?.customType, "provider_error_route_hop");
+    assert.equal(pi.entries[0]?.data.fromProvider, "litellm");
+    assert.equal(pi.entries[0]?.data.fromModel, "gpt-5.6-luna");
+    assert.equal(pi.entries[0]?.data.toProvider, "databricks");
+    assert.equal(pi.entries[0]?.data.toModel, "databricks-claude-sonnet-4-5");
+    // Announced on its own channel, never as a `provider_failure` — the turn's verdict is not
+    // "this failed", it is "this is being routed", same distinction compaction's recordHop makes.
+    assert.equal(ctx.notices.length, 1);
+    assert.match(ctx.notices[0]!.text, /zero-token empty-response/);
+    assert.match(ctx.notices[0]!.text, /databricks\/databricks-claude-sonnet-4-5/);
+    assert.equal(pi.sent.length, 1);
+    assert.equal(pi.sent[0]?.message.customType, "provider-retry");
+    assert.match(pi.sent[0]?.message.content[0].text, /Redo the work/);
+    assert.match(pi.sent[0]?.message.content[0].text, /databricks\/databricks-claude-sonnet-4-5/);
+  });
+
+  it("never surfaces a hop that succeeded through the classified failure block", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = fakeCtxWithRegistry();
+    const out = await captureStderrAsync(() => driveEnd(pi, zeroTokenCompletion(), ctx));
+    assert.equal(out, "");
+  });
+
+  it("aborts after the one hop is spent — no second hop, no chain, and the borrowed model is restored on the terminal abort", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = fakeCtxWithRegistry();
+
+    await driveEnd(pi, zeroTokenCompletion(), ctx); // the one hop
+    assert.equal(pi.setModelCalls.length, 1);
+
+    const out = await captureStderrAsync(() => driveEnd(pi, zeroTokenCompletion(), ctx)); // hopped target failed too
+    // The 2nd setModel call is restoreModel giving the borrowed model back on the terminal abort —
+    // not a second hop. No THIRD call, and no hop-target ever appears again.
+    assert.equal(pi.setModelCalls.length, 2, "no second hop — only the abort-path restore");
+    assert.deepEqual(pi.setModelCalls[1], { provider: "litellm", modelId: "gpt-5.6-luna" });
+    assert.match(out, /the one working-path hop for this streak is already spent/);
+    assert.match(out, /routed to tier "confidential" -> databricks\/databricks-claude-sonnet-4-5, which failed again/);
+    assert.doesNotMatch(out, /re-issued against the same provider and model/);
+  });
+
+  it("declines and aborts when the configured fallback is the same deployment that just failed", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = {
+      ...fakeCtx(),
+      model: { provider: "databricks", modelId: "databricks-claude-sonnet-4-5" },
+      modelRegistry: { find: () => ({ provider: "databricks", modelId: "databricks-claude-sonnet-4-5" }) },
+    };
+    const failing = zeroTokenCompletion({ provider: "databricks", model: "databricks-claude-sonnet-4-5" });
+
+    const out = await captureStderrAsync(() => driveEnd(pi, failing, ctx));
+    assert.equal(pi.setModelCalls.length, 0, "refused to hop to itself");
+    assert.equal(pi.sent.length, 0);
+    assert.match(out, /SAME deployment that just failed/);
+  });
+
+  it("declines and aborts when the fallback is not in the session's model registry", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = { ...fakeCtx(), model: { provider: "litellm", modelId: "gpt-5.6-luna" }, modelRegistry: { find: () => undefined } };
+
+    const out = await captureStderrAsync(() => driveEnd(pi, zeroTokenCompletion(), ctx));
+    assert.equal(pi.setModelCalls.length, 0);
+    assert.match(out, /not in this session's model registry/);
+  });
+
+  it("declines and aborts when no credential is available for the fallback", async () => {
+    const pi = fakeApi(async () => false); // setModel resolves false: pi's own auth resolution failed
+    register(pi as any);
+    const ctx = fakeCtxWithRegistry();
+
+    const out = await captureStderrAsync(() => driveEnd(pi, zeroTokenCompletion(), ctx));
+    assert.equal(pi.sent.length, 0, "no retry was armed — the hop never took");
+    assert.match(out, /no credential is available for/);
+  });
+
+  it("gives the borrowed model back once the turn recovers", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = fakeCtxWithRegistry();
+
+    await driveEnd(pi, zeroTokenCompletion(), ctx); // hops to databricks
+    assert.equal(pi.setModelCalls.length, 1);
+
+    await driveEnd(pi, { message: { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" } }, ctx);
+    assert.equal(pi.setModelCalls.length, 2, "restoreModel gave the original litellm model back");
+    assert.deepEqual(pi.setModelCalls[1], { provider: "litellm", modelId: "gpt-5.6-luna" });
+  });
+
+  // `handleZeroTokenEmpty` shares `streakRestarts`/`maxStreakRestarts` with `report()` rather than
+  // adding a second anti-thrash budget (see the ADR). There is deliberately no integration test
+  // here that drives the cap to exhaustion: a hop's own success leaves `retriesSpent` at `0`
+  // (unlike `report()`'s grant, which always leaves it >= 1), so reaching the cap would require
+  // `hoppedThisStreak` to reset without also resetting `streakRestarts` — and every reset path in
+  // this module (a recovered turn, a session switch) clears both together. The cap check is kept
+  // for the case where that stops being true; `test/ext-13-provider-retry.test.ts` covers the pure
+  // resolution logic it guards.
+
+  it("leaves a non-zero-token empty-response on the old identical/vary path — no setModel, no hop entry", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const ctx = fakeCtxWithRegistry();
+
+    await driveEnd(pi, emptyCompletion(), ctx); // usage.input: 5 — NOT zero-token
+    assert.equal(pi.setModelCalls.length, 0);
+    assert.equal(pi.entries.find((e) => e.customType === "provider_error_route_hop"), undefined);
+    assert.equal(pi.sent.length, 1);
+    assert.equal(pi.sent[0]?.message.customType, "provider-retry");
   });
 });

@@ -37,12 +37,18 @@ import {
   DEFAULT_MAX_RETRY_ATTEMPTS,
   DEFAULT_MAX_STREAK_RESTARTS,
   DEFAULT_RETRY_CLASSES,
+  DEFAULT_WORKING_ROUTE_POLICY,
+  describeWorkingRouteTarget,
   loadProviderRetryPolicy,
+  loadWorkingRoutePolicy,
   parseProviderRetryPolicy,
+  parseWorkingRoutePolicy,
   planRetryVariation,
+  resolveWorkingRouteTarget,
   retryBudget,
   RETRY_THINKING_LEVELS,
   shouldRetry,
+  shouldRouteZeroTokenEmpty,
 } from "../extensions/lib/provider-retry.ts";
 import type { RoutingFile } from "../extensions/lib/routing-file.ts";
 
@@ -393,7 +399,11 @@ function driveRetries(routing: unknown, startLevel: string, turns: Array<"empty"
       content: [] as unknown[],
       provider: "litellm",
       model: "gpt-empty-fixture",
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      // Non-zero prompt tokens on purpose: a zero-token empty-response (0 prompt AND 0 completion)
+      // now takes the working-path hop in `handleZeroTokenEmpty`, not this module's identical/vary
+      // retry — see `test/ext-13-credentials.test.ts` for that path. This fixture exercises "the
+      // class where onEmpty vary still applies".
+      usage: { input: 5, output: 0, cacheRead: 0, cacheWrite: 0 },
       stopReason: "stop",
       rawStopReason: "stop",
     },
@@ -499,5 +509,135 @@ describe("the request the retry actually issues", () => {
     const identical = driveRetries(IDENTICAL, "high", ["empty"]).issued[0]!.text;
     assert.match(identical, /nothing about the request changed and no other provider was tried\./);
     assert.match(identical, /Carry on with exactly what you were doing\./);
+  });
+});
+
+// onProviderError.workingRoute: the one working-path hop for a zero-token empty-response.
+//
+// Not a retry variant. `report()`'s "same provider, same model" wording never applies to this
+// class — it hops to a DIFFERENT provider/model, exactly once, and is bounded by its own state in
+// `credentials.ts` rather than by `retry.maxAttempts`. These tests pin down the pure resolution
+// half: what `routing.json`'s block parses to, and what a spec resolves to. The hop's OWN decision
+// (hop / abort, exactly once) is integration-tested in `test/ext-13-credentials.test.ts`, where
+// `pi.setModel`/`ctx.modelRegistry` can be faked.
+describe("onProviderError.workingRoute", () => {
+  it("defaults to confidential — never light or strong, which are both github-copilot again", () => {
+    // light and strong both resolve to github-copilot/*: the same provider a zero-token
+    // empty-response already came from. confidential is routing.default.json's own answer to
+    // "escape the shared, public-egress surface" — compaction.route's default already leans on it.
+    assert.equal(DEFAULT_WORKING_ROUTE_POLICY.zeroTokenFallback, "confidential");
+  });
+
+  it("is what config/routing.json actually declares — the file and the default cannot drift", () => {
+    const shipped = loadWorkingRoutePolicy();
+    assert.equal(shipped.zeroTokenFallback, DEFAULT_WORKING_ROUTE_POLICY.zeroTokenFallback);
+    assert.deepEqual(shipped.problems, []);
+    assert.match(shipped.source, /config\/routing\.(json|default\.json)$/);
+  });
+
+  it("an absent block is the default, not an opt-out", () => {
+    const policy = parseWorkingRoutePolicy(file(undefined));
+    assert.equal(policy.zeroTokenFallback, DEFAULT_WORKING_ROUTE_POLICY.zeroTokenFallback);
+    assert.deepEqual(policy.problems, []);
+  });
+
+  it("an explicit empty string disables the hop, same convention compaction.route's [] uses", () => {
+    const policy = parseWorkingRoutePolicy(file({ onProviderError: { workingRoute: { zeroTokenFallback: "" } } }));
+    assert.equal(policy.zeroTokenFallback, "");
+    assert.deepEqual(policy.problems, []);
+  });
+
+  it("a non-string value falls back to the default and says so", () => {
+    const policy = parseWorkingRoutePolicy(file({ onProviderError: { workingRoute: { zeroTokenFallback: 7 } } }));
+    assert.equal(policy.zeroTokenFallback, DEFAULT_WORKING_ROUTE_POLICY.zeroTokenFallback);
+    assert.equal(policy.problems.length, 1);
+    assert.match(policy.problems[0]!, /must be a string/);
+  });
+
+  const routingWithTiers: RoutingFile = file({
+    tiers: {
+      light: { model: "github-copilot/claude-sonnet-5", thinkingLevel: "medium" },
+      confidential: { model: "databricks/databricks-claude-sonnet-4-5", thinkingLevel: "high" },
+    },
+  });
+
+  it("resolves a tier name through routing.json's tiers block", () => {
+    const resolved = resolveWorkingRouteTarget(routingWithTiers, { ...DEFAULT_WORKING_ROUTE_POLICY, zeroTokenFallback: "confidential" });
+    assert.ok("target" in resolved, "expected a resolved target, not a problem");
+    if ("target" in resolved) {
+      assert.equal(resolved.target.provider, "databricks");
+      assert.equal(resolved.target.modelId, "databricks-claude-sonnet-4-5");
+      assert.equal(resolved.target.tier, "confidential");
+      assert.equal(describeWorkingRouteTarget(resolved.target), 'tier "confidential" -> databricks/databricks-claude-sonnet-4-5');
+    }
+  });
+
+  it("resolves a literal provider/id without consulting tiers at all", () => {
+    const resolved = resolveWorkingRouteTarget(file(undefined), { ...DEFAULT_WORKING_ROUTE_POLICY, zeroTokenFallback: "databricks/databricks-claude-sonnet-4-5" });
+    assert.ok("target" in resolved);
+    if ("target" in resolved) {
+      assert.equal(resolved.target.provider, "databricks");
+      assert.equal(resolved.target.tier, undefined);
+      assert.equal(describeWorkingRouteTarget(resolved.target), "databricks/databricks-claude-sonnet-4-5");
+    }
+  });
+
+  it("a tier this install leaves deliberately unbound is a distinct reason, not 'not declared'", () => {
+    // routing.default.json's own shape: confidential is a real tier name, carried in
+    // tiersUnbound rather than tiers, precisely so this case is distinguishable from a typo.
+    const unbound = file({ tiersUnbound: { confidential: "no provider inside the boundary is installed" } });
+    const resolved = resolveWorkingRouteTarget(unbound, { ...DEFAULT_WORKING_ROUTE_POLICY, zeroTokenFallback: "confidential" });
+    assert.ok("problem" in resolved);
+    if ("problem" in resolved) {
+      assert.match(resolved.problem, /deliberately unbound/);
+      assert.doesNotMatch(resolved.problem, /TIER NAME/);
+    }
+  });
+
+  it("a tier the file does not declare at all is a problem, not a throw", () => {
+    const resolved = resolveWorkingRouteTarget(file(undefined), { ...DEFAULT_WORKING_ROUTE_POLICY, zeroTokenFallback: "nonexistent-tier" });
+    assert.ok("problem" in resolved);
+    if ("problem" in resolved) assert.match(resolved.problem, /TIER NAME/);
+  });
+
+  it("an explicitly-disabled hop ('') is a problem naming why, not a silent no-op", () => {
+    const resolved = resolveWorkingRouteTarget(file(undefined), { ...DEFAULT_WORKING_ROUTE_POLICY, zeroTokenFallback: "" });
+    assert.ok("problem" in resolved);
+    if ("problem" in resolved) assert.match(resolved.problem, /disabled/);
+  });
+
+  it("a malformed literal (no id after the slash) is a problem, not a crash", () => {
+    const resolved = resolveWorkingRouteTarget(file(undefined), { ...DEFAULT_WORKING_ROUTE_POLICY, zeroTokenFallback: "litellm/" });
+    assert.ok("problem" in resolved);
+    if ("problem" in resolved) assert.match(resolved.problem, /not of the form provider\/id/);
+  });
+});
+
+describe("shouldRouteZeroTokenEmpty — re-exported from lib/provider-error.ts", () => {
+  it("is true only for empty-response with zeroTokenEmpty true (both input and output were zero)", () => {
+    const failure = buildEmptyCompletionFailure({
+      provider: "litellm",
+      model: "gpt-5.6-luna",
+      status: 200,
+      stopReason: "stop",
+      usage: { input: 0, output: 0 },
+    });
+    assert.equal(shouldRouteZeroTokenEmpty(failure), true);
+  });
+
+  it("is false when the empty-response carried any usage", () => {
+    const failure = buildEmptyCompletionFailure({
+      provider: "litellm",
+      model: "gpt-5.6-luna",
+      status: 200,
+      stopReason: "stop",
+      usage: { input: 5, output: 0 },
+    });
+    assert.equal(shouldRouteZeroTokenEmpty(failure), false);
+  });
+
+  it("is false for a non-empty-response class, even with zeroTokenEmpty forced true", () => {
+    const failure = { ...buildEmptyCompletionFailure({ provider: "litellm", model: "gpt-5.6-luna", stopReason: "stop", usage: { input: 0, output: 0 } }), klass: "auth" as const };
+    assert.equal(shouldRouteZeroTokenEmpty(failure), false);
   });
 });

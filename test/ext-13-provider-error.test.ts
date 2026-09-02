@@ -20,6 +20,7 @@ import {
   isEmptyCompletion,
   pickGatewayHeaders,
   PROVIDER_FAILURE_MARKER,
+  shouldRouteZeroTokenEmpty,
   summariseProviderFailure,
   surfaceProviderFailure,
   type ProviderErrorClass,
@@ -429,6 +430,88 @@ describe("the empty 200 — a well-formed response that carried no completion", 
   it("is not reachable from the text classifier — it is a shape, not a message", () => {
     assert.notEqual(classifyProviderError({ message: "the provider returned an empty completion" }), "empty-response");
     assert.notEqual(classifyProviderError({ status: 200, message: "" }), "empty-response");
+  });
+});
+
+describe("zeroTokenEmpty — the working-path hop signal", () => {
+  // The narrowest observable proxy the code already carries: `buildEmptyCompletionFailure` already
+  // computes `inTokens`/`outTokens` from `input.usage` to print the "usage N prompt / M completion"
+  // clause above. `zeroTokenEmpty` is that same computation, exposed as a field rather than
+  // invented — see the field's own doc comment in `lib/provider-error.ts`.
+  it("is true when both usage counters are exactly zero", () => {
+    const failure = buildEmptyCompletionFailure({
+      provider: "litellm",
+      model: "gpt-5.6-luna",
+      stopReason: "stop",
+      usage: { input: 0, output: 0 },
+    });
+    assert.equal(failure.zeroTokenEmpty, true);
+    assert.equal(shouldRouteZeroTokenEmpty(failure), true);
+  });
+
+  it("is false when either counter is non-zero — some partial work may exist", () => {
+    for (const usage of [{ input: 5, output: 0 }, { input: 0, output: 5 }, { input: 5, output: 5 }]) {
+      const failure = buildEmptyCompletionFailure({ provider: "litellm", model: "gpt-5.6-luna", stopReason: "stop", usage });
+      assert.equal(failure.zeroTokenEmpty, false, JSON.stringify(usage));
+      assert.equal(shouldRouteZeroTokenEmpty(failure), false, JSON.stringify(usage));
+    }
+  });
+
+  it("is true when usage is entirely absent — pi-ai's pre-initialised default IS 0/0", () => {
+    const failure = buildEmptyCompletionFailure({ provider: "litellm", model: "gpt-5.6-luna", stopReason: "stop" });
+    assert.equal(failure.zeroTokenEmpty, true);
+  });
+
+  it("never applies to a class other than empty-response", () => {
+    const network = buildProviderFailure({
+      provider: "litellm",
+      model: "gpt-5.6-luna",
+      midStream: false,
+      message: "ECONNRESET",
+    });
+    assert.equal(network.zeroTokenEmpty, undefined);
+    assert.equal(shouldRouteZeroTokenEmpty(network), false);
+  });
+});
+
+describe("the working-path hop disposition", () => {
+  // `hop` is never set by `buildEmptyCompletionFailure` itself — only `credentials.ts`'s
+  // `handleZeroTokenEmpty` attaches it, on the abort. These tests exercise `formatProviderFailure`
+  // directly against a hand-built `hop`, the same way the `retry` tests above exercise `decided`.
+  const zeroToken = buildEmptyCompletionFailure({
+    provider: "litellm",
+    model: "gpt-5.6-luna",
+    stopReason: "stop",
+    usage: { input: 0, output: 0 },
+  });
+
+  it("renders an honest 'exhausted' line — never the retry wording, which would be false for a hop", () => {
+    const text = formatProviderFailure({ ...zeroToken, hop: { exhausted: true, target: "databricks/databricks-claude-sonnet-4-5" } });
+    assert.match(text, /the one working-path hop for this streak is already spent/);
+    assert.match(text, /routed to databricks\/databricks-claude-sonnet-4-5, which failed again/);
+    assert.match(text, /no second hop, no failover into a third provider/);
+    assert.match(text, /onProviderError\.workingRoute/);
+    assert.doesNotMatch(text, /re-issued against the same provider and model/);
+    assert.doesNotMatch(text, /no failover, no substitution, no retry against another provider/);
+  });
+
+  it("renders an honest 'declined' line naming the reason, when no hop was usable", () => {
+    const text = formatProviderFailure({
+      ...zeroToken,
+      hop: { exhausted: false, declinedReason: "no credential is available for databricks/databricks-claude-sonnet-4-5" },
+    });
+    assert.match(text, /qualifies for the working-path hop but no credential is available for/);
+    assert.match(text, /onProviderError\.workingRoute/);
+  });
+
+  it("takes priority over `retry` when a caller sets both — hop is always the more specific claim", () => {
+    const text = formatProviderFailure({
+      ...zeroToken,
+      retry: { attempt: 1, maxAttempts: 1, willRetry: false },
+      hop: { exhausted: true, target: "x/y" },
+    });
+    assert.match(text, /working-path hop/);
+    assert.doesNotMatch(text, /transient retry budget/);
   });
 });
 

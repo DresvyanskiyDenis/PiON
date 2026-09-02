@@ -125,7 +125,7 @@ unattended. See [Exit codes](https://dresvyanskiydenis.github.io/PiON/reference/
 
 ## What is `bin/pi-check`?
 
-32 repository invariants, run as one command. It refuses an unqualified model id, a tier bound to an
+33 repository invariants, run as one command. It refuses an unqualified model id, a tier bound to an
 absent provider, any failover key, a secret-shaped literal in a tracked file, an unreplaced
 placeholder, a vendored tree whose bytes no longer match their recorded digests, and more. Exit `1`
 means your repository is wrong; exit `2` means the checker could not run.
