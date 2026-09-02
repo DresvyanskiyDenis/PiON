@@ -10,31 +10,31 @@
       
       
       
-        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/skills-portability/">
+        <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/adr/0008-peer-compact-is-a-control-lane-not-a-chat-message/">
       
       
-        <link rel="prev" href="../extending/providers/">
+        <link rel="prev" href="../0007-zero-token-empty-response-gets-one-working-path-hop/">
       
       
-        <link rel="next" href="../operations/cli/">
+        <link rel="next" href="../../reference/exit-codes/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Skill portability - PiON</title>
+        <title>ADR 0008: A peer's request to compact travels on a control lane, not as a chat message - PiON</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +53,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#skill-portability" class="md-skip">
+        <a href="#adr-0008-a-peers-request-to-compact-travels-on-a-control-lane-not-as-a-chat-message" class="md-skip">
           Skip to content
         </a>
       
@@ -92,7 +92,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="PiON" class="md-header__button md-logo" aria-label="PiON" data-md-component="logo">
+    <a href="../.." title="PiON" class="md-header__button md-logo" aria-label="PiON" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Skill portability
+              ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
             
           </span>
         </div>
@@ -237,7 +237,7 @@
     
     
       <li class="md-tabs__item">
-        <a href=".." class="md-tabs__link">
+        <a href="../.." class="md-tabs__link">
           
   
   
@@ -259,7 +259,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../getting-started/" class="md-tabs__link">
+        <a href="../../getting-started/" class="md-tabs__link">
           
   
   
@@ -281,7 +281,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../configuration/" class="md-tabs__link">
+        <a href="../../configuration/" class="md-tabs__link">
           
   
   
@@ -303,7 +303,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../concepts/architecture/" class="md-tabs__link">
+        <a href="../../concepts/architecture/" class="md-tabs__link">
           
   
   
@@ -325,7 +325,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../extensions/" class="md-tabs__link">
+        <a href="../../extensions/" class="md-tabs__link">
           
   
   
@@ -343,13 +343,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../extending/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../extending/" class="md-tabs__link">
           
   
   
@@ -371,7 +369,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../operations/cli/" class="md-tabs__link">
+        <a href="../../operations/cli/" class="md-tabs__link">
           
   
   
@@ -389,11 +387,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../adr/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -415,7 +415,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../reference/exit-codes/" class="md-tabs__link">
+        <a href="../../reference/exit-codes/" class="md-tabs__link">
           
   
   
@@ -451,7 +451,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="PiON" class="md-nav__button md-logo" aria-label="PiON" data-md-component="logo">
+    <a href="../.." title="PiON" class="md-nav__button md-logo" aria-label="PiON" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -506,7 +506,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href=".." class="md-nav__link ">
+            <a href="../.." class="md-nav__link ">
               
   
   
@@ -550,7 +550,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../limitations/" class="md-nav__link">
+      <a href="../../limitations/" class="md-nav__link">
         
   
   
@@ -618,7 +618,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../getting-started/" class="md-nav__link ">
+            <a href="../../getting-started/" class="md-nav__link ">
               
   
   
@@ -662,7 +662,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/prerequisites/" class="md-nav__link">
+      <a href="../../getting-started/prerequisites/" class="md-nav__link">
         
   
   
@@ -690,7 +690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/install/" class="md-nav__link">
+      <a href="../../getting-started/install/" class="md-nav__link">
         
   
   
@@ -718,7 +718,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/update/" class="md-nav__link">
+      <a href="../../getting-started/update/" class="md-nav__link">
         
   
   
@@ -746,7 +746,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/first-run/" class="md-nav__link">
+      <a href="../../getting-started/first-run/" class="md-nav__link">
         
   
   
@@ -774,7 +774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/config-layout/" class="md-nav__link">
+      <a href="../../getting-started/config-layout/" class="md-nav__link">
         
   
   
@@ -838,7 +838,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../configuration/" class="md-nav__link ">
+            <a href="../../configuration/" class="md-nav__link ">
               
   
   
@@ -962,7 +962,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/models/" class="md-nav__link">
+      <a href="../../configuration/models/" class="md-nav__link">
         
   
   
@@ -990,7 +990,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/github-copilot/" class="md-nav__link">
+      <a href="../../configuration/github-copilot/" class="md-nav__link">
         
   
   
@@ -1018,7 +1018,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/openai/" class="md-nav__link">
+      <a href="../../configuration/openai/" class="md-nav__link">
         
   
   
@@ -1046,7 +1046,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/deepseek/" class="md-nav__link">
+      <a href="../../configuration/deepseek/" class="md-nav__link">
         
   
   
@@ -1074,7 +1074,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/qwen/" class="md-nav__link">
+      <a href="../../configuration/qwen/" class="md-nav__link">
         
   
   
@@ -1102,7 +1102,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/ollama-cloud/" class="md-nav__link">
+      <a href="../../configuration/ollama-cloud/" class="md-nav__link">
         
   
   
@@ -1130,7 +1130,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/litellm/" class="md-nav__link">
+      <a href="../../configuration/litellm/" class="md-nav__link">
         
   
   
@@ -1158,7 +1158,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/openai-compatible/" class="md-nav__link">
+      <a href="../../configuration/openai-compatible/" class="md-nav__link">
         
   
   
@@ -1186,7 +1186,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/routing/" class="md-nav__link">
+      <a href="../../configuration/routing/" class="md-nav__link">
         
   
   
@@ -1214,7 +1214,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/settings/" class="md-nav__link">
+      <a href="../../configuration/settings/" class="md-nav__link">
         
   
   
@@ -1242,7 +1242,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/guard/" class="md-nav__link">
+      <a href="../../configuration/guard/" class="md-nav__link">
         
   
   
@@ -1270,7 +1270,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/mcp/" class="md-nav__link">
+      <a href="../../configuration/mcp/" class="md-nav__link">
         
   
   
@@ -1298,7 +1298,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/environment/" class="md-nav__link">
+      <a href="../../configuration/environment/" class="md-nav__link">
         
   
   
@@ -1400,7 +1400,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/themes/" class="md-nav__link">
+      <a href="../../configuration/themes/" class="md-nav__link">
         
   
   
@@ -1428,7 +1428,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/dispatch/" class="md-nav__link">
+      <a href="../../configuration/dispatch/" class="md-nav__link">
         
   
   
@@ -1456,7 +1456,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/lead-model/" class="md-nav__link">
+      <a href="../../configuration/lead-model/" class="md-nav__link">
         
   
   
@@ -1484,7 +1484,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/sessions/" class="md-nav__link">
+      <a href="../../configuration/sessions/" class="md-nav__link">
         
   
   
@@ -1512,7 +1512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/tools/" class="md-nav__link">
+      <a href="../../configuration/tools/" class="md-nav__link">
         
   
   
@@ -1540,7 +1540,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/paths-and-trust/" class="md-nav__link">
+      <a href="../../configuration/paths-and-trust/" class="md-nav__link">
         
   
   
@@ -1632,7 +1632,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/not-editable/" class="md-nav__link">
+      <a href="../../configuration/not-editable/" class="md-nav__link">
         
   
   
@@ -1737,7 +1737,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/architecture/" class="md-nav__link">
+      <a href="../../concepts/architecture/" class="md-nav__link">
         
   
   
@@ -1765,7 +1765,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/providers-and-tiers/" class="md-nav__link">
+      <a href="../../concepts/providers-and-tiers/" class="md-nav__link">
         
   
   
@@ -1793,7 +1793,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/context-windows/" class="md-nav__link">
+      <a href="../../concepts/context-windows/" class="md-nav__link">
         
   
   
@@ -1821,7 +1821,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/safety-model/" class="md-nav__link">
+      <a href="../../concepts/safety-model/" class="md-nav__link">
         
   
   
@@ -1889,7 +1889,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../extensions/" class="md-nav__link ">
+            <a href="../../extensions/" class="md-nav__link ">
               
   
   
@@ -1997,7 +1997,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/guard/" class="md-nav__link">
+      <a href="../../extensions/guard/" class="md-nav__link">
         
   
   
@@ -2025,7 +2025,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/trust/" class="md-nav__link">
+      <a href="../../extensions/trust/" class="md-nav__link">
         
   
   
@@ -2053,7 +2053,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/session-context/" class="md-nav__link">
+      <a href="../../extensions/session-context/" class="md-nav__link">
         
   
   
@@ -2081,7 +2081,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/credentials/" class="md-nav__link">
+      <a href="../../extensions/credentials/" class="md-nav__link">
         
   
   
@@ -2109,7 +2109,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/cost-gate/" class="md-nav__link">
+      <a href="../../extensions/cost-gate/" class="md-nav__link">
         
   
   
@@ -2211,7 +2211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/path-defaults/" class="md-nav__link">
+      <a href="../../extensions/path-defaults/" class="md-nav__link">
         
   
   
@@ -2239,7 +2239,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/tool-masks/" class="md-nav__link">
+      <a href="../../extensions/tool-masks/" class="md-nav__link">
         
   
   
@@ -2267,7 +2267,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/path-rules/" class="md-nav__link">
+      <a href="../../extensions/path-rules/" class="md-nav__link">
         
   
   
@@ -2295,7 +2295,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/skills-env/" class="md-nav__link">
+      <a href="../../extensions/skills-env/" class="md-nav__link">
         
   
   
@@ -2323,7 +2323,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/skill-mask/" class="md-nav__link">
+      <a href="../../extensions/skill-mask/" class="md-nav__link">
         
   
   
@@ -2351,7 +2351,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/skills-lint/" class="md-nav__link">
+      <a href="../../extensions/skills-lint/" class="md-nav__link">
         
   
   
@@ -2453,7 +2453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/ask-user/" class="md-nav__link">
+      <a href="../../extensions/ask-user/" class="md-nav__link">
         
   
   
@@ -2481,7 +2481,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/web/" class="md-nav__link">
+      <a href="../../extensions/web/" class="md-nav__link">
         
   
   
@@ -2509,7 +2509,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/bash/" class="md-nav__link">
+      <a href="../../extensions/bash/" class="md-nav__link">
         
   
   
@@ -2537,7 +2537,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/hooks/" class="md-nav__link">
+      <a href="../../extensions/hooks/" class="md-nav__link">
         
   
   
@@ -2565,7 +2565,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/input-transform/" class="md-nav__link">
+      <a href="../../extensions/input-transform/" class="md-nav__link">
         
   
   
@@ -2593,7 +2593,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/big-results/" class="md-nav__link">
+      <a href="../../extensions/big-results/" class="md-nav__link">
         
   
   
@@ -2695,7 +2695,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/dispatch/" class="md-nav__link">
+      <a href="../../extensions/dispatch/" class="md-nav__link">
         
   
   
@@ -2723,7 +2723,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/teammates/" class="md-nav__link">
+      <a href="../../extensions/teammates/" class="md-nav__link">
         
   
   
@@ -2751,7 +2751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/message-agent/" class="md-nav__link">
+      <a href="../../extensions/message-agent/" class="md-nav__link">
         
   
   
@@ -2779,7 +2779,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/worktree/" class="md-nav__link">
+      <a href="../../extensions/worktree/" class="md-nav__link">
         
   
   
@@ -2807,7 +2807,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/jobs/" class="md-nav__link">
+      <a href="../../extensions/jobs/" class="md-nav__link">
         
   
   
@@ -2835,7 +2835,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/tasks/" class="md-nav__link">
+      <a href="../../extensions/tasks/" class="md-nav__link">
         
   
   
@@ -2953,7 +2953,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/quota/" class="md-nav__link">
+      <a href="../../extensions/quota/" class="md-nav__link">
         
   
   
@@ -2981,7 +2981,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/subagent-cost/" class="md-nav__link">
+      <a href="../../extensions/subagent-cost/" class="md-nav__link">
         
   
   
@@ -3009,7 +3009,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/digest/" class="md-nav__link">
+      <a href="../../extensions/digest/" class="md-nav__link">
         
   
   
@@ -3037,7 +3037,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/compaction/" class="md-nav__link">
+      <a href="../../extensions/compaction/" class="md-nav__link">
         
   
   
@@ -3065,7 +3065,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/context-report/" class="md-nav__link">
+      <a href="../../extensions/context-report/" class="md-nav__link">
         
   
   
@@ -3093,7 +3093,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/context-imports/" class="md-nav__link">
+      <a href="../../extensions/context-imports/" class="md-nav__link">
         
   
   
@@ -3121,7 +3121,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/session-index/" class="md-nav__link">
+      <a href="../../extensions/session-index/" class="md-nav__link">
         
   
   
@@ -3149,7 +3149,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/auto-title/" class="md-nav__link">
+      <a href="../../extensions/auto-title/" class="md-nav__link">
         
   
   
@@ -3177,7 +3177,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/auto-update/" class="md-nav__link">
+      <a href="../../extensions/auto-update/" class="md-nav__link">
         
   
   
@@ -3205,7 +3205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/thinking-indicator/" class="md-nav__link">
+      <a href="../../extensions/thinking-indicator/" class="md-nav__link">
         
   
   
@@ -3233,7 +3233,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/loader-clock/" class="md-nav__link">
+      <a href="../../extensions/loader-clock/" class="md-nav__link">
         
   
   
@@ -3261,7 +3261,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/degradation-colors/" class="md-nav__link">
+      <a href="../../extensions/degradation-colors/" class="md-nav__link">
         
   
   
@@ -3289,7 +3289,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/write-diff/" class="md-nav__link">
+      <a href="../../extensions/write-diff/" class="md-nav__link">
         
   
   
@@ -3317,7 +3317,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensions/doctor/" class="md-nav__link">
+      <a href="../../extensions/doctor/" class="md-nav__link">
         
   
   
@@ -3357,8 +3357,6 @@
       
   
   
-    
-  
   
   
     
@@ -3384,23 +3382,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../extending/" class="md-nav__link ">
+            <a href="../../extending/" class="md-nav__link ">
               
   
   
@@ -3418,13 +3413,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3444,7 +3439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extending/skills/" class="md-nav__link">
+      <a href="../../extending/skills/" class="md-nav__link">
         
   
   
@@ -3472,7 +3467,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extending/hooks/" class="md-nav__link">
+      <a href="../../extending/hooks/" class="md-nav__link">
         
   
   
@@ -3500,7 +3495,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extending/mcp-servers/" class="md-nav__link">
+      <a href="../../extending/mcp-servers/" class="md-nav__link">
         
   
   
@@ -3528,7 +3523,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extending/subagents/" class="md-nav__link">
+      <a href="../../extending/subagents/" class="md-nav__link">
         
   
   
@@ -3556,7 +3551,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../extending/providers/" class="md-nav__link">
+      <a href="../../extending/providers/" class="md-nav__link">
         
   
   
@@ -3581,37 +3576,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Skill portability
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../skills-portability/" class="md-nav__link">
         
   
   
@@ -3627,59 +3595,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-ports-and-what-does-not" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What ports, and what does not
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generated-matrix" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Generated matrix
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#skills-that-are-deliberately-absent" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Skills that are deliberately absent
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -3761,7 +3676,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operations/cli/" class="md-nav__link">
+      <a href="../../operations/cli/" class="md-nav__link">
         
   
   
@@ -3789,7 +3704,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operations/structural-gates/" class="md-nav__link">
+      <a href="../../operations/structural-gates/" class="md-nav__link">
         
   
   
@@ -3817,7 +3732,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operations/verification/" class="md-nav__link">
+      <a href="../../operations/verification/" class="md-nav__link">
         
   
   
@@ -3845,7 +3760,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../operations/troubleshooting/" class="md-nav__link">
+      <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
   
@@ -3877,6 +3792,8 @@
       
   
   
+    
+  
   
   
     
@@ -3906,20 +3823,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../adr/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -3937,13 +3857,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3963,7 +3883,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0001-no-provider-failover/" class="md-nav__link">
+      <a href="../0001-no-provider-failover/" class="md-nav__link">
         
   
   
@@ -3991,7 +3911,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0002-fail-open-guard-fail-closed-hooks/" class="md-nav__link">
+      <a href="../0002-fail-open-guard-fail-closed-hooks/" class="md-nav__link">
         
   
   
@@ -4019,7 +3939,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0003-vendor-the-mcp-adapter/" class="md-nav__link">
+      <a href="../0003-vendor-the-mcp-adapter/" class="md-nav__link">
         
   
   
@@ -4047,7 +3967,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0004-egress-classes-are-declarative/" class="md-nav__link">
+      <a href="../0004-egress-classes-are-declarative/" class="md-nav__link">
         
   
   
@@ -4075,7 +3995,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
+      <a href="../0005-unbounded-fan-out-on-runs-all/" class="md-nav__link">
         
   
   
@@ -4103,7 +4023,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0006-tui-animation-measures-state/" class="md-nav__link">
+      <a href="../0006-tui-animation-measures-state/" class="md-nav__link">
         
   
   
@@ -4131,7 +4051,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/0007-zero-token-empty-response-gets-one-working-path-hop/" class="md-nav__link">
+      <a href="../0007-zero-token-empty-response-gets-one-working-path-hop/" class="md-nav__link">
         
   
   
@@ -4156,10 +4076,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../adr/0008-peer-compact-is-a-control-lane-not-a-chat-message/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -4175,6 +4122,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reopen-this-if" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reopen this if
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -4258,7 +4291,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/exit-codes/" class="md-nav__link">
+      <a href="../../reference/exit-codes/" class="md-nav__link">
         
   
   
@@ -4286,7 +4319,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/identifiers/" class="md-nav__link">
+      <a href="../../reference/identifiers/" class="md-nav__link">
         
   
   
@@ -4314,7 +4347,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/third-party/" class="md-nav__link">
+      <a href="../../reference/third-party/" class="md-nav__link">
         
   
   
@@ -4342,7 +4375,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../PACKAGES/" class="md-nav__link">
+      <a href="../../PACKAGES/" class="md-nav__link">
         
   
   
@@ -4370,7 +4403,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../DENYLIST/" class="md-nav__link">
+      <a href="../../DENYLIST/" class="md-nav__link">
         
   
   
@@ -4425,10 +4458,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-ports-and-what-does-not" class="md-nav__link">
+  <a href="#context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What ports, and what does not
+        Context
       
     </span>
   </a>
@@ -4436,10 +4469,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#generated-matrix" class="md-nav__link">
+  <a href="#decision" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Generated matrix
+        Decision
       
     </span>
   </a>
@@ -4447,10 +4480,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#skills-that-are-deliberately-absent" class="md-nav__link">
+  <a href="#consequences" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Skills that are deliberately absent
+        Consequences
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives considered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reopen-this-if" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reopen this if
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
       
     </span>
   </a>
@@ -4474,7 +4540,7 @@
 
 
   
-    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/skills-portability.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DresvyanskiyDenis/PiON/edit/main/docs/adr/0008-peer-compact-is-a-control-lane-not-a-chat-message.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4482,87 +4548,178 @@
   
 
 
-<h1 id="skill-portability">Skill portability<a class="headerlink" href="#skill-portability" title="Permanent link">&para;</a></h1>
-<p>Skills written for another agent mostly run here unchanged. The differences are narrow and this page
-is the list of them, plus a generated table of what is actually on your disk.</p>
-<h2 id="what-ports-and-what-does-not">What ports, and what does not<a class="headerlink" href="#what-ports-and-what-does-not" title="Permanent link">&para;</a></h2>
+<h1 id="adr-0008-a-peers-request-to-compact-travels-on-a-control-lane-not-as-a-chat-message">ADR 0008: A peer's request to compact travels on a control lane, not as a chat message<a class="headerlink" href="#adr-0008-a-peers-request-to-compact-travels-on-a-control-lane-not-as-a-chat-message" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>Status:</strong> Accepted</li>
+<li><strong>Date:</strong> 2026-09-02</li>
+</ul>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p><code>message_agent</code> (EXT-32) already lets one live session hand another a message: <code>deliver()</code> stages an
+envelope in the recipient's inbox, <code>drain()</code> picks it up at <code>session_start</code>/<code>turn_end</code>/its own poll,
+and hands it to <code>pi.sendMessage()</code> — which means every envelope, without exception, becomes a turn the
+recipient has to read and reason about. That is the right shape for "tell session B something" and
+the wrong shape for "make session B compact its own context right now": a request to reclaim context
+is not content for the recipient to interpret, it is an instruction for the harness to act on, and
+routing it through the chat turn would burn exactly the context budget the request exists to save.</p>
+<p>A second, unrelated gap sits next to this one. Nothing in this tree ever tells an <em>external</em> observer
+how full a live session's context window is. <code>extensions/compaction/gauge.ts</code> computes and displays
+<code>percent</code> in the TUI, but that number lives and dies inside the session's own process — there is no
+way for a cron job, a supervisor, or a peer session to ask "is anyone close to running out of room?"
+without teaching every future consumer of that answer to reopen the same computation, and there was no
+answer at all for "did this session recently compact?" A watchdog that wants to nudge sessions over a
+threshold needs both a live percentage and a way to avoid re-nudging a session that already dealt with
+it, from <em>outside</em> that session's own process.</p>
+<p>REQ-PRV-91 (the audit log carries counts and identifiers, never message content) already governs what
+<code>session-index</code> is allowed to record. Any live-usage signal a watchdog reads has to satisfy the same
+constraint: a percentage and a token count are fine to log; nothing about <em>why</em> the context filled up
+is.</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p><strong>A <code>kind</code> field on the existing message envelope splits it into a control lane and the ordinary chat
+lane, and <code>"compact"</code> is the first control kind to use it.</strong> <code>drain()</code> routes every envelope whose
+<code>kind</code> is absent or <code>"message"</code> exactly as it already did (<code>pi.sendMessage()</code>, a chat turn). Every
+other <code>kind</code> goes to a handler registered through <code>registerControlHandler(kind, handler)</code>
+(<code>extensions/message-agent/control.ts</code>) instead — it never reaches <code>pi.sendMessage()</code>, so it costs the
+recipient's context nothing until the handler actually decides to act. <code>extensions/compaction/peer.ts</code>
+registers the <code>"compact"</code> handler: it runs the session's own <code>ctx.compact()</code>, merges the sender's
+<code>instructions</code> as the customary compaction instructions, and replies to the sender (through the same
+<code>message_agent</code> directory, as an ordinary chat message) with <code>ok</code>, <code>deferred</code>, or <code>refused</code> and — on
+success — the reclaimed token estimate.</p>
+<p>Mechanism:</p>
+<ul>
+<li><strong>Schema is a floor, not an equality check.</strong> <code>Envelope.schema</code> moves from 1 to 2 to carry <code>kind</code>
+  and <code>instructions</code>, but <code>drainInbox()</code> accepts any <code>schema &gt;= AGENT_SCHEMA</code> rather than requiring an
+  exact match, and an envelope whose <code>kind</code> has no registered handler is announced once (<code>report()</code>,
+  the existing once-per-key notice mechanism) and cleared — never left stuck, never silently retried
+  forever, and never turned into a chat message the recipient has to notice on its own. A drain-side
+  reader from a version that predates <code>kind</code> still accepts schema-2 envelopes; a reader from a version
+  that predates a future <code>kind</code> still degrades to "unhandled, cleared" instead of crashing. This is the
+  same forward-compatibility posture the directory already applies to unknown fields elsewhere in this
+  tree — tolerate what you don't recognize rather than reject it.</li>
+<li><strong>Defer, don't drop, mid-run.</strong> A control handler that decides now is the wrong time to act (the
+  peer-compact handler's own rule: never mid-turn, since <code>ctx.compact()</code> while a turn is in flight
+  would compact out the very turn using it) returns <code>{outcome: "deferred"}</code>, and the dispatcher
+  (<code>recoverStaged</code>, <code>extensions/message-agent/directory.ts</code>) puts that one envelope back in the inbox
+  rather than deleting it. The next <code>drain()</code> — the very next <code>turn_end</code>, no special retry timer needed
+  — sees it again and gets another chance to accept it once the session is idle. A dropped request
+  would silently fail the sender's expectation that asking for a compact does something; deferring
+  costs nothing but one more drain cycle, which the session was going to run anyway.</li>
+<li><strong>A wall-clock rate limit, not a request-count one.</strong> <code>peer.ts</code> tracks <code>lastPeerCompactAt</code> per
+  session and refuses (<code>{outcome: "refused"}</code>, with a reply naming the wait) a second peer-triggered
+  compact within <code>compaction.peerCompact.minIntervalMs</code> (<code>config/compaction.json</code>, default five
+  minutes) of the last one it actually ran for that session. This is deliberately a per-session
+  timestamp, not a per-sender or per-envelope count: the failure this guards against is a session being
+  asked to compact repeatedly by one or many peers faster than compaction can plausibly help, not a
+  single noisy sender. <code>session_shutdown</code> clears the timestamp for that session id, so a fresh session
+  under a reused id (the recovery path EXT-32 already exercises) does not inherit a rate limit that
+  belongs to a run that already ended.</li>
+<li><strong>The watchdog's live-percentage source is the session-index events table, not a new channel.</strong>
+  <code>refreshGaugeStatus()</code> (<code>extensions/compaction/index.ts</code>) already runs on <code>session_start</code> and
+  <code>turn_end</code>; it now also logs a <code>{kind: "context", name: "usage", payload: {percent, tokens,
+  contextWindow}}</code> event through <code>logEvent</code>, and <code>session_compact</code> logs a <code>{kind: "compaction", name:
+  "compacted"}</code> marker with an empty payload. <code>bin/pi-compact-watchdog</code> (REQ-CTX-35) reads only these
+  two event streams — the most recent <code>usage</code> row and the most recent <code>compacted</code> row — per live agent
+  (<code>listAgents</code>, the same directory <code>message_agent</code> already maintains), and hands them to
+  <code>extensions/compaction/watchdog.ts</code>'s pure <code>shouldTriggerCompact(signal, now, threshold, cooldown)</code>.
+  Choosing the audit trail that already exists over a new IPC surface means the watchdog reads exactly
+  what REQ-PRV-91 already permits to be written — a count and a timestamp — and needs no new capability
+  granted to it beyond read access to a database every other tool in this tree already reads.
+  <code>shouldTriggerCompact</code> refuses to fire on <code>percent === null</code> (an unknown quantity is not evidence of
+  being over threshold — the same "don't guess" posture REQ-PRV-91 imposes on the write side), on a
+  sample whose <code>lastCompactedAt</code> is at or after it (already handled), and on a signal older than its
+  own cooldown window (the session may have gone idle or exited; a watchdog is meant to be silent about
+  it, not send a compact request into a mailbox nobody is reading).</li>
+<li><strong>The watchdog is cron material, not a daemon this tree starts.</strong> It is silent on the common case
+  (nothing printed when nothing is over threshold) and writes exactly one <code>"compact"</code> control envelope
+  per over-threshold session per run, addressed the same way any peer would address one — through
+  <code>deliver()</code>, not a private code path. An operator decides the schedule; nothing in <code>register()</code> spawns
+  it automatically.</li>
+</ul>
+<h2 id="consequences">Consequences<a class="headerlink" href="#consequences" title="Permanent link">&para;</a></h2>
+<p><strong>Positive</strong></p>
+<ul>
+<li>A peer-triggered compact costs the recipient's context nothing beyond the compact itself: the
+  request is handled and answered without ever occupying a turn the recipient has to read.</li>
+<li><code>kind</code> is additive and tolerant in both directions: an old envelope with no <code>kind</code> is still exactly
+  an ordinary message, and an envelope with an unrecognized <code>kind</code> degrades to "announced once,
+  cleared" rather than corrupting the inbox or blocking every envelope behind it.</li>
+<li>The rate limit and the defer-not-drop guard both fail toward the sender finding out what happened
+  (a reply naming the reason) rather than toward a request that silently vanishes.</li>
+<li>The watchdog adds no new write surface to the audit log beyond two event kinds already shaped like
+  everything else <code>logEvent</code> records, so REQ-PRV-91 does not need a new carve-out to accommodate it.</li>
+</ul>
+<p><strong>Negative</strong></p>
+<ul>
+<li>The per-session rate limit lives in the peer-compact handler's own in-memory map, not in
+  <code>config/compaction.json</code>'s persisted state — a session restart resets it. This is deliberate (a
+  restarted session has, definitionally, not compacted recently in its own lifetime) but means the
+  limit does not survive a crash-and-recover cycle the way the inbox's own staged envelopes do.</li>
+<li>The watchdog's view of "live" is only as fresh as the last <code>usage</code> event a session happened to log;
+  a session that has gone well past <code>DEFAULT_WATCHDOG_COOLDOWN_MS</code> since its last turn without
+  shutting down cleanly (a stalled or wedged session) will stop being nudged, indistinguishable from one
+  that exited normally.</li>
+</ul>
+<p><strong>Neutral, noted but not built</strong></p>
+<ul>
+<li><code>kind</code> is a flat string, not a versioned union — adding a second control kind means adding a second
+  <code>registerControlHandler</code> call, not touching the envelope shape again. This decision does not attempt
+  to anticipate what that second kind will need.</li>
+<li>The watchdog never reads <code>instructions</code> back out of a <code>"compact"</code> envelope it did not itself send; it
+  only ever writes one. Nothing in this decision gives a watchdog visibility into what a peer's own
+  <code>"compact"</code> request asked for.</li>
+</ul>
+<h2 id="alternatives-considered">Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Convention</th>
-<th>Status under PI 0.84.0</th>
+<th>Option</th>
+<th>Why not</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>SKILL.md</code> in a directory, discovered by name</td>
-<td><strong>identical</strong></td>
+<td>Send <code>"compact"</code> as an ordinary chat message and rely on the recipient's own reasoning to notice and call <code>ctx.compact()</code> itself</td>
+<td>Costs the recipient exactly the context a compact request exists to reclaim just to notice the request, and depends on a model choosing to act rather than a deterministic handler doing so.</td>
 </tr>
 <tr>
-<td><code>name:</code> frontmatter</td>
-<td>read</td>
+<td>Add a second envelope directory (<code>.control/</code>) parallel to the inbox, rather than a <code>kind</code> field on the same envelope</td>
+<td>Doubles the staging/draining/recovery machinery EXT-32 already has for one field's worth of new behavior, and reintroduces exactly the kind of divergent-path bug class <code>directory.ts</code>'s single inbox was written to avoid.</td>
 </tr>
 <tr>
-<td><code>description:</code> frontmatter</td>
-<td>read — and it is the entire routing signal</td>
+<td>Drop a control envelope with no registered handler, the same as any other malformed input <code>drainInbox()</code> already rejects</td>
+<td>An unrecognized <code>kind</code> is not malformed — it is a legitimate message from a newer or differently-configured peer. Dropping it silently is indistinguishable, from the sender's side, from the message never arriving; announcing once and clearing at least surfaces the gap to whoever is watching that session's notices.</td>
 </tr>
 <tr>
-<td><code>disable-model-invocation:</code> frontmatter</td>
-<td>read</td>
+<td>Let a mid-run <code>"compact"</code> request queue until <code>ctx.isIdle()</code> becomes true, rather than putting it back in the inbox for the next drain to reconsider</td>
+<td><code>recoverStaged</code> reuses the exact recovery path EXT-32 already has for a session that dies mid-delivery — no second queue, no second data structure to keep consistent with the inbox's own crash-recovery guarantees.</td>
 </tr>
 <tr>
-<td><code>allowed-tools:</code> frontmatter</td>
-<td><strong>inert.</strong> Parsed by nothing, anywhere in the package</td>
+<td>Poll every session's live process for its context percentage, rather than reading events already logged to the session index</td>
+<td>Requires a new IPC channel into every live session's process just to expose one number that <code>refreshGaugeStatus()</code> already computes and displays; the events table already exists, is already read by other tooling in this tree, and already satisfies REQ-PRV-91.</td>
 </tr>
 <tr>
-<td>A skill-directory variable for scripts</td>
-<td>provided by <a href="../extensions/skills-env/"><code>skills-env</code></a></td>
-</tr>
-<tr>
-<td>Nested bundles addressed through a router skill</td>
-<td>works</td>
-</tr>
-<tr>
-<td>Custom slash commands</td>
-<td>map to prompt templates or <code>/skill:&lt;name&gt;</code> — same capability, different syntax</td>
+<td>A persisted (config-file or on-disk) rate-limit timestamp, surviving process restart</td>
+<td>The failure this guards against — a session compacting for peers faster than compaction can help — resets exactly when the session itself resets; persisting it across a restart would rate-limit a session against work a <em>previous</em> process did, which is not the risk being managed.</td>
 </tr>
 </tbody>
 </table>
-<p>The one that costs people time is <code>allowed-tools</code>. A skill carrying it reads as restricted and is
-not. <a href="../extensions/skills-lint/"><code>skills-lint</code></a> warns once per skill, at session start, for exactly
-that reason. For a real tool restriction, use a <a href="../extending/subagents/">sub-agent</a>.</p>
-<h2 id="generated-matrix">Generated matrix<a class="headerlink" href="#generated-matrix" title="Permanent link">&para;</a></h2>
-<p>The table below is produced from the skills present in <code>skills/</code> on this machine. Regenerate it
-after changing any skill's frontmatter:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>node<span class="w"> </span>scripts/gen-skills-lint-matrix.mjs<span class="w">          </span><span class="c1"># rewrites the block below</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>node<span class="w"> </span>scripts/gen-skills-lint-matrix.mjs<span class="w"> </span>--check<span class="w">  </span><span class="c1"># exits non-zero if it is stale</span>
-</span></code></pre></div>
-<p>A clean clone loads <strong>no skills</strong>, so the block is empty until you
-<a href="../extending/skills/">add your own</a>. The one worked example this repository ships lives outside every
-search path and is deliberately not in the matrix.</p>
-<!-- GENERATED:skills-lint:start -->
-<!-- GENERATED:skills-lint:end -->
-
-<h2 id="skills-that-are-deliberately-absent">Skills that are deliberately absent<a class="headerlink" href="#skills-that-are-deliberately-absent" title="Permanent link">&para;</a></h2>
-<p>Some skills exist in the private configuration this repository is ported from and are never ported
-here. Two reasons account for all of them: a tree of third-party material with no licence file, which
-must not be redistributed at all; and workflows built around a specific employer, tax year or
-household, which would be noise to everyone else and identifying for one person.</p>
-<p>Their names are not on this page, and not anywhere else in the repository either. A list of things
-too sensitive to publish, published, is the leak it was meant to prevent — so the names are held as
-salted digests in <code>config/do-not-publish.digests.txt</code> and enforced by
-<a href="../operations/cli/#binpi-check"><code>PC-25</code></a>, which fails the build if one of them turns up as a directory,
-as a file name, in git history, or in the text of a tracked file. It fails closed: a missing or
-unparsable digest file is a finding, never a quiet pass.</p>
-<p>Two limits are worth stating plainly. The salt is a constant in the rule, not a secret — it cannot
-be one, since the check has to run in any clone — so it defeats a generic wordlist but not someone
-who already guessed a name and wants confirmation. And the content scan skips single-word names,
-because one of them is an ordinary English word that appears in this repository's own prose; for
-those, only paths and history are checked. Both are deliberate. The rule's job is that reading this
-repository does not <em>tell</em> you the names.</p>
-<p>Regenerate the digest file from a list supplied on standard input, never from anything on disk here:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s\n'</span><span class="w"> </span>name-one<span class="w"> </span>name-two<span class="w"> </span><span class="p">|</span><span class="w"> </span>node<span class="w"> </span>scripts/gen-do-not-publish-digests.mjs<span class="w"> </span>&gt;<span class="w"> </span>config/do-not-publish.digests.txt
-</span></code></pre></div>
+<h2 id="reopen-this-if">Reopen this if<a class="headerlink" href="#reopen-this-if" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A second control <code>kind</code> needs a reply channel other than an ordinary chat message back through
+  <code>message_agent</code> — the current design assumes every control handler's response is itself worth a
+  peer reading, which may not hold for a kind whose answer is large or structured.</li>
+<li>The watchdog's cooldown-based staleness check (<code>DEFAULT_WATCHDOG_COOLDOWN_MS</code>) proves too blunt for
+  distinguishing "exited cleanly" from "wedged" — that would be evidence for <code>listAgents</code>' own liveness
+  sweep to feed the watchdog directly, rather than inferring liveness from event recency alone.</li>
+<li><code>peerCompact.minIntervalMs</code>'s in-memory, per-process rate limit is observed missing repeated
+  peer-compact storms that span a session restart — that would be evidence for moving the timestamp
+  into persisted state after all, despite the reasoning above.</li>
+</ul>
+<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../0001-no-provider-failover/">ADR 0001</a> — a different lane, same instinct: keep a mechanical
+  decision (route a request, don't ask the model to notice and act) out of the chat turn's own
+  reasoning path.</li>
+</ul>
 
 
 
@@ -4639,10 +4796,10 @@ repository does not <em>tell</em> you the names.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.instant.progress", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
