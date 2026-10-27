@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Eight decisions shape most of what is surprising about this repository. They are recorded here so a
+Nine decisions shape most of what is surprising about this repository. They are recorded here so a
 reader who disagrees can see the argument rather than guess at it, and so a contributor who wants to
 reverse one knows what they are arguing against.
 
@@ -14,6 +14,7 @@ reverse one knows what they are arguing against.
 | [0006](0006-tui-animation-measures-state.md) | TUI animation is scoped to motion that encodes real state; interpolation (easing, sliding, fades, progress bars) is out | Accepted |
 | [0007](0007-zero-token-empty-response-gets-one-working-path-hop.md) | A zero-token empty-response gets one hop to a configured fallback tier; every other failure still just aborts | Accepted |
 | [0008](0008-peer-compact-is-a-control-lane-not-a-chat-message.md) | A peer's request to compact travels on a control lane, never as a chat message the recipient has to read | Accepted |
+| [0009](0009-local-provider-lane.md) | A session whose active model is a local one runs every dispatch and every compaction on that model, with no remote fallback | Accepted |
 
 These were recorded when the repository was published; the decisions themselves are older, and each
 ADR says what evidence it rests on. Where a date could be tied to something in the tree — a lock

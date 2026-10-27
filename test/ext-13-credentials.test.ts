@@ -721,6 +721,7 @@ describe("the working-path hop for a zero-token empty-response", () => {
       path,
       JSON.stringify({
         tiers: { confidential: { model: "databricks/databricks-claude-sonnet-4-5", thinkingLevel: "high" } },
+        egress: { local: "local" },
         onProviderError: { workingRoute: { zeroTokenFallback: "confidential" } },
       }),
       "utf8",
@@ -755,6 +756,25 @@ describe("the working-path hop for a zero-token empty-response", () => {
     assert.equal(pi.sent[0]?.message.customType, "provider-retry");
     assert.match(pi.sent[0]?.message.content[0].text, /Redo the work/);
     assert.match(pi.sent[0]?.message.content[0].text, /databricks\/databricks-claude-sonnet-4-5/);
+  });
+
+  it("does NOT hop on the local lane: a zero-token empty on a `local` provider is retried in place, never sent to the fallback tier", async () => {
+    const pi = fakeApi();
+    register(pi as any);
+    const lane = { provider: "local", modelId: "example-org/local-model-GGUF" };
+    const ctx = fakeCtxWithRegistry(lane);
+
+    await driveEnd(pi, zeroTokenCompletion({ provider: lane.provider, model: lane.modelId }), ctx);
+
+    assert.deepEqual(pi.setModelCalls, [], "the lane never calls setModel: no model switch of any kind");
+    assert.equal(
+      pi.entries.some((e: any) => e.customType === "provider_error_route_hop"),
+      false,
+      "no route-hop entry was written",
+    );
+    for (const sent of pi.sent) {
+      assert.doesNotMatch(sent.message.content[0].text, /databricks/, "no retry message names the fallback target");
+    }
   });
 
   it("never surfaces a hop that succeeded through the classified failure block", async () => {

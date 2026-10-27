@@ -158,8 +158,9 @@ useful message than the check gives you.
 "egress": { "github-copilot": "public" }
 ```
 
-One class per provider, from the vocabulary `public` | `internal` | `confidential`. **The class is a
-label. It is reported, never compared.**
+One class per provider, from the vocabulary `public` | `internal` | `confidential` | `local`. **The class is a
+label. It is reported, never compared** — with one exception: `local` is the class of the
+[`local` provider](local.md), and a session whose active model belongs to it is on the local lane.
 
 Pick the class by asking *where does the traffic physically go, and who can read it there* — not by
 how much you trust the vendor. A third-party API is `public` even when the vendor is excellent.

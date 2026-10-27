@@ -9,8 +9,8 @@ default in the provider picker.
 !!! danger "A local `ollama` is a different thing, and the difference is not cosmetic"
 
     A server on your own machine is [`openai-compatible`](openai-compatible.md) answered with
-    `http://127.0.0.1:11434/v1` — that is what retired this repository's old `local` fragment, and
-    nothing here changes it.
+    `http://127.0.0.1:11434/v1` — or the [`local`](local.md) fragment, which also arms the local
+    lane. Nothing here changes that.
 
     Two things differ from local in ways that bite. The hosted endpoint **requires a key** (an
     unauthenticated `POST /v1/chat/completions` returns 401, measured 2026-08-29) where a local one

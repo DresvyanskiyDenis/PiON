@@ -27,9 +27,11 @@ import { describeError, surfaceOnce } from "./once.ts";
 
 /**
  * The classes in `config/routing.json`'s `egress` map. Purely descriptive since 2026-08-13:
- * a class is reported, never compared, and no ordering between the three is defined anywhere.
+ * a class is reported, never compared, and no ordering between them is defined anywhere. `local`
+ * marks a provider whose traffic stays on this machine; it is also what puts a session on the
+ * local lane (`extensions/dispatch/local-lane.ts`).
  */
-export type EgressClass = "public" | "internal" | "confidential";
+export type EgressClass = "public" | "internal" | "confidential" | "local";
 
 export interface DispatchRequest {
   /** Agent definition name, e.g. "general-purpose" or "researcher". */

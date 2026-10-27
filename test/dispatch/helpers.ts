@@ -73,7 +73,7 @@ export const ROUTING: RoutingConfig = {
     "github-copilot": "public",
     openai: "public",
     databricks: "confidential",
-    local: "confidential",
+    local: "local",
   },
   concurrency: { "github-copilot": 4, openai: 4, databricks: 4, local: 1 },
 };

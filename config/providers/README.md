@@ -48,7 +48,7 @@ substitution this project refuses.
                                    //   only overrides parts of it. false = the block defines it whole.
   "default": false,                // bool. Pre-selected in the installer. Exactly one fragment
                                    //   (github-copilot) sets this true.
-  "egress": "confidential",        // "public" | "internal" | "confidential". Copied verbatim into
+  "egress": "confidential",        // "public" | "internal" | "confidential" | "local". Copied verbatim into
                                    //   routing.json's `egress` map under `id`. May instead be a
                                    //   lone "{{promptId}}" — see 2.8.
   "concurrency": 4,                // int >= 1. Copied verbatim into routing.json's `concurrency`
@@ -210,13 +210,13 @@ API-key variable is whatever *your* operator named it — no gateway standardise
 The rules, all enforced by `scripts/lib/providers.mjs`:
 
 - The referenced prompt must exist in the same fragment.
-- `egress` may only defer to a `type: "choice"` prompt **whose every choice value is one of the three
+- `egress` may only defer to a `type: "choice"` prompt **whose every choice value is one of the four
   classes**, so an out-of-range class is unreachable rather than caught after generation.
 - `concurrency` may only defer to a `type: "number"` prompt.
 - **The resolved value is re-validated** at generation time with the same checks as a literal. An
   egress that resolves outside the vocabulary is fatal: `routing.json`'s `egress` map is the one
   place the class is written down, and every surface that tells a human or a model where a prompt is
-  going reads it from there. A fourth word would print as a class nobody defined. (Until 2026-08-13
+  going reads it from there. A fifth word would print as a class nobody defined. (Until 2026-08-13
   the map was also consulted to refuse a dispatch; that rule was withdrawn, which lowers the cost of
   a wrong class but not the cost of an unreadable one.)
 - A `requires[]` entry with a deferred name is **not** reported by `describe` — that command runs
@@ -308,10 +308,13 @@ written once into `models.json` and read from there.
 
 ## 5. Adding another provider
 
-Eight fragments ship. Before writing a ninth, check whether `openai-compatible.json` already covers
+Nine fragments ship. Before writing a tenth, check whether `openai-compatible.json` already covers
 your case: any endpoint speaking `/v1/chat/completions` under its own model names is that fragment,
-answered differently, and a new file buys you nothing. That is what retired the `local` fragment — a
-loopback model server is just that fragment with different answers.
+answered differently, and a new file buys you nothing. That is what retired the first `local`
+fragment, which was only a loopback model server. The `local` fragment that ships now exists for a
+reason the interview cannot carry: its egress class is a literal that arms the local lane
+([ADR 0009](../../docs/adr/0009-local-provider-lane.md)), so the class is a fact about the fragment,
+not an answer to a question.
 
 The one thing that does justify a separate file is knowledge the interview cannot carry. `compat`,
 `reasoning` and `thinkingLevelMap` may not be deferred to a prompt (§2.8), so wire behaviour that is

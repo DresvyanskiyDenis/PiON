@@ -147,7 +147,7 @@ export interface DispatchSettings {
   readonly sources: { readonly dispatch: string; readonly routing: string };
 }
 
-const EGRESS_CLASSES = new Set(["public", "internal", "confidential"]);
+const EGRESS_CLASSES = new Set(["public", "internal", "confidential", "local"]);
 
 /** Candidate locations for a `config/<name>.json`, first existing wins. */
 export function configPaths(name: string, override?: string): string[] {

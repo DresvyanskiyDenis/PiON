@@ -146,6 +146,16 @@ export function providerEgress(routing: RoutingFile, provider: string): string |
   return typeof cls === "string" ? cls : undefined;
 }
 
+/** The `egress` class that puts a session on the local lane (`extensions/dispatch/local-lane.ts`). */
+export const LOCAL_EGRESS = "local";
+
+/** Every provider `routing.json` classes `local`. */
+export function localProviders(routing: RoutingFile): ReadonlySet<string> {
+  const egress = routing.raw?.egress;
+  if (egress === null || typeof egress !== "object" || Array.isArray(egress)) return new Set();
+  return new Set(Object.keys(egress).filter((p) => providerEgress(routing, p) === LOCAL_EGRESS));
+}
+
 function tierRow(routing: RoutingFile, tier: string): Record<string, unknown> | undefined {
   const tiers = routing.raw?.tiers;
   if (tiers === null || typeof tiers !== "object" || Array.isArray(tiers)) return undefined;
