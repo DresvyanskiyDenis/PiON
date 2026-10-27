@@ -120,6 +120,12 @@ The number used to be `contextWindow − reserveTokens` — PI's own trigger, an
 number on every model, whichever one you last ran `/autocompact` on. A flat number is a line you
 can state once and recognise later.
 
+On the [local lane](local.md) the number is capped: the threshold becomes
+`min(absoluteTokens, 0.75 x the model's contextWindow)`. A flat 200 000 would never fire on a
+131 072-token local model, and PI's own trigger (`contextWindow - reserveTokens`) leaves too little
+room to compact on a local model. Off the lane the cap does not apply and the flat number is
+unchanged.
+
 Three things write this key, and only these three:
 
 | Who | Writes | When |

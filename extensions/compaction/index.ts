@@ -97,10 +97,11 @@ import {
   type ProviderErrorClass,
   type ProviderFailure,
 } from "../lib/provider-error.ts";
-import { readRoutingFile } from "../lib/routing-file.ts";
+import { localProviders, readRoutingFile } from "../lib/routing-file.ts";
 import { registerControlHandler } from "../message-agent/control.ts";
 import { logEvent } from "../session-index/index.ts";
 import { mergeInstructions } from "./instructions.ts";
+import { laneThreshold, overLaneThreshold } from "./lane.ts";
 import { createPeerCompactHandler, resetPeerCompactStateForSession } from "./peer.ts";
 import {
   DEFAULT_COMPACTION_ROUTE,
@@ -335,6 +336,8 @@ interface LoadedRoute {
   readonly targets: readonly RouteTarget[];
   readonly source: string;
   readonly problems: readonly string[];
+  /** Providers `routing.json` classes `local`. A session on one of them is on the local lane. */
+  readonly localProviders: ReadonlySet<string>;
 }
 
 /**
@@ -355,6 +358,7 @@ function loadCompactionRoute(): LoadedRoute {
       targets: resolved.targets,
       source: routing.source,
       problems: [...(routing.problem ? [routing.problem] : []), ...parsed.problems, ...resolved.problems],
+      localProviders: localProviders(routing),
     };
   } catch (err) {
     return {
@@ -362,6 +366,7 @@ function loadCompactionRoute(): LoadedRoute {
       targets: [],
       source: "<unreadable>",
       problems: [`the compaction route could not be read: ${describeError(err)}`],
+      localProviders: new Set(),
     };
   }
 }
@@ -376,6 +381,15 @@ const compactionRoute = loadCompactionRoute();
  * is talking to must never be something they discover afterwards.
  */
 function announceRoute(ctx: ExtensionContext): void {
+  if (onLane(ctx)) {
+    announce(
+      ctx,
+      `compaction route: local lane, ${ctx.model?.provider}/${ctx.model?.id} only (the session's own model, ` +
+        `no remote route, no failover); threshold ${laneThreshold(activeThreshold.absoluteTokens, ctx.model?.contextWindow ?? 0)} tokens`,
+      "info",
+    );
+    return;
+  }
   for (const problem of compactionRoute.problems) {
     surfaceOnce(ctx, `compaction:route:${problem}`, () => announce(ctx, problem, "warning"));
   }
@@ -400,6 +414,14 @@ function announceRoute(ctx: ExtensionContext): void {
  * is only what keeps the current session honest about what it just wrote.
  */
 let activeThreshold: CompactionConfig["threshold"] = cfg.threshold;
+
+/** Sessions with a lane compaction in flight, so `agent_settled` does not start a second one. */
+const laneCompacting = new Set<string>();
+
+/** The session's active model is served by a `local`-class provider: the local lane. Read live, `/model` moves it. */
+function onLane(ctx: ExtensionContext): boolean {
+  return ctx.model !== undefined && compactionRoute.localProviders.has(ctx.model.provider);
+}
 
 /**
  * The universal threshold, applied at every session start so the operator never has to run
@@ -774,7 +796,7 @@ type SessionModel = NonNullable<ExtensionContext["model"]>;
  * The session's own model is the only candidate that arrives already resolved — it *is* `ctx.model`
  * — and asking the registry for it again would be a second answer to a settled question.
  */
-interface RouteCandidate {
+export interface RouteCandidate {
   readonly target: RouteTarget;
   readonly model?: SessionModel;
 }
@@ -793,8 +815,15 @@ function harnessFailure(
  * The candidates, in order: the configured route, or — when nothing resolved — the session's own
  * model, which {@link announceRoute} has already named as the degradation it is.
  */
-function compactionCandidates(ctx: ExtensionContext): readonly RouteCandidate[] {
-  if (compactionRoute.targets.length > 0) return compactionRoute.targets.map((target) => ({ target }));
+export function compactionCandidates(
+  ctx: ExtensionContext,
+  route: Pick<LoadedRoute, "targets" | "localProviders"> = compactionRoute,
+): readonly RouteCandidate[] {
+  // On the local lane the configured route is ignored: it names remote models, and a lane never
+  // sends the conversation to one. The session's own model is the only candidate, so a failure
+  // ends the route and surfaces; there is no second candidate to fail over to.
+  const lane = ctx.model !== undefined && route.localProviders.has(ctx.model.provider);
+  if (!lane && route.targets.length > 0) return route.targets.map((target) => ({ target }));
   const model = ctx.model;
   if (!model) return [];
   return [
@@ -1562,6 +1591,38 @@ export function register(pi: ExtensionAPI): void {
     void preflightRouteCredentials(pi, ctx, "idle");
   });
 
+  // The local lane's own trigger. PI compacts at `contextWindow - reserveTokens`, which is not the
+  // lane's cap and cannot be moved per model without declaring a dishonest window (`threshold.ts`).
+  // So the lane adds the one trigger PI lacks: past `min(absoluteTokens, 0.75 x contextWindow)`,
+  // compact once the run is over. One in flight per session; a pass that does not reduce is the
+  // loop guard's to stop.
+  pi.on("agent_settled", (_event, ctx: ExtensionContext) => {
+    try {
+      if (!onLane(ctx)) return;
+      const usage = ctx.getContextUsage();
+      if (!usage || !overLaneThreshold(usage.tokens, activeThreshold.absoluteTokens, usage.contextWindow)) return;
+      const session = sid(ctx);
+      if (laneCompacting.has(session)) return;
+      laneCompacting.add(session);
+      announce(
+        ctx,
+        `local lane: context ${usage.tokens} tokens is past the cap ` +
+          `${laneThreshold(activeThreshold.absoluteTokens, usage.contextWindow)}; compacting on ` +
+          `${ctx.model?.provider}/${ctx.model?.id}`,
+        "info",
+      );
+      ctx.compact({
+        onComplete: () => laneCompacting.delete(session),
+        onError: (err) => {
+          laneCompacting.delete(session);
+          announce(ctx, `local lane compaction failed: ${describeError(err)}`, "error");
+        },
+      });
+    } catch (err) {
+      announce(ctx, `local lane compaction trigger failed: ${describeError(err)}`, "error");
+    }
+  });
+
   // The gauge's steady-state cadence — same event `quota/index.ts` refreshes its own status on, so
   // `ctx` moves at least once per turn even when no preflight event fired.
   pi.on("turn_end", (_event: TurnEndEvent, ctx: ExtensionContext) => {
@@ -1875,7 +1936,7 @@ function resolveThreshold(ctx: ExtensionContext): { report: ThresholdReport; res
     report: thresholdReport(
       usage.contextWindow,
       reserve.value,
-      activeThreshold.absoluteTokens,
+      onLane(ctx) ? laneThreshold(activeThreshold.absoluteTokens, usage.contextWindow) : activeThreshold.absoluteTokens,
       activeThreshold.toleranceRatio,
     ),
   };

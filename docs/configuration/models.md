@@ -403,7 +403,7 @@ An explicit catalogue, for a **custom** provider only. Each entry:
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the `notes[]` that JSON cannot carry as comments.
 
-Eight ship:
+Nine ship:
 
 | Fragment | Built-in to PI? | Egress | Notes worth reading before you touch it |
 |---|---|---|---|
@@ -414,6 +414,7 @@ Eight ship:
 | [`ollama-cloud.json`](ollama-cloud.md) | no | `public` | The *hosted* ollama.com, billed by plan — four written zeros. A local ollama is `openai-compatible` with a loopback URL |
 | [`litellm.json`](litellm.md) | no | **you choose** | A LiteLLM proxy specifically — the four wire fields nobody can be asked about are stated as literals |
 | `databricks.json` | no | `confidential` | Model ids are your own serving-endpoint names; the `compat` block is measured. Asks per endpoint whether it is pay-per-token or billed by DBU-hour |
+| [`local.json`](local.md) | no | `local` | One model on this machine (llama-swap, llama.cpp, vLLM). Selecting it as the session model arms the local lane: dispatch and compaction stay on that model, with no remote fallback. Four written zeros |
 | [`openai-compatible.json`](openai-compatible.md) | no | **you choose** | Any gateway serving its own model names. The context window and the egress class are *answers*, not facts about the URL |
 
 !!! warning "A fragment that defines models must state a complete cost — in numbers, or in answers"

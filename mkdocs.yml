@@ -132,6 +132,7 @@ nav:
           - configuration/ollama-cloud.md
           - configuration/litellm.md
           - configuration/openai-compatible.md
+          - configuration/local.md
           - configuration/routing.md
           - configuration/settings.md
           - configuration/guard.md
@@ -218,6 +219,7 @@ nav:
       - adr/0006-tui-animation-measures-state.md
       - adr/0007-zero-token-empty-response-gets-one-working-path-hop.md
       - adr/0008-peer-compact-is-a-control-lane-not-a-chat-message.md
+      - adr/0009-local-provider-lane.md
   - Reference:
       - reference/exit-codes.md
       - reference/identifiers.md

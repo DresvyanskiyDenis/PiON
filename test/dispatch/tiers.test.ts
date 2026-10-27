@@ -340,7 +340,7 @@ describe("applyTierThinkingLevel (via resolveModelSpec)", () => {
 
 describe("egressOf", () => {
   it("reports a declared class", () => {
-    assert.equal(egressOf(ROUTING, "local"), "confidential");
+    assert.equal(egressOf(ROUTING, "local"), "local");
     assert.equal(egressOf(ROUTING, "github-copilot"), "public");
   });
 
@@ -368,7 +368,7 @@ describe("egress containment (withdrawn)", () => {
       ["strong", "public"],
       ["cheap", "confidential"],
       ["confidential", "confidential"],
-      ["local", "confidential"],
+      ["local", "local"],
     ] as const) {
       const t = resolveModelSpec(ROUTING, tier, "fast");
       assert.equal(t.tier, tier);

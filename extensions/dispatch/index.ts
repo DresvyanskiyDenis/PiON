@@ -77,6 +77,7 @@ import { homedir } from "node:os";
 import { assertDispatchShape } from "./contract.ts";
 import { describeRelaxation, relaxDispatchOutputSchemas } from "./output-schema.ts";
 import { applyWaitStopOnAttention, WAIT_DEFAULT_NOTICE } from "./wait-attention.ts";
+import { forceLaneModel, laneMenu, laneModel, laneNotice, laneSpec, type LaneModel } from "./local-lane.ts";
 import { DispatchError, resolveModelSpec, resolveSessionEgress } from "./tiers.ts";
 import {
   admissibleProviders,
@@ -210,7 +211,10 @@ export function register(pi: ExtensionAPI): void {
   pi.on(
     "before_agent_start",
     (event: BeforeAgentStartEvent, ctx: ExtensionContext): BeforeAgentStartEventResult | undefined => {
-      const menu = state.menu;
+      // On the local lane the cloud menu would offer models every dispatch is forced away from.
+      // Read live, not memoised at session start: `/model` can move a session onto or off the lane.
+      const lane = laneModel(state.settings.routing, ctx.model);
+      const menu = lane !== undefined ? laneMenu(lane) : state.menu;
       if (menu === undefined) return undefined;
       try {
         return { systemPrompt: injectMenuOnce(event.systemPrompt, menu) };
@@ -361,7 +365,10 @@ export function register(pi: ExtensionAPI): void {
         "over the editor whenever a run is in flight, so you rarely need to ask. For a live, " +
         "navigable view: /subagents-fleet (subagents, running and past) or /jobs (detached " +
         "background jobs).";
-      ctx.ui.notify(`${renderStatus(state, ctx.cwd)}${renderAsyncFleet(fleet)}${pointer}`, "info");
+      ctx.ui.notify(
+        `${renderStatus(state, ctx.cwd, laneModel(state.settings.routing, ctx.model))}${renderAsyncFleet(fleet)}${pointer}`,
+        "info",
+      );
     },
   });
 }
@@ -692,12 +699,21 @@ export function rules(state: State): GuardRule[] {
         //    routing by accident onto a provider `config/models.json` never declared. Since
         //    2026-08-14 `defaultTierScope` pins `dispatch.json`'s `defaultTier` onto that shape as
         //    a FLOOR — read its docstring for the package evidence and the upgrade risk.
+        //
+        //    The local lane (local-lane.ts) overrides all of the above: when the session's own model
+        //    is a `local`-class one, every child of a call that launches anything runs on it,
+        //    whatever tier or `provider/id` the call, the agent file or the default tier named.
+        const shape = dispatchChildren(input, ctx.cwd);
+        const lane = shape.shape !== "none" ? laneModel(routing, ctx.model) : undefined;
         const callModel = typeof input.model === "string" && input.model.trim() ? input.model.trim() : undefined;
-        const fromCall = callModel !== undefined;
+        const fromCall = callModel !== undefined && lane === undefined;
         const agentSpec = def?.spec;
-        const tierScope = callModel === undefined && agentSpec === undefined ? defaultTierScope(input) : undefined;
+        const tierScope =
+          lane === undefined && callModel === undefined && agentSpec === undefined ? defaultTierScope(input) : undefined;
         const spec =
-          callModel ?? agentSpec ?? (tierScope !== undefined ? `tier:${state.settings.dispatch.defaultTier}` : undefined);
+          lane !== undefined
+            ? laneSpec(lane)
+            : (callModel ?? agentSpec ?? (tierScope !== undefined ? `tier:${state.settings.dispatch.defaultTier}` : undefined));
         let provider: string | undefined;
         if (spec) {
           try {
@@ -771,7 +787,28 @@ export function rules(state: State): GuardRule[] {
               // override" without it, and only one of the two is overridable downstream.
               ...(tierScope !== undefined ? { defaultedScope: tierScope } : {}),
             };
-            if (input.model !== effectiveModel) {
+            if (lane !== undefined) {
+              const before = input.model;
+              const forced = forceLaneModel(input, effectiveModel, ctx.cwd);
+              if (forced.blocked !== undefined) {
+                return {
+                  block: true,
+                  reason: `cannot run this dispatch on the local lane: ${forced.blocked} Nothing was run and nothing was sent to another provider.`,
+                };
+              }
+              resolvedModel = { ...resolvedModel, forcedByLane: true, replaced: forced.replaced };
+              if (before !== effectiveModel || forced.replaced.length > 0) applied.model = resolvedModel;
+              const asked = callModel ?? agentSpec ?? forced.replaced[0];
+              if (forced.replaced.length > 0 || (asked !== undefined && asked !== effectiveModel)) {
+                report(
+                  ctx,
+                  `[pi-config] dispatch: local lane: "${agentLabel(input, def)}" asked for ` +
+                    `${[...new Set([asked, ...forced.replaced].filter((m) => m !== undefined))].join(", ") || "its default model"} ` +
+                    `and was forced to ${effectiveModel}. The session runs on a local model, so every sub-agent does.`,
+                  "info",
+                );
+              }
+            } else if (input.model !== effectiveModel) {
               input.model = effectiveModel;
               applied.model = resolvedModel;
             }
@@ -821,7 +858,9 @@ export function rules(state: State): GuardRule[] {
             // Name where the value came from. "unknown_model: github-copilot/gpt-5.1" is acted on
             // very differently depending on whether the model just typed it or an agent file has
             // carried it for weeks, and only this frame knows which.
-            const origin = fromCall
+            const origin = lane !== undefined
+              ? `the session's own local model (local lane)`
+              : fromCall
               ? `the \`model\` argument of this call`
               : tierScope === "workflow-floor"
                 ? `config/dispatch.json's defaultTier, used as the floor for this workflowScript's ` +
@@ -856,7 +895,6 @@ export function rules(state: State): GuardRule[] {
         //    `isolation: worktree` frontmatter exists to make impossible. `call-children.ts`
         //    enumerates the children of any shape; `isolation.ts` holds the two mechanisms and the
         //    argument for which shape gets which.
-        const shape = dispatchChildren(input, ctx.cwd);
         if (shape.unreadable !== undefined) {
           report(ctx, `[pi-config] dispatch: ${shape.unreadable}`, "warning");
         }
@@ -1075,9 +1113,10 @@ function firstString(input: Record<string, unknown>, keys: readonly string[]): s
 /** Exported for tests: the prompt keys `EXT-03`'s gate and this module agree on. */
 export { AGENT_KEYS, PROMPT_KEYS };
 
-function renderStatus(state: State, cwd: string): string {
+function renderStatus(state: State, cwd: string, lane?: LaneModel): string {
   const cfg = state.settings.dispatch;
   const lines: string[] = [];
+  if (lane !== undefined) lines.push(laneNotice(lane));
   lines.push(
     `dispatch: depth ${state.depth}/${cfg.maxDepth}, session egress ${state.sessionEgress} (${state.egressSource}), ` +
       `default tier ${cfg.defaultTier}`,
@@ -1108,11 +1147,12 @@ function renderStatus(state: State, cwd: string): string {
   }
   lines.push("");
   lines.push(state.registry ? renderRegistry(state.registry, cwd) : "registry not loaded yet");
-  if (state.menu) {
+  const menu = lane !== undefined ? laneMenu(lane) : state.menu;
+  if (menu) {
     // The same text the model is given, shown verbatim: if the human and the model are reading
     // different lists, the one nobody can see is the one that is wrong.
     lines.push("");
-    lines.push(state.menu);
+    lines.push(menu);
   }
   if (state.problems.length > 0) {
     lines.push("");

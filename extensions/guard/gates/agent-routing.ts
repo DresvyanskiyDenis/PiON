@@ -87,5 +87,5 @@ function optionalString(value: string | undefined): string | undefined {
 }
 
 function asEgress(value: string | undefined): EgressClass | undefined {
-  return value === "public" || value === "internal" || value === "confidential" ? value : undefined;
+  return value === "public" || value === "internal" || value === "confidential" || value === "local" ? value : undefined;
 }

@@ -86,7 +86,7 @@ import {
   retryBudget,
   shouldRetry,
 } from "./lib/provider-retry.ts";
-import { readRoutingFile } from "./lib/routing-file.ts";
+import { localProviders, readRoutingFile } from "./lib/routing-file.ts";
 
 export const id = "credentials";
 
@@ -509,7 +509,10 @@ function registerProviderErrorSurfacing(pi: ExtensionAPI): void {
           ...(response?.headers !== undefined ? { headers: response.headers } : {}),
           usage: message.usage,
         });
-        if (shouldRouteZeroTokenEmpty(failure)) {
+        // Local lane: a zero-token empty on a `local`-class provider is retried on that same
+        // provider by `report()`, never hopped to `confidential` — the hop would send the
+        // conversation to a cloud provider, which the lane forbids.
+        if (shouldRouteZeroTokenEmpty(failure) && !localProviders(readRoutingFile()).has(failure.provider)) {
           await handleZeroTokenEmpty(ctx, failure);
         } else {
           report(ctx, failure);

@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "id": "local",
+  "displayName": "Local model (llama-swap / llama.cpp)",
+  "summary": "One model served from this machine over an OpenAI-compatible endpoint (llama-swap, llama.cpp server, vLLM on localhost). Selecting it as the session's model puts the session on the local lane: every sub-agent dispatch and every compaction runs on that one model, and nothing falls back to a remote provider.",
+  "builtIn": false,
+  "default": false,
+  "egress": "local",
+  "concurrency": 1,
+  "requires": [
+    {
+      "kind": "service",
+      "name": "a local OpenAI-compatible server",
+      "required": true,
+      "secret": false,
+      "description": "A server on this machine answering POST /v1/chat/completions for the model you name. The lane has no remote fallback, so if it is down the session fails loudly instead of switching provider.",
+      "howTo": "llama-swap: `llama-swap --config <config.yaml> --listen 127.0.0.1:8888`, then check `curl -s http://127.0.0.1:8888/v1/models`. A plain llama.cpp server or vLLM works the same way."
+    },
+    {
+      "kind": "env",
+      "name": "{{apiKeyEnv}}",
+      "required": true,
+      "secret": true,
+      "description": "The bearer token the backend expects. models.json stores only the $NAME reference, never the value. A server that checks no key still needs the variable set to any non-empty value.",
+      "howTo": "The installer writes it to ~/.pi/secrets.env (chmod 600, outside the tracked tree) or the macOS Keychain, the same as every other provider key."
+    }
+  ],
+  "prompts": [
+    {
+      "id": "baseUrl",
+      "type": "string",
+      "label": "Base URL of the local server, including the /v1 suffix",
+      "help": "PI appends /chat/completions to what you give here. Use a loopback address: this class means the prompt never leaves the machine.",
+      "example": "http://127.0.0.1:8888/v1",
+      "default": "http://127.0.0.1:8888/v1",
+      "required": true,
+      "validate": {
+        "pattern": "^https?://[^\\s]+$",
+        "message": "must be an absolute http(s) URL"
+      }
+    },
+    {
+      "id": "apiKeyEnv",
+      "type": "string",
+      "label": "Name of the environment variable that will hold the backend's API key",
+      "help": "The NAME, not the key. You are asked for the value later.",
+      "example": "LOCAL_API_KEY",
+      "default": "LOCAL_API_KEY",
+      "required": true,
+      "validate": {
+        "pattern": "^[A-Z][A-Z0-9_]*$",
+        "message": "an environment variable name in capitals, e.g. LOCAL_API_KEY"
+      }
+    },
+    {
+      "id": "modelId",
+      "type": "string",
+      "label": "Model id, exactly as the server serves it",
+      "help": "Get the real list with: curl -s <baseUrl>/models. The lane runs on this one model.",
+      "example": "my-org/my-model-GGUF",
+      "required": true
+    },
+    {
+      "id": "contextWindow",
+      "type": "number",
+      "label": "Context window of the loaded model, in tokens",
+      "help": "The window the server really allows, not the model card's maximum. On the lane compaction triggers at 75% of this number, so an overstated window means the session overflows before it compacts.",
+      "example": 131072,
+      "default": 131072,
+      "required": true
+    },
+    {
+      "id": "maxTokens",
+      "type": "number",
+      "label": "Maximum output tokens per reply",
+      "example": 32768,
+      "default": 32768,
+      "required": true
+    }
+  ],
+  "tiers": {
+    "strong": "local/{{modelId}}",
+    "light": "local/{{modelId}}"
+  },
+  "provider": {
+    "baseUrl": "{{baseUrl}}",
+    "api": "openai-completions",
+    "apiKey": "${{apiKeyEnv}}",
+    "compat": {
+      "supportsDeveloperRole": false,
+      "supportsReasoningEffort": false,
+      "supportsUsageInStreaming": false,
+      "supportsFinishReason": false,
+      "maxTokensField": "max_tokens"
+    },
+    "models": [
+      {
+        "id": "{{modelId}}",
+        "name": "[local] {{modelId}}",
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "off": null,
+          "minimal": null,
+          "low": null,
+          "medium": null,
+          "high": null,
+          "xhigh": null,
+          "max": null
+        },
+        "input": [
+          "text"
+        ],
+        "contextWindow": "{{contextWindow}}",
+        "maxTokens": "{{maxTokens}}",
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        }
+      }
+    ]
+  },
+  "notes": [
+    "THE LOCAL LANE. When the session's active model belongs to this provider, the harness treats the whole session as local: every sub-agent dispatch runs on the session's model (tier names and explicit provider/model pins are both rewritten to it, and each rewrite is reported), compaction runs on it and never on a remote route, and the remote-fallback hop after an empty reply is not taken. Off the lane nothing changes. This is a deliberate exception to the rule that a dispatch never silently substitutes a model, decided 2026-10-27; see docs/adr/0009-local-provider-lane.md.",
+    "NO FAILOVER, EVER. If the local server is down, the turn aborts with the provider, model, error class, message and cause chain. There is no retry on another provider.",
+    "THE FOUR ZEROS ARE WRITTEN ON PURPOSE. A local model has no per-token price, so the cost is four literal zeros authored in this fragment, not zeros the installer filled in because nobody asked. The status line reads a flat 0.000 for this provider and that is correct.",
+    "THE ALL-NULL thinkingLevelMap AND supportsReasoningEffort false SAY ONLY THAT NO REASONING LEVEL IS STEERABLE HERE. A local server that forces thinking on still returns it as reasoning_content, which PI shows; the harness just never sends reasoning_effort.",
+    "CONCURRENCY IS 1. One local model on one machine serves one request at a time; a larger number only queues behind the model swap. Sub-agents on the lane therefore run one after another.",
+    "SMALL LOCAL MODELS CALL TOOLS UNEVENLY. The lane works, but a weak model may fail to emit a dispatch or edit call at all; that shows up as a plain model failure, not as a harness fault."
+  ],
+  "verify": [
+    {
+      "label": "the server is up and serves your model id",
+      "command": "curl -s \"$(jq -r '.providers.local.baseUrl' config/models.json)/models\" | jq -r '.data[].id'"
+    },
+    {
+      "label": "PI sees the provider as configured",
+      "command": "pi --list-models | grep '^local/'"
+    },
+    {
+      "label": "PI can complete one turn through it",
+      "command": "pi -p 'reply with OK' --model \"local/$(jq -r '.providers.local.models[0].id' config/models.json)\""
+    }
+  ]
+}

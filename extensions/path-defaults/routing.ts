@@ -24,7 +24,7 @@ import { THINKING_LEVELS, isThinkingLevel, splitThinkingSuffix, type ThinkingLev
 import { routingConfigPath } from "./paths.ts";
 
 /** The three classes `config/routing.json`'s `egress` map uses (`extensions/lib/dispatch-veto.ts`). */
-export type SessionEgressClass = "public" | "internal" | "confidential";
+export type SessionEgressClass = "public" | "internal" | "confidential" | "local";
 
 /** No TypeScript parameter properties on purpose — `extensions/hooks/schema.ts`'s own note:
  *  Node's `--test` runs `.ts` through type-stripping only, and `constructor(readonly x: T)` is a
@@ -126,7 +126,7 @@ export function resolveRoutingTier(raw: string, tier: string, routingPath: strin
     thinkingSuffix === "" ? declaredLevel : (thinkingSuffix.slice(1) as ThinkingLevel);
 
   const egressRaw = parsed.egress?.[provider];
-  if (egressRaw !== "public" && egressRaw !== "internal" && egressRaw !== "confidential") {
+  if (egressRaw !== "public" && egressRaw !== "internal" && egressRaw !== "confidential" && egressRaw !== "local") {
     throw new UnknownProviderEgressError(provider, routingPath);
   }
 

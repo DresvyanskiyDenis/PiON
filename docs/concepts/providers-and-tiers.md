@@ -119,6 +119,9 @@ injects a **Sub-agent model selection** block into the system prompt at `before_
 tier list with each tier's resolved target and effective reasoning effort, then every concrete id in
 the session's registry, grouped by provider.
 
+On the [local lane](../configuration/local.md) the block carries one extra line saying every
+dispatch runs on `local/<id>`, and `/agents` says the same.
+
 The list is **annotated, not filtered** — each provider's egress class is printed beside it, and a
 provider `routing.json` does not classify reads as `unlabelled`. It used to be filtered by the
 session's class, on the reasoning that a model listed but unusable is a trap; withdrawing the

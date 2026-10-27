@@ -12,9 +12,10 @@
  *     confidential, so `tier:deep` means databricks instead of copilot", i.e. it would **silently
  *     substitute a different provider and a different model** for the same tier. That is the exact
  *     behaviour `EXT-08` was cancelled for. Here, a tier resolves to one model, always the same one.
- *  2. The egress vocabulary is `EXT-01`'s three classes (`public` / `internal` / `confidential`),
- *     not the spec's four. `routing.json` maps each configured provider onto exactly one of them,
- *     so a fourth class would be a second vocabulary for the same fact.
+ *  2. The egress vocabulary is `EXT-01`'s three classes (`public` / `internal` / `confidential`)
+ *     plus `local` (a provider on this machine, which defines the local lane), not the spec's four.
+ *     `routing.json` maps each configured provider onto exactly one of them, so another class
+ *     would be a second vocabulary for the same fact.
  *
  * The class is a **label**. Egress containment was withdrawn on 2026-08-13 (see
  * `lib/dispatch-veto.ts`), so nothing in this module refuses a target for its class, and a provider
@@ -340,13 +341,13 @@ export interface SessionEgressResolution {
 export function resolveSessionEgress(routing: RoutingConfig, input: SessionEgressInput): SessionEgressResolution {
   const declared = input.declared?.trim();
   if (declared) {
-    if (declared === "public" || declared === "internal" || declared === "confidential") {
+    if (declared === "public" || declared === "internal" || declared === "confidential" || declared === "local") {
       return { egress: declared, source: "declared" };
     }
     return {
       egress: input.defaultEgress,
       source: "default",
-      note: `PI_ROUTING_EGRESS="${declared}" is not one of public|internal|confidential; using ${input.defaultEgress}`,
+      note: `PI_ROUTING_EGRESS="${declared}" is not one of public|internal|confidential|local; using ${input.defaultEgress}`,
     };
   }
   if (input.activeProvider) {

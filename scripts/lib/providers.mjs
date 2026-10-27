@@ -47,7 +47,7 @@ const TOP_LEVEL_KEYS = new Set([
 const REQUIRED_KEYS = ["schemaVersion", "id", "displayName", "summary", "builtIn", "default",
   "egress", "concurrency", "requires", "prompts", "provider", "notes"];
 
-const EGRESS_CLASSES = ["public", "internal", "confidential"];
+const EGRESS_CLASSES = ["public", "internal", "confidential", "local"];
 
 // A value the fragment defers to an answer: the string is EXACTLY one {{token}}.
 // Only `egress`, `concurrency` and `requires[].name` may do this, and only because for a gateway
@@ -128,7 +128,7 @@ function loadFragment(file) {
   const egressToken = deferredTo(frag.egress);
   if (egressToken) {
     // Deferred, so it cannot be checked here — but the CHOICES can be, and that is the whole
-    // value: a choice prompt whose options are exactly the three classes makes an out-of-range
+    // value: a choice prompt whose options are all inside the class vocabulary makes an out-of-range
     // egress unreachable at install time instead of caught after generation.
     const p = (frag.prompts ?? []).find((q) => q.id === egressToken);
     if (!p) fatal(`${where}: egress defers to {{${egressToken}}}, which is not a prompt of this fragment`);
@@ -139,7 +139,7 @@ function loadFragment(file) {
       }
     }
   } else if (!EGRESS_CLASSES.includes(frag.egress)) {
-    fatal(`${where}: egress "${frag.egress}" must be public, internal or confidential`);
+    fatal(`${where}: egress "${frag.egress}" must be one of ${EGRESS_CLASSES.join(", ")}`);
   }
   const concurrencyToken = deferredTo(frag.concurrency);
   if (concurrencyToken) {
