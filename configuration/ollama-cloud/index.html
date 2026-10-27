@@ -917,6 +917,8 @@
       
         
       
+        
+      
     
     
     
@@ -1317,6 +1319,34 @@
     
   
     openai-compatible — gateways (LiteLLM, vLLM, OpenRouter, in-house)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    local — one model on this machine
   
 
     
@@ -3974,6 +4004,8 @@
       
         
       
+        
+      
     
     
     
@@ -4239,6 +4271,34 @@
     
   
     ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-local-provider-lane/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0009: A session on a local model runs every dispatch and every compaction on that model, with no remote fallback
   
 
     
@@ -4624,8 +4684,8 @@ default in the provider picker.</p>
 <div class="admonition danger">
 <p class="admonition-title">A local <code>ollama</code> is a different thing, and the difference is not cosmetic</p>
 <p>A server on your own machine is <a href="../openai-compatible/"><code>openai-compatible</code></a> answered with
-<code>http://127.0.0.1:11434/v1</code> — that is what retired this repository's old <code>local</code> fragment, and
-nothing here changes it.</p>
+<code>http://127.0.0.1:11434/v1</code> — or the <a href="../local/"><code>local</code></a> fragment, which also arms the local
+lane. Nothing here changes that.</p>
 <p>Two things differ from local in ways that bite. The hosted endpoint <strong>requires a key</strong> (an
 unauthenticated <code>POST /v1/chat/completions</code> returns 401, measured 2026-08-29) where a local one
 accepts any string. And the prompt <strong>leaves your machine</strong> — see <a href="#egress-is-public">egress</a>

@@ -917,6 +917,8 @@
       
         
       
+        
+      
     
     
     
@@ -1361,6 +1363,34 @@
     
   
     openai-compatible — gateways (LiteLLM, vLLM, OpenRouter, in-house)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    local — one model on this machine
   
 
     
@@ -4018,6 +4048,8 @@
       
         
       
+        
+      
     
     
     
@@ -4283,6 +4315,34 @@
     
   
     ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-local-provider-lane/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0009: A session on a local model runs every dispatch and every compaction on that model, with no remote fallback
   
 
     
@@ -5209,7 +5269,7 @@ unverified.</p>
 <p><code>config/providers/*.json</code> are self-describing templates: the block that goes into <code>models.json</code>,
 the questions the installer must ask, the credentials needed, the egress class, the concurrency
 cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as comments.</p>
-<p>Eight ship:</p>
+<p>Nine ship:</p>
 <table>
 <thead>
 <tr>
@@ -5261,6 +5321,12 @@ cap, and — importantly — the <code>notes[]</code> that JSON cannot carry as 
 <td>no</td>
 <td><code>confidential</code></td>
 <td>Model ids are your own serving-endpoint names; the <code>compat</code> block is measured. Asks per endpoint whether it is pay-per-token or billed by DBU-hour</td>
+</tr>
+<tr>
+<td><a href="../local/"><code>local.json</code></a></td>
+<td>no</td>
+<td><code>local</code></td>
+<td>One model on this machine (llama-swap, llama.cpp, vLLM). Selecting it as the session model arms the local lane: dispatch and compaction stay on that model, with no remote fallback. Four written zeros</td>
 </tr>
 <tr>
 <td><a href="../openai-compatible/"><code>openai-compatible.json</code></a></td>

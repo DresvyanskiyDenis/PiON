@@ -910,6 +910,8 @@
       
         
       
+        
+      
     
     
     
@@ -1166,6 +1168,34 @@
     
   
     openai-compatible — gateways (LiteLLM, vLLM, OpenRouter, in-house)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    local — one model on this machine
   
 
     
@@ -3819,6 +3849,8 @@
       
         
       
+        
+      
     
     
     
@@ -4087,6 +4119,34 @@
     
   
     ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="0009-local-provider-lane/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0009: A session on a local model runs every dispatch and every compaction on that model, with no remote fallback
   
 
     
@@ -4381,7 +4441,7 @@
 
 
 <h1 id="architecture-decisions">Architecture decisions<a class="headerlink" href="#architecture-decisions" title="Permanent link">&para;</a></h1>
-<p>Eight decisions shape most of what is surprising about this repository. They are recorded here so a
+<p>Nine decisions shape most of what is surprising about this repository. They are recorded here so a
 reader who disagrees can see the argument rather than guess at it, and so a contributor who wants to
 reverse one knows what they are arguing against.</p>
 <table>
@@ -4431,6 +4491,11 @@ reverse one knows what they are arguing against.</p>
 <tr>
 <td><a href="0008-peer-compact-is-a-control-lane-not-a-chat-message/">0008</a></td>
 <td>A peer's request to compact travels on a control lane, never as a chat message the recipient has to read</td>
+<td>Accepted</td>
+</tr>
+<tr>
+<td><a href="0009-local-provider-lane/">0009</a></td>
+<td>A session whose active model is a local one runs every dispatch and every compaction on that model, with no remote fallback</td>
 <td>Accepted</td>
 </tr>
 </tbody>

@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://dresvyanskiydenis.github.io/PiON/configuration/routing/">
       
       
-        <link rel="prev" href="../openai-compatible/">
+        <link rel="prev" href="../local/">
       
       
         <link rel="next" href="../settings/">
@@ -917,6 +917,8 @@
       
         
       
+        
+      
     
     
     
@@ -1176,6 +1178,34 @@
     
   
     openai-compatible — gateways (LiteLLM, vLLM, OpenRouter, in-house)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    local — one model on this machine
   
 
     
@@ -4063,6 +4093,8 @@
       
         
       
+        
+      
     
     
     
@@ -4328,6 +4360,34 @@
     
   
     ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-local-provider-lane/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0009: A session on a local model runs every dispatch and every compaction on that model, with no remote fallback
   
 
     
@@ -4959,8 +5019,9 @@ useful message than the check gives you.</p>
 <h2 id="egress"><code>egress</code><a class="headerlink" href="#egress" title="Permanent link">&para;</a></h2>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">"egress"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"github-copilot"</span><span class="p">:</span><span class="w"> </span><span class="s2">"public"</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p>One class per provider, from the vocabulary <code>public</code> | <code>internal</code> | <code>confidential</code>. <strong>The class is a
-label. It is reported, never compared.</strong></p>
+<p>One class per provider, from the vocabulary <code>public</code> | <code>internal</code> | <code>confidential</code> | <code>local</code>. <strong>The class is a
+label. It is reported, never compared</strong> — with one exception: <code>local</code> is the class of the
+<a href="../local/"><code>local</code> provider</a>, and a session whose active model belongs to it is on the local lane.</p>
 <p>Pick the class by asking <em>where does the traffic physically go, and who can read it there</em> — not by
 how much you trust the vendor. A third-party API is <code>public</code> even when the vendor is excellent.</p>
 <p>Where you see it: the startup line, <code>/agents</code>, the sub-agent model-selection block injected into the

@@ -915,6 +915,8 @@
       
         
       
+        
+      
     
     
     
@@ -1174,6 +1176,34 @@
     
   
     openai-compatible — gateways (LiteLLM, vLLM, OpenRouter, in-house)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    local — one model on this machine
   
 
     
@@ -3985,6 +4015,8 @@
       
         
       
+        
+      
     
     
     
@@ -4250,6 +4282,34 @@
     
   
     ADR 0008: A peer's request to compact travels on a control lane, not as a chat message
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/0009-local-provider-lane/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR 0009: A session on a local model runs every dispatch and every compaction on that model, with no remote fallback
   
 
     
@@ -4802,6 +4862,11 @@ start puts it in force and prints one line:</p>
 <p>The number used to be <code>contextWindow − reserveTokens</code> — PI's own trigger, and therefore a different
 number on every model, whichever one you last ran <code>/autocompact</code> on. A flat number is a line you
 can state once and recognise later.</p>
+<p>On the <a href="../local/">local lane</a> the number is capped: the threshold becomes
+<code>min(absoluteTokens, 0.75 x the model's contextWindow)</code>. A flat 200 000 would never fire on a
+131 072-token local model, and PI's own trigger (<code>contextWindow - reserveTokens</code>) leaves too little
+room to compact on a local model. Off the lane the cap does not apply and the flat number is
+unchanged.</p>
 <p>Three things write this key, and only these three:</p>
 <table>
 <thead>
