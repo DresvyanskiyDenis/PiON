@@ -100,9 +100,9 @@ A project may carry its own `.pi/settings.json`, deep-merged **over** the global
 ```json
 {
   "defaultProvider": "databricks",
-  "defaultModel": "databricks-claude-sonnet-4-5",
+  "defaultModel": "databricks-claude-sonnet-5-5",
   "defaultThinkingLevel": "medium",
-  "enabledModels": ["databricks-claude-sonnet-4-5", "databricks-gpt-oss-120b"],
+  "enabledModels": ["databricks-claude-sonnet-5-5", "databricks-gpt-oss-120b"],
   "skills": [".pi/skills"],
   "prompts": [".pi/prompts"],
   "packages": [],

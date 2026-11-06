@@ -244,7 +244,7 @@
 // USAGE
 // ============================================================================================
 //
-//   bin/pi-run -p "say ok" --model databricks/databricks-claude-sonnet-4-5   # --mode json is appended
+//   bin/pi-run -p "say ok" --model databricks/databricks-claude-sonnet-5-5   # --mode json is appended
 //   bin/pi-run -p "say ok" --mode json --model local/qwen    # already json: left alone
 //   bin/pi-run --help                                        # this table, then exit 0
 //

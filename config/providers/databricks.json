@@ -78,7 +78,7 @@
       "type": "string",
       "label": "Serving-endpoint name for your main / confidential model",
       "help": "Model ids on Databricks are the SERVING-ENDPOINT NAMES in your own workspace. They are per-workspace and nobody can guess them, including the pay-per-token ones, which are pre-provisioned per region and named with a `databricks-` prefix. Discover them with: databricks serving-endpoints list --output json | jq -r '.[].name'",
-      "example": "databricks-claude-sonnet-4-5",
+      "example": "databricks-claude-sonnet-5-5",
       "required": true
     },
     {
